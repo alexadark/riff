@@ -1,4 +1,14 @@
-# RIFF
+```
+██████╗ ██╗███████╗███████╗
+██╔══██╗██║██╔════╝██╔════╝
+██████╔╝██║█████╗  █████╗
+██╔══██╗██║██╔══╝  ██╔══╝
+██║  ██║██║██║     ██║
+╚═╝  ╚═╝╚═╝╚═╝     ╚═╝
+```
+
+> **Build like a band of six. Ship like one.**
+> Solo dev framework for Claude Code.
 
 Lean, profile-driven coding agent framework for Claude Code. Clone, answer 13 questions (or pick a preset), build your own version.
 
