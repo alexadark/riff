@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+
+# RIFF default: lint is informational, typecheck + tests + build gate merges.
+# Rationale: cosmetic drift (format quirks, unused imports) should not block PRs.
+# Real bugs are caught by typecheck and tests. Swap `npm` → `pnpm` and
+# `actions/setup-node` → `pnpm/action-setup` if the project uses pnpm.
+
+jobs:
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint (non-blocking, informational)
+        run: npm run lint || true
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # If vitest.config.ts defines multiple projects (e.g. unit + storybook),
+      # run only the jsdom-based ones here. Browser-mode projects (Storybook
+      # stories, Playwright component tests) need browsers installed and belong
+      # in the E2E workflow. Adjust `--project=unit` to match your project name.
+      - name: Unit Tests
+        run: npm run test -- --project=unit
+
+      - name: Build
+        run: npm run build

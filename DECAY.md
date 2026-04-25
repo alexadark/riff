@@ -1,0 +1,66 @@
+# DECAY.md
+
+> Every 3 months, audit every component. Pruning protects against framework bloat.
+
+## Review protocol
+
+For each component below, answer:
+
+1. When did I last use it?
+2. What real problem did it solve?
+3. If unused: why? Remove it?
+4. If used: is there a simpler version?
+
+## Components to audit
+
+- [ ] /riff:start
+- [ ] /riff:next
+- [ ] /riff:status
+- [ ] /riff:map
+- [ ] /riff:check
+- [ ] /riff:quick
+- [ ] /riff:loop
+- [ ] /riff:debug
+- [ ] /riff:init
+- [ ] agents/planner.md
+- [ ] agents/executor.md
+- [ ] agents/verifier.md
+- [ ] agents/explorer.md
+- [ ] agents/debugger.md
+- [ ] agents/security-reviewer.md
+- [ ] hooks/\* (each individually)
+- [ ] riff-loop.sh
+- [ ] taste.md
+- [ ] REGISTRY.md chain
+- [ ] references/taste/stacks/\* (one entry per stack file — see "Stack drift audit" below)
+
+## Stack drift audit
+
+Stack-specific rules in `references/taste/stacks/*.md` were written against a snapshot of each framework. Frameworks ship constantly — these files go stale silently and the planner builds on stale beliefs, producing R3 deviations that look like agent failures but are actually rule rot.
+
+For each stack file, every quarter:
+
+1. Use `ref_search_documentation` (Ref MCP) on the framework's current docs for the patterns the file covers.
+2. Diff the rules against the current docs. Flag any rule that references a deprecated API, conflicts with the current recommended pattern, or was written for a superseded major version.
+3. Update the file and bump a `last_audited: YYYY-MM-DD` line at the top.
+4. If a stack file has not been touched in a project for 6+ months, audit it before reusing.
+
+The 30 minutes per quarter saves multiple debugging sessions later.
+
+## Last review: never
+
+## Considered and rejected (do not re-debate without new evidence)
+
+- **Docker sandbox for AFK loop** — rejected 2026-04-07. Reason: solo work, no NDA, git + pre-commit hooks already cover the real risks. Revisit only if collaborating on RIFF with others.
+- **expertise.yaml with auto-validation against codebase** — rejected 2026-04-07. Reason: overkill for solo, markdown expertise notes with human validation are enough.
+- **Meta-agents that create other agents** — rejected 2026-04-07. Reason: classic framework trap, high complexity for no measurable benefit in solo context.
+- **ADWs in Python (orchestrators replacing riff-loop.sh)** — rejected 2026-04-07. Reason: massive refactor, current shell script works.
+- **Worktrees for parallel phases** — rejected 2026-04-07. Reason: branch-per-phase already provides isolation at the cost level that matters.
+- **Conversation history mining from JSONL logs** — rejected 2026-04-07. Reason: solo, handoff/pickup + MEMORY.md already cover the use case; fragile parsing.
+- **/riff:teach context injection from references/** — rejected 2026-04-07. Reason: already covered by `@file` syntax in prompts.
+- **Self-improving hooks via log analysis** — rejected 2026-04-07. Reason: hooks must be stable and readable, auto-modification is an anti-pattern.
+- **STATS.md / metrics dashboard** — rejected 2026-04-07. Reason: solo, will never look at it.
+- **REGISTRY.md full AST auto-generation** — rejected 2026-04-07. Reason: downgraded to a simple pre-commit reminder hook (Task 2.4). AST parser is fragile and over-engineered for the real need.
+- **Multi-instance Octopus search** — rejected 2026-04-07. Reason: overkill for solo.
+- **Branch-per-phase optional (`merge_strategy: direct`)** — rejected 2026-04-07. Reason: current branch-per-phase already works.
+- **CostSentinel hook (token budget limit)** — rejected 2026-04-07. Reason: user on $200 Claude plan, never hit limits.

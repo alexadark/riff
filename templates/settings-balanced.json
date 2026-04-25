@@ -1,0 +1,46 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/riff/destructive-guard.sh \"$TOOL_INPUT\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/riff/boundary-check.sh \"$TOOL_INPUT\""
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/riff/typecheck-gate.sh \"$TOOL_INPUT\""
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/riff/lint-gate.sh \"$TOOL_INPUT\""
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/riff/test-gate.sh \"$TOOL_INPUT\""
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/riff/route-auth-guard.sh \"$TOOL_INPUT\""
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/riff/idor-detector.sh \"$TOOL_INPUT\""
+          }
+        ]
+      }
+    ]
+  }
+}

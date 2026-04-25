@@ -1,0 +1,29 @@
+.DS_Store
+node_modules/
+
+# RIFF Framework - build artifacts (not part of the public framework)
+BUILDING-RIFF.md
+
+# Local-only notes (not part of the public framework)
+REVIEW.md
+DECISIONS.md
+LEGACY-README.md
+IMPROVEMENTS.md
+
+# Research references used to build RIFF (keep taste/ which is part of the framework)
+references/*
+!references/taste/
+
+# Dev session artifacts - never ship with the framework
+specs/handoffs/
+specs/plans/
+
+# User-specific config (written by /riff:onboard)
+profile.yaml
+profile.yaml.bak
+
+# Claude Code local config when working on the framework itself
+.claude/
+
+# Per-project artifacts (here as safety, framework root shouldn't have these)
+.planning/

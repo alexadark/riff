@@ -1,0 +1,31 @@
+name: "{{PROJECT_NAME}}"
+description: "{{PROJECT_DESCRIPTION}}"
+created: "{{DATE}}"
+
+# Optional: override profile.yaml's budget.default_quality for this project only.
+# Values: frugal | balanced | max
+# Typical use: profile default is `balanced` for side-projects, pro/client projects override to `max`.
+# budget_quality: max
+
+# Status: todo | in-progress | done | blocked | skipped
+# Priority: P0 (critical) | P1 (high) | P2 (medium) | P3 (low)
+# Mode: HITL (needs human) | AFK (can run unattended) | tdd (Red-Green test-first discipline)
+# Modes can be combined as a list: mode: [AFK, tdd]
+# Default: AFK. Mark HITL ONLY when manual human verification is unavoidable
+#   (OAuth/SSO browser flow, real payment checkout, DNS/prod cutover, irreversible migrations).
+#   Code-only auth/payment/security work stays AFK — security-reviewer + adversarial Codex cover it.
+# Note: Auth, payment, business-rules, public-API, and bug-fix phases should be tdd
+
+phases:
+  - id: 1
+    slug: "phase-slug"
+    title: "Phase Title"
+    status: todo
+    priority: P0
+    mode: AFK
+    depends_on: []
+    description: "What this phase delivers"
+    # Optional overrides (omit to use defaults):
+    # simplify: auto       # auto | true | false — controls Step 5b simplifier (default: auto)
+    # auto_debug: true     # true | false — auto-debug on executor/review failures (default: true)
+    # debug_model: sonnet  # sonnet | opus — override debugger model (default: opus)
