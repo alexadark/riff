@@ -13,6 +13,8 @@ Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR
 
 **Inline vs sub-agent:** Steps 1–4, 8, 9, 10 run inline. Steps 5, 5b, 6, 7, 7b, 8a spawn sub-agents.
 
+**Auto-gate heuristics:** see [`protocols/AUTO-TRIGGERS.md`](../protocols/AUTO-TRIGGERS.md). Design rationale: see [`DECISIONS.md`](../DECISIONS.md) (D25–D27).
+
 ## Arguments
 
 - No args → auto-pick next (highest priority, deps met, not blocked)
@@ -93,9 +95,7 @@ Runs before review so reviewers audit simplified code.
 
 - `false` → skip
 - `true` → always run
-- `auto` → run ONLY if the phase is a refactor/consolidation (name or tags contain any of: `refactor`, `consolidation`, `cleanup`, `simplify`, `sweep`, `thinning`, `dedup`). Skip otherwise — including new-feature phases even when ≥3 files changed.
-
-**Rationale:** simplifying *newly-written* code (fresh from a competent executor) rarely finds >20 LOC of real savings for 100k+ tokens of sub-agent cost. The ROI is on code that has accumulated crust across phases. If you suspect fresh code is over-engineered, set `simplify: true` explicitly — don't rely on `auto` to catch it.
+- `auto` → see [`AUTO-TRIGGERS.md#simplifier-auto`](../protocols/AUTO-TRIGGERS.md#simplifier-auto)
 
 **If running:** Agent tool, `model: "haiku"`.
 
@@ -127,11 +127,7 @@ Launch BOTH in a single message.
 
 - `false` → skip
 - `true` → always run
-- `auto` → run if the phase touches any of: auth, secrets, HMAC/crypto/tokens, RLS/multi-tenancy, payments, webhooks/callbacks, public routes, DB migrations, or is `priority: critical`. Skip on UI-only, docs, pure refactor, and low-priority feature phases.
-
-Heuristics for `auto` (grep the diff file list): paths under `app/lib/server/auth*`, `app/lib/server/env.ts`, `app/server/services/*-push.ts`, `app/routes/api.webhooks.*`, `app/routes/api.*-callback.*`, any public route (no `requireAuth`), any `drizzle/*.sql`, or any schema file introducing new PII fields.
-
-**Rationale:** Codex found the Phase 94.5 HIGH (`consumeInvite` expiry bypass) that Sonnet security review missed — its value is on security-critical code. On pure UI/refactor work it mostly finds style nits for ~150k tokens. Keep the sharpness, spend it where it matters.
+- `auto` → see [`AUTO-TRIGGERS.md#adversarial-auto`](../protocols/AUTO-TRIGGERS.md#adversarial-auto)
 
 **If running:** prompt includes phase goal (one line), branch, instruction _"Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_
 
@@ -145,12 +141,7 @@ Heuristics for `auto` (grep the diff file list): paths under `app/lib/server/aut
 
 ### Step 7b: Improver — sub-agent (background, gated)
 
-**Gate:** skip by default. Run only if ONE of these is true:
-
-- `improver: true` in this phase's ROADMAP.yaml entry (explicit opt-in)
-- SUMMARY.md contains the strings `"new pattern"`, `"first use of"`, or `"novel"` (heuristic: phase introduced something the executor thinks is worth extracting)
-
-**Rationale:** per-phase improver runs duplicate learnings across phases (same patterns noticed 3x), inflate `.planning/expertise/.pending/`, and prematurely trip the 3-proposal AskUserQuestion threshold in Step 10. Better: run it batch via a dedicated `/riff:improver` invocation every ~3 phases, which can diff the last N SUMMARY.md files together and produce de-duplicated learnings.
+**Gate:** skip by default. See [`AUTO-TRIGGERS.md#improver-heuristic`](../protocols/AUTO-TRIGGERS.md#improver-heuristic) for run conditions.
 
 **If running:** Agent tool, `model: "haiku"`, `run_in_background: true`.
 
@@ -235,9 +226,7 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
   - debugger's verification block in DEBUG.md reports tests green + tsc clean
   - every finding in the originating artifact has a corresponding new test locking the fix
 
-  In that case, accept RESOLVED as the verdict without a re-run. The re-run's marginal value (catching regressions introduced by the fixes) is low when the debugger is methodical and each fix is test-pinned. Skipping saves ~30k-150k per FAIL cycle.
-
-  Surface this decision in the Step 10 report: `Re-run skipped: RESOLVED with pinning tests`.
+  In that case, accept RESOLVED as the verdict without a re-run. Surface in Step 10 report: `Re-run skipped: RESOLVED with pinning tests`.
 
 - DEBUG.md `UNRESOLVED` → halt, surface DEBUG.md to user
 
