@@ -66,6 +66,18 @@ check_destructive_sql() {
 # Drizzle ORM
 # -------------------------------------------------------------------------
 if [ -n "$DRIZZLE_MIGRATIONS" ] || ([ -n "$SCHEMA_CHANGES" ] && [ -f "drizzle.config.ts" -o -f "drizzle.config.js" ]); then
+  # Schema drift check: schema staged but no migration staged
+  if [ -n "$SCHEMA_CHANGES" ] && [ -z "$DRIZZLE_MIGRATIONS" ] && [ "${RIFF_SKIP_SCHEMA_DRIFT:-0}" != "1" ]; then
+    echo -e "  ${RED}BLOCKED: schema drift detected${NC}"
+    echo "  Schema files staged: $SCHEMA_CHANGES"
+    echo "  No corresponding migration staged in drizzle/."
+    echo "  Run: npx drizzle-kit generate"
+    echo "  Then stage the new migration file and re-commit."
+    echo "  To bypass (intentional drift, e.g. comment-only schema change): RIFF_SKIP_SCHEMA_DRIFT=1 git commit ..."
+    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+    return 2>/dev/null || exit $ISSUES_FOUND
+  fi
+
   echo -n "  Scanning migration SQL for destructive operations... "
 
   DESTRUCTIVE=0
@@ -120,6 +132,18 @@ fi
 # Prisma ORM
 # -------------------------------------------------------------------------
 if [ -n "$PRISMA_MIGRATIONS" ] || ([ -n "$SCHEMA_CHANGES" ] && [ -f "prisma/schema.prisma" ]); then
+  # Schema drift check: schema staged but no migration staged
+  if [ -n "$SCHEMA_CHANGES" ] && [ -z "$PRISMA_MIGRATIONS" ] && [ "${RIFF_SKIP_SCHEMA_DRIFT:-0}" != "1" ]; then
+    echo -e "  ${RED}BLOCKED: schema drift detected${NC}"
+    echo "  Schema files staged: $SCHEMA_CHANGES"
+    echo "  No corresponding migration staged in prisma/migrations/."
+    echo "  Run: npx prisma migrate dev --name <slug>"
+    echo "  Then stage the new migration file and re-commit."
+    echo "  To bypass (intentional drift, e.g. comment-only schema change): RIFF_SKIP_SCHEMA_DRIFT=1 git commit ..."
+    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+    return 2>/dev/null || exit $ISSUES_FOUND
+  fi
+
   echo -n "  Scanning Prisma migration SQL for destructive operations... "
 
   DESTRUCTIVE=0
