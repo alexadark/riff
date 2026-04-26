@@ -83,7 +83,7 @@ Edit by hand anytime, or run `/riff:preferences` to re-answer any subset of ques
 - **`expert`**: team specialist, terse, free jargon, takes initiative, balanced budget. Closest to vanilla Claude Code.
 - **`neutre`**: safe middle, standard length, first-mention jargon, balanced budget, no notifications.
 - **`apprentissage`**: cautious, detailed explanations, no jargon, always asks, balanced budget. Learner-friendly.
-- **`alexandra`**: cautious, terse, no jargon, important-only asks, max budget. Full pipeline.
+- **`alex`**: cautious, terse, no jargon, important-only asks, max budget. Full pipeline.
 
 ### Budget resolution
 

@@ -281,7 +281,7 @@ notifications:
   channel: none
 ```
 
-### alexandra — validated against actual setup
+### alex — validated against actual setup
 
 ```yaml
 user:
