@@ -103,6 +103,20 @@ Prompt: branch name, phase N-slug, instruction _"Read `agents/simplifier.md`. Sc
 
 ---
 
+### Step 5c: Scope check (inline)
+
+Before review, verify executor honored the plan. Run scope-checker sub-agent.
+
+**Agent:** Agent tool, model: haiku. Prompt: _"Read agents/scope-checker.md. Branch: riff/phase-N-slug. Read .planning/phases/N-slug/PLAN.md and SUMMARY.md. Diff task lists. Return MATCH | DROPPED: <list> | MALFORMED: <reason>."_
+
+**On DROPPED:** STOP. AskUserQuestion: for each dropped task, pick "completed (mark done in SUMMARY)" | "defer to new phase (will run /riff:add-phase)" | "rejected (write rationale)". Apply the user's choice for each, then re-run Step 5c. Loop until MATCH.
+
+**On MALFORMED:** surface the parsing error to user, ask whether to skip (acceptable for unstructured PLAN.md formats) or fix the format and retry.
+
+**On MATCH:** proceed to Step 6.
+
+---
+
 ### Steps 6 + 7: Adversarial + Security — IN PARALLEL
 
 Launch BOTH in a single message.

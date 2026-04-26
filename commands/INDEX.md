@@ -60,3 +60,7 @@ All 16 RIFF slash commands at a glance. Use this as a routing table when you've 
 - **Process pending expertise updates** → `/riff:review-expertise`
 - **Log a production incident I just hit** → `/riff:incident`
 - **Quarterly review of incidents** → `/riff:incident-review`
+
+## Agents referenced by commands
+
+- `agents/scope-checker.md` — invoked by `/riff:next` Step 5c to diff PLAN.md vs SUMMARY.md and flag silently dropped tasks before review.
