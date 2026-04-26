@@ -41,7 +41,7 @@ All 16 RIFF slash commands at a glance. Use this as a routing table when you've 
 | `/riff:check [phase]`    | Re-run security + adversarial review on an already-built phase (e.g. before final merge).                 | Updated `REVIEW.md`, security report           |
 | `/riff:review-expertise` | Walk through `.planning/expertise/.pending/` files written by the improver. Accept or reject each lesson. | Updated `.planning/expertise/<agent>.md` files |
 | `/riff:incident`         | Log a production incident into `INCIDENTS.md` (append-only regression ledger).                            | New entry in `INCIDENTS.md`                    |
-| `/riff:incident-review`  | Quarterly: read `INCIDENTS.md`, propose `taste.md` rules / adversarial triggers / test patterns.          | `.planning/incident-review-YYYY-MM-DD.md` draft |
+| `/riff:incident-review`  | Quarterly: read `INCIDENTS.md`, propose `taste.md` rules / adversarial triggers / test patterns. Codex adversarial pass on the draft (skip with `--no-adversarial`). | `.planning/incident-review-YYYY-MM-DD.md` draft |
 
 ## Cheat sheet — "I want to..."
 
@@ -64,3 +64,7 @@ All 16 RIFF slash commands at a glance. Use this as a routing table when you've 
 ## Agents referenced by commands
 
 - `agents/scope-checker.md` — invoked by `/riff:next` Step 5c to diff PLAN.md vs SUMMARY.md and flag silently dropped tasks before review.
+- `agents/architecture-adversarial-reviewer.md` — invoked by `/riff:start` Stage 2.5 to challenge the System Architecture before scope and roadmap lock.
+- `agents/roadmap-adversarial-reviewer.md` — invoked by `/riff:start` Stage 4.5 to challenge `ROADMAP.yaml` before bootstrap.
+- `agents/plan-adversarial-reviewer.md` — invoked by `/riff:next` Step 4b to challenge `PLAN.md` before execution.
+- `agents/incident-adversarial-reviewer.md` — invoked by `/riff:incident-review` to challenge the quarterly synthesis draft.

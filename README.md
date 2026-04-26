@@ -16,13 +16,13 @@ Lean, profile-driven coding agent framework for Claude Code. Clone, answer 13 qu
 
 Most agent frameworks are a trap. You adopt 40KB agent definitions, pay a token tax on every call, and accumulate maintenance debt while Claude Code ships native features that replace half of what you installed. Then you are stuck rewriting your framework to keep up.
 
-RIFF is not a framework you adopt. It is a kit: a small universal core, modular pieces you can delete, and a `profile.yaml` that wires only what fits you. The 7 agents total 25KB, between 1.6KB and 5KB each. Every piece is reviewable in under 10 minutes.
+RIFF is not a framework you adopt. It is a kit: a small universal core, modular pieces you can delete, and a `profile.yaml` that wires only what fits you. The 12 agents total ~60KB, between 1.4KB and 6KB each. Every piece is reviewable in under 10 minutes.
 
 When Claude Code ships a native feature that replaces one of your hooks or commands, you delete the piece. No framework-wide migration.
 
 ## What you get
 
-- **7 agents** (25KB total): planner, executor, security-reviewer, adversarial-reviewer, debugger, simplifier, improver. Each has a clear single job.
+- **12 agents** (~60KB total): planner, executor, security-reviewer, adversarial-reviewer (post-build), plan/architecture/roadmap/incident adversarial reviewers (pre-artifact Codex passes), scope-checker, debugger, simplifier, improver. Each has a clear single job.
 - **14 slash commands**: setup (onboard, preferences, learn-stack), project lifecycle (init, start, map), daily loop (next, loop, status), off-loop (add-phase, quick, debug), verification (check, review-expertise).
 - **17 hooks** in 3 buckets: A (universal discipline), B (security-adaptable), C (stack-specific). Your profile picks which ones wire.
 - **4 protocols**: EXECUTION (confidence gates, R1-R4 deviations, waves), MODEL (dispatch and budget resolution), QUALITY (post-build checks), plus a MODEL-rationale companion.
