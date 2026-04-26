@@ -145,6 +145,7 @@ Inspect before adopting. Delete when redundant. Your framework is yours.
 
 ## Docs
 
+- [`HOW-IT-WORKS.md`](./HOW-IT-WORKS.md): full mechanics — pipeline, agents, key concepts, model selection
 - [`CLAUDE.md`](./CLAUDE.md): rules, always loaded
 - [`commands/INDEX.md`](./commands/INDEX.md): command catalog
 - [`protocols/EXECUTION.md`](./protocols/EXECUTION.md): agent behavior (confidence gates, deviations, waves)
