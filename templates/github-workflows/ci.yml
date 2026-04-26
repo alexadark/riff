@@ -44,7 +44,7 @@ jobs:
       # stories, Playwright component tests) need browsers installed and belong
       # in the E2E workflow. Adjust `--project=unit` to match your project name.
       - name: Unit Tests
-        run: npm run test -- --project=unit
+        run: npm run test -- --project=unit --coverage
 
       - name: Build
         run: npm run build

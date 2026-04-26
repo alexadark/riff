@@ -107,7 +107,10 @@ Install RIFF into the current project via symlink to the local framework repo.
         echo "Installed $f from RIFF templates."
       fi
     done
-    # Note: vitest coverage thresholds require @vitest/coverage-v8 as a devDependency.
+    if [ -f vitest.config.ts ] && ! grep -q '@vitest/coverage-v8' package.json 2>/dev/null; then
+      echo "  hint: vitest coverage thresholds require @vitest/coverage-v8."
+      echo "        run: npm install --save-dev @vitest/coverage-v8"
+    fi
     ```
 
 12. **Show banner:** `bash .riff/templates/banner.sh`

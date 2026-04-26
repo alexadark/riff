@@ -9,5 +9,16 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     passWithNoTests: false,
     exclude: ["node_modules", "e2e", ".react-router"],
+    // requires @vitest/coverage-v8 as devDependency
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary"],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 70,
+        statements: 80,
+      },
+    },
   },
 });
