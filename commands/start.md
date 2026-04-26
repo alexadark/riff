@@ -81,6 +81,7 @@ Write `ROADMAP.yaml`. Self-critique: ordering, dependencies, gaps, sizing, verti
   - Keep each topic file under ~50 lines. Split further if it grows (e.g. `taste/database.md` spun out of backend).
   - Verify version-specific rules via `ref_search_documentation` or Context7 MCP before writing.
 - `STATE.md` — phase 1, status: Initialized
+- `INCIDENTS.md` — copy from `templates/INCIDENTS.md` (regression ledger, append-only)
 - `mkdir -p .planning/{phases,sessions,design}`
 
 ### Stack detection

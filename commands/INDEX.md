@@ -1,6 +1,6 @@
 # RIFF Commands — Index
 
-All 14 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what.
+All 16 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what.
 
 ## Framework (global to the framework install)
 
@@ -40,6 +40,8 @@ All 14 RIFF slash commands at a glance. Use this as a routing table when you've 
 | ------------------------ | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | `/riff:check [phase]`    | Re-run security + adversarial review on an already-built phase (e.g. before final merge).                 | Updated `REVIEW.md`, security report           |
 | `/riff:review-expertise` | Walk through `.planning/expertise/.pending/` files written by the improver. Accept or reject each lesson. | Updated `.planning/expertise/<agent>.md` files |
+| `/riff:incident`         | Log a production incident into `INCIDENTS.md` (append-only regression ledger).                            | New entry in `INCIDENTS.md`                    |
+| `/riff:incident-review`  | Quarterly: read `INCIDENTS.md`, propose `taste.md` rules / adversarial triggers / test patterns.          | `.planning/incident-review-YYYY-MM-DD.md` draft |
 
 ## Cheat sheet — "I want to..."
 
@@ -56,3 +58,5 @@ All 14 RIFF slash commands at a glance. Use this as a routing table when you've 
 - **Hunt down a bug not caught by auto-debug** → `/riff:debug`
 - **Re-audit a phase before merging** → `/riff:check`
 - **Process pending expertise updates** → `/riff:review-expertise`
+- **Log a production incident I just hit** → `/riff:incident`
+- **Quarterly review of incidents** → `/riff:incident-review`
