@@ -23,7 +23,7 @@ When Claude Code ships a native feature that replaces one of your hooks or comma
 ## What you get
 
 - **12 agents** (~60KB total): planner, executor, security-reviewer, adversarial-reviewer (post-build), plan/architecture/roadmap/incident adversarial reviewers (pre-artifact Codex passes), scope-checker, debugger, simplifier, improver. Each has a clear single job.
-- **14 slash commands**: setup (onboard, preferences, learn-stack), project lifecycle (init, start, map), daily loop (next, loop, status), off-loop (add-phase, quick, debug), verification (check, review-expertise).
+- **11 slash commands**: framework (onboard, learn-stack), project lifecycle (init, start, map), daily loop (next, loop, status), off-loop (add-phase, quick, debug). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
 - **17 hooks** in 3 buckets: A (universal discipline), B (security-adaptable), C (stack-specific). Your profile picks which ones wire.
 - **4 protocols**: EXECUTION (confidence gates, R1-R4 deviations, waves), MODEL (dispatch and budget resolution), QUALITY (post-build checks), plus a MODEL-rationale companion.
 - **Taste references** for architecture, backend, security, testing, plus stack files for Drizzle, Node ESM, React Router 7, Vitest, Zod. Add your own with `/riff:learn-stack`.
@@ -76,7 +76,7 @@ Fields (full schema in `commands/onboard.md` § Profile schema):
 - `budget.default_quality`: `frugal` / `balanced` / `max`
 - `notifications.channel`: where AFK mode pings you
 
-Edit by hand anytime, or run `/riff:preferences` to re-answer any subset of questions.
+Edit by hand anytime, or ask Claude conversationally to update specific fields (e.g. "set my notification channel to slack").
 
 ### 4 presets
 
@@ -119,13 +119,14 @@ If `profile.yaml` is missing, agents fall back to `neutre` preset defaults.
 
 ## Commands
 
-All 14 commands listed in [`commands/INDEX.md`](./commands/INDEX.md), grouped by purpose:
+All 11 slash commands listed in [`commands/INDEX.md`](./commands/INDEX.md), grouped by purpose:
 
-- **Framework (global):** onboard, preferences, learn-stack
+- **Framework (global):** onboard, learn-stack
 - **Setup (project lifecycle):** init, start, map
 - **Core loop:** next, loop, status
 - **Off-loop:** add-phase, quick, debug
-- **Verification:** check, review-expertise
+
+Plus conversational triggers for rare lifecycle actions (incident logging, quarterly review, scratch→production promotion, re-audits, profile edits) — see INDEX.md § Conversational triggers.
 
 ## Customize and extend
 
