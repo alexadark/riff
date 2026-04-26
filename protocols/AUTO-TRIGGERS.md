@@ -59,6 +59,23 @@ Triggers read from PROJECT.md (project type) and `.planning/design/architecture.
 
 ---
 
+## Roadmap adversarial auto <a id="roadmap-adversarial-auto"></a>
+
+**Used by:** Stage 4.5 of `/riff:start` when `roadmap_adversarial: auto` (default).
+
+Triggers read from `ROADMAP.yaml` and PROJECT.md.
+
+**Run condition (any is sufficient):**
+
+- ROADMAP.yaml has 3+ phases (under 3, the roadmap is too small to mis-order)
+- Any phase tag includes `architecture` / `security_critical` / `migration` / `payment` / `auth`
+- Any phase mode is `HITL`
+- ROADMAP.yaml top-level `budget_quality: max`
+
+**Skip otherwise.** 1- or 2-phase roadmaps skip — the cost-benefit doesn't favor a Codex round trip on a tracer-bullet-plus-one shape.
+
+---
+
 ## Adversarial auto <a id="adversarial-auto"></a>
 
 **Used by:** Step 6 of `/riff:next` when `adversarial: auto` (default).

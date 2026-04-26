@@ -12,6 +12,7 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 | ------------------------------------------------------ | ---------------------- | ------------------------------------ | ------------------------------------------------------------- |
 | `/riff:next` orchestration (state read, pick, git, PR) | Inline (parent)        | **Opus** (forced via frontmatter)    | none                                                          |
 | `/riff:start` Stage 2.5: Architecture adversarial      | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
+| `/riff:start` Stage 4.5: Roadmap adversarial           | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
 | Step 4: Planner                                        | **Inline** (parent)    | **Opus** (parent)                    | Dynamic per phase                                             |
 | Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
 | Step 5: Executor                                       | Sub-agent              | **Sonnet** (default), Opus on opt-in | none, `think hard` if `complex_execution:`                    |

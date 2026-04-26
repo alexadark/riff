@@ -95,6 +95,33 @@ Write `ROADMAP.yaml`. Self-critique: ordering, dependencies, gaps, sizing, verti
 
 ---
 
+## Stage 4.5: Roadmap adversarial review (gated)
+
+Runs before bootstrap. Roadmap fixes are nearly free now; once Stage 5 lands and `/riff:next` starts shipping, re-sequencing costs compound.
+
+**Gate:** `roadmap_adversarial:` from `.planning/config.json` (`true` | `false` | `auto`; default `auto`).
+
+- `false` → skip
+- `true` → always run
+- `auto` → see [`AUTO-TRIGGERS.md#roadmap-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#roadmap-adversarial-auto)
+
+**If running:** Agent tool → skill `codex:codex-rescue`.
+
+Prompt: project name (one line), instruction _"Read `agents/roadmap-adversarial-reviewer.md`. Read `ROADMAP.yaml`, PROJECT.md, and any sibling design files (`.planning/design/architecture.md`, `.planning/design/pages.md`) that exist. Apply the protocol. Write `.planning/ROADMAP-REVIEW.md` with PROCEED or REVISE verdict."_
+
+**On REVISE:**
+
+1. Surface ROADMAP-REVIEW.md to user (paste the Findings section).
+2. Re-run Stage 4 with ROADMAP-REVIEW.md as additional input. Address every `BLOCKER`, optionally address `WARNING`/`NOTE`, rewrite `ROADMAP.yaml` in place.
+3. Re-run Stage 4.5. Loop until PROCEED.
+4. Max 2 revision cycles, then STOP and escalate to user with both files.
+
+**On PROCEED:** continue to Stage 5. Bootstrap does NOT run until verdict is PROCEED.
+
+**Skip safely:** if the Codex skill is not configured, log a warning and continue — do not block the discovery pipeline.
+
+---
+
 ## Stage 5: Bootstrap Files
 
 - `CONTEXT.md` — locked decisions from discovery
