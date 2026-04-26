@@ -1,6 +1,6 @@
 # RIFF Commands — Index
 
-All 16 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what.
+All 17 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what.
 
 ## Framework (global to the framework install)
 
@@ -12,11 +12,12 @@ All 16 RIFF slash commands at a glance. Use this as a routing table when you've 
 
 ## Setup (one-shot, project lifecycle)
 
-| Command       | When to run                                                                                                     | Output                                                           |
-| ------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `/riff:init`  | First thing in a brand-new project. Installs `.riff/` symlink, hooks, `.planning/` skeleton, CLAUDE.md section. | `.riff/`, `.planning/`, hooks, updated `CLAUDE.md`               |
-| `/riff:start` | Greenfield project — before any code. 5-stage discovery (problem → users → MVP → research → roadmap).           | `PROJECT.md`, `taste.md`, `ROADMAP.yaml`, `STATE.md`             |
-| `/riff:map`   | Brownfield project — point at an existing codebase to onboard RIFF onto it.                                     | `PROJECT.md`, `taste.md`, `ROADMAP.yaml` (seeded from real code) |
+| Command          | When to run                                                                                                     | Output                                                           |
+| ---------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `/riff:init`     | First thing in a brand-new project. Installs `.riff/` symlink, hooks, `.planning/` skeleton, CLAUDE.md section. | `.riff/`, `.planning/`, hooks, updated `CLAUDE.md`               |
+| `/riff:start`    | Greenfield project — before any code. 5-stage discovery (problem → users → MVP → research → roadmap). Asks `scratch` vs `production` scope at Stage 1. | `PROJECT.md`, `ROADMAP.yaml`, `STATE.md`, `.planning/config.json` (+ `taste.md`, `INCIDENTS.md`, `CONTEXT.md` in production scope) |
+| `/riff:map`      | Brownfield project — point at an existing codebase to onboard RIFF onto it.                                     | `PROJECT.md`, `taste.md`, `ROADMAP.yaml` (seeded from real code) |
+| `/riff:promote`  | Flip a `scratch` project to `production` scope when it's about to gain users / get deployed. Runs the skipped discovery stages retroactively (design modules, adversarial reviews, taste files). | Updated `.planning/config.json`, new `taste.md` + topic files, `INCIDENTS.md`, `CONTEXT.md`, re-shaped `ROADMAP.yaml` |
 
 ## Core loop (you'll run these every day)
 
@@ -60,6 +61,7 @@ All 16 RIFF slash commands at a glance. Use this as a routing table when you've 
 - **Process pending expertise updates** → `/riff:review-expertise`
 - **Log a production incident I just hit** → `/riff:incident`
 - **Quarterly review of incidents** → `/riff:incident-review`
+- **My local/perso script is going public** → `/riff:promote` (flips scratch → production, runs the skipped discovery stages)
 
 ## Agents referenced by commands
 

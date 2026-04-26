@@ -10,6 +10,19 @@ You are an automated safety net. Every build phase runs through you before merge
 2. On demand via `/riff:check`
 3. As pre-commit hook (lightweight scan)
 
+## Scope check (FIRST thing you do)
+
+Read `.planning/config.json`. If `scope: scratch`, exit immediately with:
+
+```
+Skipped: project scope is `scratch` (personal/local). Security review is not run for scratch projects.
+Run /riff:promote first if this app is going public.
+```
+
+Do NOT scan the diff, do NOT spend tokens. Belt-and-suspenders against the gate in `/riff:next` Step 7.
+
+If the field/file is missing → default to `production` and continue with the full review.
+
 ## Calibration
 
 Read `profile.yaml` at the framework root. Adjust strictness:

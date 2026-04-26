@@ -31,6 +31,8 @@ Read state → Pick next → Confidence gate → Plan → Execute → Review →
 
 Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFICATION.md.
 
+**Read project scope** from `.planning/config.json` → `scope` field. If absent or file missing → default to `production`. Hold this value; it gates Steps 4b, 5b, 6, 7 below.
+
 ### Step 2: Pick next phase (inline)
 
 1. Filter `status: todo` phases where all `depends_on` are `done`
@@ -66,6 +68,8 @@ Inject thinking keyword per MODEL.md § Planner selection.
 ---
 
 ### Step 4b: Plan adversarial review — sub-agent (gated)
+
+**Skip if `scope: scratch`.** Personal/local apps don't need adversarial plan review.
 
 Runs before execution so the planner can revise BEFORE code is written. Plan-stage fixes cost ~10x less than code-stage fixes.
 
@@ -114,6 +118,8 @@ Wait until SUMMARY.md exists on disk.
 
 ### Step 5b: Simplify — sub-agent (gated)
 
+**Skip if `scope: scratch`.** Personal/local code doesn't need a simplifier pass.
+
 Runs before review so reviewers audit simplified code.
 
 **Gate:** `simplify:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
@@ -143,6 +149,8 @@ Before review, verify executor honored the plan. Run scope-checker sub-agent.
 ---
 
 ### Steps 6 + 7: Adversarial + Security — IN PARALLEL
+
+**Skip BOTH if `scope: scratch`.** Personal/local apps don't run adversarial review or security-reviewer. Jump to Step 8 (PR creation). Belt-and-suspenders: security-reviewer.md also self-skips when scope=scratch in case it's invoked manually.
 
 Launch BOTH in a single message.
 
