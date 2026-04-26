@@ -75,7 +75,7 @@ Install RIFF into the current project via symlink to the local framework repo.
    **Bucket A** (universal): destructive-guard, boundary-check, typecheck-gate, lint-gate, test-gate.
    **Bucket B** (security-adaptable): route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard.
 
-   If profile changes later (via `/riff:preferences`), re-run this step manually or re-run `/riff:init` to rewire.
+   If profile changes later (edit `profile.yaml` directly, or ask Claude to update it), re-run this step manually or re-run `/riff:init` to rewire.
 
 8. **Project files:** create `STATE.md` from template, replace `{{PROJECT_NAME}}` with dir name.
 

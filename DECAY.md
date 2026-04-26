@@ -17,11 +17,15 @@ For each component below, answer:
 - [ ] /riff:next
 - [ ] /riff:status
 - [ ] /riff:map
-- [ ] /riff:check
 - [ ] /riff:quick
 - [ ] /riff:loop
 - [ ] /riff:debug
 - [ ] /riff:init
+- [ ] /riff:onboard
+- [ ] /riff:learn-stack
+- [ ] /riff:add-phase
+- [ ] protocols/INCIDENT.md (conversational trigger)
+- [ ] protocols/PROMOTE.md (conversational trigger)
 - [ ] agents/planner.md
 - [ ] agents/executor.md
 - [ ] agents/verifier.md

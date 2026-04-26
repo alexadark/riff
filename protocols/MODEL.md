@@ -21,7 +21,7 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 | Step 7: Security review                                | Sub-agent              | **Sonnet**                           | `think harder` for auth/payment/public-API, else `think hard` |
 | Step 7b: Improver                                      | Sub-agent (background) | **Haiku**                            | none                                                          |
 | Step 8a: Doc updater                                   | Sub-agent              | **Haiku**                            | none                                                          |
-| `/riff:incident-review` adversarial pass               | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
+| Quarterly incident review adversarial pass             | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
 | Debugger (auto-trigger or `/riff:debug`)               | Sub-agent              | **Opus** (default), Sonnet opt-in    | Dynamic per triage tier                                       |
 
 ## Thinking keywords

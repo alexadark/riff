@@ -63,7 +63,7 @@ If `profile.yaml` is missing, fall back to `neutre` preset defaults (see `comman
 5. **profile.yaml** (framework root): always, for user calibration. Fall back to `neutre` defaults if missing.
 6. **If exists:** `.planning/expertise/executor.md`
 
-### Verifier reads (for `/riff:check` and post-build doc check)
+### Verifier reads (for manual re-audits and post-build doc check)
 
 1. **PLAN.md** — goal, tasks, acceptance criteria
 2. **SUMMARY.md** — what the executor claims happened

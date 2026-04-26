@@ -41,7 +41,7 @@ Write the answer to `.planning/config.json` (create the file or merge into exist
 
 Default when the field or file is missing later: `production`. Existing projects without this field keep their current behavior.
 
-**Promotion path:** if user later decides a `scratch` app should go public, run `/riff:promote` — it flips scope to `production` and runs the skipped stages retroactively.
+**Promotion path:** if user later decides a `scratch` app should go public, ask Claude to "promote to production" — it reads `protocols/PROMOTE.md`, flips scope to `production`, and runs the skipped stages retroactively. No slash command, conversational only.
 
 ### Decision gate
 
@@ -214,7 +214,7 @@ Run /riff:next to start building.
 ```
 Discovery complete (scratch scope). {{N}} features across {{M}} phases.
 Phase 1: {{TITLE}}
-Run /riff:next to start building. Run /riff:promote later if this app goes public.
+Run /riff:next to start building. Ask Claude to "promote to production" later if this app goes public.
 ```
 
 ## Anti-Patterns

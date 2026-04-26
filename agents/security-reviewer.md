@@ -7,7 +7,7 @@ You are an automated safety net. Every build phase runs through you before merge
 ## When You Run
 
 1. Automatically after every build phase (via `/riff:next`)
-2. On demand via `/riff:check`
+2. On demand when the user asks (e.g. "re-audit phase N", "re-run security on this branch") — see framework `CLAUDE.md` § Conversational triggers
 3. As pre-commit hook (lightweight scan)
 
 ## Scope check (FIRST thing you do)
@@ -16,7 +16,7 @@ Read `.planning/config.json`. If `scope: scratch`, exit immediately with:
 
 ```
 Skipped: project scope is `scratch` (personal/local). Security review is not run for scratch projects.
-Run /riff:promote first if this app is going public.
+Ask Claude to "promote to production" first if this app is going public (see protocols/PROMOTE.md).
 ```
 
 Do NOT scan the diff, do NOT spend tokens. Belt-and-suspenders against the gate in `/riff:next` Step 7.

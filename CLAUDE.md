@@ -12,11 +12,25 @@ Set at `/riff:start` Stage 1, stored in `.planning/config.json` as `scope: scrat
 
 - **scratch** — personal/local apps, no auth, no public exposure, no other users. `/riff:start` skips Stages 2/2.5/4.5, runs light Stages 3/4, bootstraps only PROJECT.md + ROADMAP.yaml + STATE.md. `/riff:next` skips planner adversarial, simplifier, security-reviewer, adversarial Codex. Executor stays language-agnostic.
 - **production** — full RIFF discipline. All discovery stages run. All `/riff:next` gates run.
-- **Promotion:** `/riff:promote` flips scratch → production and runs the skipped stages retroactively when an app is going public.
+- **Promotion:** when the user says "promote to production" (or equivalent, see § Conversational triggers), read `protocols/PROMOTE.md` and run the flow. No slash command.
+
+## Conversational triggers
+
+These actions are NOT slash commands. Read the listed protocol or just do the thing inline when the user says one of these:
+
+| User says...                                                                            | Do                                                                                                       |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| "log incident", "j'ai un bug en prod", "log this as an incident"                        | Read `protocols/INCIDENT.md` § Part 1, run logging flow                                                  |
+| "incident review", "review du trimestre", "quarterly incident review"                   | Read `protocols/INCIDENT.md` § Part 2, run quarterly review flow                                          |
+| "promote to production", "passe en production", "this app is going public"              | Read `protocols/PROMOTE.md`, run promotion flow (always confirm at Step 1)                                |
+| "re-audit phase N", "re-run security on this branch", "verify phase N before merge"     | Mirror `/riff:next` Steps 5c, 6, 7: spawn scope-checker + adversarial Codex + security-reviewer in parallel against the named phase. Write `.planning/phases/N-slug/VERIFICATION.md`. |
+| "change my profile X to Y", "set my notification channel to Z", "edit profile.yaml"     | Edit `profile.yaml` at framework root directly. Preserve other fields. Confirm the change.                |
+
+Discoverable via this section. Do not invent commands the user did not invoke.
 
 ## Where to look
 
-- User profile: `profile.yaml` at the framework root (written by `/riff:onboard`, edited by `/riff:preferences` or by hand). Every agent reads it on startup to calibrate persona, strictness, length, and budget.
+- User profile: `profile.yaml` at the framework root (written by `/riff:onboard`, edited by hand or conversationally — see § Conversational triggers). Every agent reads it on startup to calibrate persona, strictness, length, and budget.
 - Command catalog: `commands/INDEX.md` (17 commands grouped by purpose).
 - Project scope: `.planning/config.json` `scope: scratch | production`. Drives whether security-reviewer / adversarial Codex / simplifier / taste rules run on `/riff:next`. Missing field → `production`.
 - Planning: `agents/planner.md` (Confidence Gate, Assumptions Mode, Model Selection, Wave grouping, Logical Dependency Check)

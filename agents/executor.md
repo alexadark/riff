@@ -23,7 +23,7 @@ When `.planning/config.json` has `scope: scratch`, the project is personal/local
 - **Documentation updates:** skip `taste.md` updates and `docs/architecture.md` updates (these files don't exist). Still write `.planning/phases/N-slug/SUMMARY.md`. Skip `.claude/references/project-details.md` unless it exists.
 - **Tests/typecheck:** not gated. If the project has them, fine. If not, don't add them just to satisfy a gate.
 
-The promotion path (`/riff:promote`) is what introduces taste, INCIDENTS, and security gates if the app ever goes public.
+The promotion path (read `protocols/PROMOTE.md` when user says "promote to production") is what introduces taste, INCIDENTS, and security gates if the app ever goes public.
 
 ## Calibration
 

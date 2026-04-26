@@ -5,7 +5,7 @@ allowed-tools: Read, Write, AskUserQuestion, Bash
 
 # /riff:onboard
 
-Writes `profile.yaml` at the framework root. Every agent reads it on startup to adapt its persona, tone, confidence threshold, and budget to you. Re-run `/riff:preferences` later to change any answer, or edit the file by hand.
+Writes `profile.yaml` at the framework root. Every agent reads it on startup to adapt its persona, tone, confidence threshold, and budget to you. Edit the file by hand later, or ask Claude to change a specific field (e.g. "set my notification channel to telegram").
 
 ## How it works
 
@@ -36,7 +36,7 @@ Writes `profile.yaml` at the framework root. Every agent reads it on startup to 
 
    Next:
      - Edit profile.yaml directly anytime (plain text).
-     - Run /riff:preferences to re-answer one or more questions.
+     - Or ask Claude to change a specific field ("set my notification channel to slack").
      - Per-project budget override: set `budget_quality:` in the project's ROADMAP.yaml.
    ```
 
@@ -309,5 +309,5 @@ notifications:
 
 - v1 scope: writes `profile.yaml` only. Hook-bucket wiring based on Q8 and `{{USER_CONTEXT}}` injection into the 3 agents (planner, executor, security-reviewer) land in follow-up phases — see `specs/plans/riff-onboarding-questions.md` § Next implementation steps.
 - User edits `profile.yaml` by hand anytime. Agents re-read the file on every run.
-- For a re-answer flow limited to one or more questions (rather than full replay), use `/riff:preferences` (not yet implemented).
+- For a re-answer flow limited to one or more questions, edit `profile.yaml` directly or ask Claude to update specific fields conversationally.
 - The 4 presets are starting points — users are expected to tweak `profile.yaml` after picking one.

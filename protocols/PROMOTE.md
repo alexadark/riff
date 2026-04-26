@@ -1,13 +1,20 @@
+# PROMOTE
+
+How RIFF promotes a `scratch` (personal/local) project to `production` scope when it's about to gain users, get deployed, or handle PII. Read by Claude when the user says "promote", "passe en production", "this is going public", or equivalent. There is no `/riff:promote` slash command, the flow is conversational.
+
 ---
-description: Promote a scratch project to production scope (full RIFF discipline)
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion
+
+## When to read this protocol
+
+User says any of:
+
+- "promote to production", "passe en production", "this app is going public"
+- "make this production-grade", "lock this down properly"
+- Or after a `scratch` project gains: a public deploy, an auth flow, payment handling, third-party users
+
+**Always confirm before running.** Promotion is a one-way door (well, two-way technically, but you'd lose the rationale). Surface what will change and ask for confirmation before touching anything.
+
 ---
-
-# /riff:promote
-
-Flip `.planning/config.json` from `scope: scratch` to `scope: production`, then run the discovery stages that were skipped at `/riff:start` time. Use this when a personal/local app is about to gain users, get deployed, handle PII, or accept payments.
-
-**No-op if scope is already `production`** — print "Already production scope. Nothing to do." and exit.
 
 ## Prerequisites
 
@@ -15,7 +22,11 @@ Flip `.planning/config.json` from `scope: scratch` to `scope: production`, then 
 - `.planning/config.json` has `scope: scratch`
 - PROJECT.md and ROADMAP.yaml exist
 
-## What you do
+**No-op if scope is already `production`** — print "Already production scope. Nothing to do." and exit.
+
+---
+
+## Steps
 
 ### Step 1: Confirm with the user
 
@@ -47,7 +58,7 @@ Preserve any other keys already in the file.
 
 ### Step 3: Re-run Stage 3 (feature scoping, full)
 
-Read PROJECT.md features. Apply the full v1 / Later / Out of Scope split via AskUserQuestion loop until "Done — scope is set." (See `/riff:start` Stage 3, production branch.)
+Read PROJECT.md features. Apply the full v1 / Later / Out of Scope split via AskUserQuestion loop until "Done — scope is set." See `/riff:start` Stage 3, production branch.
 
 Update PROJECT.md features section with the v1/Later/OOS structure.
 
@@ -96,6 +107,8 @@ Promoted to production scope.
 - Updated: ROADMAP.yaml ({{N}} todo phases re-shaped)
 - Next /riff:next will run: planner adversarial, simplifier, security-reviewer, adversarial Codex.
 ```
+
+---
 
 ## Anti-patterns
 

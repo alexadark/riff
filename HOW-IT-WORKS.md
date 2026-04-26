@@ -267,24 +267,30 @@ Human review  <-- You correct what the explorer got wrong
 | Command                  | When to use it                                                |
 | ------------------------ | ------------------------------------------------------------- |
 | `/riff:init`             | Once, at the start. Installs RIFF into the project.           |
+| `/riff:init`             | Install RIFF into a project. Run once per repo.               |
 | `/riff:start`            | Greenfield only. Define what to build before writing code.    |
 | `/riff:map`              | Brownfield only. Explore an existing codebase.                |
 | `/riff:next`             | The main loop. Plan, build, verify, commit the next phase.    |
-| `/riff:next --plan-only` | Create the plan but don't execute. Review before building.    |
+| `/riff:next --plan-only` | Create the plan but don't execute. Review before building.   |
 | `/riff:next [phase-N]`   | Target a specific phase instead of auto-picking.              |
 | `/riff:status`           | Dashboard: progress, blockers, pending taste rules, seeds.    |
 | `/riff:quick <task>`     | Small task without phase overhead. Bug fixes, tweaks, config. |
-| `/riff:check`            | Manual verification + security review on demand.              |
-| `/riff:check [phase-N]`  | Verify a specific phase.                                      |
 | `/riff:debug <issue>`    | Structured debugging with root cause analysis.                |
 | `/riff:add-phase`        | Add one or more phases to ROADMAP.yaml.                       |
-| `/riff:review-expertise` | Review pending expertise patches proposed by the improver.    |
 | `/riff:onboard`          | Write `profile.yaml` (13 questions or pick a preset).         |
-| `/riff:preferences`      | Re-answer one or more profile questions.                      |
 | `/riff:learn-stack`      | Add a new stack reference file under `references/taste/stacks/`. |
 | `/riff:loop`             | Run unattended mode (Ralph loop) for AFK phases.              |
-| `/riff:incident`         | Log a production incident.                                    |
-| `/riff:incident-review`  | Quarterly review of logged incidents.                         |
+
+### Conversational triggers (no slash command)
+
+| Trigger                                                                                  | Effect                                                                                              |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| "log incident" / "j'ai un bug en prod"                                                  | Read `protocols/INCIDENT.md` § Part 1, append entry to project's `INCIDENTS.md`                      |
+| "incident review" / "review du trimestre"                                                | Read `protocols/INCIDENT.md` § Part 2, write quarterly draft, run Codex adversarial pass             |
+| "promote to production" / "passe en production"                                          | Read `protocols/PROMOTE.md`, flip `scope: scratch → production`, run skipped discovery stages       |
+| "re-audit phase N" / "re-run security on this branch"                                    | Mirror `/riff:next` Steps 5c, 6, 7 against the named phase, write `VERIFICATION.md`                  |
+| "set my notification channel to X" / "edit profile.yaml"                                 | Edit `profile.yaml` at framework root directly                                                       |
+| Pending expertise patches at end of phase                                                | Inline review (Stack/Architecture/Project routing) via `/riff:next` Step 10                          |
 
 ### When to use what
 
@@ -298,7 +304,7 @@ Human review  <-- You correct what the explorer got wrong
 | Something broke                          | `/riff:debug users see other users' data`  |
 | Want to add phases to the roadmap        | `/riff:add-phase Manual Campaigns`         |
 | Want to check current progress           | `/riff:status`                             |
-| Want a security audit                    | `/riff:check`                              |
+| Want a security audit                    | Ask Claude to "re-audit phase N"           |
 | Want to leave Claude building unattended | `.riff/riff-loop.sh` (see Unattended Mode) |
 
 ---
@@ -539,8 +545,8 @@ RIFF has 8 specialized agents. Each runs in a fresh context with only the files 
 - Writes proposals to `.planning/expertise/.pending/<agent>-<phase>.md`
 - Tier each pattern: `STACK:<name>` / `ARCHITECTURE` / `PROJECT` (controls destination, framework reference vs project expertise)
 - Surfaces framework gaps as `framework-<phase>.md` proposals
-- **Never auto-merges.** Human always validates via `/riff:review-expertise`
-- `/riff:status` surfaces pending patch counts. At 3+ pending patches the loop pauses and asks whether to review before the next phase
+- **Never auto-merges.** Human always validates inline at the end of each phase (`/riff:next` Step 10: Review now / Defer to next phase / Reject all)
+- `/riff:status` surfaces pending patch counts between phases as informational
 
 ### Debugger
 
@@ -671,7 +677,7 @@ RIFF learns from every phase it runs. There are two levels of learning.
 These stay local to your project:
 
 - **Expertise files** (`.planning/expertise/`), each agent writes lessons learned after each phase
-- **Pending expertise patches** (`.planning/expertise/.pending/<agent>-<phase>.md`), the improver tags each proposal with a tier (`STACK:<name>` / `ARCHITECTURE` / `PROJECT`). `/riff:review-expertise` walks them and routes each to the right destination (framework reference or project expertise).
+- **Pending expertise patches** (`.planning/expertise/.pending/<agent>-<phase>.md`), the improver tags each proposal with a tier (`STACK:<name>` / `ARCHITECTURE` / `PROJECT`). The end-of-phase flow in `/riff:next` Step 10 walks them and routes each to the right destination (framework reference or project expertise).
 - **Seeds** (`.planning/seeds/`), out-of-scope ideas captured during execution
 
 ### Framework-level learning (HITL)
@@ -768,7 +774,7 @@ taste/
 - `architecture.md`, `backend.md`, `security.md`, `testing.md`, stack-agnostic baseline, seeded into project taste at `/riff:start`.
 - `stacks/INDEX.md` + `stacks/<slug>.md`, stack-specific gotchas (Drizzle, Zod, Vitest, React Router 7, Node ESM). Agents read these directly on-demand when touching that tech, they do not get copied into the project taste.
 
-Rules grow over time: the improver agent proposes new rules after each phase, sorted by tier (`STACK:<name>` / `ARCHITECTURE` / `PROJECT`). You validate via `/riff:review-expertise`, each accepted rule is routed to the correct destination (framework reference for shared gains, project expertise for local quirks).
+Rules grow over time: the improver agent proposes new rules after each phase, sorted by tier (`STACK:<name>` / `ARCHITECTURE` / `PROJECT`). You validate inline at the end of each phase (`/riff:next` Step 10), each accepted rule is routed to the correct destination (framework reference for shared gains, project expertise for local quirks).
 
 ### 3-Level Verification
 
@@ -869,7 +875,7 @@ project/
       planner.md                # Planner lessons learned
       executor.md               # Executor lessons learned
       security-reviewer.md      # Security reviewer lessons learned
-      .pending/                 # Improver proposals awaiting /riff:review-expertise
+      .pending/                 # Improver proposals reviewed inline at end of phase (/riff:next Step 10)
     seeds/                      # Deferred ideas with trigger conditions
     debug/                      # Persistent debug sessions
     quick/                      # Ad-hoc task records

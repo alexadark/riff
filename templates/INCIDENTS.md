@@ -1,6 +1,6 @@
 # Production Incidents
 
-Log every production incident here. Quarterly review via `/riff:incident-review` translates these into framework rules.
+Log every production incident here. Ask Claude to "log incident" or "incident review" — see `protocols/INCIDENT.md` for the full flow. Quarterly review translates these into framework rules.
 
 ## Format
 
