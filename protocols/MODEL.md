@@ -12,6 +12,7 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 | ------------------------------------------------------ | ---------------------- | ------------------------------------ | ------------------------------------------------------------- |
 | `/riff:next` orchestration (state read, pick, git, PR) | Inline (parent)        | **Opus** (forced via frontmatter)    | none                                                          |
 | Step 4: Planner                                        | **Inline** (parent)    | **Opus** (parent)                    | Dynamic per phase                                             |
+| Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
 | Step 5: Executor                                       | Sub-agent              | **Sonnet** (default), Opus on opt-in | none, `think hard` if `complex_execution:`                    |
 | Step 5b: Simplifier                                    | Sub-agent              | **Haiku**                            | none                                                          |
 | Step 6: Adversarial review                             | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
@@ -57,9 +58,9 @@ Every decision (model choice, whether to run optional pipeline steps) resolves t
 
 | Budget | Optional pipeline steps (defaults) | Model defaults |
 | ------ | ---------------------------------- | -------------- |
-| `frugal` | `simplify: false`, `adversarial: false`, improver off | Haiku or Sonnet everywhere, never Opus by default |
-| `balanced` | `simplify: auto`, `adversarial: auto`, improver per existing heuristic | Sonnet for execution, Opus only on per-phase flag |
-| `max` | `simplify: auto`, `adversarial: auto` (bias toward running), improver per heuristic | Opus for planner and security-critical execution, Sonnet for routine work |
+| `frugal` | `simplify: false`, `plan_adversarial: false`, `adversarial: false`, improver off | Haiku or Sonnet everywhere, never Opus by default |
+| `balanced` | `simplify: auto`, `plan_adversarial: auto`, `adversarial: auto`, improver per existing heuristic | Sonnet for execution, Opus only on per-phase flag |
+| `max` | `simplify: auto`, `plan_adversarial: auto` (bias toward running), `adversarial: auto` (bias toward running), improver per heuristic | Opus for planner and security-critical execution, Sonnet for routine work |
 
 Per-phase flags always win over budget defaults.
 
@@ -86,6 +87,7 @@ phases:
     auto_debug: false           # disable auto-debug triggers for this phase
     debug_model: sonnet         # use Sonnet instead of Opus for the debugger
     simplify: true              # force simplifier on (or false to skip)
+    plan_adversarial: true      # force plan adversarial on (or false to skip)
     adversarial: true           # force adversarial on (or false to skip)
 ```
 

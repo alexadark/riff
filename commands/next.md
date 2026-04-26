@@ -11,7 +11,7 @@ Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR
 
 **Models:** see [`protocols/MODEL.md`](../protocols/MODEL.md). Parent is forced to Opus via frontmatter. Sub-agents MUST pass `model:` explicitly on the Agent tool call.
 
-**Inline vs sub-agent:** Steps 1–4, 8, 9, 10 run inline. Steps 5, 5b, 6, 7, 7b, 8a spawn sub-agents.
+**Inline vs sub-agent:** Steps 1–4, 8, 9, 10 run inline. Steps 4b, 5, 5b, 6, 7, 7b, 8a spawn sub-agents.
 
 **Auto-gate heuristics:** see [`protocols/AUTO-TRIGGERS.md`](../protocols/AUTO-TRIGGERS.md). Design rationale: see [`DECISIONS.md`](../DECISIONS.md) (D25–D27).
 
@@ -58,12 +58,37 @@ Parent has already read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-a
 
 Inject thinking keyword per MODEL.md § Planner selection.
 
-1. Re-read if not in context: `taste.md`, `.planning/expertise/planner.md`, previous phase SUMMARY.md
+1. Re-read if not in context: `taste.md`, `.planning/expertise/planner.md`, previous phase SUMMARY.md. If `.planning/phases/N-slug/PLAN-REVIEW.md` exists (revision cycle from Step 4b), read it and address every `BLOCKER` finding before rewriting PLAN.md.
 2. [KEYWORD] Draft the plan. Break into waves. Mark independent tasks with `parallel: [task-A, task-B]` (independent = zero shared files)
 3. Write to `.planning/phases/N-slug/PLAN.md`. Do NOT update STATE.md or ROADMAP.yaml
 4. Include `## Model Recommendation`: default `executor_model: sonnet`. Recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs
 
-If `--plan-only`: STOP.
+---
+
+### Step 4b: Plan adversarial review — sub-agent (gated)
+
+Runs before execution so the planner can revise BEFORE code is written. Plan-stage fixes cost ~10x less than code-stage fixes.
+
+**Gate:** `plan_adversarial:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
+
+- `false` → skip
+- `true` → always run
+- `auto` → see [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto)
+
+**If running:** Agent tool → skill `codex:codex-rescue`.
+
+Prompt: phase goal (one line), branch, instruction _"Read `agents/plan-adversarial-reviewer.md`. Read `.planning/phases/N-slug/PLAN.md`, PROJECT.md, the ROADMAP.yaml entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write `.planning/phases/N-slug/PLAN-REVIEW.md` with PROCEED or REVISE verdict."_
+
+**On REVISE:**
+
+1. Surface PLAN-REVIEW.md to user (paste the Findings section).
+2. Re-run Step 4 (planner, inline) with PLAN-REVIEW.md as additional input. Planner addresses each `BLOCKER`, optionally addresses `WARNING`/`NOTE`, rewrites PLAN.md in place.
+3. Re-run Step 4b. Loop until PROCEED.
+4. Max 2 revision cycles, then STOP and escalate to user with both PLAN.md and PLAN-REVIEW.md.
+
+**On PROCEED:** continue.
+
+If `--plan-only` was passed: STOP here. The PLAN.md and PLAN-REVIEW.md are the deliverables.
 
 ---
 

@@ -61,7 +61,11 @@ Security-aware ACs are mandatory on EVERY plan that touches the relevant surface
 - API route → auth check AC
 - Data by ID → IDOR check AC ("user can only access own data")
 
-**The human will NOT catch these. You must.** security-reviewer + adversarial Codex are the runtime safety net.
+**The human will NOT catch these. You must.** plan-adversarial-reviewer (Codex, Step 4b) challenges the plan before code is written; security-reviewer + adversarial Codex are the runtime safety net.
+
+### Revision cycle
+
+When `/riff:next` re-invokes you because Step 4b returned `REVISE`, `.planning/phases/N-slug/PLAN-REVIEW.md` exists. Read it first. Address every `BLOCKER` finding (mandatory) and consider every `WARNING`/`NOTE` (optional). Rewrite PLAN.md in place. Do not argue with findings, fix the plan or escalate to the user via R3.
 
 ### HITL vs AFK (strict — default AFK)
 

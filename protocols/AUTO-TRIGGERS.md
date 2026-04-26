@@ -24,6 +24,24 @@ Design rationale → [`DECISIONS.md`](../DECISIONS.md) (D25, D26, D27).
 
 ---
 
+## Plan adversarial auto <a id="plan-adversarial-auto"></a>
+
+**Used by:** Step 4b of `/riff:next` when `plan_adversarial: auto` (default).
+
+Triggers read from PLAN.md and the phase's ROADMAP.yaml entry (no diff exists yet).
+
+**Run condition (any is sufficient):**
+
+- `priority: P0` AND any tag in `architecture` / `novel` / `security_critical`
+- Phase touches any of — auth, SSO/OAuth, payments, crypto/HMAC/tokens, RLS/multi-tenancy, irreversible migration, public API breaking change, threat model
+- Phase tags include `adversarial-plan`
+- PLAN.md introduces a new architectural pattern (first use of: queue, multi-step transaction, webhook handler, background job, cross-service contract)
+- PLAN.md has 4+ tasks across 3+ waves (high-coordination plan, more room for ordering errors)
+
+**Skip otherwise.** Pure UI, refactor, docs, P2 phases skip.
+
+---
+
 ## Adversarial auto <a id="adversarial-auto"></a>
 
 **Used by:** Step 6 of `/riff:next` when `adversarial: auto` (default).
