@@ -98,6 +98,18 @@ Install RIFF into the current project via symlink to the local framework repo.
     fi
     ```
 
+11.5. **Tooling config:** copy canonical tooling configs from `templates/` into project root if absent. Mirrors the Step 11 pattern (per-file conditional copy, no overwrite).
+
+    ```bash
+    for f in biome.json vitest.config.ts vitest.setup.ts drizzle.config.ts playwright.config.ts tsconfig.json components.json vite.config.ts .semgrep.yml .gitleaks.toml; do
+      if [ ! -f "$f" ] && [ -f ".riff/templates/$f" ]; then
+        cp ".riff/templates/$f" "./$f"
+        echo "Installed $f from RIFF templates."
+      fi
+    done
+    # Note: vitest coverage thresholds require @vitest/coverage-v8 as a devDependency.
+    ```
+
 12. **Show banner:** `bash .riff/templates/banner.sh`
 
 ```
