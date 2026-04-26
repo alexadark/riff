@@ -1,11 +1,12 @@
 ---
 description: Quarterly review of INCIDENTS.md, propose framework changes
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
+args: "[--no-adversarial]"
 ---
 
 # /riff:incident-review
 
-Read `INCIDENTS.md`, group by miss type, propose concrete additions to `taste.md`, new adversarial-reviewer triggers, and new test patterns. Output is a draft, not an applied change.
+Read `INCIDENTS.md`, group by miss type, propose concrete additions to `taste.md`, new adversarial-reviewer triggers, and new test patterns. A Codex adversarial pass then challenges the draft. Output is a draft, not an applied change.
 
 ## Steps
 
@@ -44,10 +45,21 @@ Read `INCIDENTS.md`, group by miss type, propose concrete additions to `taste.md
    - [ ] ...
    ```
 
-5. **Print** the path to the draft and remind the user to review and apply manually. Do NOT apply changes automatically.
+5. **Adversarial pass (Codex)** — runs by default. Skip with `--no-adversarial`.
+
+   Agent tool → skill `codex:codex-rescue`. Prompt: draft path (one line), instruction _"Read `agents/incident-adversarial-reviewer.md`. Read the draft at `.planning/incident-review-YYYY-MM-DD.md` and `INCIDENTS.md`. Apply the protocol. Append the `## Adversarial Review` section to the draft with ACCEPT or REVISE verdict."_
+
+   **On REVISE:** surface the Findings to user (paste them). Decide manually: edit the draft to address `BLOCKER` findings before applying, or accept REVISE as input for next quarter. Do NOT auto-revise — the draft is already advisory and Alex applies it manually.
+
+   **On ACCEPT:** continue.
+
+   **Skip safely:** if the Codex skill is not configured, log a warning and continue — do not block the review.
+
+6. **Print** the path to the draft and remind the user to review and apply manually. Do NOT apply changes automatically.
 
 ## Notes
 
 - Run quarterly. Cadence is enforced manually for now.
 - Do not modify `INCIDENTS.md`. The ledger is append-only.
 - Keep proposals concrete: each must name the file, section, and exact text to add.
+- The adversarial pass appends to the draft, not to `INCIDENTS.md`.
