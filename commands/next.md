@@ -232,13 +232,46 @@ Usage: {{total_tokens}}k tokens, {{duration}}min
 Next: Phase {{N+1}}: {{NEXT_TITLE}}
 ```
 
-Pending expertise: `ls .planning/expertise/.pending/ 2>/dev/null | wc -l`. If > 0, ALWAYS surface prominently in the end-of-phase summary. Do not let it scroll past silently:
+### Pending expertise review (inline)
 
-```
-🔔 {{N}} expertise proposal(s) pending — run `/riff:review-expertise` before the next phase. Unreviewed patches mean later phases may repeat the same mistakes.
-```
+Compute pending count: `ls .planning/expertise/.pending/*.md 2>/dev/null | wc -l`. If 0 → skip this section.
 
-Threshold: if pending count reaches 3 or more, upgrade the marker to an AskUserQuestion asking whether to pause for review before the next `/riff:next`. The goal is to catch rules that affect upcoming work before they go stale.
+If > 0, run AskUserQuestion:
+
+> "{{N}} expertise patches pending. What do you want to do?"
+>
+> - **Review now** — walk per-pattern (recommended for staying coherent)
+> - **Defer to next phase** — leave them in `.pending/`, will ask again at end of next phase
+> - **Reject all** — wipe `.pending/` (with one confirmation step)
+
+**Review now** flow (per-pattern):
+
+1. Glob `.planning/expertise/.pending/*.md`. For each file, read it and identify each PATTERN inside (a file may contain multiple).
+2. For each pattern, classify into one of three tiers:
+
+   | Tier             | Scope                                                                                                  | Destination                                                                       |
+   | ---------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+   | **Stack**        | Gotcha / convention for a tech (Drizzle, Zod, RR7, Vitest, etc.) that applies to any project using it | `~/DEV/frameworks/riff/references/taste/stacks/<stack>.md` (framework)            |
+   | **Architecture** | Design principle, multi-tenant rule, security pattern applicable beyond one project                   | `~/DEV/frameworks/riff/references/taste/{architecture,security,backend,testing}.md` |
+   | **Project**      | File paths, provider quirks, domain-specific patterns tied to this codebase                           | `.planning/expertise/<agent>.md` and/or project `taste.md`                        |
+
+3. AskUserQuestion per pattern: **Accept (at tier X) / Reject / Edit / Re-tier**.
+4. Apply the decision: append to destination (without `Justification` line for Project tier), remove pattern from pending file.
+5. When all patterns in a pending file are handled, delete the pending file.
+6. Auto-reject duplicates of existing rules and note them in the report.
+
+Rules:
+- Default to **Project** tier when unsure. Over-promotion to framework bloats references for all users.
+- If a framework file exceeds 15 entries after append, warn to compress.
+- When promoting to RIFF framework (Stack or Architecture tier), remind: "Existing projects won't auto-pick-up this rule, their `taste.md` was seeded at `/riff:start`. They'd need a manual sync."
+
+**Defer** flow:
+Print `Deferred. {{N}} patches stay in .planning/expertise/.pending/. Will ask again at the end of the next phase.` Do nothing else.
+
+**Reject all** flow:
+Confirm with one more AskUserQuestion ("Wipe all {{N}} patches? This is irreversible."). On confirm: `rm -f .planning/expertise/.pending/*.md`. Print `Rejected {{N}} patches.`
+
+Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected, E edited, D deferred.`
 
 ---
 

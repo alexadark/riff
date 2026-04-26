@@ -26,10 +26,10 @@ Read: STATE.md, ROADMAP.yaml. Check: pending taste rules (`<!-- PENDING -->`), s
 Phase {{N}}: {{TITLE}} - {{STATUS}} {{BLOCKER if any}}
 
 ## Next Action
-{{one recommendation: /riff:next, fix failures, HITL review, /riff:check, or blocked}}
+{{one recommendation: /riff:next, fix failures, HITL review, ask Claude to re-audit, or blocked}}
 
 ## Pending Reviews
-- expertise: {{N}} patches by agent across {{K}} phases — run /riff:review-expertise to route them to stack/architecture/project tiers
+- expertise: {{N}} patches by agent across {{K}} phases — will be offered at the end of next /riff:next phase (or ask Claude to review now)
 - seeds: {{N}} deferred ideas ({{M}} triggers met)
 
 ## Recent Deviations
@@ -38,6 +38,6 @@ Phase {{N}}: {{TITLE}} - {{STATUS}} {{BLOCKER if any}}
 
 ## Pending-expertise surfacing rule
 
-If `.planning/expertise/.pending/` has ANY file, the "Pending Reviews" line for expertise MUST be rendered prominently (bold or with a 🔔 marker) and a one-line recommendation added to "Next Action": "Review {{N}} pending expertise patches before the next phase — they may contain rules that affect upcoming work."
+If `.planning/expertise/.pending/` has ANY file, render the expertise line in "Pending Reviews" prominently (bold or with a 🔔 marker). The end-of-phase flow in `/riff:next` Step 10 will offer Review now / Defer / Reject all at the next phase boundary, so this is informational, not a call to a separate command.
 
-Rationale: pending patches that sit unreviewed for multiple phases mean later phases repeat the same mistakes. Surface early, not when the backlog is painful.
+Rationale: pending patches that sit unreviewed for multiple phases mean later phases repeat the same mistakes. Surfacing keeps the user aware between phases.

@@ -61,7 +61,7 @@ Ask: "Would this pattern apply to another project using the same stack?"
 - **ARCHITECTURE** — a design principle, multi-tenant rule, or security pattern applicable beyond one project. Destined for `references/taste/{architecture,security,backend,testing}.md`.
 - **PROJECT** — file paths, provider quirks, domain-specific patterns tied to this codebase. Destined for `.planning/expertise/<agent>.md`.
 
-When in doubt, assign **PROJECT**. Over-promotion bloats framework references for all users. The human re-classifies during `/riff:review-expertise`.
+When in doubt, assign **PROJECT**. Over-promotion bloats framework references for all users. The human re-classifies during the end-of-phase review in `/riff:next` Step 10.
 
 ## Rules
 
@@ -70,5 +70,5 @@ When in doubt, assign **PROJECT**. Over-promotion bloats framework references fo
 - Do not duplicate lessons already in the expertise file OR in RIFF framework references (`~/DEV/frameworks/riff/references/taste/**`). Before writing a STACK or ARCHITECTURE tier pattern, grep the framework references for the same rule.
 - Do not log routine successes. Only surprises and recurring failures.
 - If you have nothing useful, write nothing and exit cleanly.
-- Human validates everything via `/riff:review-expertise`.
+- Human validates everything inline at the end of each phase (`/riff:next` Step 10).
 - Framework gap proposals (`framework-<phase>.md`) use the same format but with Impact always HIGH. These flag missing commands, outdated docs, or unclear protocols that blocked or slowed the phase.
