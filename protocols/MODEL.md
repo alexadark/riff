@@ -11,6 +11,7 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 | Step                                                   | Where                  | Model                                | Thinking                                                      |
 | ------------------------------------------------------ | ---------------------- | ------------------------------------ | ------------------------------------------------------------- |
 | `/riff:next` orchestration (state read, pick, git, PR) | Inline (parent)        | **Opus** (forced via frontmatter)    | none                                                          |
+| `/riff:start` Stage 2.5: Architecture adversarial      | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
 | Step 4: Planner                                        | **Inline** (parent)    | **Opus** (parent)                    | Dynamic per phase                                             |
 | Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
 | Step 5: Executor                                       | Sub-agent              | **Sonnet** (default), Opus on opt-in | none, `think hard` if `complex_execution:`                    |
@@ -58,9 +59,9 @@ Every decision (model choice, whether to run optional pipeline steps) resolves t
 
 | Budget | Optional pipeline steps (defaults) | Model defaults |
 | ------ | ---------------------------------- | -------------- |
-| `frugal` | `simplify: false`, `plan_adversarial: false`, `adversarial: false`, improver off | Haiku or Sonnet everywhere, never Opus by default |
-| `balanced` | `simplify: auto`, `plan_adversarial: auto`, `adversarial: auto`, improver per existing heuristic | Sonnet for execution, Opus only on per-phase flag |
-| `max` | `simplify: auto`, `plan_adversarial: auto` (bias toward running), `adversarial: auto` (bias toward running), improver per heuristic | Opus for planner and security-critical execution, Sonnet for routine work |
+| `frugal` | `simplify: false`, `arch_adversarial: false`, `plan_adversarial: false`, `roadmap_adversarial: false`, `adversarial: false`, improver off | Haiku or Sonnet everywhere, never Opus by default |
+| `balanced` | `simplify: auto`, `arch_adversarial: auto`, `plan_adversarial: auto`, `roadmap_adversarial: auto`, `adversarial: auto`, improver per existing heuristic | Sonnet for execution, Opus only on per-phase flag |
+| `max` | `simplify: auto`, `arch_adversarial: auto` (bias toward running), `plan_adversarial: auto` (bias toward running), `roadmap_adversarial: auto` (bias toward running), `adversarial: auto` (bias toward running), improver per heuristic | Opus for planner and security-critical execution, Sonnet for routine work |
 
 Per-phase flags always win over budget defaults.
 

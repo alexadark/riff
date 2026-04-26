@@ -42,6 +42,23 @@ Triggers read from PLAN.md and the phase's ROADMAP.yaml entry (no diff exists ye
 
 ---
 
+## Architecture adversarial auto <a id="architecture-adversarial-auto"></a>
+
+**Used by:** Stage 2.5 of `/riff:start` when `arch_adversarial: auto` (default).
+
+Triggers read from PROJECT.md (project type) and `.planning/design/architecture.md` (only run if it exists — CLI/skill/content/automation projects don't produce one).
+
+**Run condition (any is sufficient):**
+
+- Project type is `saas`, `web-app`, or `api`
+- Architecture diagram has 4+ components OR 2+ external services
+- Architecture mentions any of — auth, SSO/OAuth, payments, multi-tenancy, webhooks, background jobs, queues, public API
+- PROJECT.md constraints include `security_critical`, `multi-tenant`, or `public`
+
+**Skip otherwise.** Pure CLI, skill, single-script automation, or content-only projects skip (typically no architecture.md to review anyway).
+
+---
+
 ## Adversarial auto <a id="adversarial-auto"></a>
 
 **Used by:** Step 6 of `/riff:next` when `adversarial: auto` (default).

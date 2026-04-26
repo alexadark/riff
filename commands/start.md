@@ -52,6 +52,33 @@ Check: Story→Page, Page→Entity, Entity→Component, Service→Page, feature 
 
 ---
 
+## Stage 2.5: Architecture adversarial review (gated)
+
+Runs only if the System Architecture module ran in Stage 2 (otherwise no `.planning/design/architecture.md` exists to review). Architecture-stage fixes cost ~10x more once the roadmap chases the wrong shape, so this is the cheapest checkpoint.
+
+**Gate:** `arch_adversarial:` from `.planning/config.json` (`true` | `false` | `auto`; default `auto`).
+
+- `false` → skip
+- `true` → always run (assuming architecture.md exists)
+- `auto` → see [`AUTO-TRIGGERS.md#architecture-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#architecture-adversarial-auto)
+
+**If running:** Agent tool → skill `codex:codex-rescue`.
+
+Prompt: project name (one line), instruction _"Read `agents/architecture-adversarial-reviewer.md`. Read `.planning/design/architecture.md`, PROJECT.md, and any sibling design files (`.planning/design/data-model.md`, `.planning/design/pages.md`) that exist. Apply the protocol. Write `.planning/design/ARCHITECTURE-REVIEW.md` with PROCEED or REVISE verdict."_
+
+**On REVISE:**
+
+1. Surface ARCHITECTURE-REVIEW.md to user (paste the Findings section).
+2. Re-run the System Architecture module of Stage 2 with ARCHITECTURE-REVIEW.md as additional input. Address every `BLOCKER`, optionally address `WARNING`/`NOTE`, rewrite `.planning/design/architecture.md` in place.
+3. Re-run Stage 2.5. Loop until PROCEED.
+4. Max 2 revision cycles, then STOP and escalate to user with both files.
+
+**On PROCEED:** continue to Stage 3.
+
+**Skip safely:** if the Codex skill is not configured, log a warning and continue — do not block the discovery pipeline.
+
+---
+
 ## Stage 3: Feature Scoping
 
 Gather features from PROJECT.md + design modules + research. Propose v1 / Later / Out of Scope split. Adjust via AskUserQuestion loop until "Done — scope is set."
