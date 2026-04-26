@@ -1,0 +1,43 @@
+# profile.yaml — RIFF personalization layer
+#
+# This file is committed as an example. Your real profile.yaml is gitignored.
+#
+# To set up your own:
+#   1. Run /riff:onboard from inside the framework directory in Claude Code.
+#      It will walk you through 13 questions or let you pick a preset.
+#   2. Or copy this file to profile.yaml and edit by hand.
+#
+# Every RIFF agent reads profile.yaml at startup and adapts its persona,
+# strictness, length, and budget. Missing file → agents fall back to the
+# `neutre` preset (the values shown below).
+#
+# Schema and field meanings: commands/onboard.md § Profile schema
+# Other presets to start from: commands/onboard.md § Presets
+#   - expert        → team specialist, terse, fast, jargon-free, balanced budget
+#   - neutre        → safe middle ground (this file)
+#   - apprentissage → learner-friendly: cautious, detailed, asks before acting
+#   - alex          → solo + content + business, cautious + terse + max budget
+
+user:
+  programming_level: intermediate    # novice | learner | intermediate | experienced | expert
+  ai_agents_experience: tried        # none | tried | regular | advanced
+  domains: [generalist]              # frontend, backend, fullstack, data_ml, systems, mobile, generalist
+  work_mode: solo                    # solo | team | solo_plus_clients | client_work | mix
+  side_activities: [none]            # none, content, business, design, ops, other
+  parallel_projects: few             # one | few | many
+  conversational_language: mix       # fr | en | mix | other
+  artifact_language: en              # en | fr | other  (code, commits, docs)
+
+risk:
+  sensitive_task_preference: balanced  # cautious | balanced | fast
+
+style:
+  length: standard                   # terse | standard | detailed
+  allow_jargon: first_mention        # free | first_mention | never
+  when_uncertain: important_only     # always_ask | important_only | initiative
+
+budget:
+  default_quality: balanced          # frugal | balanced | max
+
+notifications:
+  channel: none                      # none | email | slack | discord | telegram | other

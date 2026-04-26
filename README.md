@@ -43,6 +43,8 @@ Open Claude Code in the framework directory and run:
 
 This walks you through 13 questions (or picks a preset) and writes `profile.yaml` at the framework root. Every agent reads it on startup.
 
+> Your `profile.yaml` is gitignored — it stays local, never gets committed when you contribute back. See [`profile.yaml.example`](./profile.yaml.example) for the schema with field comments if you'd rather edit by hand.
+
 ## Quickstart in a project
 
 ```bash
