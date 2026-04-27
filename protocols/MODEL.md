@@ -11,18 +11,50 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 | Step                                                   | Where                  | Model                                | Thinking                                                      |
 | ------------------------------------------------------ | ---------------------- | ------------------------------------ | ------------------------------------------------------------- |
 | `/riff:next` orchestration (state read, pick, git, PR) | Inline (parent)        | **Opus** (forced via frontmatter)    | none                                                          |
-| `/riff:start` Stage 2.5: Architecture adversarial      | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
-| `/riff:start` Stage 4.5: Roadmap adversarial           | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
+| `/riff:start` Stage 2.5: Architecture adversarial      | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
+| `/riff:start` Stage 4.5: Roadmap adversarial           | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
 | Step 4: Planner                                        | **Inline** (parent)    | **Opus** (parent)                    | Dynamic per phase                                             |
-| Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
+| Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
 | Step 5: Executor                                       | Sub-agent              | **Sonnet** (default), Opus on opt-in | none, `think hard` if `complex_execution:`                    |
 | Step 5b: Simplifier                                    | Sub-agent              | **Haiku**                            | none                                                          |
-| Step 6: Adversarial review                             | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
+| Step 6: Adversarial review                             | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
 | Step 7: Security review                                | Sub-agent              | **Sonnet**                           | `think harder` for auth/payment/public-API, else `think hard` |
 | Step 7b: Improver                                      | Sub-agent (background) | **Haiku**                            | none                                                          |
 | Step 8a: Doc updater                                   | Sub-agent              | **Haiku**                            | none                                                          |
-| Quarterly incident review adversarial pass             | Sub-agent              | **Codex (GPT)**                      | N/A (controlled via skill)                                    |
+| Quarterly incident review adversarial pass             | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
 | Debugger (auto-trigger or `/riff:debug`)               | Sub-agent              | **Opus** (default), Sonnet opt-in    | Dynamic per triage tier                                       |
+
+## Codex model + effort
+
+The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF resolves both at the call site and includes them in the rescue prompt. Mapping below replaces the generic "Codex (GPT)" rows in the dispatch table.
+
+| Step                                       | Budget   | Model           | Effort    |
+| ------------------------------------------ | -------- | --------------- | --------- |
+| Step 4b plan adversarial                   | any      | `gpt-5.5`       | `medium`  |
+| Step 6 post-build adversarial              | frugal   | `gpt-5.4-mini`  | `minimal` |
+| Step 6 post-build adversarial              | balanced | `gpt-5.4`       | `medium`  |
+| Step 6 post-build adversarial              | max      | `gpt-5.5`       | `medium`  |
+| Stage 2.5 architecture adversarial         | any      | `gpt-5.5`       | `high`    |
+| Stage 4.5 roadmap adversarial              | any      | `gpt-5.4`       | `medium`  |
+| Quarterly incident adversarial pass        | any      | `gpt-5.5`       | `high`    |
+
+### § Codex model+effort rationale
+
+- **Step 4b:** the `auto` gate already filters for complex phases. Once it fires, you're in expensive-correction territory — `gpt-5.5 medium` is justified. Frequency is low (~1-2/day on a typical roadmap) so Plus quota is fine.
+- **Step 6:** highest-frequency Codex call. Default `gpt-5.4 medium` is the sweet spot ($2.50/$15 MTok, 20-100 msg/5h). `frugal` drops to `gpt-5.4-mini minimal`, `max` bumps to `gpt-5.5 medium`.
+- **Stage 2.5:** architecture findings cost ~100x to fix later — `high` effort is justified.
+- **Stage 4.5:** sequencing and dependency analysis. No need for the frontier model — `gpt-5.4 medium` suffices.
+- **Quarterly incident pass:** post-mortem on shipped bugs, you want the deepest possible analysis — `gpt-5.5 high`.
+
+### Resolution chain (Codex)
+
+Same precedence as everything else (highest wins):
+
+1. Per-phase override (`codex_model:`, `codex_effort:` in the phase entry)
+2. Step + budget mapping above
+3. Hardcoded fallback: `gpt-5.4 medium`
+
+If the Codex skill is missing or returns an error: log a warning, skip the step, never block the pipeline.
 
 ## Thinking keywords
 
@@ -92,6 +124,8 @@ phases:
     simplify: true              # force simplifier on (or false to skip)
     plan_adversarial: true      # force plan adversarial on (or false to skip)
     adversarial: true           # force adversarial on (or false to skip)
+    codex_model: gpt-5.5        # override default Codex model for this phase
+    codex_effort: high          # override default Codex effort for this phase
 ```
 
 PLAN.md's `## Model Recommendation` section can recommend an executor model. ROADMAP.yaml takes precedence over PLAN.md.

@@ -81,7 +81,9 @@ Runs before execution so the planner can revise BEFORE code is written. Plan-sta
 
 **If running:** Agent tool → skill `codex:codex-rescue`.
 
-Prompt: phase goal (one line), branch, instruction _"Read `agents/plan-adversarial-reviewer.md`. Read `.planning/phases/N-slug/PLAN.md`, PROJECT.md, the ROADMAP.yaml entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write `.planning/phases/N-slug/PLAN-REVIEW.md` with PROCEED or REVISE verdict."_
+**Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Default for Step 4b: `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
+
+Prompt: phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/plan-adversarial-reviewer.md`. Read `.planning/phases/N-slug/PLAN.md`, PROJECT.md, the ROADMAP.yaml entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write `.planning/phases/N-slug/PLAN-REVIEW.md` with PROCEED or REVISE verdict."_
 
 **On REVISE:**
 
@@ -162,7 +164,9 @@ Launch BOTH in a single message.
 - `true` → always run
 - `auto` → see [`AUTO-TRIGGERS.md#adversarial-auto`](../protocols/AUTO-TRIGGERS.md#adversarial-auto)
 
-**If running:** prompt includes phase goal (one line), branch, instruction _"Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_
+**Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Defaults by `budget_quality`: `frugal` → `gpt-5.4-mini minimal`; `balanced` → `gpt-5.4 medium`; `max` → `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
+
+**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_
 
 - Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 

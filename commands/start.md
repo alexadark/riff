@@ -90,7 +90,9 @@ Check: Story→Page, Page→Entity, Entity→Component, Service→Page, feature 
 
 **If running:** Agent tool → skill `codex:codex-rescue`.
 
-Prompt: project name (one line), instruction _"Read `agents/architecture-adversarial-reviewer.md`. Read `.planning/design/architecture.md`, PROJECT.md, and any sibling design files (`.planning/design/data-model.md`, `.planning/design/pages.md`) that exist. Apply the protocol. Write `.planning/design/ARCHITECTURE-REVIEW.md` with PROCEED or REVISE verdict."_
+**Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Default for Stage 2.5: `gpt-5.5 high`.
+
+Prompt: project name (one line), instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/architecture-adversarial-reviewer.md`. Read `.planning/design/architecture.md`, PROJECT.md, and any sibling design files (`.planning/design/data-model.md`, `.planning/design/pages.md`) that exist. Apply the protocol. Write `.planning/design/ARCHITECTURE-REVIEW.md` with PROCEED or REVISE verdict."_
 
 **On REVISE:**
 
@@ -139,7 +141,9 @@ Runs before bootstrap. Roadmap fixes are nearly free now; once Stage 5 lands and
 
 **If running:** Agent tool → skill `codex:codex-rescue`.
 
-Prompt: project name (one line), instruction _"Read `agents/roadmap-adversarial-reviewer.md`. Read `ROADMAP.yaml`, PROJECT.md, and any sibling design files (`.planning/design/architecture.md`, `.planning/design/pages.md`) that exist. Apply the protocol. Write `.planning/ROADMAP-REVIEW.md` with PROCEED or REVISE verdict."_
+**Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Default for Stage 4.5: `gpt-5.4 medium`.
+
+Prompt: project name (one line), instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/roadmap-adversarial-reviewer.md`. Read `ROADMAP.yaml`, PROJECT.md, and any sibling design files (`.planning/design/architecture.md`, `.planning/design/pages.md`) that exist. Apply the protocol. Write `.planning/ROADMAP-REVIEW.md` with PROCEED or REVISE verdict."_
 
 **On REVISE:**
 
