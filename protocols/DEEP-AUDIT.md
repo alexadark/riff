@@ -71,17 +71,73 @@ timestamp,phase,step,model,effort,outcome,duration_sec
 
 Use `phase=-` because the audit spans multiple phases. Use UTC ISO-8601 for the timestamp.
 
+### Step 2.5: Synthesize and dedup findings
+
+After the Codex audit returns, combine its output with the Assay baseline so the user reads a single unified action list, not two separate reports.
+
+1. Read the Codex audit artifact at `.planning/audits/AUDIT-{{milestone}}-{{YYYY-MM-DD}}.md`.
+2. Read `.assay-assessment/bug-report.md` (refreshed in Step 0). If Step 0 was skipped (scope=scratch or Assay unavailable), proceed without dedup and note that in the synthesis.
+3. For each Codex finding, check the Assay bug-report for a matching entry by file path + finding nature. Mark Codex findings that duplicate Assay as `dup`. Track count.
+4. Categorize unique (non-dup) Codex findings by severity:
+   - **BLOCKER** — must fix before next milestone / promotion / release. Adversarial verdict marked it ship-stopping.
+   - **HIGH** — fix this sprint (next 1-2 phases).
+   - **NOTE** — backlog, batch into normal work over the next quarter.
+5. Write `.planning/audits/AUDIT-SYNTHESIS-{{milestone}}-{{YYYY-MM-DD}}.md` with this structure:
+
+   ```markdown
+   # Audit Synthesis — {{milestone}} — {{YYYY-MM-DD}}
+
+   **Codex audit:** .planning/audits/AUDIT-{{milestone}}-{{YYYY-MM-DD}}.md
+   **Assay baseline:** .assay-assessment/bug-report.md
+   **Previous synthesis:** {{path or "none — first synthesis"}}
+
+   ## TLDR
+
+   {{3-5 lines: state of the milestone, what to fix first, dedup signal, archive note}}
+
+   ## Dedup stats
+
+   - Codex findings: {{total}}
+   - Already in Assay: {{dup count}}
+   - Unique to Codex: {{unique count}}
+
+   If dup count >50%, refine future Codex prompts to skip those Assay categories more aggressively.
+
+   ## BLOCKER (must fix before next milestone / promote / release)
+
+   For each:
+   - **Title** | **File:** path:line | **Fix:** one-line | **Proposed RIFF action:** new P0 phase via `/riff:add-phase`.
+
+   ## HIGH (fix this sprint)
+
+   For each:
+   - **Title** | **File:** path:line | **Fix:** one-line | **Proposed RIFF action:** new P1 phase, or batch into the next existing phase.
+
+   ## NOTE (backlog)
+
+   One-line per finding. Proposed action: append to DECAY.md "Deferred from deep audit" section.
+
+   ## Archive
+
+   - Codex: .planning/audits/AUDIT-{{milestone}}-{{YYYY-MM-DD}}.md
+   - Assay current: .assay-assessment/
+   - Assay rotated baseline (if Step 0 backed up): .assay-assessment-{{prev-date}}-baseline/
+   ```
+
+6. This synthesis file is what Step 3 surfaces to the user — not the raw Codex AUDIT-*.md.
+
 ### Step 3: Surface verdict
 
-Read the audit artifact at `.planning/audits/AUDIT-<milestone>-<YYYY-MM-DD>.md`.
+Read the synthesis at `.planning/audits/AUDIT-SYNTHESIS-<milestone>-<YYYY-MM-DD>.md`.
 
-- **PROCEED** → print the path. Done. No findings worth acting on.
-- **FINDINGS** → paste the Findings section to the user, then offer triage via AskUserQuestion:
-  - `Spawn /riff:add-phase for material findings` — open a new phase to fix what matters; pre-fill the phase description with the BLOCKER/WARNING titles.
-  - `Note in DECAY.md and defer` — append a one-line entry under DECAY.md's "Deferred from deep audit" section (create the section if missing); address next quarter.
-  - `Acknowledge and move on` — print the path, no action.
+- **No BLOCKER, no HIGH** → print the synthesis path + TLDR. Done. NOTE items already routed to DECAY.md proposal, ask once if the user wants to apply the DECAY append now or defer.
+- **BLOCKER or HIGH present** → paste the synthesis BLOCKER + HIGH sections to the user, then offer triage via AskUserQuestion:
+  - `Spawn /riff:add-phase for BLOCKER findings` — open new P0 phase(s) pre-filled from the synthesis BLOCKER list.
+  - `Spawn /riff:add-phase for HIGH findings` — open new P1 phase(s) pre-filled from the synthesis HIGH list. (Can combine with the previous option.)
+  - `Append NOTE findings to DECAY.md` — append synthesis NOTE list to DECAY.md "Deferred from deep audit" section (create section if missing).
+  - `Acknowledge and move on` — no further action; synthesis stays on disk for later.
 
-**Never auto-fix.** FINDINGS surface to the user. The deep-auditor did not write code; this protocol does not write code either. Material fixes go through `/riff:add-phase`, the standard RIFF loop.
+**Never auto-fix.** Synthesis informs, user decides. The deep-auditor did not write code; this protocol does not write code either. Material fixes go through `/riff:add-phase`, the standard RIFF loop.
 
 ### Step 4: Report
 
@@ -89,7 +145,9 @@ Print:
 
 ```
 Deep audit on milestone {{name}}: {{verdict}}
-Artifact: .planning/audits/AUDIT-{{milestone}}-{{YYYY-MM-DD}}.md
+Synthesis: .planning/audits/AUDIT-SYNTHESIS-{{milestone}}-{{YYYY-MM-DD}}.md
+Codex raw: .planning/audits/AUDIT-{{milestone}}-{{YYYY-MM-DD}}.md
+Dedup: {{unique Codex findings}}/{{total}} (rest already in Assay)
 Codex calls in last 5h: {{count from codex-usage.csv}}
 ```
 
