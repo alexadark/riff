@@ -81,7 +81,9 @@ Runs before execution so the planner can revise BEFORE code is written. Plan-sta
 
 **Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto). If any fires, append a one-line entry to `.planning/phases/N-slug/GATES.md` (`Step 4b: skipped — <reason>`) and continue to Step 5 without spawning Codex.
 
-**If running:** Agent tool → skill `codex:codex-rescue`. Append `Step 4b: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion.
+**Pre-spawn usage check:** see § Codex usage tracking. Soft-cap warning fires if last 5h has >5 Codex calls.
+
+**If running:** Agent tool → skill `codex:codex-rescue`. Append `Step 4b: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=4b`, `outcome=proceed|revise|error`, `duration_sec=<measured>`.
 
 **Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Default for Step 4b: `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
@@ -170,7 +172,9 @@ Launch BOTH in a single message.
 
 **Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Defaults by `budget_quality`: `frugal` → `gpt-5.4-mini minimal`; `balanced` → `gpt-5.4 medium`; `max` → `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
-**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_ Append `Step 6: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion.
+**Pre-spawn usage check:** see § Codex usage tracking. Soft-cap warning fires if last 5h has >5 Codex calls.
+
+**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_ Append `Step 6: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=6`, `outcome=pass|fail|error`, `duration_sec=<measured>`.
 
 - Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 
@@ -303,6 +307,30 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
   In that case, accept RESOLVED as the verdict without a re-run. Surface in Step 10 report: `Re-run skipped: RESOLVED with pinning tests`.
 
 - DEBUG.md `UNRESOLVED` → halt, surface DEBUG.md to user
+
+---
+
+## Codex usage tracking
+
+Every Codex call (Step 4b, Step 6) appends a row to `.planning/codex-usage.csv` at project root. This is a Plus-quota awareness counter, not a billing tool. Already covered by the project-level `.gitignore` rule on `.planning/`.
+
+**File:** `.planning/codex-usage.csv` (create with header on first call if missing).
+
+```csv
+timestamp,phase,step,model,effort,outcome,duration_sec
+```
+
+**Why no message count:** the rescue skill does not return a token usage figure we can rely on. Duration is the proxy.
+
+**Soft cap warning (pre-spawn):** before spawning Codex at Step 4b or Step 6, count rows in `codex-usage.csv` whose `timestamp` is within the last 5 hours. If the count is greater than 5, print:
+
+> Codex: 5+ calls in last 5h. Consider switching `budget_quality: frugal` for the rest of the session, or take a break.
+
+Do NOT block. Just warn and proceed.
+
+**Outcome values:** `pass`, `fail`, `revise`, `proceed`, `error` (skill failure / setup missing).
+
+**Step is one of:** `4b`, `6`.
 
 ---
 
