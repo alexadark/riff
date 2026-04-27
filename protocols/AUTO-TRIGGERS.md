@@ -40,6 +40,14 @@ Triggers read from PLAN.md and the phase's ROADMAP.yaml entry (no diff exists ye
 
 **Skip otherwise.** Pure UI, refactor, docs, P2 phases skip.
 
+**Skip overrides (apply even if a run condition fires).** Skip Codex when ANY of:
+
+- PLAN.md task list has fewer than 3 tasks
+- Phase tagged `trivial: true` or `bug_fix: true` in ROADMAP.yaml
+- PLAN.md is shorter than 50 lines
+
+Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 4b: skipped — <reason>`).
+
 ---
 
 ## Architecture adversarial auto <a id="architecture-adversarial-auto"></a>
@@ -94,6 +102,13 @@ Triggers read from `ROADMAP.yaml` and PROJECT.md.
 - any schema file introducing new PII fields
 
 **Skip otherwise.** Pure UI, docs, refactor, low-priority feature phases skip.
+
+**Skip overrides (apply even if a run condition fires).** Skip Codex when EITHER:
+
+- ALL of: diff is fewer than 100 lines AND no diff path matches `*auth*|*api*|*payment*|*security*` AND phase is NOT tagged `security_critical: true`
+- OR: phase tagged `bug_fix: true` AND tests pass AND diff is fewer than 50 lines
+
+Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 6: skipped — <reason>`).
 
 ---
 

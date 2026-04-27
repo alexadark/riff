@@ -75,11 +75,13 @@ Runs before execution so the planner can revise BEFORE code is written. Plan-sta
 
 **Gate:** `plan_adversarial:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
 
-- `false` → skip
-- `true` → always run
+- `false` → skip (log to `.planning/phases/N-slug/GATES.md`: `Step 4b: skipped — gate=false`)
+- `true` → run (skip overrides do NOT apply when gate is explicit `true`)
 - `auto` → see [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto)
 
-**If running:** Agent tool → skill `codex:codex-rescue`.
+**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto). If any fires, append a one-line entry to `.planning/phases/N-slug/GATES.md` (`Step 4b: skipped — <reason>`) and continue to Step 5 without spawning Codex.
+
+**If running:** Agent tool → skill `codex:codex-rescue`. Append `Step 4b: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion.
 
 **Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Default for Step 4b: `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
@@ -160,13 +162,15 @@ Launch BOTH in a single message.
 
 **Gate:** `adversarial:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
 
-- `false` → skip
-- `true` → always run
+- `false` → skip (log to `.planning/phases/N-slug/GATES.md`: `Step 6: skipped — gate=false`)
+- `true` → run (skip overrides do NOT apply when gate is explicit `true`)
 - `auto` → see [`AUTO-TRIGGERS.md#adversarial-auto`](../protocols/AUTO-TRIGGERS.md#adversarial-auto)
+
+**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#adversarial-auto`](../protocols/AUTO-TRIGGERS.md#adversarial-auto). If any fires, append a one-line entry to `.planning/phases/N-slug/GATES.md` (`Step 6: skipped — <reason>`) and continue without spawning Codex (security review still runs in parallel).
 
 **Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Defaults by `budget_quality`: `frugal` → `gpt-5.4-mini minimal`; `balanced` → `gpt-5.4 medium`; `max` → `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
-**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_
+**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_ Append `Step 6: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion.
 
 - Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 
