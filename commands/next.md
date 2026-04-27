@@ -87,7 +87,11 @@ Runs before execution so the planner can revise BEFORE code is written. Plan-sta
 
 **Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Default for Step 4b: `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
+**Resolve `risk_focus`** from the phase's ROADMAP.yaml entry (optional, free text, e.g. `"concurrency, idempotency"`). When set, append the targeted clause to the prompt below.
+
 Prompt: phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/plan-adversarial-reviewer.md`. Read `.planning/phases/N-slug/PLAN.md`, PROJECT.md, the ROADMAP.yaml entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write `.planning/phases/N-slug/PLAN-REVIEW.md` with PROCEED or REVISE verdict."_
+
+If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_
 
 **On REVISE:**
 
@@ -172,9 +176,11 @@ Launch BOTH in a single message.
 
 **Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Defaults by `budget_quality`: `frugal` → `gpt-5.4-mini minimal`; `balanced` → `gpt-5.4 medium`; `max` → `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
+**Resolve `risk_focus`** from the phase's ROADMAP.yaml entry (optional, free text, e.g. `"concurrency, idempotency"`). When set, append the targeted clause to the prompt below.
+
 **Pre-spawn usage check:** see § Codex usage tracking. Soft-cap warning fires if last 5h has >5 Codex calls.
 
-**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_ Append `Step 6: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=6`, `outcome=pass|fail|error`, `duration_sec=<measured>`.
+**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_ If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_ Append `Step 6: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=6`, `outcome=pass|fail|error`, `duration_sec=<measured>`.
 
 - Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 

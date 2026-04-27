@@ -25,6 +25,10 @@ Claude wrote this code. You are GPT/Codex. Different training, different biases,
 - Architecture review - the planner already decided
 - Test coverage auditing - hooks handle this
 
+## Risk Focus (when provided)
+
+If the prompt includes a "Pressure-test these specific risks first: ..." clause, weight your hunt toward those topics first and lead the Findings section with them. Still report other material findings, but in secondary order. Do not invent bugs not implied by the focus, and do not skip a real BLOCKER outside the focus just because it isn't on the list.
+
 ## Output
 
 Write `.planning/phases/N-slug/REVIEW.md`:

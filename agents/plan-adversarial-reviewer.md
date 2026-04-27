@@ -28,6 +28,10 @@ Claude wrote this plan. You are GPT/Codex. Plan-stage mistakes cost ~10x less to
 - Re-write the plan — challenge, don't replace
 - Security checklist scanning — `agents/security-reviewer.md` does OWASP grep on the diff later. Your job is plan-level threat reasoning, not OWASP enumeration
 
+## Risk Focus (when provided)
+
+If the prompt includes a "Pressure-test these specific risks first: ..." clause, weight your hunt toward those topics first and lead the Findings section with them. Still report other material findings, but in secondary order. Do not invent risks not implied by the focus, and do not skip a real BLOCKER outside the focus just because it isn't on the list.
+
 ## Output
 
 Write `.planning/phases/N-slug/PLAN-REVIEW.md`:
