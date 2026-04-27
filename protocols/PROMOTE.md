@@ -34,6 +34,7 @@ Surface what promotion will change:
 
 ```
 Promoting from scratch → production. This will:
+- Run a pre-flight audit (audit-codebase, Critical bugs block promotion)
 - Run Stage 2 (design modules: pages, data, architecture)
 - Run Stage 2.5 (architecture adversarial review via Codex)
 - Run Stage 4.5 (roadmap adversarial review via Codex)
@@ -45,6 +46,31 @@ Promoting from scratch → production. This will:
 ```
 
 AskUserQuestion: `proceed` / `cancel`. Cancel → exit without changes.
+
+### Step 1.5: Pre-promote audit gate
+
+Before flipping the scope flag (point of no return for the rest of the flow), run a baseline audit so promotion doesn't paper over known issues that the stricter production gates will then keep flagging.
+
+Invoke skill `audit-codebase` mode `full`. Read the resulting bug TLDR + AI-readiness score.
+
+**If `Critical` bugs exist** → STOP. Print:
+
+```
+Promotion blocked: {{N}} critical bugs in current codebase. Production scope locks in stricter gates (security-reviewer + adversarial Codex on every phase) that will keep flagging these. Fix them first, then re-trigger promote. See .assay-assessment/bug-report.md.
+```
+
+User fixes and re-triggers promotion. Do not proceed to Step 2.
+
+**If `High` bugs exist (no Critical)** → AskUserQuestion:
+
+> "{{X}} high-severity bugs found by audit. Promote anyway (they will surface as explicit phases in upcoming `/riff:next` runs) OR pause to address them first?"
+>
+> - **Promote anyway** — continue to Step 2
+> - **Pause** — exit, user fixes then re-triggers promote
+
+**If only Medium/Low bugs (or none)** → continue to Step 2. Medium findings batch into normal sprint work post-promote.
+
+**Skip Step 1.5 entirely** if the `audit-codebase` skill is not available (graceful fallback, do not block) or the user explicitly opts out via AskUserQuestion.
 
 ### Step 2: Flip the scope flag
 
