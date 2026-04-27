@@ -45,7 +45,14 @@ Write `.planning/design/ARCHITECTURE-REVIEW.md`:
 - **Suggest:** how to tighten (one short sentence, not a rewrite)
 
 ## Verdict: PROCEED / REVISE
+
+---
+
+**Codex session:** `<session-id>`
+Resume in Codex with: `codex resume <session-id>`
 ```
+
+The session ID is reported by the codex-rescue skill in its output. Read it from your own runtime metadata and paste it into the footer above. If unavailable, write `unknown` and note the reason in one line.
 
 Severity: `BLOCKER` (architecture must be revised) > `WARNING` (architect should consider) > `NOTE` (worth thinking about).
 
