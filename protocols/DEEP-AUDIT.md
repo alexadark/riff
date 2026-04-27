@@ -23,6 +23,17 @@ User says any of:
 
 ## Steps
 
+### Step 0: Refresh Assay baseline
+
+Skip this step if `scope=scratch` in `.planning/config.json`. Assay (`npx tryassay assess`) provides a free, fast bug baseline before the paid Codex deep audit, so Codex can focus on what Assay cannot see (cross-pipeline coherence, architecture drift, multi-tenant boundaries, subtle logic bugs).
+
+1. If `.assay-assessment/assessment-summary.json` exists and is older than 7 days → back it up to `.assay-assessment-<YYYY-MM-DD>-baseline/`, then run `npx tryassay assess`.
+2. If `.assay-assessment/` does not exist → run `npx tryassay assess`.
+3. If `.assay-assessment/assessment-summary.json` is younger than 7 days → reuse it, no rerun.
+4. Read `.assay-assessment/bug-report.md` and `.assay-assessment/executive-summary.md` before continuing.
+
+The Step 2 Codex spawn prompt will reference these findings so Codex skips them.
+
 ### Step 1: Identify scope
 
 Pick the milestone name. Sources, in order:
@@ -46,6 +57,8 @@ If the resolved scope has fewer than 5 files, surface to user: "Milestone scope 
 Agent tool → skill `codex:codex-rescue`. Pass `--model gpt-5.5 --effort xhigh`.
 
 Prompt: milestone name, deduplicated file list, list of phases in scope, instruction _"Run with `--model gpt-5.5 --effort xhigh`. Read `agents/deep-auditor.md`. Read PROJECT.md, the ROADMAP.yaml entries for the phases above, every SUMMARY.md in `.planning/phases/<each-phase>/`, the file list above, and `taste.md` sections relevant to the touched surface. Apply the protocol. Write `.planning/audits/AUDIT-{{milestone}}-{{YYYY-MM-DD}}.md` with PROCEED or FINDINGS verdict."_
+
+If Step 0 ran (i.e. `scope` is not `scratch` and an Assay assessment exists), append to the prompt: _"Assay {{assessment-date}} flagged these critical/high findings: {{paste titles + one-line summaries from .assay-assessment/bug-report.md}}. Skip those, focus on what Assay cannot see: cross-pipeline coherence, architecture drift, multi-tenant boundaries, subtle logic bugs, accumulated tech debt across phases."_
 
 Create `.planning/audits/` if missing.
 
