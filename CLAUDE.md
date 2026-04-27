@@ -24,6 +24,7 @@ These actions are NOT slash commands. Read the listed protocol or just do the th
 | "incident review", "review du trimestre", "quarterly incident review"                   | Read `protocols/INCIDENT.md` § Part 2, run quarterly review flow                                          |
 | "promote to production", "passe en production", "this app is going public"              | Read `protocols/PROMOTE.md`, run promotion flow (always confirm at Step 1)                                |
 | "re-audit phase N", "re-run security on this branch", "verify phase N before merge"     | Mirror `/riff:next` Steps 5c, 6, 7: spawn scope-checker + adversarial Codex + security-reviewer in parallel against the named phase. Write `.planning/phases/N-slug/VERIFICATION.md`. |
+| "deep audit", "audit ce module", "milestone review", "review complète"                  | Read `protocols/DEEP-AUDIT.md`, run flow                                                                  |
 | "change my profile X to Y", "set my notification channel to Z", "edit profile.yaml"     | Edit `profile.yaml` at framework root directly. Preserve other fields. Confirm the change.                |
 
 Discoverable via this section. Do not invent commands the user did not invoke.

@@ -30,3 +30,4 @@ phases:
     # auto_debug: true     # true | false — auto-debug on executor/review failures (default: true)
     # debug_model: sonnet  # sonnet | opus — override debugger model (default: opus)
     # risk_focus: "concurrency, idempotency"  # free text — adversarial reviewers (Step 4b, Step 6) lead with these risks
+    # milestone: payment-flow-complete  # tag this phase as a milestone closer; /riff:next prompts to run a Codex deep audit across all phases sharing this milestone (see protocols/DEEP-AUDIT.md)

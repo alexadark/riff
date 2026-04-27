@@ -291,6 +291,19 @@ Confirm with one more AskUserQuestion ("Wipe all {{N}} patches? This is irrevers
 
 Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected, E edited, D deferred.`
 
+### Milestone deep audit prompt (inline)
+
+After Step 10's report, check the just-completed phase's ROADMAP.yaml entry for a `milestone:` tag. If absent → no-op, `/riff:next` is done.
+
+If `milestone:` is set, AskUserQuestion:
+
+> Phase N closes milestone `{{name}}`. Run a Codex deep audit across all phases sharing this milestone now, or defer?
+>
+> - **Run now** — read `protocols/DEEP-AUDIT.md` and execute the flow inline (resolves scope, spawns deep-auditor via `codex:codex-rescue`, surfaces verdict).
+> - **Defer** — print `Deferred. Run conversationally with "deep audit" anytime.`
+
+Skip silently if the `codex:codex-rescue` skill is not configured (log one-line warning, no prompt).
+
 ---
 
 ## Auto-debug pattern
