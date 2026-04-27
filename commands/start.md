@@ -16,6 +16,36 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, AskUser
 
 ---
 
+## Stage 0: Brownfield Detection
+
+Check if the repository already contains substantial code (this is a brownfield project being adopted into RIFF rather than a new greenfield project).
+
+**Detection:** run a quick heuristic via Bash:
+
+```bash
+COMMITS=$(git log --oneline 2>/dev/null | wc -l | tr -d ' ')
+SRC_FILES=$(find src app lib 2>/dev/null -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.py" -o -name "*.go" -o -name "*.rs" \) 2>/dev/null | wc -l | tr -d ' ')
+test "$COMMITS" -ge 3 -a "$SRC_FILES" -gt 5 && echo "brownfield" || echo "greenfield"
+```
+
+**Greenfield (no substantial code):** skip Stage 0, jump to Stage 1.
+
+**Skip if scope is clearly `scratch`** (e.g., pre-existing `.planning/config.json` with `scope: scratch`, or user explicitly declares this is a personal/local script). Brownfield audit on scratch rarely repays the time.
+
+**Brownfield (existing code, production-bound):** AskUserQuestion:
+
+> "Existing codebase detected (~N source files, M commits). Run `audit-codebase` for a baseline (AI-readiness + bug score) before discovery? Free, ~5-15 min, gives a measurable starting point to track improvement as RIFF phases ship."
+>
+> - **Run now (recommended)** — invoke skill `audit-codebase` mode `full`, surface results
+> - **Defer** — note in PROJECT.md that baseline audit is pending, continue to Stage 1
+> - **Skip** — continue to Stage 1 without baseline
+
+If **Run now**: invoke skill `audit-codebase` mode `full`. After completion, surface AI-readiness score + Assay TLDR. Findings feed Stage 1 questioning: known critical bugs become constraints to address, weak module boundaries inform architecture design, low-coverage domains highlight what `taste.md` should harden.
+
+Then continue to Stage 1.
+
+---
+
 ## Stage 1: Deep Questioning
 
 Open with: **"What do you want to build?"** Then follow the thread.
