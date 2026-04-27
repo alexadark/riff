@@ -25,6 +25,7 @@ These actions are NOT slash commands. Read the listed protocol or just do the th
 | "promote to production", "passe en production", "this app is going public"              | Read `protocols/PROMOTE.md`, run promotion flow (always confirm at Step 1)                                |
 | "re-audit phase N", "re-run security on this branch", "verify phase N before merge"     | Mirror `/riff:next` Steps 5c, 6, 7: spawn scope-checker + adversarial Codex + security-reviewer in parallel against the named phase. Write `.planning/phases/N-slug/VERIFICATION.md`. |
 | "deep audit", "audit ce module", "milestone review", "review complète"                  | Read `protocols/DEEP-AUDIT.md`, run flow                                                                  |
+| "audit codebase", "health check", "assess this project", "audit santé"                  | Read skill `audit-codebase` SKILL.md, run mode `bug` / `ai` / `full` based on user phrasing (default `full`). Skip silently if `scope=scratch`. |
 | "resync riff", "sync framework", "re-link riff symlinks"                                | Run `bash .riff/riff-resync.sh` from the project root, paste output back. Surfaces CLAUDE.md drift; never auto-patches. |
 | "change my profile X to Y", "set my notification channel to Z", "edit profile.yaml"     | Edit `profile.yaml` at framework root directly. Preserve other fields. Confirm the change.                |
 
