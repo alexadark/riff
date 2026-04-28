@@ -24,8 +24,33 @@ Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR
 ## Loop
 
 ```
-Read state → Pick next → Confidence gate → Plan → Execute → Review → PR → (merge) → Update state on main
+Sync main → Reconcile stale bookkeeping → Read state → Pick next → Confidence gate → Plan → Execute → Review → PR → (merge) → Update state on main
 ```
+
+### Step 0: Sync main + reconcile stale bookkeeping (inline)
+
+Step 8c of the previous run only fires if the same Claude session is alive when the user clicks Merge. If the session was cleared/closed between PR creation and merge, the previous phase is shipped on main but still `status: todo` in ROADMAP.yaml. Step 0 catches that drift before picking the next phase, and also guarantees Step 2b branches from a clean main.
+
+1. **Switch to main + pull:**
+   ```bash
+   git checkout main && git pull origin main
+   ```
+2. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check if its branch was merged into main:
+   ```bash
+   git log --oneline --grep="^Phase <id>:" main | head -1
+   ```
+   A match means the PR is merged but ROADMAP.yaml was never updated.
+3. **If a stale-todo phase is found:**
+   - Read `.planning/phases/<N-slug>/SUMMARY.md` to get the shipped scope, file/test counts, and PR number.
+   - Set `status: done` for that phase in ROADMAP.yaml.
+   - Update STATE.md: rewrite the `## Current Phase` prose to describe the shipped phase, append a row to the `## Phases Completed` table, refresh `## Next Action` to drop the now-shipped phase from "eligible".
+   - Commit:
+     ```bash
+     git add ROADMAP.yaml STATE.md
+     git commit -m "docs(phase-<N>): mark done in roadmap and state after merge"
+     git push origin main
+     ```
+4. **No stale phase found:** continue to Step 1 (you're already on a clean main).
 
 ### Step 1: Read state (inline)
 
@@ -221,7 +246,7 @@ git commit -m "type(phase-N): short description"
 git push origin main
 ```
 
-If user launches next phase immediately: skip 8c (state update happens at start of next `/riff:next`).
+If user launches next phase immediately or session ends before merge: skip 8c. Step 0 of the next `/riff:next` reconciles automatically.
 
 ### Step 9: Learn (inline)
 
