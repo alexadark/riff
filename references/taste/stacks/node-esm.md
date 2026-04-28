@@ -9,15 +9,15 @@ paths:
 
 # Taste Reference - Node ESM / tsx Scripts
 
-> Apply when writing standalone scripts (seeds, imports, migrations, backfills) that run via `tsx` or `node` in ESM mode.
+> Apply when writing standalone scripts (seeds, imports, migrations, backfills) running via `tsx` / `node` in ESM mode.
 
 ## Core Rules
 
-1. **`--dry-run` flag is mandatory for destructive scripts.** Any script that imports, migrates, seeds, or backfills MUST accept `--dry-run`:
+1. **`--dry-run` flag mandatory for destructive scripts.** Any import/migrate/seed/backfill MUST accept `--dry-run`:
    - Zero DB writes (no inserts, updates, deletes, creates)
-   - Prints expected counts (records fetched, unique keys, contacts, etc.)
-   - Validation logic still runs (UUID checks, env var checks)
-   - Exits 0 on dry-run success
+   - Print expected counts (records fetched, unique keys, contacts)
+   - Validation logic still runs (UUID, env var checks)
+   - Exit 0 on dry-run success
 
    ```ts
    const dryRun = process.argv.includes("--dry-run");
@@ -29,16 +29,14 @@ paths:
    await db.insert(table).values(rows).onConflictDoNothing();
    ```
 
-2. **Paginated external APIs: retry at the page-fetch level.** Preserves pagination state so a transient failure on page N retries page N, not the whole import:
+2. **Paginated external APIs: retry at page-fetch level.** Preserves pagination state — transient fail on page N retries page N, not whole import:
 
    ```ts
    const MAX_RETRIES = 3;
    const fetchPage = async (offset: number) => {
      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
        try {
-         const res = await fetch(`${url}?offset=${offset}&limit=1000`, {
-           headers,
-         });
+         const res = await fetch(`${url}?offset=${offset}&limit=1000`, { headers });
          if (!res.ok) throw new Error(`HTTP ${res.status}`);
          return await res.json();
        } catch (err) {
@@ -49,27 +47,27 @@ paths:
    };
    ```
 
-   Keep `offset` and `pagesFetched` counters OUTSIDE the retry loop.
+   `offset` and `pagesFetched` counters OUTSIDE retry loop.
 
-3. **Idempotent seed pattern.** Re-running a seed script must produce 0 new inserts and 0 side effects:
+3. **Idempotent seed pattern.** Re-running seed produces 0 new inserts, 0 side effects:
    - Check-before-create for lookup/parent entities
-   - Use `onConflictDoNothing()` for bulk inserts (see drizzle.md for functional-index workaround)
+   - `onConflictDoNothing()` for bulk inserts (see drizzle.md for functional-index workaround)
    - Log counts per sanitization action (skipped empty, truncated, null-ed placeholder), not just errors
-   - Parameterize queries via Drizzle `sql` template — never raw string interpolation
+   - Parameterize via Drizzle `sql` template — never raw string interpolation
 
-4. **Input sanitization for untrusted legacy data.** When importing from a legacy DB with no enforced schema:
+4. **Input sanitization for untrusted legacy data.** Importing from legacy DB with no enforced schema:
 
    | Field                             | Sanitization                                                     |
    | --------------------------------- | ---------------------------------------------------------------- |
    | Required string                   | Skip if empty/null; truncate at column limit                     |
    | URL                               | Null-out placeholders: `"N/A"`, `"n/a"`, `"-"`, `"None"`         |
    | Email                             | Null-out if no `@` or no `.` after `@`                           |
-   | Name fallback                     | If first+last empty but email present, use `email.split("@")[0]` |
-   | Any string exceeding column limit | `value.slice(0, limit)`                                          |
+   | Name fallback                     | First+last empty + email present → `email.split("@")[0]`         |
+   | String exceeding column limit     | `value.slice(0, limit)`                                          |
 
-   Log counts for each action in the final summary.
+   Log counts per action in final summary.
 
-5. **Sub-batch large inserts to respect Postgres 65,535 bind parameter limit.** Divide each page (e.g. 1000 records) into sub-batches of 500:
+5. **Sub-batch large inserts to respect Postgres 65,535 bind param limit.** Divide each page (e.g. 1000 records) into sub-batches of 500:
 
    ```ts
    const SUBBATCH = 500;
@@ -78,4 +76,4 @@ paths:
    }
    ```
 
-   Also keeps transaction sizes predictable and progress logging granular.
+   Also keeps transaction sizes predictable + progress logging granular.
