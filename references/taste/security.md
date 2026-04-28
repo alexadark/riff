@@ -55,3 +55,20 @@
 7. **Double-HMAC for single-use token storage.** Raw token shape: `{uuid}.{hmac(uuid, secret)}`. DB stores only `hmac(rawToken, secret)` (second HMAC layer). Validation parses and verifies the first HMAC before computing the DB hash. This prevents replay even if an attacker reads the DB row, because the stored hash cannot be reversed into a valid token without the secret. Return the raw token once on creation; all other operations work with the hash only.
 
 8. **Timing-safe hex comparison for cryptographic signatures.** `timingSafeEqual` throws on mismatched buffer lengths. Wrap it: convert hex strings to buffers, pre-check length (returns false on mismatch), then call `timingSafeEqual`. Use this instead of `===` on hex strings in any signature validation (tokens, webhooks, callbacks).
+
+9. **Three-key assertion for nested resource mutations.** Tenant isolation alone is not enough — within a single org, a user on `/parents/A` can POST a `childId` belonging to parent B. Before any mutation, assert the child belongs to BOTH the URL-derived parent AND the org in one indexed query (`childId + parentId + orgId`). Throw `data({ message: "Forbidden" }, { status: 403 })` on miss.
+
+10. **Cross-tenant pre-insert SQL guard for relation tables.** When a service inserts into a join table using two ids from input (`{campaignId, investorId}`), org-scope checks at the route level only verify the SESSION, not the IDs. Run a single join that returns the org for each side BEFORE the insert, and throw on mismatch. Make `orgId` a required parameter so every call site is type-forced to thread `auth.activeOrgId`.
+
+    ```ts
+    const [check] = await db
+      .select({ campaignOrg: campaigns.organizationId, investorOrg: investors.organizationId })
+      .from(campaigns)
+      .innerJoin(investors, eq(investors.id, data.investorId))
+      .where(eq(campaigns.id, data.campaignId));
+    if (!check || check.campaignOrg !== data.orgId || check.investorOrg !== data.orgId) {
+      throw new Error("Cross-tenant link rejected");
+    }
+    ```
+
+    Composite FK `(organization_id, id)` on each side moves this into the schema once the migration ships.

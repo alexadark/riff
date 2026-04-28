@@ -22,6 +22,8 @@
 
 9. **Design It Twice for critical interfaces** - Before implementing a new port, adapter interface, or public API, produce 2-3 competing designs with different trade-offs. Never go with the first design for interfaces that will be hard to change.
 
+10. **Per-tenant allowlist table for shared external resources** - When multiple tenants share a pool of external resources (third-party connectors, integration accounts, OAuth apps), gate access via a join table `(organization_id, resource_id)` with a UNIQUE constraint on the pair, not via env vars or hardcoded constants. Read paths filter via `getAuthorized*Ids(orgId)`, write paths gate via `is*Authorized(orgId, id)`, listings filter the upstream response with a system-admin bypass for support. Carries `created_at` for audit, revokable with a DELETE, and seeds backfill cleanly from existing state.
+
 ## Architecture Red Flags
 
 Watch for these in agent-generated code:
