@@ -56,9 +56,9 @@
 
 8. **Timing-safe hex comparison for cryptographic signatures.** `timingSafeEqual` throws on mismatched buffer lengths. Wrap it: convert hex strings to buffers, pre-check length (returns false on mismatch), then call `timingSafeEqual`. Use this instead of `===` on hex strings in any signature validation (tokens, webhooks, callbacks).
 
-9. **Three-key assertion for nested resource mutations.** Tenant isolation alone is not enough — within a single org, a user on `/parents/A` can POST a `childId` belonging to parent B. Before any mutation, assert the child belongs to BOTH the URL-derived parent AND the org in one indexed query (`childId + parentId + orgId`). Throw `data({ message: "Forbidden" }, { status: 403 })` on miss.
+9. **3-key assertion for nested resource mutations.** Tenant isolation alone insufficient — same-org user on `/parents/A` can POST `childId` of parent B. Pre-mutation: assert child belongs to URL parent AND org in one indexed query (`childId + parentId + orgId`). Miss → `throw data({ message: "Forbidden" }, { status: 403 })`.
 
-10. **Cross-tenant pre-insert SQL guard for relation tables.** When a service inserts into a join table using two ids from input (`{campaignId, investorId}`), org-scope checks at the route level only verify the SESSION, not the IDs. Run a single join that returns the org for each side BEFORE the insert, and throw on mismatch. Make `orgId` a required parameter so every call site is type-forced to thread `auth.activeOrgId`.
+10. **Cross-tenant pre-insert SQL guard, relation tables.** Service insert into join table from input ids (`{campaignId, investorId}`): route-level org check verifies SESSION only, not IDs. Pre-insert: single join returning org per side, throw on mismatch. `orgId` required param → every call site type-forced to thread `auth.activeOrgId`.
 
     ```ts
     const [check] = await db
@@ -66,13 +66,12 @@
       .from(campaigns)
       .innerJoin(investors, eq(investors.id, data.investorId))
       .where(eq(campaigns.id, data.campaignId));
-    if (!check || check.campaignOrg !== data.orgId || check.investorOrg !== data.orgId) {
+    if (!check || check.campaignOrg !== data.orgId || check.investorOrg !== data.orgId)
       throw new Error("Cross-tenant link rejected");
-    }
     ```
 
-    Composite FK `(organization_id, id)` on each side moves this into the schema once the migration ships.
+    Composite FK `(organization_id, id)` per side → check moves into schema. Phase 97.
 
-11. **A signed cookie is not an authorization credential — re-check DB state at action time.** An HMAC-signed envelope (`${id}.${exp}.${HMAC}`) proves the cookie was issued by us and untampered. It says nothing about whether the underlying invite / token / link is still in the expected state. Multi-step flows MUST re-load the row by id and assert `status === "pending"` (or whatever the strict whitelist is) at the moment the action fires. Defends against pre-consume cookie replay where an attacker captures the cookie before the legit user finishes the flow.
+11. **Signed cookie ≠ authz credential. Re-check DB state at action time.** HMAC envelope (`${id}.${exp}.${HMAC}`) proves issuance + untampered, NOT current state. Multi-step flows: reload row by id, assert `status === "pending"` (strict whitelist) at action time. Defends pre-consume cookie replay.
 
-    Companion cookie attributes: `Secure` mandatory, `Path` scoped to the actual subtree (NOT `/`), `HttpOnly`, `SameSite=Lax`, `Max-Age` aligned with envelope expiry.
+    Cookie attrs: `Secure` mandatory, `Path` scoped to subtree (NOT `/`), `HttpOnly`, `SameSite=Lax`, `Max-Age` = envelope expiry.

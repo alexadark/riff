@@ -142,12 +142,12 @@ export default function MyRoute({
   }, [f.state, f.data]);
   ```
 
-- **Action `try/catch` must re-throw `Response` and `data()` shapes.** A helper that calls `throw data({ message: "Forbidden" }, { status: 403 })` or `throw redirect(...)` will be silently swallowed by an action-level `try/catch` that only handles `Error`, downgrading 403/404 responses to a `200 { success: false }`. The browser sees success, the security helper no-ops. Re-throw both shapes:
+- **Action `try/catch` MUST re-throw `Response` and `data()` shapes.** Helper does `throw data({ ... }, { status: 403 })` or `throw redirect(...)` → action `try/catch` handling only `Error` swallows it, 403/404 → `200 { success: false }`. Browser sees success, security helper no-ops. Re-throw both:
 
   ```ts
   } catch (err) {
-    if (err instanceof Response) throw err;                              // redirect, new Response
-    if (typeof err === "object" && err !== null && "data" in err && "init" in err) throw err; // data()
+    if (err instanceof Response) throw err;
+    if (typeof err === "object" && err !== null && "data" in err && "init" in err) throw err;
     return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
   }
   ```
