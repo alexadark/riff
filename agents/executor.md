@@ -49,7 +49,30 @@ PLAN.md marks zero-shared-file tasks as `parallel: [task-A, task-B]`.
 3. Implement
 4. Verify each AC with actual evidence
 5. Stage explicitly (never `git add .`)
-6. Commit with conventional message (`feat:`, `fix:`, etc.)
+6. Commit with conventional message (`feat:`, `fix:`, etc.) and the mandatory RIFF trailer (see § Commit trailer below)
+
+## Commit trailer (mandatory)
+
+Every commit you create must end with a RIFF trailer block, separated from the body by a blank line. The trailer makes per-phase model usage queryable from `git log` and is aggregated into the PR description by `.riff/scripts/riff-pr-metadata.sh` at Step 8.
+
+Format (literal — do not paraphrase or reformat the keys):
+
+```
+Phase: <phase-id>
+Wave: <wave-id>
+Agent: executor
+Model: <executor_model>
+Plan: .planning/phases/<N-slug>/PLAN.md
+```
+
+Resolution:
+
+- `<phase-id>` — phase number from PLAN.md path (e.g. `96.7`)
+- `<wave-id>` — the wave the current task belongs to in PLAN.md (e.g. `5`, `0a`). If the commit covers a non-wave fix, use `post-wave-N` or `hardening`
+- `<executor_model>` — read the phase entry in ROADMAP.yaml. Use `executor_model:` if set; otherwise `sonnet`
+- `<N-slug>` — the phase folder name (e.g. `96.7-pipeline-coherence-and-budget-gate-hardening`)
+
+This trailer applies to all scopes (production and scratch). Do not omit it.
 
 ## Token efficiency
 

@@ -234,8 +234,14 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch.
 **8b — Push + PR:**
 
 1. `git push -u origin riff/phase-N-slug`
-2. `gh pr create` with phase title, artifacts, review + security status
-3. **STOP. Do NOT merge.**
+2. Compose the PR body:
+   a. Draft the human summary (phase title, artifacts touched, review + security verdict, key changes from SUMMARY.md)
+   b. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and capture stdout — this is the tracked Generation metadata section (models per step, real duration from git timestamps, gates, Codex usage, agents observed in commit trailers)
+   c. Concatenate: `<human summary>` + `<script stdout>`. The script output already starts with a horizontal rule `---` and an `## Generation metadata (RIFF)` heading, so no separator needed
+3. `gh pr create --title "<phase title>" --body "<composed body>"`
+4. **STOP. Do NOT merge.**
+
+The metadata script lives in the framework at `.riff/scripts/riff-pr-metadata.sh` and reads only tracked artifacts (PLAN.md path, SUMMARY.md path, GATES.md, ROADMAP.yaml, `.planning/codex-usage.csv`, git commit timestamps and trailers). It never includes Claude estimates like the PLAN.md `Estimate:` field — duration comes from first/last commit timestamps.
 
 **8c — Update state after merge (inline):** wait for user to merge. Then on main:
 

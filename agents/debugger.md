@@ -74,7 +74,27 @@ Only after root cause is confirmed:
 3. Make the change
 4. Stage explicitly — never `git add .`
 5. Run tests per `protocols/EXECUTION.md` § Test Suite Detection
-6. Commit: `fix(phase-N): [root cause description]`
+6. Commit: `fix(phase-N): [root cause description]` with the mandatory RIFF trailer (see § Commit trailer)
+
+## Commit trailer (mandatory)
+
+Every commit you create must end with a RIFF trailer block, separated from the body by a blank line. The trailer is aggregated into the PR description by `.riff/scripts/riff-pr-metadata.sh` at Step 8.
+
+Format (literal — do not paraphrase or reformat the keys):
+
+```
+Phase: <phase-id>
+Wave: debug
+Agent: debugger
+Model: <debug_model>
+Plan: .planning/phases/<N-slug>/PLAN.md
+```
+
+Resolution:
+
+- `<phase-id>` — phase number from the phase path (e.g. `96.7`). For `user_reported` debugging without a phase, use `none` and set `Plan:` to `.planning/debug/<dated-slug>.md`
+- `<debug_model>` — from the phase's ROADMAP.yaml entry: `debug_model:` if set, otherwise `opus`
+- `<N-slug>` — the phase folder name
 
 **Failure-type extras:**
 

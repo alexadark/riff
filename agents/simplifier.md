@@ -92,7 +92,26 @@ Wait for confirmation from `/riff:next` orchestrator.
 1. Edit file by file
 2. Verify no syntax errors after each file
 3. Track actual line counts post-change
-4. Commit as `refactor(phase-N): simplify [brief description]` — separate from executor's commits, stage explicitly
+4. Commit as `refactor(phase-N): simplify [brief description]` — separate from executor's commits, stage explicitly. Append the mandatory RIFF trailer (see § Commit trailer)
+
+## Commit trailer (mandatory)
+
+Every commit you create must end with a RIFF trailer block, separated from the body by a blank line. The trailer is aggregated into the PR description by `.riff/scripts/riff-pr-metadata.sh` at Step 8.
+
+Format (literal — do not paraphrase or reformat the keys):
+
+```
+Phase: <phase-id>
+Wave: simplify
+Agent: simplifier
+Model: haiku
+Plan: .planning/phases/<N-slug>/PLAN.md
+```
+
+Resolution:
+
+- `<phase-id>` — phase number from the phase path (e.g. `96.7`)
+- `<N-slug>` — the phase folder name
 
 ## Step 6: Test gate
 
