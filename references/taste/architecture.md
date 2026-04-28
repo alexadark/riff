@@ -24,6 +24,10 @@
 
 10. **Per-tenant allowlist table for shared external resources** - When multiple tenants share a pool of external resources (third-party connectors, integration accounts, OAuth apps), gate access via a join table `(organization_id, resource_id)` with a UNIQUE constraint on the pair, not via env vars or hardcoded constants. Read paths filter via `getAuthorized*Ids(orgId)`, write paths gate via `is*Authorized(orgId, id)`, listings filter the upstream response with a system-admin bypass for support. Carries `created_at` for audit, revokable with a DELETE, and seeds backfill cleanly from existing state.
 
+11. **Business-rule gate at the service layer, not the route.** When a constraint must hold for ALL entry points (route action, background job, future webhook), put the assertion in the service that triggers the irreversible side effect, not in the route. Route gates remain useful for UX (disable the button, friendly toast) but cannot be the authoritative enforcement — the next caller will forget. Pattern: a small dedicated file with a typed predicate (`isXxx(entity): boolean` for read/UI paths) plus a throwing assertion (`assertXxx(entity): void` for write paths) plus a named error class with a `code` field.
+
+12. **Post-action upstream verification for irreversible external operations.** A 200 OK from a third-party API does not prove the desired state exists upstream (eventual consistency, silent partial failure, vendor edge cases). After irreversible mutations, re-read the upstream resource and confirm the expected state. On verification failure, record the row as `skipped[]` with a clear reason — never as `created[]`. Local state must mirror "what we can prove exists upstream right now", never "what the upstream API claimed".
+
 ## Architecture Red Flags
 
 Watch for these in agent-generated code:

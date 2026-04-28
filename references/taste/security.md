@@ -72,3 +72,7 @@
     ```
 
     Composite FK `(organization_id, id)` on each side moves this into the schema once the migration ships.
+
+11. **A signed cookie is not an authorization credential — re-check DB state at action time.** An HMAC-signed envelope (`${id}.${exp}.${HMAC}`) proves the cookie was issued by us and untampered. It says nothing about whether the underlying invite / token / link is still in the expected state. Multi-step flows MUST re-load the row by id and assert `status === "pending"` (or whatever the strict whitelist is) at the moment the action fires. Defends against pre-consume cookie replay where an attacker captures the cookie before the legit user finishes the flow.
+
+    Companion cookie attributes: `Secure` mandatory, `Path` scoped to the actual subtree (NOT `/`), `HttpOnly`, `SameSite=Lax`, `Max-Age` aligned with envelope expiry.
