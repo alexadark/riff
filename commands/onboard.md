@@ -21,11 +21,11 @@ Writes `profile.yaml` at the framework root. Every agent reads it on startup to 
 
 3. **Entry choice.** AskUserQuestion:
    - `preset` — quick start, 0 extra questions
-   - `custom` — 13 questions, ~5 min
+   - `custom` — 14 questions, ~5 min
 
 4. **Preset path.** AskUserQuestion with the 4 presets (descriptions in the "Presets" section below). Pick one, grab its full answer map, jump to step 6.
 
-5. **Custom path.** Walk the 13 questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect.
+5. **Custom path.** Walk the 14 questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect.
 
 6. **Write profile.yaml** to `<root>/profile.yaml` using the schema below. YAML format, quote string values with special characters.
 
@@ -179,6 +179,16 @@ Per-project override: a project's `ROADMAP.yaml` can set `budget_quality:` to ov
 
 Maps to: `notifications.channel`
 
+### Section 6 — Git workflow
+
+**Q13. Phase merge strategy** (when `/riff:next` finishes a phase and the PR is ready to ship)
+- `github_button` — I click Merge on GitHub myself. RIFF reconciles ROADMAP.yaml + STATE.md on the next `/riff:next` run via Step 0. **Best for team workflows** with peer review, branch-protection rules, and GitHub squash-merge / merge-commit policies.
+- `local_no_ff` — RIFF merges locally with `git merge --no-ff` after I say "merge" in chat. Avoids the case where GitHub squash-merge bundles unpushed personal commits on main into the squash. **Best for solo / solo-plus-clients workflows** where you sometimes have unpushed local commits on main (journal notes, drafts, scratch).
+
+Maps to: `git.merge_strategy`. Default: `github_button`.
+
+> Tradeoff: `local_no_ff` produces a denser main history (one merge commit per phase + the phase commits as themselves) but the merge cleanly preserves both timelines. `github_button` with squash gives a single-commit-per-phase main, but any unpushed personal commits get pulled into the squash and create local divergence.
+
 ## Profile schema
 
 ```yaml
@@ -205,6 +215,9 @@ budget:
 
 notifications:
   channel: <none | email | slack | discord | telegram | other>
+
+git:
+  merge_strategy: <github_button | local_no_ff>
 ```
 
 ## Presets
@@ -231,6 +244,8 @@ budget:
   default_quality: balanced
 notifications:
   channel: slack
+git:
+  merge_strategy: github_button
 ```
 
 ### neutre — safe defaults, no personality assumed
@@ -255,6 +270,8 @@ budget:
   default_quality: balanced
 notifications:
   channel: none
+git:
+  merge_strategy: github_button
 ```
 
 ### apprentissage — non-tech curious, wants to understand what happens
@@ -279,6 +296,8 @@ budget:
   default_quality: balanced
 notifications:
   channel: none
+git:
+  merge_strategy: github_button
 ```
 
 ### alex — validated against actual setup
@@ -303,6 +322,8 @@ budget:
   default_quality: max
 notifications:
   channel: telegram
+git:
+  merge_strategy: local_no_ff
 ```
 
 ## Notes

@@ -29,17 +29,50 @@ Sync main → Reconcile stale bookkeeping → Read state → Pick next → Confi
 
 ### Step 0: Sync main + reconcile stale bookkeeping (inline)
 
-Step 8c of the previous run only fires if the same Claude session is alive when the user clicks Merge. If the session was cleared/closed between PR creation and merge, the previous phase is shipped on main but still `status: todo` in ROADMAP.yaml. Step 0 catches that drift before picking the next phase, and also guarantees Step 2b branches from a clean main.
+Step 8c of the previous run only fires if the same Claude session is alive when the user clicks Merge (and the user is on `merge_strategy: github_button`). If the session was cleared/closed between PR creation and merge, the previous phase is shipped on main but still `status: todo` in ROADMAP.yaml. Step 0 catches that drift before picking the next phase, and also guarantees Step 2b branches from a clean main.
 
-1. **Switch to main + pull:**
+1. **Switch to main + check divergence (do NOT blindly pull).**
+
    ```bash
-   git checkout main && git pull origin main
+   git checkout main
+   git fetch origin main
+   ahead=$(git rev-list --count origin/main..main)
+   behind=$(git rev-list --count main..origin/main)
    ```
-2. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check if its branch was merged into main:
+
+   Branch on the result:
+
+   - **In sync (`ahead=0` AND `behind=0`):** continue.
+   - **Behind only (`ahead=0`, `behind>0`):** `git pull --ff-only origin main`.
+   - **Ahead only (`ahead>0`, `behind=0`):** local has unpushed commits on main. Surface to the user: `Local main has <ahead> unpushed commits. Push now? (yes / skip)`. On `yes`: `git push origin main`. On `skip`: continue without pushing.
+   - **Diverged (`ahead>0` AND `behind>0`):** **STOP and surface — do not auto-fix.** Common cause: a recent PR was squash-merged on GitHub and the squash bundled local-only commits that existed on the phase branch (e.g. unpushed personal commits Alex had on local main when the phase branch was cut). Print:
+
+     ```
+     Local main has <ahead> unpushed commits AND <behind> commits on origin.
+     Likely a squash-merge bundling local-only commits on the phase branch.
+
+     1. List the local-only commits and the origin-only commits to compare:
+          git log origin/main..main --oneline
+          git log main..origin/main --oneline
+     2. If the content of every local-only commit is already represented on origin
+        (typical when PR was squash-merged): `git reset --hard origin/main`
+        aligns local main. Destructive — drops local SHAs, content preserved on origin.
+     3. If there is real local work not on origin: rebase or cherry-pick onto
+        origin/main, then push.
+
+     Resolve manually before re-running /riff:next.
+     ```
+
+     Ask the user how they want to proceed. Do not run any destructive command without explicit confirmation.
+
+2. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check if its branch was merged into main. Match either a squash-merge subject or a `--no-ff` merge commit:
+
    ```bash
-   git log --oneline --grep="^Phase <id>:" main | head -1
+   git log --oneline --grep="Phase <id>:" main | head -1
    ```
+
    A match means the PR is merged but ROADMAP.yaml was never updated.
+
 3. **If a stale-todo phase is found:**
    - Read `.planning/phases/<N-slug>/SUMMARY.md` to get the shipped scope, file/test counts, and PR number.
    - Set `status: done` for that phase in ROADMAP.yaml.
@@ -50,6 +83,7 @@ Step 8c of the previous run only fires if the same Claude session is alive when 
      git commit -m "docs(phase-<N>): mark done in roadmap and state after merge"
      git push origin main
      ```
+
 4. **No stale phase found:** continue to Step 1 (you're already on a clean main).
 
 ### Step 1: Read state (inline)
@@ -239,20 +273,38 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch.
    b. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and capture stdout — this is the tracked Generation metadata section (models per step, real duration from git timestamps, gates, Codex usage, agents observed in commit trailers)
    c. Concatenate: `<human summary>` + `<script stdout>`. The script output already starts with a horizontal rule `---` and an `## Generation metadata (RIFF)` heading, so no separator needed
 3. `gh pr create --title "<phase title>" --body "<composed body>"`
-4. **STOP. Do NOT merge.**
+4. **Read `profile.yaml` `git.merge_strategy`** (default `github_button` if missing or file missing) and branch:
+   - **`github_button`:** print final report ending with `PR open at <url>. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
+   - **`local_no_ff`:** print final report ending with `PR open at <url>. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
 
 The metadata script lives in the framework at `.riff/scripts/riff-pr-metadata.sh` and reads only tracked artifacts (PLAN.md path, SUMMARY.md path, GATES.md, ROADMAP.yaml, `.planning/codex-usage.csv`, git commit timestamps and trailers). It never includes Claude estimates like the PLAN.md `Estimate:` field — duration comes from first/last commit timestamps.
 
-**8c — Update state after merge (inline):** wait for user to merge. Then on main:
+**8c — Update state after merge (inline):**
 
-```bash
-git checkout main && git pull origin main
-git add ROADMAP.yaml STATE.md
-git commit -m "type(phase-N): short description"
-git push origin main
-```
+The flow depends on `git.merge_strategy`:
 
-If user launches next phase immediately or session ends before merge: skip 8c. Step 0 of the next `/riff:next` reconciles automatically.
+- **`github_button`:** Step 8c is a no-op in this session. Step 0 of the next `/riff:next` run reconciles ROADMAP.yaml + STATE.md.
+
+- **`local_no_ff`:** on the user's "merge" cue:
+
+  ```bash
+  git checkout main
+  git pull --ff-only origin main
+  git merge --no-ff riff/phase-N-slug -m "Phase N: <title> (#<PR-number>)"
+  git push origin main
+  git branch -d riff/phase-N-slug || git branch -D riff/phase-N-slug
+  git push origin :riff/phase-N-slug
+  ```
+
+  Then update ROADMAP.yaml (`status: done`) + STATE.md (Current Phase prose, Phases Completed row, Next Action), commit, push:
+
+  ```bash
+  git add ROADMAP.yaml STATE.md
+  git commit -m "docs(phase-N): mark done in roadmap and state after merge"
+  git push origin main
+  ```
+
+  GitHub auto-closes the PR as merged when it sees the merge commit on origin/main. If `git branch -d` complains "not fully merged" because GitHub already squash-merged a previous run, fall back to `-D` (the branch is merged in spirit).
 
 ### Step 9: Learn (inline)
 
