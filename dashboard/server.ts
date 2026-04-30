@@ -1,8 +1,15 @@
 import { existsSync, statSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { Hono } from "hono";
-import { stream, streamSSE } from "hono/streaming";
-import { findFrameworkRoot, loadProfile } from "./parsers/profile.ts";
+import { streamSSE } from "hono/streaming";
+import {
+  addProject,
+  findFrameworkRoot,
+  loadProfile,
+  removeProject,
+  resolveRegistry,
+  type RegistryEntry,
+} from "./parsers/profile.ts";
 import { parseRoadmap, phaseDir, type Roadmap, type RoadmapPhase } from "./parsers/roadmap.ts";
 import {
   availableExplainLevels,
@@ -20,9 +27,8 @@ import { ProjectWatcher, type WatcherEvent } from "./services/watcher.ts";
 import { ClaudeNotFoundError, isClaudeAvailable, type ExplainKind, type ExplainLevel } from "./services/claude.ts";
 import { diffStatForPhase } from "./services/git.ts";
 
-// ---------- Resolve roots ----------
+// ---------- Resolve framework root ----------
 
-const PROJECT_ROOT = process.env.PROJECT_ROOT ?? process.cwd();
 const FRAMEWORK_ROOT = findFrameworkRoot(import.meta.dir);
 if (!FRAMEWORK_ROOT) {
   console.warn(
@@ -34,20 +40,20 @@ const RESOLVED_FRAMEWORK_ROOT = FRAMEWORK_ROOT ?? join(import.meta.dir, "..");
 
 const { config: PROFILE_CONFIG } = loadProfile(RESOLVED_FRAMEWORK_ROOT);
 
-console.log(`[server] project root: ${PROJECT_ROOT}`);
 console.log(`[server] framework root: ${RESOLVED_FRAMEWORK_ROOT}`);
 console.log(`[server] dashboard config: level=${PROFILE_CONFIG.level} language=${PROFILE_CONFIG.language}`);
+console.log(`[server] registry: ${PROFILE_CONFIG.projects.length} project(s)`);
 if (!isClaudeAvailable()) {
   console.warn("[server] claude CLI not on PATH — generation endpoints will return errors.");
 }
 
 // ---------- Shared event bus ----------
 
-type SseEvent = WatcherEvent | BootstrapEvent;
+type ProjectScopedEvent = (WatcherEvent | BootstrapEvent) & { project: string };
 
-const sseSubscribers = new Set<(event: SseEvent) => void>();
+const sseSubscribers = new Set<(event: ProjectScopedEvent) => void>();
 
-function broadcast(event: SseEvent): void {
+function broadcast(event: ProjectScopedEvent): void {
   for (const sub of sseSubscribers) {
     try {
       sub(event);
@@ -57,21 +63,63 @@ function broadcast(event: SseEvent): void {
   }
 }
 
-// ---------- Watcher + bootstrap ----------
+// ---------- Project contexts ----------
 
-const watcher = new ProjectWatcher(PROJECT_ROOT);
-watcher.subscribe((event) => broadcast(event));
-watcher.start();
+interface ProjectContext {
+  slug: string;
+  root: string;
+  watcher: ProjectWatcher;
+  bootstrap: BootstrapRunner;
+  bootstrapped: boolean;
+}
 
-const bootstrap = new BootstrapRunner(PROJECT_ROOT, PROFILE_CONFIG);
-bootstrap.subscribe((event) => broadcast(event));
+const contexts = new Map<string, ProjectContext>();
 
-// Kick off bootstrap on startup if we can read the roadmap.
-const initialRoadmap = parseRoadmap(PROJECT_ROOT);
-if (initialRoadmap) {
-  bootstrap.start(initialRoadmap);
-} else {
-  console.warn(`[server] no ROADMAP.yaml at ${PROJECT_ROOT} — bootstrap skipped`);
+function buildContexts(registry: RegistryEntry[]): void {
+  // Tear down any contexts that are no longer in the registry.
+  const wantedSlugs = new Set(registry.filter((e) => e.exists).map((e) => e.slug));
+  for (const [slug, ctx] of contexts) {
+    if (!wantedSlugs.has(slug)) {
+      void ctx.watcher.stop();
+      contexts.delete(slug);
+    }
+  }
+  // Spin up any new contexts.
+  for (const entry of registry) {
+    if (!entry.exists) continue;
+    if (contexts.has(entry.slug)) continue;
+    const watcher = new ProjectWatcher(entry.root);
+    watcher.subscribe((event) => broadcast({ ...event, project: entry.slug }));
+    watcher.start();
+    const bootstrap = new BootstrapRunner(entry.root, PROFILE_CONFIG);
+    bootstrap.subscribe((event) => broadcast({ ...event, project: entry.slug }));
+    contexts.set(entry.slug, {
+      slug: entry.slug,
+      root: entry.root,
+      watcher,
+      bootstrap,
+      bootstrapped: false,
+    });
+  }
+}
+
+function currentRegistry(): RegistryEntry[] {
+  // Re-read from disk on every call so add/remove are immediately visible.
+  const { config } = loadProfile(RESOLVED_FRAMEWORK_ROOT);
+  return resolveRegistry(config.projects);
+}
+
+// Initial wiring.
+buildContexts(currentRegistry());
+
+/** Trigger bootstrap on first interaction with a project (lazy). */
+function ensureBootstrapped(ctx: ProjectContext): void {
+  if (ctx.bootstrapped) return;
+  ctx.bootstrapped = true;
+  const roadmap = parseRoadmap(ctx.root);
+  if (roadmap) {
+    ctx.bootstrap.start(roadmap);
+  }
 }
 
 // ---------- Helpers ----------
@@ -81,16 +129,19 @@ function findPhase(roadmap: Roadmap | null, id: number): RoadmapPhase | null {
   return roadmap.phases.find((p) => p.id === id) ?? null;
 }
 
-function phaseStatus(phase: RoadmapPhase): {
+function phaseStatus(
+  projectRoot: string,
+  phase: RoadmapPhase,
+): {
   has_explain: boolean;
   has_explain_post: boolean;
   available_levels: string[];
 } {
-  const files = resolvePhaseFiles(PROJECT_ROOT, phase, PROFILE_CONFIG.level);
+  const files = resolvePhaseFiles(projectRoot, phase, PROFILE_CONFIG.level);
   return {
     has_explain: !!files.explain,
     has_explain_post: !!files.explain_post,
-    available_levels: availableExplainLevels(PROJECT_ROOT, phase),
+    available_levels: availableExplainLevels(projectRoot, phase),
   };
 }
 
@@ -106,16 +157,16 @@ function firstContentLine(content: string | null): string | null {
   return null;
 }
 
-function explainPreview(phase: RoadmapPhase): string | null {
-  const files = resolvePhaseFiles(PROJECT_ROOT, phase, PROFILE_CONFIG.level);
+function explainPreview(projectRoot: string, phase: RoadmapPhase): string | null {
+  const files = resolvePhaseFiles(projectRoot, phase, PROFILE_CONFIG.level);
   const sourcePath = files.explain_post ?? files.explain;
   if (!sourcePath) return null;
   return firstContentLine(safeRead(sourcePath));
 }
 
-function projectName(roadmap: Roadmap | null): string {
+function projectName(projectRoot: string, roadmap: Roadmap | null): string {
   if (roadmap?.name) return roadmap.name;
-  return basename(PROJECT_ROOT);
+  return basename(projectRoot);
 }
 
 function isValidLevel(value: string | undefined): value is ExplainLevel {
@@ -126,27 +177,140 @@ function isValidKind(value: string | undefined): value is ExplainKind {
   return value === "pre" || value === "post";
 }
 
+interface ProgressBreakdown {
+  total: number;
+  done: number;
+  in_progress: number;
+  todo: number;
+  blocked: number;
+  skipped: number;
+}
+
+function progressOf(roadmap: Roadmap | null): ProgressBreakdown {
+  const out: ProgressBreakdown = { total: 0, done: 0, in_progress: 0, todo: 0, blocked: 0, skipped: 0 };
+  if (!roadmap) return out;
+  for (const p of roadmap.phases) {
+    out.total += 1;
+    if (p.status === "done") out.done += 1;
+    else if (p.status === "in-progress") out.in_progress += 1;
+    else if (p.status === "todo") out.todo += 1;
+    else if (p.status === "blocked") out.blocked += 1;
+    else if (p.status === "skipped") out.skipped += 1;
+  }
+  return out;
+}
+
+function activePhase(roadmap: Roadmap | null): { id: number; slug: string; title: string } | null {
+  if (!roadmap) return null;
+  const inProgress = roadmap.phases.find((p) => p.status === "in-progress");
+  const target = inProgress ?? roadmap.phases.find((p) => p.status === "todo");
+  if (!target) return null;
+  return { id: target.id, slug: target.slug, title: target.title };
+}
+
+function lastModifiedMs(projectRoot: string): number | null {
+  // Use the freshest mtime across ROADMAP.yaml, STATE.md, and the phases dir.
+  const candidates = [
+    join(projectRoot, "ROADMAP.yaml"),
+    join(projectRoot, "STATE.md"),
+    join(projectRoot, ".planning"),
+  ];
+  let latest: number | null = null;
+  for (const p of candidates) {
+    if (!existsSync(p)) continue;
+    try {
+      const m = statSync(p).mtimeMs;
+      if (latest === null || m > latest) latest = m;
+    } catch {
+      /* ignore */
+    }
+  }
+  return latest;
+}
+
 // ---------- App ----------
 
 const app = new Hono();
 
-app.get("/api/project", (c) => {
-  const roadmap = parseRoadmap(PROJECT_ROOT);
+/** GET /api/projects — overview list of all registered projects. */
+app.get("/api/projects", (c) => {
+  const registry = currentRegistry();
+  buildContexts(registry); // make sure contexts match registry
+  const projects = registry.map((entry) => {
+    if (!entry.exists) {
+      return {
+        slug: entry.slug,
+        root: entry.root,
+        name: basename(entry.root),
+        exists: false,
+        progress: progressOf(null),
+        active_phase: null,
+        last_modified_ms: null,
+      };
+    }
+    const roadmap = parseRoadmap(entry.root);
+    return {
+      slug: entry.slug,
+      root: entry.root,
+      name: projectName(entry.root, roadmap),
+      exists: true,
+      progress: progressOf(roadmap),
+      active_phase: activePhase(roadmap),
+      last_modified_ms: lastModifiedMs(entry.root),
+    };
+  });
   return c.json({
-    name: projectName(roadmap),
-    root: PROJECT_ROOT,
+    projects,
+    profile: { dashboard: { level: PROFILE_CONFIG.level, language: PROFILE_CONFIG.language } },
     framework_root: RESOLVED_FRAMEWORK_ROOT,
-    profile: { dashboard: PROFILE_CONFIG },
   });
 });
 
-app.get("/api/phases", (c) => {
-  const roadmap = parseRoadmap(PROJECT_ROOT);
-  if (!roadmap) {
-    return c.json({ phases: [] });
+/** POST /api/projects — add a project to the registry. Body: { path: string } */
+app.post("/api/projects", async (c) => {
+  let body: { path?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "invalid JSON body" }, 400);
   }
-  const phases = roadmap.phases.map((p) => {
-    const meta = phaseStatus(p);
+  const path = typeof body.path === "string" ? body.path.trim() : "";
+  if (!path) return c.json({ error: "missing 'path'" }, 400);
+  if (!path.startsWith("/")) return c.json({ error: "'path' must be absolute" }, 400);
+  if (!existsSync(path)) return c.json({ error: `path does not exist: ${path}` }, 400);
+
+  try {
+    const registry = addProject(RESOLVED_FRAMEWORK_ROOT, path);
+    buildContexts(registry);
+    return c.json({ ok: true, registry });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+/** DELETE /api/projects/:slug — remove a project from the registry. */
+app.delete("/api/projects/:slug", (c) => {
+  const slug = c.req.param("slug");
+  try {
+    const registry = removeProject(RESOLVED_FRAMEWORK_ROOT, slug);
+    buildContexts(registry);
+    return c.json({ ok: true, registry });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+/** GET /api/projects/:slug — single project info + full phase list. */
+app.get("/api/projects/:slug", (c) => {
+  const slug = c.req.param("slug");
+  const ctx = contexts.get(slug);
+  if (!ctx) return c.json({ error: "project not found" }, 404);
+
+  ensureBootstrapped(ctx);
+
+  const roadmap = parseRoadmap(ctx.root);
+  const phases = (roadmap?.phases ?? []).map((p) => {
+    const meta = phaseStatus(ctx.root, p);
     return {
       id: p.id,
       slug: p.slug,
@@ -158,19 +322,32 @@ app.get("/api/phases", (c) => {
       has_explain: meta.has_explain,
       has_explain_post: meta.has_explain_post,
       available_levels: meta.available_levels,
-      explain_preview: explainPreview(p),
+      explain_preview: explainPreview(ctx.root, p),
     };
   });
-  return c.json({ phases });
+
+  return c.json({
+    slug: ctx.slug,
+    root: ctx.root,
+    name: projectName(ctx.root, roadmap),
+    phases,
+    progress: progressOf(roadmap),
+    active_phase: activePhase(roadmap),
+    bootstrap_status: ctx.bootstrap.getStatus(),
+  });
 });
 
-app.get("/api/phase/:id", async (c) => {
-  const idParam = c.req.param("id");
-  const id = Number(idParam);
+/** GET /api/projects/:slug/phase/:id — full detail for one phase. */
+app.get("/api/projects/:slug/phase/:id", async (c) => {
+  const slug = c.req.param("slug");
+  const ctx = contexts.get(slug);
+  if (!ctx) return c.json({ error: "project not found" }, 404);
+
+  const id = Number(c.req.param("id"));
   if (!Number.isFinite(id)) {
     return c.json({ error: "invalid phase id" }, 400);
   }
-  const roadmap = parseRoadmap(PROJECT_ROOT);
+  const roadmap = parseRoadmap(ctx.root);
   const phase = findPhase(roadmap, id);
   if (!phase) {
     return c.json({ error: "phase not found" }, 404);
@@ -179,7 +356,7 @@ app.get("/api/phase/:id", async (c) => {
   const levelQuery = c.req.query("level");
   const requestedLevel: ExplainLevel = isValidLevel(levelQuery) ? levelQuery : PROFILE_CONFIG.level;
 
-  const files = resolvePhaseFiles(PROJECT_ROOT, phase, requestedLevel);
+  const files = resolvePhaseFiles(ctx.root, phase, requestedLevel);
   const explain = files.explain ? safeRead(files.explain) : null;
   const explain_post = files.explain_post ? safeRead(files.explain_post) : null;
 
@@ -192,8 +369,8 @@ app.get("/api/phase/:id", async (c) => {
   if (phase.status === "done") {
     const summary = files.summary ? safeRead(files.summary) : null;
     const duration = summary ? extractDuration(summary) : null;
-    const phaseFolderRel = relative(PROJECT_ROOT, phaseDir(PROJECT_ROOT, phase));
-    const filesStat = await diffStatForPhase(PROJECT_ROOT, phaseFolderRel);
+    const phaseFolderRel = relative(ctx.root, phaseDir(ctx.root, phase));
+    const filesStat = await diffStatForPhase(ctx.root, phaseFolderRel);
     metadata = {
       duration,
       files_stat: filesStat,
@@ -201,9 +378,10 @@ app.get("/api/phase/:id", async (c) => {
     };
   }
 
-  const phaseMeta = phaseStatus(phase);
+  const phaseMeta = phaseStatus(ctx.root, phase);
 
   return c.json({
+    project: ctx.slug,
     id: phase.id,
     slug: phase.slug,
     title: phase.title,
@@ -227,12 +405,12 @@ app.get("/api/phase/:id", async (c) => {
   });
 });
 
-app.get("/api/bootstrap-status", (c) => {
-  return c.json(bootstrap.getStatus());
-});
+/** GET /api/projects/:slug/phase/:id/generate — SSE stream that produces an EXPLAIN file. */
+app.get("/api/projects/:slug/phase/:id/generate", (c) => {
+  const slug = c.req.param("slug");
+  const ctx = contexts.get(slug);
+  if (!ctx) return c.json({ error: "project not found" }, 404);
 
-// EventSource (browser SSE) is GET-only, so this endpoint is GET.
-app.get("/api/phase/:id/generate", (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isFinite(id)) {
     return c.json({ error: "invalid phase id" }, 400);
@@ -245,7 +423,7 @@ app.get("/api/phase/:id/generate", (c) => {
   if (!isValidKind(kindParam)) {
     return c.json({ error: "invalid kind (expected pre|post)" }, 400);
   }
-  const roadmap = parseRoadmap(PROJECT_ROOT);
+  const roadmap = parseRoadmap(ctx.root);
   const phase = findPhase(roadmap, id);
   if (!phase) {
     return c.json({ error: "phase not found" }, 404);
@@ -272,7 +450,7 @@ app.get("/api/phase/:id/generate", (c) => {
 
     try {
       const filename = await generateExplanation({
-        projectRoot: PROJECT_ROOT,
+        projectRoot: ctx.root,
         phase,
         kind: kindParam,
         config: PROFILE_CONFIG,
@@ -281,10 +459,10 @@ app.get("/api/phase/:id/generate", (c) => {
           void send({ type: "chunk", text });
         },
       });
-      const path = join(phaseDir(PROJECT_ROOT, phase), filename);
+      const path = join(phaseDir(ctx.root, phase), filename);
       await send({ type: "done", path });
-      // Notify other watchers of the new file.
-      broadcast({ type: "phase_changed", id: phase.id, files: [filename] });
+      // Notify other watchers of the new file (scoped to this project).
+      broadcast({ type: "phase_changed", id: phase.id, files: [filename], project: ctx.slug });
     } catch (err) {
       const message =
         err instanceof ClaudeNotFoundError
@@ -295,6 +473,15 @@ app.get("/api/phase/:id/generate", (c) => {
   });
 });
 
+/** GET /api/projects/:slug/bootstrap-status — bootstrap progress for one project. */
+app.get("/api/projects/:slug/bootstrap-status", (c) => {
+  const slug = c.req.param("slug");
+  const ctx = contexts.get(slug);
+  if (!ctx) return c.json({ error: "project not found" }, 404);
+  return c.json(ctx.bootstrap.getStatus());
+});
+
+/** GET /api/events — SSE stream of all project events. */
 app.get("/api/events", (c) => {
   return streamSSE(c, async (s) => {
     let closed = false;
@@ -313,7 +500,7 @@ app.get("/api/events", (c) => {
       }
     };
 
-    const subscriber = (event: SseEvent) => {
+    const subscriber = (event: ProjectScopedEvent) => {
       void send(event);
     };
     sseSubscribers.add(subscriber);
@@ -332,10 +519,8 @@ app.get("/api/events", (c) => {
       resolveDone?.();
     });
 
-    // Initial hello so the client can confirm connection.
     await send({ type: "ready" });
 
-    // Block until the connection closes.
     await done;
     clearInterval(heartbeat);
     sseSubscribers.delete(subscriber);
@@ -360,7 +545,6 @@ app.get("/", async (c) => {
 });
 
 app.get("*", async (c) => {
-  // Serve static files from /public, fall back to index.html for SPA-style routing.
   const url = new URL(c.req.url);
   const requested = decodeURIComponent(url.pathname.replace(/^\/+/, ""));
   if (requested.includes("..")) {
@@ -377,7 +561,6 @@ app.get("*", async (c) => {
       /* fall through */
     }
   }
-  // SPA fallback.
   const indexPath = join(PUBLIC_DIR, "index.html");
   if (existsSync(indexPath)) {
     return new Response(Bun.file(indexPath), {
@@ -399,10 +582,11 @@ const server = Bun.serve({
 
 console.log(`[server] listening on http://localhost:${server.port}`);
 
-// Graceful shutdown.
 const shutdown = async () => {
   console.log("[server] shutting down");
-  await watcher.stop();
+  for (const ctx of contexts.values()) {
+    await ctx.watcher.stop();
+  }
   server.stop();
   process.exit(0);
 };

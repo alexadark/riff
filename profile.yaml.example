@@ -54,3 +54,9 @@ dashboard:
                                      # eli5: analogy-based, two short sentences
   language: en                       # en | fr | other
                                      # If unset, falls back to user.conversational_language when fr/en, else en.
+  projects: []                       # registry of RIFF projects to display in the dashboard.
+                                     # Absolute paths only. Auto-populated by /riff:start.
+                                     # Add/remove from the dashboard UI, or edit by hand.
+                                     # Example:
+                                     #   - /Users/me/DEV/personal-projects/my-app
+                                     #   - /Users/me/DEV/clients-projects/acme/website
