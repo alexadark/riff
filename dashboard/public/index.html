@@ -69,14 +69,67 @@
             />
           </circle>
         </symbol>
+        <symbol id="icon-chevron" viewBox="0 0 16 16">
+          <path
+            d="M4 6 L8 10 L12 6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </symbol>
+        <symbol id="icon-plus" viewBox="0 0 16 16">
+          <path
+            d="M8 3 V13 M3 8 H13"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
+        </symbol>
+        <symbol id="icon-x" viewBox="0 0 16 16">
+          <path
+            d="M4 4 L12 12 M12 4 L4 12"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          />
+        </symbol>
+        <symbol id="icon-arrow-left" viewBox="0 0 16 16">
+          <path
+            d="M11 8 H3 M6 5 L3 8 L6 11"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </symbol>
       </defs>
     </svg>
 
     <header class="topbar">
       <div class="topbar-left">
         <span class="logo-dot" aria-hidden="true"></span>
-        <span id="project-name" class="project-name">RIFF</span>
-        <span id="project-root" class="project-root mono"></span>
+        <span class="brand">RIFF</span>
+
+        <!-- Project view: back-to-overview link + switcher dropdown -->
+        <div id="project-bar" class="project-bar hidden">
+          <button id="back-to-overview" class="back-link" type="button" title="All projects">
+            <svg width="14" height="14"><use href="#icon-arrow-left" /></svg>
+            <span>All projects</span>
+          </button>
+          <span class="separator">/</span>
+          <div id="project-switcher" class="switcher">
+            <button id="switcher-trigger" class="switcher-trigger" type="button" aria-haspopup="menu" aria-expanded="false">
+              <span id="switcher-label" class="switcher-label">project</span>
+              <svg width="12" height="12"><use href="#icon-chevron" /></svg>
+            </button>
+            <div id="switcher-menu" class="switcher-menu hidden" role="menu"></div>
+          </div>
+        </div>
       </div>
       <div class="topbar-right">
         <button
@@ -101,8 +154,35 @@
     </div>
 
     <main id="app" class="app">
-      <!-- Kanban view -->
-      <section id="kanban-view" class="view kanban-view">
+      <!-- Overview view: grid of project cards -->
+      <section id="overview-view" class="view overview-view hidden">
+        <div class="overview-header">
+          <h1 class="overview-title">Projects</h1>
+          <p id="overview-subtitle" class="overview-subtitle fg-muted small"></p>
+        </div>
+        <div id="overview-grid" class="overview-grid"></div>
+        <div class="overview-footer">
+          <button id="add-project-toggle" class="btn add-btn" type="button">
+            <svg width="14" height="14"><use href="#icon-plus" /></svg>
+            <span>Add project</span>
+          </button>
+          <form id="add-project-form" class="add-form hidden" autocomplete="off">
+            <input
+              id="add-project-input"
+              class="add-input mono"
+              type="text"
+              placeholder="/absolute/path/to/project"
+              spellcheck="false"
+            />
+            <button type="submit" class="btn btn-primary">Add</button>
+            <button id="add-project-cancel" type="button" class="btn">Cancel</button>
+            <span id="add-project-error" class="add-error fg-muted small hidden"></span>
+          </form>
+        </div>
+      </section>
+
+      <!-- Project (kanban) view -->
+      <section id="kanban-view" class="view kanban-view hidden">
         <div id="kanban" class="kanban"></div>
       </section>
 
@@ -128,40 +208,20 @@
       </section>
     </main>
 
-    <!-- Bootstrap progress modal -->
-    <div id="bootstrap-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <!-- Confirmation modal (used for project remove) -->
+    <div id="confirm-modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-backdrop"></div>
       <div class="modal-card">
         <div class="modal-header">
-          <h2>Bootstrap in progress</h2>
-          <button id="bootstrap-modal-dismiss" class="icon-btn" type="button" aria-label="Dismiss">
-            ×
-          </button>
+          <h2 id="confirm-title">Confirm</h2>
+          <button id="confirm-dismiss" class="icon-btn" type="button" aria-label="Dismiss">×</button>
         </div>
         <div class="modal-body">
-          <div id="bootstrap-current" class="mono fg-muted"></div>
-          <div class="progress">
-            <div id="bootstrap-bar" class="progress-bar"></div>
+          <p id="confirm-message" class="fg-muted"></p>
+          <div class="modal-actions">
+            <button id="confirm-cancel" class="btn" type="button">Cancel</button>
+            <button id="confirm-ok" class="btn btn-danger" type="button">Confirm</button>
           </div>
-          <div id="bootstrap-counts" class="fg-muted small"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Generation streaming modal -->
-    <div id="gen-modal" class="modal hidden" role="dialog" aria-modal="true">
-      <div class="modal-backdrop"></div>
-      <div class="modal-card modal-card-wide">
-        <div class="modal-header">
-          <h2 id="gen-title">Generating…</h2>
-          <button id="gen-dismiss" class="icon-btn" type="button" aria-label="Close">×</button>
-        </div>
-        <div class="modal-body">
-          <div id="gen-status" class="fg-muted small">
-            <svg width="14" height="14"><use href="#icon-pulse" /></svg>
-            <span>Streaming…</span>
-          </div>
-          <pre id="gen-stream" class="gen-stream"></pre>
         </div>
       </div>
     </div>

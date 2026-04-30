@@ -879,3 +879,440 @@ button {
   color: var(--fg-muted);
   font-size: 13px;
 }
+
+/* ============================================================
+   Multi-project: brand + project bar + switcher
+   ============================================================ */
+
+.brand {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.project-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-bar.hidden {
+  display: none;
+}
+
+.separator {
+  color: var(--fg-subtle);
+  font-size: 14px;
+  user-select: none;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.back-link:hover {
+  background: var(--surface-elevated);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.switcher {
+  position: relative;
+}
+
+.switcher-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.switcher-trigger:hover {
+  background: var(--surface-elevated);
+  border-color: var(--border-strong);
+}
+
+.switcher-label {
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.switcher-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 240px;
+  max-width: 360px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.switcher-empty {
+  padding: 10px 12px;
+}
+
+.switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+  transition: background-color 100ms ease;
+  width: 100%;
+}
+
+.switcher-item:hover {
+  background: var(--surface);
+}
+
+.switcher-item.current {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.switcher-item.dead {
+  color: var(--fg-subtle);
+  cursor: not-allowed;
+}
+
+.switcher-item.dead:hover {
+  background: none;
+}
+
+.switcher-item-tag {
+  margin-left: auto;
+}
+
+.switcher-item.all-projects {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 9px;
+  color: var(--fg-muted);
+}
+
+.switcher-item.all-projects:hover {
+  color: var(--fg);
+}
+
+.switcher-item-icon {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+}
+
+.switcher-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Overview view (project cards)
+   ============================================================ */
+
+.overview-view.hidden,
+.kanban-view.hidden {
+  display: none;
+}
+
+.overview-header {
+  margin-bottom: 24px;
+}
+
+.overview-title {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.overview-subtitle {
+  margin: 0;
+  font-family: "SF Mono", "JetBrains Mono", "Menlo", monospace;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.overview-empty {
+  color: var(--fg-muted);
+  font-size: 13px;
+  padding: 32px 0;
+  text-align: center;
+}
+
+.proj-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
+  min-height: 168px;
+}
+
+.proj-card:hover {
+  background: var(--surface-elevated);
+  border-color: var(--border-strong);
+}
+
+.proj-card.dead {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.proj-card.dead:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.proj-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.proj-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.proj-path {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proj-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.proj-active {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--fg);
+  line-height: 1.3;
+}
+
+.proj-active-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.proj-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proj-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--surface-elevated);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+[data-theme="light"] .proj-bar {
+  background: var(--border);
+}
+
+.proj-bar-fill {
+  height: 100%;
+  background: var(--success);
+  transition: width 200ms ease;
+}
+
+.proj-bar-label {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.proj-counts {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.proj-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.proj-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+.proj-dead {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.badge-dead {
+  color: var(--fg-subtle);
+  background: color-mix(in srgb, var(--fg-subtle) 15%, transparent);
+  border-color: color-mix(in srgb, var(--fg-subtle) 35%, transparent);
+}
+
+.icon-btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  transition:
+    background-color 100ms ease,
+    color 100ms ease,
+    border-color 100ms ease;
+}
+
+.icon-btn-sm:hover {
+  background: var(--surface-elevated);
+  color: var(--danger);
+  border-color: var(--border);
+}
+
+/* ============================================================
+   Add-project form (overview footer)
+   ============================================================ */
+
+.overview-footer {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-btn.hidden,
+.add-form.hidden {
+  display: none;
+}
+
+.add-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.add-input {
+  flex: 1;
+  min-width: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.add-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.add-error {
+  color: var(--danger);
+}
+
+.add-error.hidden {
+  display: none;
+}
+
+/* ============================================================
+   Confirm modal
+   ============================================================ */
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background: color-mix(in srgb, var(--danger) 85%, black);
+  border-color: color-mix(in srgb, var(--danger) 85%, black);
+  color: #ffffff;
+}

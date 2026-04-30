@@ -1,5 +1,10 @@
 /* ============================================================
-   RIFF Dashboard — vanilla SPA
+   RIFF Dashboard — vanilla SPA (multi-project, two-level)
+   ============================================================
+   Layout:
+     overview (#/)             → grid of project cards
+     project  (#/projects/:slug)            → kanban
+     phase    (#/projects/:slug/phase/:id)  → kanban + modal open
    ============================================================ */
 (() => {
   "use strict";
@@ -8,16 +13,28 @@
   // State
   // ----------------------------------------------------------
   const state = {
-    project: null,
-    phases: [],
+    view: "overview",            // "overview" | "project"
+    currentProjectSlug: null,
     currentPhaseId: null,
     currentPhase: null,
-    viewLevel: null, // null → use profile default; set to "technical" / "simple" / "eli5" to override
+    viewLevel: null,             // null → use profile default; else override
     activeTab: "explanation",
     skippedExpanded: false,
+
+    projects: [],                // overview list
+    project: null,               // current project full payload
+    profile: null,
+    frameworkRoot: null,
+
+    bootstrapStatus: null,
+    bootstrapDismissed: false,
+
     eventSource: null,
     genSource: null,
-    bootstrapDismissed: false,
+    generating: false,
+
+    switcherOpen: false,
+    confirmCallback: null,
   };
 
   const COLUMN_ORDER = ["todo", "in-progress", "done", "blocked", "skipped"];
@@ -29,11 +46,26 @@
     skipped: "Skipped",
   };
 
+  const PRIORITY_MAP = {
+    P0: { label: "Critical", title: "Critique, à faire maintenant" },
+    P1: { label: "High", title: "Priorité haute" },
+    P2: { label: "Medium", title: "Priorité normale" },
+    P3: { label: "Low", title: "Priorité basse" },
+  };
+  const STATUS_MAP = {
+    todo: { label: "todo", title: "Pas encore commencé" },
+    "in-progress": { label: "in-progress", title: "En cours de travail" },
+    done: { label: "done", title: "Terminé" },
+    blocked: { label: "blocked", title: "Bloqué, en attente de quelque chose" },
+    skipped: { label: "skipped", title: "Pas fait, ignoré" },
+  };
+
+  const LS_LAST_PROJECT = "riff:lastProjectSlug";
+
   // ----------------------------------------------------------
   // DOM helpers
   // ----------------------------------------------------------
   const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
@@ -64,7 +96,7 @@
   }
 
   function clear(node) {
-    while (node.firstChild) node.removeChild(node.firstChild);
+    while (node && node.firstChild) node.removeChild(node.firstChild);
   }
 
   function escapeHtml(str) {
@@ -74,6 +106,16 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function timeAgo(ms) {
+    if (!ms) return "";
+    const diff = Date.now() - ms;
+    if (diff < 0) return "just now";
+    if (diff < 60_000) return "just now";
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+    return `${Math.floor(diff / 86_400_000)}d ago`;
   }
 
   // ----------------------------------------------------------
@@ -95,8 +137,9 @@
   }
 
   // ----------------------------------------------------------
-  // Minimal markdown renderer (paragraphs, headings, bold,
-  // italic, code spans, fenced code blocks, lists)
+  // Markdown renderer (paragraphs, headings, bold, italic,
+  // code spans, fenced code blocks, lists). Single newline → <br>
+  // is intentional: casual French prompts depend on visual breaks.
   // ----------------------------------------------------------
   function renderMarkdown(src) {
     if (!src) return "";
@@ -105,23 +148,17 @@
     let i = 0;
 
     const inlineFmt = (s) => {
-      // Escape, then re-introduce inline formatting
       let t = escapeHtml(s);
-      // Code spans
       t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
-      // Bold then italic
       t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
       t = t.replace(/\*([^*]+)\*/g, "<em>$1</em>");
       t = t.replace(/(^|[\s(])_([^_]+)_(?=[\s).,!?]|$)/g, "$1<em>$2</em>");
-      // Auto-link bare URLs
       t = t.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
       return t;
     };
 
     while (i < lines.length) {
       const line = lines[i];
-
-      // Fenced code
       if (/^```/.test(line)) {
         const buf = [];
         i++;
@@ -129,12 +166,10 @@
           buf.push(lines[i]);
           i++;
         }
-        i++; // skip closing fence
+        i++;
         out.push("<pre><code>" + escapeHtml(buf.join("\n")) + "</code></pre>");
         continue;
       }
-
-      // Headings
       const h = line.match(/^(#{1,6})\s+(.*)$/);
       if (h) {
         const level = Math.min(h[1].length, 6);
@@ -142,8 +177,6 @@
         i++;
         continue;
       }
-
-      // Lists
       if (/^\s*[-*+]\s+/.test(line)) {
         const items = [];
         while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
@@ -153,7 +186,6 @@
         out.push("<ul>" + items.map((it) => "<li>" + inlineFmt(it) + "</li>").join("") + "</ul>");
         continue;
       }
-
       if (/^\s*\d+\.\s+/.test(line)) {
         const items = [];
         while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
@@ -163,14 +195,10 @@
         out.push("<ol>" + items.map((it) => "<li>" + inlineFmt(it) + "</li>").join("") + "</ol>");
         continue;
       }
-
-      // Blank line
       if (/^\s*$/.test(line)) {
         i++;
         continue;
       }
-
-      // Paragraph (greedy until blank or block start)
       const buf = [line];
       i++;
       while (
@@ -184,43 +212,9 @@
         buf.push(lines[i]);
         i++;
       }
-      // Each line is its own visual line (preserves "one sentence per line" prompt output)
       out.push("<p>" + buf.map((l) => inlineFmt(l)).join("<br>") + "</p>");
     }
-
     return out.join("\n");
-  }
-
-  // Parse "## Metadata" key: value pairs from EXPLAIN-POST.md
-  function extractMetadata(src) {
-    if (!src) return null;
-    const text = String(src);
-    // Find "## Metadata" header (or # / ###), capture everything after to end.
-    // Conventional: metadata block is ALWAYS last in EXPLAIN-POST files.
-    const re = /(?:^|\n)#{1,3}\s*Metadata\s*\n([\s\S]+)$/i;
-    const m = text.match(re);
-    if (!m) return null;
-    const block = m[1];
-    const pairs = [];
-    const lines = block.split("\n");
-    for (const raw of lines) {
-      const line = raw.replace(/^\s*[-*+]\s+/, "").trim();
-      if (!line) continue;
-      // Match `**Key**: value` or `Key: value`
-      const kv = line.match(/^(?:\*\*([^*]+)\*\*|([^:]+))\s*:\s*(.+)$/);
-      if (kv) {
-        const key = (kv[1] || kv[2] || "").trim();
-        const value = (kv[3] || "").trim().replace(/^`(.*)`$/, "$1");
-        if (key) pairs.push([key, value]);
-      }
-    }
-    return pairs.length ? pairs : null;
-  }
-
-  // Strip a top-level metadata section from the rendered body
-  function stripMetadataSection(src) {
-    if (!src) return src;
-    return src.replace(/(^|\n)#{1,3}\s*Metadata\s*\n[\s\S]*?(?=\n#{1,3}\s|$)/i, "$1");
   }
 
   // ----------------------------------------------------------
@@ -228,36 +222,57 @@
   // ----------------------------------------------------------
   async function api(path, opts) {
     const res = await fetch(path, opts);
-    if (!res.ok) throw new Error(`${path}: ${res.status}`);
-    return res.json();
-  }
-
-  async function loadProject() {
+    let body = null;
     try {
-      state.project = await api("/api/project");
+      body = await res.json();
     } catch (e) {
-      state.project = { name: "RIFF", root: "", profile: {} };
+      body = null;
     }
-    renderTopbar();
+    if (!res.ok) {
+      const msg = body && body.error ? body.error : `${path}: ${res.status}`;
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+    return body;
   }
 
-  async function loadPhases() {
+  async function loadOverview() {
     try {
-      const data = await api("/api/phases");
-      state.phases = Array.isArray(data?.phases) ? data.phases : [];
+      const data = await api("/api/projects");
+      state.projects = Array.isArray(data?.projects) ? data.projects : [];
+      state.profile = data?.profile ?? null;
+      state.frameworkRoot = data?.framework_root ?? null;
     } catch (e) {
-      state.phases = [];
+      state.projects = [];
     }
-    renderKanban();
+    if (state.view === "overview") renderOverview();
+    renderSwitcherMenu();
   }
 
-  async function loadPhase(id, level) {
+  async function loadProject(slug) {
+    state.project = null;
+    state.bootstrapStatus = null;
+    state.bootstrapDismissed = false;
+    if (state.view === "project") renderProject();
+    try {
+      const data = await api(`/api/projects/${encodeURIComponent(slug)}`);
+      state.project = data;
+      state.bootstrapStatus = data?.bootstrap_status ?? null;
+      handleBootstrapStatus(state.bootstrapStatus);
+    } catch (e) {
+      state.project = { error: e.message, slug };
+    }
+    if (state.view === "project") renderProject();
+  }
+
+  async function loadPhase(slug, id, level) {
     state.currentPhase = null;
     renderDetail();
     try {
       const url = level
-        ? `/api/phase/${encodeURIComponent(id)}?level=${encodeURIComponent(level)}`
-        : `/api/phase/${encodeURIComponent(id)}`;
+        ? `/api/projects/${encodeURIComponent(slug)}/phase/${encodeURIComponent(id)}?level=${encodeURIComponent(level)}`
+        : `/api/projects/${encodeURIComponent(slug)}/phase/${encodeURIComponent(id)}`;
       state.currentPhase = await api(url);
     } catch (e) {
       state.currentPhase = { id, error: e.message };
@@ -265,33 +280,233 @@
     renderDetail();
   }
 
-  async function loadBootstrapStatus() {
-    try {
-      const s = await api("/api/bootstrap-status");
-      handleBootstrapStatus(s);
-    } catch (e) {
-      // backend may not implement; ignore
-    }
+  async function addProjectByPath(path) {
+    return api("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+  }
+
+  async function removeProjectBySlug(slug) {
+    return api(`/api/projects/${encodeURIComponent(slug)}`, { method: "DELETE" });
   }
 
   // ----------------------------------------------------------
-  // Top bar
+  // Topbar (project switcher)
   // ----------------------------------------------------------
   function renderTopbar() {
-    const name = state.project?.name || "RIFF";
-    $("#project-name").textContent = name;
-    const root = state.project?.root || "";
-    const rootEl = $("#project-root");
-    if (root) {
-      rootEl.textContent = root;
-      rootEl.title = root;
+    const bar = $("#project-bar");
+    if (state.view === "project") {
+      bar.classList.remove("hidden");
+      const proj = currentProjectMeta();
+      $("#switcher-label").textContent = proj?.name ?? state.currentProjectSlug ?? "project";
     } else {
-      rootEl.textContent = "";
+      bar.classList.add("hidden");
+      closeSwitcher();
     }
   }
 
+  function currentProjectMeta() {
+    if (!state.currentProjectSlug) return null;
+    return state.projects.find((p) => p.slug === state.currentProjectSlug) ?? null;
+  }
+
+  function renderSwitcherMenu() {
+    const menu = $("#switcher-menu");
+    clear(menu);
+    if (!state.projects.length) {
+      menu.appendChild(el("div", { class: "switcher-empty fg-muted small" }, "No projects"));
+      return;
+    }
+    for (const p of state.projects) {
+      const isCurrent = p.slug === state.currentProjectSlug;
+      const dead = !p.exists;
+      const item = el(
+        "button",
+        {
+          class: "switcher-item" + (isCurrent ? " current" : "") + (dead ? " dead" : ""),
+          type: "button",
+          role: "menuitem",
+          onClick: () => {
+            closeSwitcher();
+            if (dead) return;
+            navigateToProject(p.slug);
+          },
+        },
+        [
+          el("span", { class: "switcher-item-name" }, p.name || p.slug),
+          dead ? el("span", { class: "switcher-item-tag fg-subtle small" }, "missing") : null,
+        ],
+      );
+      menu.appendChild(item);
+    }
+    menu.appendChild(
+      el(
+        "button",
+        {
+          class: "switcher-item all-projects",
+          type: "button",
+          role: "menuitem",
+          onClick: () => {
+            closeSwitcher();
+            navigateToOverview();
+          },
+        },
+        [
+          el("span", { class: "switcher-item-icon" }, [
+            el("svg", { width: "12", height: "12", html: '<use href="#icon-arrow-left" />' }),
+          ]),
+          el("span", null, "All projects"),
+        ],
+      ),
+    );
+  }
+
+  function openSwitcher() {
+    if (state.switcherOpen) return;
+    state.switcherOpen = true;
+    renderSwitcherMenu();
+    $("#switcher-menu").classList.remove("hidden");
+    $("#switcher-trigger").setAttribute("aria-expanded", "true");
+  }
+
+  function closeSwitcher() {
+    if (!state.switcherOpen) return;
+    state.switcherOpen = false;
+    $("#switcher-menu").classList.add("hidden");
+    $("#switcher-trigger").setAttribute("aria-expanded", "false");
+  }
+
+  function toggleSwitcher() {
+    state.switcherOpen ? closeSwitcher() : openSwitcher();
+  }
+
   // ----------------------------------------------------------
-  // Kanban
+  // Overview
+  // ----------------------------------------------------------
+  function renderOverview() {
+    const sub = $("#overview-subtitle");
+    sub.textContent = state.frameworkRoot ? `framework: ${state.frameworkRoot}` : "";
+
+    const grid = $("#overview-grid");
+    clear(grid);
+    if (!state.projects.length) {
+      grid.appendChild(
+        el(
+          "div",
+          { class: "overview-empty" },
+          "No projects yet. Click “+ Add project” below to register one.",
+        ),
+      );
+      return;
+    }
+    for (const p of state.projects) grid.appendChild(buildProjectCard(p));
+  }
+
+  function buildProjectCard(p) {
+    const dead = !p.exists;
+
+    const total = p.progress?.total ?? 0;
+    const done = p.progress?.done ?? 0;
+    const inProg = p.progress?.in_progress ?? 0;
+    const todo = p.progress?.todo ?? 0;
+    const blocked = p.progress?.blocked ?? 0;
+
+    const pct = total ? Math.round((done / total) * 100) : 0;
+
+    const header = el("div", { class: "proj-header" }, [
+      el("span", { class: "proj-name" }, p.name || p.slug),
+      el(
+        "button",
+        {
+          class: "proj-remove icon-btn-sm",
+          type: "button",
+          title: "Remove from registry",
+          "aria-label": "Remove project",
+          onClick: (e) => {
+            e.stopPropagation();
+            askConfirm(
+              `Remove ${p.name || p.slug} from the dashboard registry? The project files on disk are not touched.`,
+              () => doRemoveProject(p.slug),
+            );
+          },
+        },
+        [el("svg", { width: "12", height: "12", html: '<use href="#icon-x" />' })],
+      ),
+    ]);
+
+    const path = el("div", { class: "proj-path mono fg-subtle", title: p.root }, p.root || "");
+
+    let body;
+    if (dead) {
+      body = el("div", { class: "proj-dead" }, [
+        el("span", { class: "badge badge-dead" }, "Path missing"),
+      ]);
+    } else {
+      const active = p.active_phase
+        ? el("div", { class: "proj-active" }, [
+            el("span", { class: "card-id mono" }, String(p.active_phase.id)),
+            el("span", { class: "proj-active-title" }, p.active_phase.title || p.active_phase.slug || ""),
+          ])
+        : el("div", { class: "proj-active fg-muted" }, "Complete");
+
+      const counts = [];
+      if (done) counts.push({ k: "done", v: done });
+      if (inProg) counts.push({ k: "in-progress", v: inProg });
+      if (todo) counts.push({ k: "todo", v: todo });
+      if (blocked) counts.push({ k: "blocked", v: blocked });
+
+      const countsRow = el(
+        "div",
+        { class: "proj-counts" },
+        counts.map((c) =>
+          el("span", { class: "proj-count" }, [
+            el("span", { class: `column-dot ${c.k}` }),
+            el("span", { class: "fg-muted" }, String(c.v)),
+          ]),
+        ),
+      );
+
+      const bar = el("div", { class: "proj-bar" }, [
+        el("div", { class: "proj-bar-fill", style: `width:${pct}%` }),
+      ]);
+      const barRow = el("div", { class: "proj-bar-row" }, [
+        bar,
+        el("span", { class: "proj-bar-label mono fg-muted small" }, `${done}/${total}`),
+      ]);
+
+      body = el("div", { class: "proj-body" }, [active, barRow, countsRow]);
+    }
+
+    const footer = el("div", { class: "proj-footer fg-subtle small" }, [
+      p.last_modified_ms ? el("span", null, `modified ${timeAgo(p.last_modified_ms)}`) : el("span", null, ""),
+    ]);
+
+    const card = el(
+      "div",
+      {
+        class: "proj-card" + (dead ? " dead" : ""),
+        role: dead ? null : "button",
+        tabindex: dead ? null : "0",
+        "data-slug": p.slug,
+        onClick: dead ? undefined : () => navigateToProject(p.slug),
+        onKeydown: dead
+          ? undefined
+          : (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigateToProject(p.slug);
+              }
+            },
+      },
+      [header, path, body, footer],
+    );
+    return card;
+  }
+
+  // ----------------------------------------------------------
+  // Project (kanban)
   // ----------------------------------------------------------
   function groupPhases(phases) {
     const groups = {};
@@ -308,54 +523,39 @@
     return String(p).toLowerCase();
   }
 
-  const PRIORITY_MAP = {
-    P0: { label: "Critical", title: "Critique, à faire maintenant" },
-    P1: { label: "High", title: "Priorité haute" },
-    P2: { label: "Medium", title: "Priorité normale" },
-    P3: { label: "Low", title: "Priorité basse" },
-  };
-  const STATUS_MAP = {
-    todo: { label: "todo", title: "Pas encore commencé" },
-    "in-progress": { label: "in-progress", title: "En cours de travail" },
-    done: { label: "done", title: "Terminé" },
-    blocked: { label: "blocked", title: "Bloqué, en attente de quelque chose" },
-    skipped: { label: "skipped", title: "Pas fait, ignoré" },
-  };
-
   function badge(text, classes, title) {
     return el(
       "span",
       title ? { class: `badge ${classes}`, title } : { class: `badge ${classes}` },
-      text
+      text,
     );
   }
 
-  function buildCard(phase) {
+  function buildPhaseCard(phase) {
     const prioInfo = phase.priority ? PRIORITY_MAP[phase.priority] : null;
     const top = el("div", { class: "card-top" }, [
-      el("span", { class: "card-id mono" }, phase.id || ""),
+      el("span", { class: "card-id mono" }, String(phase.id ?? "")),
       prioInfo
         ? badge(prioInfo.label, `badge-priority ${priorityClass(phase.priority)}`, prioInfo.title)
         : null,
     ]);
 
     const title = el("div", { class: "card-title" }, phase.title || phase.slug || "Untitled");
-
     const previewText = phase.explain_preview || phase.description || "";
     const hasContent = !!previewText;
     const explain = el(
       "div",
       { class: "card-explain" + (hasContent ? "" : " placeholder") },
-      hasContent ? previewText : "Pending explanation"
+      hasContent ? previewText : "Pending explanation",
     );
 
-    const card = el(
+    return el(
       "div",
       {
         class: "card",
         role: "button",
         tabindex: "0",
-        "data-id": phase.id,
+        "data-id": String(phase.id),
         onClick: () => navigateToPhase(phase.id),
         onKeydown: (e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -364,9 +564,8 @@
           }
         },
       },
-      [top, title, explain]
+      [top, title, explain],
     );
-    return card;
   }
 
   function buildColumn(status, phases) {
@@ -379,7 +578,7 @@
         onClick: () => {
           if (status === "skipped") {
             state.skippedExpanded = !state.skippedExpanded;
-            renderKanban();
+            renderProject();
           }
         },
       },
@@ -389,7 +588,7 @@
           COLUMN_LABELS[status] || status,
         ]),
         el("span", { class: "column-count mono" }, String(phases.length)),
-      ]
+      ],
     );
 
     const cards = el("div", { class: "column-cards" });
@@ -397,26 +596,37 @@
       cards.appendChild(el("div", { class: "column-empty" }, "No phases"));
     } else if (status === "skipped" && !state.skippedExpanded) {
       cards.appendChild(
-        el("div", { class: "column-empty" }, `${phases.length} skipped — click header to expand`)
+        el("div", { class: "column-empty" }, `${phases.length} skipped — click header to expand`),
       );
     } else {
-      for (const p of phases) cards.appendChild(buildCard(p));
+      for (const p of phases) cards.appendChild(buildPhaseCard(p));
     }
 
     return el("div", { class: "column" + (collapsed ? " collapsed" : "") }, [header, cards]);
   }
 
-  function renderKanban() {
+  function renderProject() {
     const root = $("#kanban");
     clear(root);
-    const groups = groupPhases(state.phases);
+    if (!state.project) {
+      root.appendChild(el("div", { class: "empty-state" }, "Loading project…"));
+      return;
+    }
+    if (state.project.error) {
+      root.appendChild(
+        el("div", { class: "empty-state" }, `Error: ${state.project.error}`),
+      );
+      return;
+    }
+    const phases = Array.isArray(state.project.phases) ? state.project.phases : [];
+    const groups = groupPhases(phases);
     for (const status of COLUMN_ORDER) {
       root.appendChild(buildColumn(status, groups[status]));
     }
   }
 
   // ----------------------------------------------------------
-  // Detail view
+  // Detail (phase modal)
   // ----------------------------------------------------------
   function renderDetailHeader() {
     const phase = state.currentPhase;
@@ -425,7 +635,7 @@
 
     const badges = $("#detail-badges");
     clear(badges);
-    badges.appendChild(el("span", { class: "card-id mono" }, phase.id || ""));
+    badges.appendChild(el("span", { class: "card-id mono" }, String(phase.id ?? "")));
     if (phase.status) {
       const s = STATUS_MAP[phase.status] || { label: phase.status, title: "" };
       badges.appendChild(badge(s.label, `badge-status ${phase.status}`, s.title));
@@ -436,15 +646,10 @@
     }
   }
 
-  function buildTabs(phase) {
+  function buildTabs() {
     const tabs = ["explanation", "raw"];
-
     if (!tabs.includes(state.activeTab)) state.activeTab = "explanation";
-
-    const labels = {
-      explanation: "Explanation",
-      raw: "Raw files",
-    };
+    const labels = { explanation: "Explanation", raw: "Raw files" };
 
     const nav = $("#detail-tabs");
     clear(nav);
@@ -462,15 +667,15 @@
               renderDetailActions();
             },
           },
-          labels[t]
-        )
+          labels[t],
+        ),
       );
     }
   }
 
   function renderDetailTabs() {
     if (!state.currentPhase) return;
-    buildTabs(state.currentPhase);
+    buildTabs();
   }
 
   function renderDetailActions() {
@@ -500,15 +705,16 @@
             ? undefined
             : async () => {
                 state.viewLevel = level;
-                await loadPhase(phase.id, level);
+                await loadPhase(state.currentProjectSlug, phase.id, level);
                 const p = state.currentPhase;
-                const hasContent = (p?.explain && p.explain.trim()) || (p?.explain_post && p.explain_post.trim());
+                const hasContent =
+                  (p?.explain && p.explain.trim()) || (p?.explain_post && p.explain_post.trim());
                 if (!hasContent) {
-                  triggerGeneration(phase.id, level, kind);
+                  triggerGeneration(state.currentProjectSlug, phase.id, level, kind);
                 }
               },
         },
-        labelMap[level]
+        labelMap[level],
       );
       wrap.appendChild(btn);
     }
@@ -534,43 +740,20 @@
       body.appendChild(el("div", { class: "empty-state" }, `Error: ${phase.error}`));
       return;
     }
-
-    const raw = chooseExplainBody(phase);
     if (state.generating) {
       body.appendChild(el("div", { class: "empty-state" }, "Génération en cours…"));
       return;
     }
+    const raw = chooseExplainBody(phase);
     if (!raw || !raw.trim()) {
       body.appendChild(
-        el("div", { class: "empty-state" }, "No explanation yet. Use a button above to generate one.")
+        el("div", { class: "empty-state" }, "No explanation yet. Use a button above to generate one."),
       );
       return;
     }
     const md = el("div", { class: "md" });
     md.innerHTML = renderMarkdown(raw);
     body.appendChild(md);
-  }
-
-  function renderMetadataBody() {
-    const phase = state.currentPhase;
-    const body = $("#detail-body");
-    clear(body);
-    const src = phase?.explain_post || phase?.metadata_raw || "";
-    let pairs = extractMetadata(src);
-    if (!pairs && phase?.metadata && typeof phase.metadata === "object") {
-      pairs = Object.entries(phase.metadata).map(([k, v]) => [k, String(v)]);
-    }
-    if (!pairs || !pairs.length) {
-      body.appendChild(el("div", { class: "empty-state" }, "No metadata available."));
-      return;
-    }
-    const table = el("table", { class: "kv-table" });
-    const tbody = el("tbody");
-    for (const [k, v] of pairs) {
-      tbody.appendChild(el("tr", null, [el("th", null, k), el("td", null, v)]));
-    }
-    table.appendChild(tbody);
-    body.appendChild(table);
   }
 
   function renderRawBody() {
@@ -581,7 +764,6 @@
     const list = Array.isArray(files) ? files : [];
 
     if (!list.length) {
-      // Fallback: show whatever raw content we have
       const fallback = phase?.explain || phase?.explain_post || phase?.description || "";
       if (fallback) {
         const wrap = el("div", { class: "raw-files" }, [
@@ -612,7 +794,7 @@
             size ? el("span", { class: "fg-subtle mono" }, size) : null,
           ]),
           el("pre", { class: "raw-file-body" }, content),
-        ])
+        ]),
       );
     }
     body.appendChild(wrap);
@@ -625,7 +807,6 @@
       body.appendChild(el("div", { class: "empty-state" }, "Loading…"));
       return;
     }
-    if (state.activeTab === "metadata") return renderMetadataBody();
     if (state.activeTab === "raw") return renderRawBody();
     return renderExplanationBody();
   }
@@ -648,52 +829,123 @@
   }
 
   // ----------------------------------------------------------
-  // Routing
+  // Routing (hash-based)
   // ----------------------------------------------------------
-  function showKanban() {
-    state.currentPhaseId = null;
-    state.currentPhase = null;
-    state.viewLevel = null;
-    state.activeTab = "explanation";
-    $("#detail-view").classList.add("hidden");
-    document.body.style.overflow = "";
+  function parseHash() {
+    const raw = (location.hash || "").replace(/^#\/?/, "");
+    if (!raw) return { view: "overview" };
+    const m = raw.match(/^projects\/([^/]+)(?:\/phase\/([^/]+))?$/);
+    if (!m) return { view: "overview" };
+    return {
+      view: "project",
+      slug: decodeURIComponent(m[1]),
+      phaseId: m[2] ? Number(decodeURIComponent(m[2])) : null,
+    };
   }
 
-  function showDetail() {
-    $("#detail-view").classList.remove("hidden");
-    document.body.style.overflow = "hidden";
+  function setHash(hash) {
+    if (location.hash === hash) {
+      handleRoute();
+      return;
+    }
+    location.hash = hash;
+  }
+
+  function navigateToOverview() {
+    try {
+      localStorage.removeItem(LS_LAST_PROJECT);
+    } catch (e) {
+      // ignore
+    }
+    setHash("");
+  }
+
+  function navigateToProject(slug) {
+    try {
+      localStorage.setItem(LS_LAST_PROJECT, slug);
+    } catch (e) {
+      // ignore
+    }
+    setHash(`#/projects/${encodeURIComponent(slug)}`);
   }
 
   function navigateToPhase(id) {
-    if (!id) return;
-    history.pushState({ phaseId: id }, "", `/phase/${encodeURIComponent(id)}`);
-    state.currentPhaseId = id;
-    showDetail();
-    renderDetail();
-    loadPhase(id);
+    if (!state.currentProjectSlug || id == null) return;
+    setHash(
+      `#/projects/${encodeURIComponent(state.currentProjectSlug)}/phase/${encodeURIComponent(id)}`,
+    );
   }
 
-  function navigateHome() {
-    history.pushState({}, "", "/");
-    showKanban();
+  function closeDetail() {
+    if (!state.currentProjectSlug) {
+      navigateToOverview();
+      return;
+    }
+    setHash(`#/projects/${encodeURIComponent(state.currentProjectSlug)}`);
   }
 
-  function handleRoute() {
-    const m = location.pathname.match(/^\/phase\/([^/]+)/);
-    if (m) {
-      state.currentPhaseId = decodeURIComponent(m[1]);
-      showDetail();
+  async function handleRoute() {
+    const route = parseHash();
+
+    if (route.view === "overview") {
+      state.view = "overview";
+      state.currentProjectSlug = null;
+      state.currentPhaseId = null;
+      state.currentPhase = null;
+      state.bootstrapDismissed = false;
+      hideBootstrapBanner();
+      $("#overview-view").classList.remove("hidden");
+      $("#kanban-view").classList.add("hidden");
+      $("#detail-view").classList.add("hidden");
+      document.body.style.overflow = "";
+      renderTopbar();
+      await loadOverview();
+      return;
+    }
+
+    // Project view (with optional phase modal).
+    const projectChanged = route.slug !== state.currentProjectSlug;
+    state.view = "project";
+    $("#overview-view").classList.add("hidden");
+    $("#kanban-view").classList.remove("hidden");
+
+    if (projectChanged) {
+      state.currentProjectSlug = route.slug;
+      state.currentPhaseId = null;
+      state.currentPhase = null;
+      state.viewLevel = null;
+      state.activeTab = "explanation";
+      state.skippedExpanded = false;
+      state.bootstrapDismissed = false;
+      hideBootstrapBanner();
+    }
+
+    renderTopbar();
+
+    if (projectChanged) {
+      await loadProject(route.slug);
+    }
+
+    if (route.phaseId != null && Number.isFinite(route.phaseId)) {
+      state.currentPhaseId = route.phaseId;
+      $("#detail-view").classList.remove("hidden");
+      document.body.style.overflow = "hidden";
       renderDetail();
-      loadPhase(state.currentPhaseId);
+      loadPhase(state.currentProjectSlug, route.phaseId);
     } else {
-      showKanban();
+      state.currentPhaseId = null;
+      state.currentPhase = null;
+      state.viewLevel = null;
+      state.activeTab = "explanation";
+      $("#detail-view").classList.add("hidden");
+      document.body.style.overflow = "";
     }
   }
 
-  window.addEventListener("popstate", handleRoute);
+  window.addEventListener("hashchange", handleRoute);
 
   // ----------------------------------------------------------
-  // SSE: live events
+  // SSE: live events (single global stream, filtered by project)
   // ----------------------------------------------------------
   function subscribeEvents() {
     if (state.eventSource) return;
@@ -707,231 +959,280 @@
     }
     state.eventSource = es;
 
-    const refetchPhases = () => {
-      loadPhases();
-      if (state.currentPhaseId) loadPhase(state.currentPhaseId, state.viewLevel);
+    const handlePhaseChanged = (ev) => {
+      let data = null;
+      try {
+        data = JSON.parse(ev.data);
+      } catch (e) {
+        return;
+      }
+      const slug = data?.project;
+      // Refresh overview card if visible
+      if (state.view === "overview") {
+        loadOverview();
+        return;
+      }
+      // Project view: only act on events for the current project
+      if (slug && slug === state.currentProjectSlug) {
+        loadProject(slug);
+        if (state.currentPhaseId != null) {
+          loadPhase(slug, state.currentPhaseId, state.viewLevel);
+        }
+      }
     };
 
-    es.addEventListener("phase_changed", refetchPhases);
-    es.addEventListener("roadmap_changed", refetchPhases);
-    es.addEventListener("state_changed", refetchPhases);
-    es.addEventListener("bootstrap_status", (ev) => {
+    const handleRoadmapChanged = (ev) => {
+      let data = null;
       try {
-        const data = JSON.parse(ev.data);
-        handleBootstrapStatus(data);
+        data = JSON.parse(ev.data);
       } catch (e) {
         // ignore
       }
-    });
-
-    // Generic message fallback
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data && data.type) {
-          if (
-            data.type === "phase_changed" ||
-            data.type === "roadmap_changed" ||
-            data.type === "state_changed"
-          ) {
-            refetchPhases();
-          } else if (data.type === "bootstrap_status") {
-            handleBootstrapStatus(data);
-          }
-        }
-      } catch (e) {
-        // ignore non-JSON
+      const slug = data?.project;
+      if (state.view === "overview") {
+        loadOverview();
+      } else if (slug && slug === state.currentProjectSlug) {
+        loadProject(slug);
       }
     };
+
+    const handleBootstrap = (ev) => {
+      let data = null;
+      try {
+        data = JSON.parse(ev.data);
+      } catch (e) {
+        return;
+      }
+      const slug = data?.project;
+      const status = data?.status ?? data;
+      // Only update the banner for the active project
+      if (state.view === "project" && slug === state.currentProjectSlug) {
+        state.bootstrapStatus = status;
+        handleBootstrapStatus(status);
+      }
+      // Overview: refresh card list to reflect new generated previews
+      if (state.view === "overview") {
+        loadOverview();
+      }
+    };
+
+    es.addEventListener("phase_changed", handlePhaseChanged);
+    es.addEventListener("roadmap_changed", handleRoadmapChanged);
+    es.addEventListener("state_changed", handleRoadmapChanged);
+    es.addEventListener("bootstrap_status", handleBootstrap);
 
     es.onerror = () => {
-      // EventSource auto-reconnects; nothing to do
+      // EventSource auto-reconnects
     };
   }
 
   // ----------------------------------------------------------
-  // Bootstrap progress
+  // Bootstrap banner
   // ----------------------------------------------------------
   function handleBootstrapStatus(s) {
-    if (!s) return;
-    const banner = $("#bootstrap-banner");
-    const modal = $("#bootstrap-modal");
-    const running = !!s.running;
-
-    if (running) {
-      const total = s.total || 0;
-      const done = s.done || 0;
-      const failed = s.failed || 0;
-      const current = s.current || "";
-
-      $("#bootstrap-banner-text").textContent = `Bootstrap: ${done}/${total}${
-        current ? ` — ${current}` : ""
-      }`;
-      if (!state.bootstrapDismissed) banner.classList.remove("hidden");
-
-      $("#bootstrap-current").textContent = current || "Preparing…";
-      $("#bootstrap-counts").textContent = `${done} done · ${failed} failed · ${total} total`;
-      const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
-      $("#bootstrap-bar").style.width = pct + "%";
-      if (!state.bootstrapDismissed) modal.classList.remove("hidden");
-    } else {
-      banner.classList.add("hidden");
-      modal.classList.add("hidden");
-      state.bootstrapDismissed = false;
+    if (!s) {
+      hideBootstrapBanner();
+      return;
     }
+    const banner = $("#bootstrap-banner");
+    if (!s.running) {
+      banner.classList.add("hidden");
+      state.bootstrapDismissed = false;
+      return;
+    }
+    const total = s.total || 0;
+    const done = s.done || 0;
+    const current = s.current || "";
+    $("#bootstrap-banner-text").textContent = `Bootstrap: ${done}/${total}${current ? ` — ${current}` : ""}`;
+    if (!state.bootstrapDismissed) banner.classList.remove("hidden");
+  }
+
+  function hideBootstrapBanner() {
+    $("#bootstrap-banner").classList.add("hidden");
   }
 
   // ----------------------------------------------------------
-  // Generation modal (SSE streaming)
+  // Generation streaming (silent: inline placeholder, no modal)
   // ----------------------------------------------------------
-  function openGenModal(/* level, kind */) {
-    // Modal removed — generation happens silently with an inline loading state.
+  function triggerGeneration(slug, phaseId, level, kind) {
+    if (!slug || !phaseId || !level) return;
+    if (state.genSource) {
+      try {
+        state.genSource.close();
+      } catch (e) {
+        // ignore
+      }
+      state.genSource = null;
+    }
+
     state.generating = true;
     renderDetail();
-  }
 
-  function closeGenModal() {
-    state.generating = false;
-    if (state.genSource) {
-      try {
-        state.genSource.close();
-      } catch (e) {
-        // ignore
-      }
-      state.genSource = null;
-    }
-  }
-
-  function appendGenChunk(text) {
-    const pre = $("#gen-stream");
-    pre.textContent += text;
-    pre.scrollTop = pre.scrollHeight;
-  }
-
-  function triggerGeneration(phaseId, level, kind) {
-    if (!phaseId || !level) return;
-    if (state.genSource) {
-      try {
-        state.genSource.close();
-      } catch (e) {
-        // ignore
-      }
-      state.genSource = null;
-    }
-
-    openGenModal(level, kind);
-
-    const url = `/api/phase/${encodeURIComponent(phaseId)}/generate?level=${encodeURIComponent(
-      level
-    )}&kind=${encodeURIComponent(kind)}`;
+    const url = `/api/projects/${encodeURIComponent(slug)}/phase/${encodeURIComponent(phaseId)}/generate?level=${encodeURIComponent(level)}&kind=${encodeURIComponent(kind)}`;
 
     let es;
     try {
       es = new EventSource(url);
     } catch (e) {
-      $("#gen-status").innerHTML = `<span class="fg-muted small">Failed to start: ${escapeHtml(
-        e.message
-      )}</span>`;
+      state.generating = false;
+      renderDetail();
       return;
     }
     state.genSource = es;
 
-    const handleDone = () => {
-      $("#gen-status").innerHTML = `<span class="fg-muted small">Done.</span>`;
+    const finish = () => {
+      state.generating = false;
       try {
         es.close();
       } catch (e) {
         // ignore
       }
       state.genSource = null;
-      // Switch the active view to the freshly generated level so subsequent renders
-      // (and any concurrent phase_changed broadcasts) all resolve to it.
+      // Keep the explicitly-requested level sticky against incoming broadcasts.
       state.viewLevel = level;
-      setTimeout(() => closeGenModal(), 600);
-      if (state.currentPhaseId) loadPhase(state.currentPhaseId, level);
-      loadPhases();
+      if (state.currentPhaseId != null) loadPhase(slug, state.currentPhaseId, level);
     };
 
-    es.addEventListener("chunk", (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data && typeof data.text === "string") appendGenChunk(data.text);
-      } catch (e) {
-        appendGenChunk(ev.data || "");
-      }
-    });
+    es.addEventListener("done", finish);
+    es.addEventListener("error", finish);
+    // chunks ignored on purpose: the banner shows progress, generation stays inline-silent.
+  }
 
-    es.addEventListener("done", handleDone);
+  // ----------------------------------------------------------
+  // Add / remove project flows
+  // ----------------------------------------------------------
+  function showAddForm() {
+    $("#add-project-toggle").classList.add("hidden");
+    $("#add-project-form").classList.remove("hidden");
+    $("#add-project-error").classList.add("hidden");
+    $("#add-project-input").value = "";
+    setTimeout(() => $("#add-project-input").focus(), 30);
+  }
 
-    es.onmessage = (ev) => {
-      // Generic JSON fallback
-      try {
-        const data = JSON.parse(ev.data);
-        if (data?.type === "chunk" && typeof data.text === "string") {
-          appendGenChunk(data.text);
-        } else if (data?.type === "done") {
-          handleDone();
-        } else if (typeof data === "string") {
-          appendGenChunk(data);
-        }
-      } catch (e) {
-        if (typeof ev.data === "string") appendGenChunk(ev.data);
-      }
-    };
+  function hideAddForm() {
+    $("#add-project-form").classList.add("hidden");
+    $("#add-project-toggle").classList.remove("hidden");
+    $("#add-project-error").classList.add("hidden");
+    $("#add-project-input").value = "";
+  }
 
-    es.onerror = () => {
-      $("#gen-status").innerHTML = `<span class="fg-muted small">Stream error or closed.</span>`;
-    };
+  async function submitAddProject() {
+    const input = $("#add-project-input");
+    const errEl = $("#add-project-error");
+    const path = input.value.trim();
+    errEl.classList.add("hidden");
+    if (!path) {
+      errEl.textContent = "Enter an absolute path.";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    try {
+      await addProjectByPath(path);
+      hideAddForm();
+      await loadOverview();
+    } catch (e) {
+      errEl.textContent = e.message || "failed";
+      errEl.classList.remove("hidden");
+    }
+  }
+
+  async function doRemoveProject(slug) {
+    try {
+      await removeProjectBySlug(slug);
+    } catch (e) {
+      // surface at the next overview render via a transient hint
+    }
+    if (state.currentProjectSlug === slug) {
+      navigateToOverview();
+      return;
+    }
+    await loadOverview();
+  }
+
+  // ----------------------------------------------------------
+  // Confirm modal
+  // ----------------------------------------------------------
+  function askConfirm(message, onOk) {
+    state.confirmCallback = onOk || null;
+    $("#confirm-message").textContent = message;
+    $("#confirm-modal").classList.remove("hidden");
+  }
+
+  function closeConfirm() {
+    $("#confirm-modal").classList.add("hidden");
+    state.confirmCallback = null;
   }
 
   // ----------------------------------------------------------
   // Wire up
   // ----------------------------------------------------------
   function wireEvents() {
-    $("#back-btn").addEventListener("click", navigateHome);
+    $("#back-btn").addEventListener("click", closeDetail);
 
     // Backdrop click closes the detail modal
     $("#detail-view").addEventListener("click", (e) => {
-      if (e.target === e.currentTarget) {
-        navigateHome();
-      }
+      if (e.target === e.currentTarget) closeDetail();
     });
 
     $("#bootstrap-banner-dismiss").addEventListener("click", () => {
       state.bootstrapDismissed = true;
       $("#bootstrap-banner").classList.add("hidden");
-      $("#bootstrap-modal").classList.add("hidden");
     });
 
-    $("#bootstrap-modal-dismiss").addEventListener("click", () => {
-      state.bootstrapDismissed = true;
-      $("#bootstrap-modal").classList.add("hidden");
+    // Project switcher
+    $("#switcher-trigger").addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleSwitcher();
+    });
+    document.addEventListener("click", (e) => {
+      if (!state.switcherOpen) return;
+      const menu = $("#switcher-menu");
+      const trigger = $("#switcher-trigger");
+      if (menu.contains(e.target) || trigger.contains(e.target)) return;
+      closeSwitcher();
     });
 
-    $("#gen-dismiss").addEventListener("click", closeGenModal);
+    // Back to overview
+    $("#back-to-overview").addEventListener("click", navigateToOverview);
 
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        if (!$("#gen-modal").classList.contains("hidden")) {
-          closeGenModal();
-        } else if (
-          !$("#bootstrap-modal").classList.contains("hidden") &&
-          !state.bootstrapDismissed
-        ) {
-          state.bootstrapDismissed = true;
-          $("#bootstrap-modal").classList.add("hidden");
-        } else if (state.currentPhaseId) {
-          navigateHome();
-        }
+    // Add project
+    $("#add-project-toggle").addEventListener("click", showAddForm);
+    $("#add-project-cancel").addEventListener("click", hideAddForm);
+    $("#add-project-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitAddProject();
+    });
+
+    // Confirm modal
+    $("#confirm-cancel").addEventListener("click", closeConfirm);
+    $("#confirm-dismiss").addEventListener("click", closeConfirm);
+    $("#confirm-modal").addEventListener("click", (e) => {
+      if (e.target === e.currentTarget || e.target.classList.contains("modal-backdrop")) {
+        closeConfirm();
       }
     });
+    $("#confirm-ok").addEventListener("click", () => {
+      const cb = state.confirmCallback;
+      closeConfirm();
+      if (typeof cb === "function") cb();
+    });
 
-    // Project-name click → home
-    $(".topbar-left").addEventListener("click", (e) => {
-      // Only if user clicked the name area, not selected text
-      const tgt = e.target;
-      if (tgt && (tgt.id === "project-name" || tgt.classList.contains("logo-dot"))) {
-        navigateHome();
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (!$("#confirm-modal").classList.contains("hidden")) {
+        closeConfirm();
+        return;
+      }
+      if (state.switcherOpen) {
+        closeSwitcher();
+        return;
+      }
+      if (state.currentPhaseId != null) {
+        closeDetail();
+        return;
+      }
+      if (state.view === "project") {
+        navigateToOverview();
       }
     });
   }
@@ -943,10 +1244,23 @@
     initTheme();
     wireEvents();
 
-    // Initial parallel fetch
-    await Promise.all([loadProject(), loadPhases(), loadBootstrapStatus()]);
+    // Load overview first so the switcher menu has data even on a deep-link.
+    await loadOverview();
 
-    handleRoute();
+    // Honor localStorage last-project on cold start when no explicit hash.
+    // Use history.replaceState (no hashchange event) so handleRoute runs once below.
+    if (!location.hash || location.hash === "#" || location.hash === "#/") {
+      try {
+        const last = localStorage.getItem(LS_LAST_PROJECT);
+        if (last && state.projects.find((p) => p.slug === last && p.exists)) {
+          history.replaceState(null, "", `#/projects/${encodeURIComponent(last)}`);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    await handleRoute();
     subscribeEvents();
   }
 
