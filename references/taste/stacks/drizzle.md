@@ -68,3 +68,12 @@ paths:
      )`,
    });
    ```
+
+6. **Drizzle's `sql` template tag does NOT serialize `Date` instances.** `postgres.js` handles Dates natively, but the Drizzle wrapper throws `The "string" argument must be of type string or an instance of Buffer or ArrayBuffer. Received an instance of Date` when it pre-processes the param. Tests that mock `drizzle-orm` won't catch this — only a real DB call does. Pass `.toISOString()` and cast at the SQL site:
+
+   ```ts
+   const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+   await db.execute(sql`... WHERE created_at > ${cutoff}::timestamptz`);
+   ```
+
+   Same applies to any non-string, non-primitive param passed via `${}` into raw `sql` template (Buffer, BigInt, custom objects). Stringify or use Drizzle's typed query builder (`eq`, `gt`, etc.) which handles serialization correctly.
