@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RIFF Dashboard</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script>
+      // Apply theme before paint to avoid flash
+      (function () {
+        try {
+          var t = localStorage.getItem("theme") || "dark";
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <!-- Inline icon definitions reused via <use> -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <symbol id="icon-sun" viewBox="0 0 16 16">
+          <circle cx="8" cy="8" r="3.25" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <g stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <line x1="8" y1="1.25" x2="8" y2="2.75" />
+            <line x1="8" y1="13.25" x2="8" y2="14.75" />
+            <line x1="1.25" y1="8" x2="2.75" y2="8" />
+            <line x1="13.25" y1="8" x2="14.75" y2="8" />
+            <line x1="3.2" y1="3.2" x2="4.3" y2="4.3" />
+            <line x1="11.7" y1="11.7" x2="12.8" y2="12.8" />
+            <line x1="3.2" y1="12.8" x2="4.3" y2="11.7" />
+            <line x1="11.7" y1="4.3" x2="12.8" y2="3.2" />
+          </g>
+        </symbol>
+        <symbol id="icon-moon" viewBox="0 0 16 16">
+          <path
+            d="M13.5 9.8A5.5 5.5 0 0 1 6.2 2.5a.5.5 0 0 0-.7-.6 6.5 6.5 0 1 0 8.6 8.6.5.5 0 0 0-.6-.7Z"
+            fill="currentColor"
+          />
+        </symbol>
+        <symbol id="icon-back" viewBox="0 0 16 16">
+          <path
+            d="M9.5 3.5 5 8l4.5 4.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </symbol>
+        <symbol id="icon-pulse" viewBox="0 0 16 16">
+          <circle
+            cx="8"
+            cy="8"
+            r="6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-dasharray="9 22"
+          >
+            <animateTransform
+              attributeName="transform"
+              type="rotate"
+              from="0 8 8"
+              to="360 8 8"
+              dur="0.9s"
+              repeatCount="indefinite"
+            />
+          </circle>
+        </symbol>
+      </defs>
+    </svg>
+
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="logo-dot" aria-hidden="true"></span>
+        <span id="project-name" class="project-name">RIFF</span>
+        <span id="project-root" class="project-root mono"></span>
+      </div>
+      <div class="topbar-right">
+        <button
+          id="theme-toggle"
+          class="icon-btn"
+          type="button"
+          aria-label="Toggle theme"
+          title="Toggle theme"
+        >
+          <svg class="icon-light" width="16" height="16"><use href="#icon-sun" /></svg>
+          <svg class="icon-dark" width="16" height="16"><use href="#icon-moon" /></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="bootstrap-banner" class="banner banner-info hidden" role="status">
+      <svg width="14" height="14"><use href="#icon-pulse" /></svg>
+      <span id="bootstrap-banner-text">Bootstrap running…</span>
+      <button id="bootstrap-banner-dismiss" class="banner-dismiss" type="button" aria-label="Dismiss">
+        ×
+      </button>
+    </div>
+
+    <main id="app" class="app">
+      <!-- Kanban view -->
+      <section id="kanban-view" class="view kanban-view">
+        <div id="kanban" class="kanban"></div>
+      </section>
+
+      <!-- Phase detail modal -->
+      <section id="detail-view" class="detail-view hidden" role="dialog" aria-modal="true">
+        <div class="detail-card">
+          <div class="detail-header">
+            <button id="back-btn" class="icon-btn" type="button" aria-label="Close">
+              <svg width="16" height="16"><use href="#icon-back" /></svg>
+            </button>
+            <div class="detail-title-block">
+              <h1 id="detail-title" class="detail-title">Phase</h1>
+              <div id="detail-badges" class="detail-badges"></div>
+            </div>
+          </div>
+
+          <nav id="detail-tabs" class="detail-tabs"></nav>
+
+          <div id="detail-actions" class="detail-actions"></div>
+
+          <div id="detail-body" class="detail-body"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bootstrap progress modal -->
+    <div id="bootstrap-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>Bootstrap in progress</h2>
+          <button id="bootstrap-modal-dismiss" class="icon-btn" type="button" aria-label="Dismiss">
+            ×
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="bootstrap-current" class="mono fg-muted"></div>
+          <div class="progress">
+            <div id="bootstrap-bar" class="progress-bar"></div>
+          </div>
+          <div id="bootstrap-counts" class="fg-muted small"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generation streaming modal -->
+    <div id="gen-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card modal-card-wide">
+        <div class="modal-header">
+          <h2 id="gen-title">Generating…</h2>
+          <button id="gen-dismiss" class="icon-btn" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="modal-body">
+          <div id="gen-status" class="fg-muted small">
+            <svg width="14" height="14"><use href="#icon-pulse" /></svg>
+            <span>Streaming…</span>
+          </div>
+          <pre id="gen-stream" class="gen-stream"></pre>
+        </div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
