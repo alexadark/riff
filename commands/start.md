@@ -233,6 +233,20 @@ Stack is captured in Stage 1 (Constraints axis). Map to slug:
 
 When a new stack is used for the first time, create `references/taste/stacks/{slug}.md` in RIFF itself (not just the project). Pattern after `react-router-7.md`: Core Rules → Component conventions → Framework-specific topics → UX & Accessibility → Anti-Pattern Checklist.
 
+### Register with running dashboard (best-effort)
+
+After bootstrap files exist, ping the dashboard so the new project shows up immediately. No-op if the dashboard is not running, no prompt, errors swallowed.
+
+```bash
+if curl -fsS http://localhost:4000/api/projects >/dev/null 2>&1; then
+  curl -fsS -X POST http://localhost:4000/api/projects \
+    -H "Content-Type: application/json" \
+    --data "{\"path\":\"$(pwd)\"}" >/dev/null 2>&1 || true
+fi
+```
+
+If the dashboard is started later from inside this project, `/riff:dashboard` will auto-register it then.
+
 ## Output
 
 **production scope:** PROJECT.md, ROADMAP.yaml, CONTEXT.md, taste.md, STATE.md, INCIDENTS.md, `.planning/` dirs.
