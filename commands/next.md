@@ -161,7 +161,41 @@ If `risk_focus` is set, append to the prompt: _"Pressure-test these specific ris
 
 **On PROCEED:** continue.
 
-If `--plan-only` was passed: STOP here. The PLAN.md and PLAN-REVIEW.md are the deliverables.
+---
+
+### Step 4c: Pre-exec explanation — sub-agent (always, fail-silent)
+
+Generates a plain-language description of the phase plan for the `/riff:dashboard` view. Audience level + language come from `profile.yaml`. Failure here NEVER blocks the pipeline.
+
+**Skip if `dashboard:` section is missing from profile.yaml** (back-compat for users who haven't re-onboarded).
+
+**Resolve level + language:**
+- `level` = `profile.dashboard.level` (default `simple`)
+- `language`: if `profile.dashboard.language` set, use it. Else if `profile.user.conversational_language` is `fr` or `en`, use it. Else `en`.
+
+Agent tool, `model: "haiku"`. Prompt:
+
+> Phase: N (slug, title from ROADMAP).
+> Read `.planning/phases/N-slug/PLAN.md` and the ROADMAP.yaml entry for phase N. Do not read SUMMARY.md (it does not exist yet).
+> Write what THIS PHASE WILL DO. Audience level: `{{LEVEL}}`. Language: `{{LANGUAGE}}`.
+>
+> Audience level (controls VOCABULARY only): `technical` = precise terms OK, `simple` = everyday words no jargon, `eli5` = analogy-based, 2 short sentences max.
+>
+> STYLE RULES (apply strictly, all levels): casual spoken voice, never formal, never corporate. French: "on" not "nous", "ça" not "cela", drop "également / par ailleurs / au total". English: contractions, drop "additionally / moreover". Short sentences, ONE idea per sentence, max ~12 words. **Line break after EACH period** — one sentence per line. No filler ("in order to", "make sure to"). No marketing words ("robust / seamless / leverage").
+>
+> Example GOOD (fr):
+> On a viré 1700 lignes de code mort.
+> L'app marche pareil mais elle est plus légère.
+> Aucune surprise.
+>
+> Example BAD (fr) — never write like this: "Cette phase a consisté à nettoyer la base de code en supprimant des fonctionnalités obsolètes."
+>
+> Focus on WHAT changes for the user or system, not implementation details.
+> Return ONLY the explanation text. One sentence per line. No preamble, no markdown headers. Write to `.planning/phases/N-slug/EXPLAIN.{{LEVEL}}.md`.
+
+On error: log a one-line warning to console (`Step 4c: explain generation failed — <reason>. Dashboard will show placeholder.`) and continue. Do NOT halt.
+
+If `--plan-only` was passed: STOP here. The PLAN.md, PLAN-REVIEW.md, and EXPLAIN.{{LEVEL}}.md are the deliverables.
 
 ---
 
@@ -213,7 +247,50 @@ Before review, verify executor honored the plan. Run scope-checker sub-agent.
 
 **On MALFORMED:** surface the parsing error to user, ask whether to skip (acceptable for unstructured PLAN.md formats) or fix the format and retry.
 
-**On MATCH:** proceed to Step 6.
+**On MATCH:** proceed to Step 5d.
+
+---
+
+### Step 5d: Post-mortem explanation — sub-agent (always, fail-silent)
+
+Generates a plain-language post-mortem of what was built, with a metadata block, for the `/riff:dashboard` view. Failure NEVER blocks the pipeline.
+
+**Skip if `dashboard:` section is missing from profile.yaml.**
+
+**Resolve level + language** (same logic as Step 4c).
+
+**Compute metadata before spawning:**
+- `DURATION` = SUMMARY.md `{{DURATION}}` field (or wall-clock from first/last commit timestamps if missing)
+- `FILES_STAT` = output of `git diff --stat main...HEAD | tail -1` (e.g., `12 files changed, 234 insertions(+), 56 deletions(-)`)
+- `GATES_SUMMARY` = read `.planning/phases/N-slug/GATES.md` if it exists; one line per step
+
+Agent tool, `model: "haiku"`. Prompt:
+
+> Phase: N (slug, title).
+> Read `.planning/phases/N-slug/SUMMARY.md`. If they exist, also read `.planning/phases/N-slug/PLAN-REVIEW.md`, `REFACTOR.md`, `VERIFICATION.md`.
+> Write WHAT WAS BUILT in this phase. Audience level: `{{LEVEL}}`. Language: `{{LANGUAGE}}`. Mention deviations or surprises if any.
+>
+> Audience level (controls VOCABULARY only): same as Step 4c.
+>
+> STYLE RULES (apply strictly, all levels): casual spoken voice, never formal, never corporate. French: "on" not "nous", "ça" not "cela", drop "également / par ailleurs / au total". English: contractions, drop "additionally / moreover". Short sentences, ONE idea per sentence, max ~12 words. **Line break after EACH period** — one sentence per line. No filler. No marketing words.
+>
+> Example GOOD (fr):
+> On a fixé un bug dans les webhooks.
+> Le système ne bloquait plus quand un appel échouait.
+> Maintenant chaque échec relance la phase suivante.
+>
+> Then append the following metadata block VERBATIM (do not rewrite the values):
+>
+> ```
+> ## Metadata
+> - Duration: {{DURATION}}
+> - Files: {{FILES_STAT}}
+> - Gates: {{GATES_SUMMARY}}
+> ```
+>
+> Return only the prose + metadata block. One sentence per line in the prose. No preamble, no other markdown headers. Write to `.planning/phases/N-slug/EXPLAIN-POST.{{LEVEL}}.md`.
+
+On error: log a one-line warning and continue.
 
 ---
 

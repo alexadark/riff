@@ -8,6 +8,7 @@
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `/riff:onboard`         | First time installing RIFF. Interactive questionnaire (or preset), writes `profile.yaml` to personalize the agents. | `profile.yaml` at the framework root       |
 | `/riff:learn-stack`     | When you want RIFF to build a taste rule file for a stack it doesn't already know (Rust, Go, FastAPI, etc).         | `references/taste/stacks/<stack>.md`       |
+| `/riff:dashboard`       | Open the local web dashboard for the current project (kanban of phases, plain-language explanations, metadata).     | Browser at `http://localhost:4000`         |
 
 ## Setup (one-shot, project lifecycle)
 
@@ -64,6 +65,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - **Hunt down a bug not caught by auto-debug** → `/riff:debug`
 - **Re-audit a phase before merging** → ask Claude to "re-audit phase N"
 - **Pull a framework update into a project** → `/riff:resync` (or `bash .riff/riff-resync.sh` if not bootstrapped yet)
+- **See where I am with a kanban view + plain-language explanations** → `/riff:dashboard`
 - **Log a production incident** → ask Claude to "log incident"
 - **Quarterly review of incidents** → ask Claude for "incident review"
 - **My local/perso script is going public** → ask Claude to "promote to production"

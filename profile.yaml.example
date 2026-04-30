@@ -46,3 +46,11 @@ git:
   merge_strategy: github_button      # github_button | local_no_ff
                                      # github_button: I click Merge on GitHub myself; Step 0 reconciles next /riff:next run.
                                      # local_no_ff: RIFF merges locally on "merge" cue. Better for solo work where main may have unpushed personal commits.
+
+dashboard:
+  level: simple                      # technical | simple | eli5
+                                     # technical: precise terms, no dumbing down
+                                     # simple: everyday language, no jargon (recommended default)
+                                     # eli5: analogy-based, two short sentences
+  language: en                       # en | fr | other
+                                     # If unset, falls back to user.conversational_language when fr/en, else en.

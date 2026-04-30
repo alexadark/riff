@@ -21,11 +21,11 @@ Writes `profile.yaml` at the framework root. Every agent reads it on startup to 
 
 3. **Entry choice.** AskUserQuestion:
    - `preset` — quick start, 0 extra questions
-   - `custom` — 14 questions, ~5 min
+   - `custom` — 16 questions, ~5 min
 
 4. **Preset path.** AskUserQuestion with the 4 presets (descriptions in the "Presets" section below). Pick one, grab its full answer map, jump to step 6.
 
-5. **Custom path.** Walk the 14 questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect.
+5. **Custom path.** Walk the 16 questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect.
 
 6. **Write profile.yaml** to `<root>/profile.yaml` using the schema below. YAML format, quote string values with special characters.
 
@@ -189,6 +189,17 @@ Maps to: `git.merge_strategy`. Default: `github_button`.
 
 > Tradeoff: `local_no_ff` produces a denser main history (one merge commit per phase + the phase commits as themselves) but the merge cleanly preserves both timelines. `github_button` with squash gives a single-commit-per-phase main, but any unpushed personal commits get pulled into the squash and create local divergence.
 
+### Section 7 — Dashboard
+
+**Q14. Dashboard explanation level** (how `/riff:dashboard` describes phases to you)
+- `technical` — precise terms, no dumbing down. Best if you want raw planner output.
+- `simple` — everyday language, no jargon (recommended)
+- `eli5` — analogy-based, two short sentences. Best for non-technical observers.
+
+Maps to: `dashboard.level`. Default: `simple`.
+
+> The dashboard's language defaults to `user.conversational_language` when it is `fr` or `en`, else falls back to `en`. Override by editing `profile.yaml` `dashboard.language` directly.
+
 ## Profile schema
 
 ```yaml
@@ -218,6 +229,10 @@ notifications:
 
 git:
   merge_strategy: <github_button | local_no_ff>
+
+dashboard:
+  level: <technical | simple | eli5>
+  language: <en | fr | other>   # optional; defaults to conversational_language when fr/en, else en
 ```
 
 ## Presets
@@ -246,6 +261,9 @@ notifications:
   channel: slack
 git:
   merge_strategy: github_button
+dashboard:
+  level: technical
+  language: en
 ```
 
 ### neutre — safe defaults, no personality assumed
@@ -272,6 +290,9 @@ notifications:
   channel: none
 git:
   merge_strategy: github_button
+dashboard:
+  level: simple
+  language: en
 ```
 
 ### apprentissage — non-tech curious, wants to understand what happens
@@ -298,6 +319,9 @@ notifications:
   channel: none
 git:
   merge_strategy: github_button
+dashboard:
+  level: eli5
+  language: fr
 ```
 
 ### alex — validated against actual setup
@@ -324,6 +348,9 @@ notifications:
   channel: telegram
 git:
   merge_strategy: local_no_ff
+dashboard:
+  level: simple
+  language: fr
 ```
 
 ## Notes
