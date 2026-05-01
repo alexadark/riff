@@ -22,34 +22,41 @@ export interface PromptInputs {
   gates_summary?: string;
 }
 
-const LEVEL_GUIDE = `Audience level (controls VOCABULARY, not style):
-- technical: precise terms OK. 3-5 lines.
-- simple: everyday words, no jargon. 3-5 lines.
-- eli5: analogy-based. 2 short sentences max.`;
+const COMMON_STYLE = `Style rules (apply to all levels):
+- No filler: drop "in order to", "make sure to", "afin de", "dans le cadre de", "au total".
+- No marketing words: avoid "robust", "seamless", "leverage", "streamlined", "optimal", "powerful".
+- No politeness or transition fluff: avoid "additionally", "moreover", "furthermore", "également", "par ailleurs", "néanmoins", "il est à noter que".
+- French: "on" not "nous". "ça" not "cela". Contractions OK.
+- English: contractions OK ("we've", "didn't", "it's").
+- One sentence per line. Never glue two sentences together.
+- Every sentence carries information. No padding to fill a length.
+- Length = what the content actually needs. No hard cap. Don't pad, don't cut a useful detail to hit a target.`;
 
-const STYLE_RULES = `Writing style (CRITICAL — apply strictly, no exceptions):
-- Casual spoken voice. Not formal. Not corporate. Not "neutre".
-- French: "on" not "nous". "ça" not "cela". Drop "également / par ailleurs / néanmoins / au total / dans le cadre de".
-- English: contractions ("we've", "didn't", "it's"). Drop "additionally / moreover / furthermore / it is worth noting".
-- Short sentences. ONE idea per sentence. Max ~12 words per sentence.
-- Line break after EACH period. One sentence per line. NEVER glue two sentences together.
-- No filler ("in order to", "make sure to"). No marketing words ("robust / seamless / leverage / streamlined").
-- Plain facts, plain words.
+const TECHNICAL_RULES = `Audience level: technical — senior developer reading their own dashboard.
+- Name functions, types, files, paths, libraries when they matter (e.g. "buildPrePrompt", "RegistryEntry", "services/claude.ts", "Bun.serve", "Hono router").
+- Tech vocabulary is assumed (SSE, registry, slug, watcher, debounce, IPC, schema, migration, etc.). Do not vulgarize.
+- Implementation details are welcome when they explain WHAT works differently.
+- Surface architecture decisions, not just user-visible behavior.
+- Typical length: 5-10 lines. Go longer if the phase touches many parts.`;
 
-Example GOOD (fr):
-On a viré 1700 lignes de code mort.
-L'app marche pareil mais elle est plus légère.
-Aucune surprise.
+const SIMPLE_RULES = `Audience level: simple — the developer at a glance, no jargon.
+- Plain words. Replace tech terms with what they mean ("registry" → "list of projects", "SSE" → "live updates", "watcher" → "auto-refresh").
+- Focus on WHAT changes for the system or the user, not the how.
+- Concrete examples beat abstract descriptions.
+- Typical length: 3-7 lines. Add a line if it's needed to stay clear, don't artificially shorten.`;
 
-Example BAD (fr) — DO NOT WRITE LIKE THIS:
-Cette phase a consisté à nettoyer la base de code en supprimant des fonctionnalités obsolètes.
-Au total, nous avons supprimé environ 1700 lignes de code.
-L'application fonctionne exactement de la même manière après ces changements.
+const ELI5_RULES = `Audience level: eli5 — someone non-technical, or yourself when tired.
+- Use one analogy if it helps. Zero tech vocabulary.
+- Focus only on the user-visible outcome. Never mention implementation.
+- Typical length: 2-4 sentences. No padding.`;
 
-Example GOOD (en):
-Cleaned up 1700 lines of dead code.
-App still works the same, just lighter.
-No surprises.`;
+function levelSpec(level: ExplainLevel): string {
+  switch (level) {
+    case "technical": return TECHNICAL_RULES;
+    case "simple": return SIMPLE_RULES;
+    case "eli5": return ELI5_RULES;
+  }
+}
 
 export function buildPrePrompt(inputs: PromptInputs): string {
   const planSection = inputs.plan?.trim() || "(no PLAN.md found)";
@@ -62,13 +69,11 @@ ROADMAP description: ${inputs.description}
 Plan content (read-only):
 ${planSection}
 
-Write what THIS PHASE WILL DO when it's executed. Audience level: ${inputs.level}. Language: ${inputs.language}.
+Write what THIS PHASE WILL DO when it's executed. Language: ${inputs.language}.
 
-${LEVEL_GUIDE}
+${levelSpec(inputs.level)}
 
-${STYLE_RULES}
-
-Focus on WHAT changes for the user or system, not implementation details.
+${COMMON_STYLE}
 
 Return ONLY the explanation text. One sentence per line. No preamble, no metadata, no markdown headers.`;
 }
@@ -100,11 +105,11 @@ Computed metadata (do not rewrite — will be appended verbatim below):
 - Files: ${filesStat}
 - Gates: ${gates}
 
-Write WHAT WAS BUILT in this phase. Audience level: ${inputs.level}. Language: ${inputs.language}. Mention deviations or surprises if any.
+Write WHAT WAS BUILT in this phase. Language: ${inputs.language}. Mention deviations or surprises if any.
 
-${LEVEL_GUIDE}
+${levelSpec(inputs.level)}
 
-${STYLE_RULES}
+${COMMON_STYLE}
 
 After the prose, append this metadata block VERBATIM (no changes):
 
