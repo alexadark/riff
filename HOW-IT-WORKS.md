@@ -333,11 +333,15 @@ Executor (sub-agent, Sonnet)  <-- Implements tasks with atomic commits
     |                              Same-wave tasks run in parallel (Agent subagents)
     |                              Follows R1-R4 deviation rules (see Key Concepts)
     v
-Simplifier (sub-agent, Haiku, gated)  <-- Reviews diff for dead code, naming, over-engineering
+Simplifier (sub-agent, Haiku, gated)  <-- Reviews diff for naming, structural smell, over-engineering
     |                                      Applies after confirmation, separate refactor commits
     v
 Scope-checker (sub-agent, Haiku)  <-- Diffs PLAN tasks vs SUMMARY entries
     |                                  On DROPPED: stops, asks user how to reconcile
+    v
+Fallow audit (inline, gated, TS/JS only)  <-- Mechanical codebase intelligence on the diff
+    |                                          Dead code, duplication, complexity, boundary drift
+    |                                          Sub-second, deterministic, no LLM
     v
 Adversarial review (Codex)  ‖  Security review (Sonnet)  <-- IN PARALLEL
     |                                                          Codex hunts logic/race/edge bugs
@@ -479,9 +483,9 @@ RIFF has 8 specialized agents. Each runs in a fresh context with only the files 
 
 ### Simplifier
 
-**Role:** ruthless but respectful code simplifier.
+**Role:** ruthless but respectful code simplifier for what mechanical tools cannot see.
 **Model:** Haiku (diff-scoped pattern work needs no deep reasoning).
-**What it does:** runs after the executor and BEFORE adversarial + security review (Step 5b in `/riff:next`), so reviewers audit the simplified code. Reviews the branch diff for dead code, naming issues, structural complexity, and over-engineering. Proposes targeted simplifications respecting project taste rules.
+**What it does:** runs after the executor and BEFORE adversarial + security review (Step 5b in `/riff:next`), so reviewers audit the simplified code. Reviews the branch diff for naming clarity, structural smell, and over-engineering. Mechanical findings (dead code, duplication, complexity, boundary violations) are covered separately by the Fallow audit at Step 5d — the simplifier does not duplicate that work.
 **Key behaviors:**
 
 - Gated by `simplify:` field in ROADMAP.yaml (`true` | `false` | `auto`); `auto` skips phases with <3 changed files or `config-only`/`trivial` tags
@@ -490,6 +494,19 @@ RIFF has 8 specialized agents. Each runs in a fresh context with only the files 
 - Writes `.planning/phases/N-slug/REFACTOR.md` with proposals, applied changes, lines saved, and test results
 - Commits as separate `refactor(phase-N):` commits
 - Emits expertise to `.planning/expertise/.pending/` when recurring over-engineering patterns appear (3+ consecutive phases)
+
+### Fallow audit (Step 5d, not an agent)
+
+**Role:** mechanical codebase intelligence on the phase diff. Not an agent — a deterministic CLI tool ([`fallow`](https://github.com/fallow-rs/fallow)) the orchestrator calls inline.
+**Model:** none. Pure static analysis.
+**What it does:** runs `fallow audit --changed-since main` on the phase branch. Detects dead code (unused files / exports / dependencies / types), duplication (3+ occurrences across the repo, including renamed-variable clones), complexity hotspots, circular dependencies, and architecture-boundary violations. Sub-second, deterministic, no LLM tax.
+**Key behaviors:**
+
+- Skips on `scope: scratch` and on non-TS/JS projects (no `package.json`)
+- Auto-installed as a devDep at `/riff:start` for TS/JS production projects (per detected package manager: pnpm/bun/yarn/npm)
+- Fail-on-fail only initially: `warn` does not block, `pass` is silent, `fail` stops the loop with three options surfaced to the user (re-run executor with findings as input / accept exception with rationale / one-time override)
+- Writes `.planning/phases/N-slug/FALLOW.json` (full structured output) and a one-line entry to `GATES.md`
+- Missing fallow binary skips silently (does not break legacy projects predating this integration)
 
 ### Scope-checker
 
@@ -665,6 +682,83 @@ The loop can notify you via Telegram when it stops (verification failure, HITL n
    export RIFF_TELEGRAM_CHAT_ID="987654321"
    ```
 4. **Test:** run `.riff/riff-loop.sh -n 1`, you should get a Telegram message when the iteration completes.
+
+---
+
+## Dashboard
+
+A local Bun web server (`/riff:dashboard`) that turns the on-disk artifacts of every RIFF project into a kanban + phase-detail view in your browser. It is read-only — driving still happens in the terminal — but it makes "where am I?" answerable at a glance, especially during AFK loops.
+
+```
+┌─────────────────────────────────────────────────┐
+│ RIFF Dashboard — http://localhost:4000          │
+├─────────────────────────────────────────────────┤
+│ Project: my-saas        [scratch ▢] [production ■] │
+│                                                 │
+│  Backlog        In Progress      Done           │
+│  ───────        ───────────      ────           │
+│  Phase 4        Phase 3           Phase 1       │
+│  Phase 5        ▶ executor        Phase 2       │
+│  Phase 6                                         │
+│                                                 │
+│ ─ Phase 3 detail ────────────────────────────── │
+│ Pre-explanation (haiku, simple, fr)             │
+│ Cette phase ajoute la route de connexion ...    │
+│                                                 │
+│ Post-explanation (after Step 5e)                │
+│ ...                                              │
+│                                                 │
+│ Generation metadata                              │
+│ Duration: 12m | Files: 8 chg, +234 -56          │
+│ Gates: 4b ✓ | 5b skipped | 5d ✓ | 6 ✓ | 7 ✓     │
+└─────────────────────────────────────────────────┘
+```
+
+### What it shows
+
+- **Kanban per project** sourced from `ROADMAP.yaml` + `STATE.md` (Backlog / In Progress / Done columns)
+- **Per-phase explanations** in plain language at your `profile.style.explanation_level` (technical / simple / eli5), in `profile.dashboard.language` (French / English / etc). One pre-execution view (what THIS PHASE WILL DO, generated at Step 4c of `/riff:next`) and one post-execution view (what was built, generated at Step 5e)
+- **Generation metadata block** per phase: real duration from git timestamps, file diff stats, gate outcomes (Step 4b plan-adversarial, 5b simplifier, 5d fallow, 6 adversarial, 7 security), Codex usage (model / effort / outcome / duration), agents observed in commit trailers
+- **Multi-project registry** at `~/.riff/projects.json` — one server, many projects. Switching is a route change, not a server restart
+
+### Architecture
+
+```
+dashboard/
+├─ server.ts          Bun HTTP server, REST + SSE endpoints, file watcher
+├─ services/          claude.ts (CLI invoke), bootstrap.ts (lazy gen),
+│                     git.ts, watcher.ts (chokidar)
+├─ parsers/           phase.ts (artifact → JSON), profile.ts (resolve level + lang),
+│                     roadmap.ts (YAML → kanban shape)
+└─ public/            Static frontend (vanilla JS + CSS, no build step)
+```
+
+The server reads `PROJECT_ROOT` from the environment (set by `/riff:dashboard`) or falls back to `process.cwd()`. Multi-project support is layered on top: each project is a registry entry resolved by slug at request time.
+
+### Live updates
+
+The server keeps a file watcher on `.planning/phases/**` and `STATE.md`. Any change (new SUMMARY.md, updated VERIFICATION.md, etc.) emits an SSE event on `GET /api/events`, the frontend re-fetches and re-renders. So while `/riff:next` is running, the dashboard reflects the current phase's progress without manual refresh.
+
+### Bootstrap (lazy generation)
+
+Plain-language explanations are not committed — they live as `EXPLAIN.{level}.md` and `EXPLAIN-POST.{level}.md` under each phase folder. On first visit per project the server triggers a background bootstrap that fills in missing explanations via `claude --print` runs (Haiku, level + language from profile). Progress shows in the UI, takes 30s to 3min depending on phase count. Re-running `/riff:dashboard` is idempotent — if a healthy server is up, it auto-registers cwd and opens the browser without restarting anything.
+
+### Read-only by design
+
+The dashboard never runs `/riff:next` for you, never edits ROADMAP.yaml, never opens PRs. To act, you go back to the terminal. Two reasons: the agent loop is the source of truth (artifacts on disk drive everything), and a "click to run" button on a kanban tile invites unsupervised changes that miss the discipline of the slash-command path.
+
+### Profile fields that affect the dashboard
+
+- `style.explanation_level` (`technical` | `simple` | `eli5`): vocabulary depth in the explanations. Default `simple`.
+- `style.terminal_explanation_level` (optional): override only for terminal output, dashboard keeps using `style.explanation_level`.
+- `dashboard.language` (optional): explicit language code (`fr`, `en`, etc). Falls back to `user.conversational_language`, then `en`.
+- `dashboard.level` (legacy): equivalent to `style.explanation_level`, kept for back-compat.
+
+Edit `profile.yaml` and run `/riff:dashboard --stop && /riff:dashboard` to pick up the new values (cached explanations regenerate on next visit).
+
+### Stopping it
+
+`/riff:dashboard --stop` kills the server via the PID file at `~/.riff/dashboard.pid`. Falls back to a port-level kill on `:4000` if the PID file is missing or stale.
 
 ---
 

@@ -23,9 +23,11 @@ When Claude Code ships a native feature that replaces one of your hooks or comma
 ## What you get
 
 - **12 agents** (~60KB total): planner, executor, security-reviewer, adversarial-reviewer (post-build), plan/architecture/roadmap/incident adversarial reviewers (pre-artifact Codex passes), scope-checker, debugger, simplifier, improver. Each has a clear single job.
-- **11 slash commands**: framework (onboard, learn-stack), project lifecycle (init, start, map), daily loop (next, loop, status), off-loop (add-phase, quick, debug). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
+- **12 slash commands**: framework (onboard, learn-stack, dashboard), project lifecycle (init, start, map, resync), daily loop (next, loop, status), off-loop (add-phase, quick, debug). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
 - **17 hooks** in 3 buckets: A (universal discipline), B (security-adaptable), C (stack-specific). Your profile picks which ones wire.
 - **4 protocols**: EXECUTION (confidence gates, R1-R4 deviations, waves), MODEL (dispatch and budget resolution), QUALITY (post-build checks), plus a MODEL-rationale companion.
+- **Mechanical-quality gate** via [`fallow`](https://github.com/fallow-rs/fallow) on every TS/JS phase: dead code, duplication, complexity, and boundary violations on the diff. Sub-second, deterministic, no LLM. Auto-installed as a devDep at `/riff:start`.
+- **Local web dashboard** (`/riff:dashboard`): kanban view of phases, plain-language pre/post explanations at the level your `profile.yaml` declares, generation metadata (models, durations, gates) per phase. Read-only — driving still happens in the terminal.
 - **Taste references** for architecture, backend, security, testing, plus stack files for Drizzle, Node ESM, React Router 7, Vitest, Zod. Add your own with `/riff:learn-stack`.
 
 ## Install
@@ -58,9 +60,10 @@ Open Claude Code and run:
 /riff:start        # greenfield discovery (5 stages: problem, users, MVP, research, roadmap)
                    # OR /riff:map for an existing codebase
 /riff:next         # the main loop: plan a phase, execute, review, open a PR
+/riff:dashboard    # open the local web dashboard (kanban + plain-language explanations)
 ```
 
-Run `/riff:status` anytime to see where you are. Run `/riff:loop 5` to let it build 5 phases unattended.
+Run `/riff:status` anytime to see where you are. Run `/riff:loop 5` to let it build 5 phases unattended. Run `/riff:dashboard` to watch progress in a browser.
 
 ## Key concepts
 
@@ -119,10 +122,10 @@ If `profile.yaml` is missing, agents fall back to `neutre` preset defaults.
 
 ## Commands
 
-All 11 slash commands listed in [`commands/INDEX.md`](./commands/INDEX.md), grouped by purpose:
+All 12 slash commands listed in [`commands/INDEX.md`](./commands/INDEX.md), grouped by purpose:
 
-- **Framework (global):** onboard, learn-stack
-- **Setup (project lifecycle):** init, start, map
+- **Framework (global):** onboard, learn-stack, dashboard
+- **Setup (project lifecycle):** init, start, map, resync
 - **Core loop:** next, loop, status
 - **Off-loop:** add-phase, quick, debug
 
@@ -155,4 +158,5 @@ Inspect before adopting. Delete when redundant. Your framework is yours.
 - [`protocols/MODEL.md`](./protocols/MODEL.md): model dispatch and budget resolution
 - [`protocols/QUALITY.md`](./protocols/QUALITY.md): post-build quality checks
 - [`hooks/README.md`](./hooks/README.md): hook buckets and descriptions
+- [`dashboard/README.md`](./dashboard/README.md): local web dashboard (kanban, plain-language explanations, generation metadata)
 - [`DECAY.md`](./DECAY.md): pruning protocol
