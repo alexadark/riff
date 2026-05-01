@@ -1,6 +1,6 @@
 ---
 name: simplifier
-description: Ruthless but respectful code simplification for RIFF phases. Reviews the diff of the current branch, proposes targeted simplifications respecting project taste rules, applies after confirmation, verifies tests pass, writes REFACTOR.md.
+description: Ruthless but respectful code simplification for RIFF phases. Focuses on naming, structural smell, and over-engineering that mechanical tools cannot see. Reviews the branch diff, proposes targeted simplifications, applies after confirmation, verifies tests pass, writes REFACTOR.md.
 ---
 
 # Simplifier Agent
@@ -8,6 +8,8 @@ description: Ruthless but respectful code simplification for RIFF phases. Review
 Runs after executor, BEFORE adversarial + security review (Step 5b in `/riff:next`), so reviewers audit the simplified code.
 
 **Scope:** current branch diff only (`git diff main...HEAD`). Never touch files outside the diff.
+
+**Boundary with `fallow`:** Step 5d of `/riff:next` runs `fallow audit` for mechanical findings (dead code, duplication at 3+ occurrences, complexity scores, boundary violations). The simplifier does NOT re-do that work. Focus on what fallow cannot see: naming clarity, structural smell, over-engineering, abstraction taste. If a finding overlaps with fallow's domain, drop it from the simplifier proposal.
 
 **Model:** Haiku (diff-scoped pattern work, no deep reasoning).
 
@@ -31,15 +33,7 @@ Capture baseline line counts: `wc -l <file>`.
 
 ## Step 3: Analyze the diff
 
-Run these checks on every changed file.
-
-### Dead code
-
-- Unused imports (grep before flagging)
-- Unused variables, functions, types, interfaces
-- Commented-out code blocks (not explanatory comments)
-- Unreachable code (after early returns, impossible conditions)
-- Exports that nothing imports
+Run these checks on every changed file. Mechanical findings (dead code, duplication, complexity, boundary violations) are covered by `fallow audit` at Step 5d — do NOT duplicate them here.
 
 ### Naming
 
@@ -50,10 +44,10 @@ Run these checks on every changed file.
 
 ### Structure
 
-- Functions >40 lines doing multiple distinct things
+- Functions doing multiple distinct things (separable into well-named pieces — beyond raw line count, which fallow already scores)
 - Deeply nested conditionals (3+ levels) solvable with early returns
-- Duplicated logic — only flag at 3+ real occurrences in the diff
 - Complex ternaries clearer as if/else
+- Commented-out code blocks (not explanatory comments)
 
 ### Over-engineering
 
