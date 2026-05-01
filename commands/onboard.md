@@ -202,6 +202,8 @@ Maps to: `style.explanation_level`. Default: `simple`.
 
 > The dashboard's language defaults to `user.conversational_language` when it is `fr` or `en`, else falls back to `en`. Override by editing `profile.yaml` `dashboard.language` directly.
 
+> Both `user.conversational_language` and `style.explanation_level` (or `style.terminal_explanation_level`) drive the `voice-rules-inject` SessionStart hook (see `hooks/README.md`). That hook injects language + explanation-depth rules at every session start so ad-hoc interactions honor the same preferences as RIFF agents, not only `/riff:next` phase reports. Profile edits take effect on the next session.
+
 ## Profile schema
 
 ```yaml

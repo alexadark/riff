@@ -9,6 +9,7 @@ Hooks are organized in three buckets. `/riff:init` picks the right set based on 
 | **A** — Universal discipline | destructive-guard, boundary-check, typecheck-gate, lint-gate, test-gate | Always, regardless of profile. |
 | **B** — Security-adaptable | route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard | `cautious` → all of B; `balanced` → route-auth-guard + idor-detector; `fast` → none. |
 | **C** — Stack/convention | registry-reminder, migration-gate (Drizzle/Prisma), notify-human | Installed per-project at `/riff:init` based on detected stack. |
+| **D** — Session voice (SessionStart + PreCompact) | voice-rules-inject | Always wired in all three templates. Reads `profile.yaml` and injects language + explanation-depth rules at session start (and after compaction) so every session honors the user's preferences, not just RIFF agents. |
 
 Templates: `templates/settings.json` (fast / Bucket A only), `templates/settings-balanced.json`, `templates/settings-cautious.json`. `/riff:init` copies the right one into `.claude/settings.json`.
 
@@ -96,3 +97,19 @@ When an API handler reads request body, checks for schema validation (Zod .parse
 ### IDOR Pattern Detector (PostToolUse: Edit, Write)
 
 Detects database queries using params.id without user scoping (userId, user.id, etc.). The #1 vulnerability in solo-dev projects.
+
+### Voice Rules Inject (SessionStart, PreCompact)
+
+Reads `.riff/profile.yaml` at session start (and after compaction so rules survive the summary) and injects three rules:
+
+1. **Chat language** — defaults to `user.conversational_language` from the profile. The agent should reply in that language from the first sentence and not drift mid-conversation. Written artifacts (code, commits, docs) stay in `user.artifact_language`.
+2. **Explanation depth** — defaults to `style.terminal_explanation_level`, falling back to `style.explanation_level`, falling back to `simple`. Each level (`simple` / `technical` / `eli5`) gets its own behavioral guidance baked into the injected rule.
+3. **Mid-conversation override** — when the user explicitly says "switch to English", "fais-moi ça en anglais", "be technical", "mode technique", etc., the agent honors it for the rest of the session. Override beats the defaults from rules 1 and 2.
+
+This is what lets non-RIFF interactions (ad-hoc questions, debugging, exploration) honor the same preferences as `/riff:next` phase reports. Without this hook, only RIFF agents that explicitly read `profile.yaml` (planner, executor, dashboard) would respect those settings.
+
+**Fail-safe:** if `.riff/profile.yaml` is missing or unparseable, the script exits silently and the session proceeds with no injected rules.
+
+**To pick up profile changes:** the hook reads `profile.yaml` on every session start, so editing the profile takes effect on the next session — no re-init needed.
+
+**Upgrade path for existing projects:** `/riff:resync` updates the symlink for `voice-rules-inject.sh` automatically (the hook script itself), but it does NOT modify `.claude/settings.json`. To wire the SessionStart entry, either (a) re-run `/riff:init` (it merges the current template into `.claude/settings.json`) or (b) manually add the `SessionStart` and `PreCompact` blocks from `templates/settings*.json` to your `.claude/settings.json`.
