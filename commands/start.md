@@ -233,6 +233,26 @@ Stack is captured in Stage 1 (Constraints axis). Map to slug:
 
 When a new stack is used for the first time, create `references/taste/stacks/{slug}.md` in RIFF itself (not just the project). Pattern after `react-router-7.md`: Core Rules → Component conventions → Framework-specific topics → UX & Accessibility → Anti-Pattern Checklist.
 
+### Mechanical-quality tooling (TS/JS only, best-effort)
+
+If the project is TS/JS (heuristic: `package.json` exists at root), add [`fallow`](https://github.com/fallow-rs/fallow) as a devDep. Fallow powers the Step 5d gate in `/riff:next` (dead code, duplication, complexity, boundary violations on the phase diff). Sub-second, deterministic, no LLM.
+
+Detect the package manager runner and install:
+
+```bash
+if [ -f package.json ]; then
+  if [ -f pnpm-lock.yaml ]; then pnpm add -D fallow
+  elif [ -f bun.lock ]; then bun add -d fallow
+  elif [ -f yarn.lock ]; then yarn add -D fallow
+  else npm install --save-dev fallow
+  fi
+fi
+```
+
+**Skip silently** if `package.json` is absent (Python/Rust/Go/bash projects, or greenfield TS/JS where the stack is not yet scaffolded). Step 5d of `/riff:next` self-skips when fallow is not installed, so the absence does not break the loop. For greenfield TS/JS projects, install fallow when the executor first scaffolds `package.json`.
+
+**On install failure** (network down, registry unreachable), log a one-line warning and continue. Bootstrap is not blocked. The user can run `<pm> add -D fallow` manually later.
+
 ### Register with running dashboard (best-effort)
 
 After bootstrap files exist, ping the dashboard so the new project shows up immediately. No-op if the dashboard is not running, no prompt, errors swallowed.
