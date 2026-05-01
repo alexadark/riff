@@ -300,6 +300,43 @@ app.delete("/api/projects/:slug", (c) => {
   }
 });
 
+/** POST /api/pick-folder — open native macOS folder picker, return chosen path.
+ *  Only works when the dashboard runs on the user's local machine (uses osascript).
+ *  Response: { path } on selection, { cancelled: true } if user cancels, { error } otherwise. */
+app.post("/api/pick-folder", async (c) => {
+  if (process.platform !== "darwin") {
+    return c.json({ error: "folder picker is only available on macOS" }, 501);
+  }
+  const script =
+    'try\n' +
+    '  set chosen to choose folder with prompt "Select project folder"\n' +
+    '  return POSIX path of chosen\n' +
+    'on error number -128\n' +
+    '  return "__CANCELLED__"\n' +
+    'end try';
+  try {
+    const proc = Bun.spawn(["osascript", "-e", script], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    if (exitCode !== 0) {
+      return c.json({ error: stderr.trim() || `osascript exited with ${exitCode}` }, 500);
+    }
+    const result = stdout.trim().replace(/\/$/, "");
+    if (result === "__CANCELLED__" || !result) {
+      return c.json({ cancelled: true });
+    }
+    return c.json({ path: result });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
 /** GET /api/projects/:slug — single project info + full phase list. */
 app.get("/api/projects/:slug", (c) => {
   const slug = c.req.param("slug");

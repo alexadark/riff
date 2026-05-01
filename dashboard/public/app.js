@@ -292,6 +292,10 @@
     return api(`/api/projects/${encodeURIComponent(slug)}`, { method: "DELETE" });
   }
 
+  async function pickFolder() {
+    return api("/api/pick-folder", { method: "POST" });
+  }
+
   // ----------------------------------------------------------
   // Topbar (project switcher)
   // ----------------------------------------------------------
@@ -424,6 +428,7 @@
           type: "button",
           title: "Remove from registry",
           "aria-label": "Remove project",
+          text: "×",
           onClick: (e) => {
             e.stopPropagation();
             askConfirm(
@@ -432,7 +437,6 @@
             );
           },
         },
-        [el("svg", { width: "12", height: "12", html: '<use href="#icon-x" />' })],
       ),
     ]);
 
@@ -1136,6 +1140,27 @@
     }
   }
 
+  async function browseForProject() {
+    const input = $("#add-project-input");
+    const errEl = $("#add-project-error");
+    const browseBtn = $("#add-project-browse");
+    errEl.classList.add("hidden");
+    browseBtn.disabled = true;
+    try {
+      const result = await pickFolder();
+      if (result?.cancelled) return;
+      if (result?.path) {
+        input.value = result.path;
+        await submitAddProject();
+      }
+    } catch (e) {
+      errEl.textContent = e.message || "folder picker failed";
+      errEl.classList.remove("hidden");
+    } finally {
+      browseBtn.disabled = false;
+    }
+  }
+
   async function doRemoveProject(slug) {
     try {
       await removeProjectBySlug(slug);
@@ -1196,8 +1221,13 @@
     $("#back-to-overview").addEventListener("click", navigateToOverview);
 
     // Add project
-    $("#add-project-toggle").addEventListener("click", showAddForm);
+    $("#add-project-toggle").addEventListener("click", () => {
+      showAddForm();
+      // Auto-open the native folder picker so the user does not have to paste a path.
+      browseForProject();
+    });
     $("#add-project-cancel").addEventListener("click", hideAddForm);
+    $("#add-project-browse").addEventListener("click", browseForProject);
     $("#add-project-form").addEventListener("submit", (e) => {
       e.preventDefault();
       submitAddProject();

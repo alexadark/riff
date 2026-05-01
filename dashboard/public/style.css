@@ -1220,23 +1220,33 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   background: none;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   cursor: pointer;
+  opacity: 0.7;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
   transition:
     background-color 100ms ease,
     color 100ms ease,
-    border-color 100ms ease;
+    border-color 100ms ease,
+    opacity 100ms ease;
+}
+
+.proj-card:hover .icon-btn-sm {
+  opacity: 1;
 }
 
 .icon-btn-sm:hover {
-  background: var(--surface-elevated);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
-  border-color: var(--border);
+  border-color: var(--danger);
+  opacity: 1;
 }
 
 /* ============================================================

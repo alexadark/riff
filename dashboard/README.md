@@ -55,7 +55,13 @@ The dashboard supports many RIFF projects from a single server. The registry liv
 
 Each registry entry stores: project root path, slug (derived from the directory name), human-readable label, and a `realpath` for symlink-safe matching.
 
-Projects can be removed via `DELETE /api/projects/:slug` or directly by editing `~/.riff/projects.json`.
+Projects can be removed via `DELETE /api/projects/:slug` or directly by editing `~/.riff/projects.json`. Each project card has a hover-revealed `×` button that triggers the same delete (with confirmation).
+
+### Adding from the UI (macOS)
+
+The topbar `+` button reveals an Add Project form. Clicking it auto-opens the native macOS folder picker (via `POST /api/pick-folder`); selecting a folder fills the path field and submits. A `Browse…` button on the form re-opens the picker if the user cancels or wants to switch folder. Pasting an absolute path manually still works the same way.
+
+On non-macOS platforms, the picker endpoint returns `501` and the user falls back to typing the path. The form remains functional in either case.
 
 ## Endpoints
 
@@ -64,7 +70,7 @@ Projects can be removed via `DELETE /api/projects/:slug` or directly by editing 
 | GET    | `/api/projects`                                   | List registered projects + active dashboard config                      |
 | POST   | `/api/projects`                                   | Register a project (`{ "path": "/abs/path/to/project" }`)              |
 | DELETE | `/api/projects/:slug`                             | Remove a project from the registry                                      |
-| POST   | `/api/pick-folder`                                | Open a native folder picker (macOS / Linux), returns selected path      |
+| POST   | `/api/pick-folder`                                | Open a native macOS folder picker (via `osascript`). Returns `{ path }`, `{ cancelled: true }`, or `501` on non-darwin |
 | GET    | `/api/projects/:slug`                             | Project metadata + parsed `ROADMAP.yaml` shape                          |
 | GET    | `/api/projects/:slug/phase/:id`                   | Phase detail: PLAN.md, SUMMARY.md, gates, explanations, metadata        |
 | GET    | `/api/projects/:slug/phase/:id/generate`          | SSE stream of `claude --print` chunks (lazy explanation generation)     |
