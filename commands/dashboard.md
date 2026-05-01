@@ -159,5 +159,5 @@ rm -f "$PID_FILE"
 - **Idempotent start:** if `GET /api/projects` already responds, the command auto-registers cwd and opens the browser without touching the running process.
 - **Auto-registration** uses the backend's dedupe behavior, the registry won't grow duplicates if the cwd was already added.
 - **Bootstrap (plain-language explanations)** runs lazily on first visit per project, progress shows in the UI. May take 30s to 3min depending on phase count.
-- **Profile changes** (e.g. `dashboard.level`): edit `profile.yaml`, then `/riff:dashboard --stop && /riff:dashboard` to pick them up.
+- **Profile changes** (e.g. `style.explanation_level`, `dashboard.language`): edit `profile.yaml`, then `/riff:dashboard --stop && /riff:dashboard` to pick them up.
 - **Read-only UI.** To run a phase, use `/riff:next` in the terminal. Live changes flow back to the dashboard via file-watcher.

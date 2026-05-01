@@ -17,6 +17,11 @@ export interface Profile {
     artifact_language?: string;
     [key: string]: unknown;
   };
+  style?: {
+    explanation_level?: string;
+    terminal_explanation_level?: string;
+    [key: string]: unknown;
+  };
   dashboard?: Partial<DashboardConfig>;
   [key: string]: unknown;
 }
@@ -96,14 +101,18 @@ export function loadProfile(frameworkRoot: string): { profile: Profile; config: 
   const profile = userProfile ?? exampleProfile ?? {};
 
   const dashSection = profile.dashboard ?? {};
+  const styleSection = profile.style ?? {};
   const convoLang = profile.user?.conversational_language;
   const fallbackLang: DashboardLanguage = convoLang === "fr" ? "fr" : "en";
 
   // Registry comes only from the user profile, never the example.
   const projects = normalizeProjects(userProfile?.dashboard?.projects);
 
+  // Level resolution order: style.explanation_level (canonical) → dashboard.level (legacy) → "simple".
+  const rawLevel = styleSection.explanation_level ?? dashSection.level;
+
   const config: DashboardConfig = {
-    level: normalizeLevel(dashSection.level),
+    level: normalizeLevel(rawLevel),
     language: dashSection.language === undefined ? fallbackLang : normalizeLanguage(dashSection.language),
     projects,
   };

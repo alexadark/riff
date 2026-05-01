@@ -189,14 +189,16 @@ Maps to: `git.merge_strategy`. Default: `github_button`.
 
 > Tradeoff: `local_no_ff` produces a denser main history (one merge commit per phase + the phase commits as themselves) but the merge cleanly preserves both timelines. `github_button` with squash gives a single-commit-per-phase main, but any unpushed personal commits get pulled into the squash and create local divergence.
 
-### Section 7 — Dashboard
+### Section 7 — Explanation level
 
-**Q14. Dashboard explanation level** (how `/riff:dashboard` describes phases to you)
-- `technical` — precise terms, no dumbing down. Best if you want raw planner output.
-- `simple` — everyday language, no jargon (recommended)
-- `eli5` — analogy-based, two short sentences. Best for non-technical observers.
+**Q14. Explanation level** (drives `/riff:dashboard` AND how Claude reports work in the terminal)
+- `technical` — names functions, files, types, paths. Tech vocab assumed. Best for senior devs.
+- `simple` — everyday language, no jargon. What changed, in plain words. (Recommended)
+- `eli5` — analogy-based, 2-4 sentences. Useful in the dashboard for non-technical observers. Collapses to `simple` in the terminal (analogies don't fit terminal contexts).
 
-Maps to: `dashboard.level`. Default: `simple`.
+Maps to: `style.explanation_level`. Default: `simple`.
+
+> Want different verbosity in the terminal vs the dashboard? After onboarding, edit `profile.yaml` and set `style.terminal_explanation_level: technical` (or any of the three values) — that overrides terminal output only.
 
 > The dashboard's language defaults to `user.conversational_language` when it is `fr` or `en`, else falls back to `en`. Override by editing `profile.yaml` `dashboard.language` directly.
 
@@ -220,6 +222,8 @@ style:
   length: <terse | standard | detailed>
   allow_jargon: <free | first_mention | never>
   when_uncertain: <always_ask | important_only | initiative>
+  explanation_level: <technical | simple | eli5>           # drives dashboard + terminal
+  terminal_explanation_level: <technical | simple | eli5>  # OPTIONAL override for terminal only
 
 budget:
   default_quality: <frugal | balanced | max>
@@ -231,9 +235,10 @@ git:
   merge_strategy: <github_button | local_no_ff>
 
 dashboard:
-  level: <technical | simple | eli5>
   language: <en | fr | other>   # optional; defaults to conversational_language when fr/en, else en
 ```
+
+> Legacy: `dashboard.level` is still read by the dashboard parser as a fallback for older profiles. New profiles should use `style.explanation_level`.
 
 ## Presets
 
@@ -255,6 +260,7 @@ style:
   length: terse
   allow_jargon: free
   when_uncertain: initiative
+  explanation_level: technical
 budget:
   default_quality: balanced
 notifications:
@@ -262,7 +268,6 @@ notifications:
 git:
   merge_strategy: github_button
 dashboard:
-  level: technical
   language: en
 ```
 
@@ -284,6 +289,7 @@ style:
   length: standard
   allow_jargon: first_mention
   when_uncertain: important_only
+  explanation_level: simple
 budget:
   default_quality: balanced
 notifications:
@@ -291,7 +297,6 @@ notifications:
 git:
   merge_strategy: github_button
 dashboard:
-  level: simple
   language: en
 ```
 
@@ -313,6 +318,7 @@ style:
   length: detailed
   allow_jargon: never
   when_uncertain: always_ask
+  explanation_level: eli5
 budget:
   default_quality: balanced
 notifications:
@@ -320,7 +326,6 @@ notifications:
 git:
   merge_strategy: github_button
 dashboard:
-  level: eli5
   language: fr
 ```
 
@@ -342,6 +347,8 @@ style:
   length: terse
   allow_jargon: never
   when_uncertain: important_only
+  explanation_level: simple
+  terminal_explanation_level: technical
 budget:
   default_quality: max
 notifications:
@@ -349,7 +356,6 @@ notifications:
 git:
   merge_strategy: local_no_ff
 dashboard:
-  level: simple
   language: fr
 ```
 

@@ -167,30 +167,25 @@ If `risk_focus` is set, append to the prompt: _"Pressure-test these specific ris
 
 Generates a plain-language description of the phase plan for the `/riff:dashboard` view. Audience level + language come from `profile.yaml`. Failure here NEVER blocks the pipeline.
 
-**Skip if `dashboard:` section is missing from profile.yaml** (back-compat for users who haven't re-onboarded).
+**Skip if neither `style.explanation_level` nor `dashboard.level` is set in profile.yaml** (back-compat for users who haven't re-onboarded).
 
 **Resolve level + language:**
-- `level` = `profile.dashboard.level` (default `simple`)
+- `level` = `profile.style.explanation_level` → `profile.dashboard.level` (legacy) → `simple`
 - `language`: if `profile.dashboard.language` set, use it. Else if `profile.user.conversational_language` is `fr` or `en`, use it. Else `en`.
 
 Agent tool, `model: "haiku"`. Prompt:
 
 > Phase: N (slug, title from ROADMAP).
 > Read `.planning/phases/N-slug/PLAN.md` and the ROADMAP.yaml entry for phase N. Do not read SUMMARY.md (it does not exist yet).
-> Write what THIS PHASE WILL DO. Audience level: `{{LEVEL}}`. Language: `{{LANGUAGE}}`.
+> Write what THIS PHASE WILL DO. Language: `{{LANGUAGE}}`.
 >
-> Audience level (controls VOCABULARY only): `technical` = precise terms OK, `simple` = everyday words no jargon, `eli5` = analogy-based, 2 short sentences max.
+> Audience level: `{{LEVEL}}`.
+> - **technical** — name functions, types, files, paths, libs when they matter. Tech vocab assumed. Implementation details welcome when they explain what works differently. Surface architecture decisions. ~5-10 lines.
+> - **simple** — plain words, replace tech terms with what they mean. Focus on what changes for the system or the user, not the how. Concrete examples beat abstract descriptions. ~3-7 lines.
+> - **eli5** — one analogy if it helps, zero tech vocabulary, user-visible outcome only. 2-4 sentences. No padding.
 >
-> STYLE RULES (apply strictly, all levels): casual spoken voice, never formal, never corporate. French: "on" not "nous", "ça" not "cela", drop "également / par ailleurs / au total". English: contractions, drop "additionally / moreover". Short sentences, ONE idea per sentence, max ~12 words. **Line break after EACH period** — one sentence per line. No filler ("in order to", "make sure to"). No marketing words ("robust / seamless / leverage").
+> Style rules (apply to all levels): no filler ("in order to", "afin de"), no marketing words ("robust", "seamless", "leverage"), no transition fluff ("additionally", "également", "par ailleurs"). FR: "on" not "nous", "ça" not "cela". EN: contractions OK. One sentence per line, every sentence carries info. Length = what content needs, no padding.
 >
-> Example GOOD (fr):
-> On a viré 1700 lignes de code mort.
-> L'app marche pareil mais elle est plus légère.
-> Aucune surprise.
->
-> Example BAD (fr) — never write like this: "Cette phase a consisté à nettoyer la base de code en supprimant des fonctionnalités obsolètes."
->
-> Focus on WHAT changes for the user or system, not implementation details.
 > Return ONLY the explanation text. One sentence per line. No preamble, no markdown headers. Write to `.planning/phases/N-slug/EXPLAIN.{{LEVEL}}.md`.
 
 On error: log a one-line warning to console (`Step 4c: explain generation failed — <reason>. Dashboard will show placeholder.`) and continue. Do NOT halt.

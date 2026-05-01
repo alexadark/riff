@@ -35,6 +35,15 @@ style:
   length: standard                   # terse | standard | detailed
   allow_jargon: first_mention        # free | first_mention | never
   when_uncertain: important_only     # always_ask | important_only | initiative
+  explanation_level: simple          # technical | simple | eli5
+                                     # technical: name functions/files/types/paths, tech vocab assumed, implementation details welcome
+                                     # simple: plain words, replace tech terms with what they mean, focus on what changed (recommended)
+                                     # eli5: analogy-based, 2-4 sentences, zero tech vocab. Useful in the dashboard for non-technical observers.
+                                     # Drives both /riff:dashboard explanations AND how Claude reports work, bugs, and operations in the terminal.
+                                     # eli5 collapses to simple in the terminal unless overridden below (analogies don't fit terminal contexts).
+  # terminal_explanation_level: technical
+                                     # OPTIONAL override for terminal output only. Same values as above.
+                                     # Set this if you want simple/eli5 in the dashboard but technical depth in the terminal.
 
 budget:
   default_quality: balanced          # frugal | balanced | max
@@ -48,10 +57,6 @@ git:
                                      # local_no_ff: RIFF merges locally on "merge" cue. Better for solo work where main may have unpushed personal commits.
 
 dashboard:
-  level: simple                      # technical | simple | eli5
-                                     # technical: precise terms, no dumbing down
-                                     # simple: everyday language, no jargon (recommended default)
-                                     # eli5: analogy-based, two short sentences
   language: en                       # en | fr | other
                                      # If unset, falls back to user.conversational_language when fr/en, else en.
   projects: []                       # registry of RIFF projects to display in the dashboard.
@@ -60,3 +65,6 @@ dashboard:
                                      # Example:
                                      #   - /Users/me/DEV/personal-projects/my-app
                                      #   - /Users/me/DEV/clients-projects/acme/website
+                                     #
+                                     # NOTE: legacy `dashboard.level` is still read for back-compat.
+                                     # New profiles should use `style.explanation_level` instead.
