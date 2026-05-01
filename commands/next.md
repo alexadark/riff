@@ -11,7 +11,7 @@ Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR
 
 **Models:** see [`protocols/MODEL.md`](../protocols/MODEL.md). Parent is forced to Opus via frontmatter. Sub-agents MUST pass `model:` explicitly on the Agent tool call.
 
-**Inline vs sub-agent:** Steps 1–4, 8, 9, 10 run inline. Steps 4b, 5, 5b, 6, 7, 7b, 8a spawn sub-agents.
+**Inline vs sub-agent:** Steps 1–4, 5c, 5d, 8, 9, 10 run inline. Steps 4b, 4c, 5, 5b, 5e, 6, 7, 7b, 8a spawn sub-agents.
 
 **Auto-gate heuristics:** see [`protocols/AUTO-TRIGGERS.md`](../protocols/AUTO-TRIGGERS.md). Design rationale: see [`DECISIONS.md`](../DECISIONS.md) (D25–D27).
 
@@ -246,7 +246,36 @@ Before review, verify executor honored the plan. Run scope-checker sub-agent.
 
 ---
 
-### Step 5d: Post-mortem explanation — sub-agent (always, fail-silent)
+### Step 5d: Fallow audit — inline (gated)
+
+**Skip if `scope: scratch`.** Personal/local code doesn't need a codebase-intelligence pass.
+
+**Skip if not a TS/JS project.** Detection: `package.json` exists at project root. If absent, log `Step 5d: skipped — not TS/JS` to `GATES.md` and continue to Step 5e.
+
+Mechanical codebase intelligence on the phase diff via [`fallow`](https://github.com/fallow-rs/fallow): dead code, duplication, complexity, boundary violations. Sub-second, deterministic, no LLM. Replaces what the simplifier used to check mechanically.
+
+**Run (inline — fallow is itself the analyzer, no sub-agent needed):**
+
+1. Detect package manager runner: `pnpm-lock.yaml` → `pnpm exec`, `bun.lock` → `bunx`, `yarn.lock` → `yarn`, otherwise `npx`.
+2. Run: `<runner> fallow audit --changed-since main --format json > .planning/phases/N-slug/FALLOW.json`
+3. Parse the `verdict` field: `pass` | `warn` | `fail`.
+
+**Behavior (initial integration — fail-on-fail only, warn does not block):**
+
+- `pass` → log `Step 5d: pass` to GATES.md. Continue.
+- `warn` → log `Step 5d: warn — <count> findings` to GATES.md. Continue. Include the count in Step 10 report.
+- `fail` → STOP. Surface the findings to the user via AskUserQuestion:
+  - **Fix in place** — re-run the executor with FALLOW.json as additional input, then re-run Step 5d. Max 2 cycles, then escalate.
+  - **Mark as accepted exception** — write a one-line rationale to GATES.md (`Step 5d: accepted-exception — <reason>`) and continue.
+  - **Skip this gate** — one-time override, log `Step 5d: override` to GATES.md and continue.
+
+**On `command not found` (fallow not installed):** log `Step 5d: skipped — fallow not installed` to GATES.md and continue. Don't block. Projects predating this integration won't have fallow as a devDep; `/riff:start` adds it for new TS/JS production projects.
+
+**On other non-zero exit (runtime error):** surface stderr to the user, AskUserQuestion `skip and continue | halt`. Default skip on no answer.
+
+---
+
+### Step 5e: Post-mortem explanation — sub-agent (always, fail-silent)
 
 Generates a plain-language post-mortem of what was built, with a metadata block, for the `/riff:dashboard` view. Failure NEVER blocks the pipeline.
 
