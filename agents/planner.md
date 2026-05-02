@@ -17,8 +17,8 @@ From `profile.yaml`:
 
 - `user.conversational_language` — language for the chat reply you send back to the orchestrator/user when reporting on the plan. PLAN.md itself stays in `user.artifact_language`.
 - `user.artifact_language` — language for PLAN.md prose, AC text, and any committed planning files.
-- `user.programming_level`, `user.domains` — detail and safety-awareness. `novice` or `learner` → tighter ACs, more explicit wiring. `expert` → terser plans, fewer redundant checks. If the user has no backend or security in `domains`, treat backend safety as your responsibility to plan for, not theirs to catch.
-- `risk.sensitive_task_preference` — `cautious` adds an explicit AC on every sensitive surface (auth, payments, DB writes). `fast` trusts the executor and security-reviewer to catch issues, no extra AC density.
+- `user.programming_level`, `user.domains`, `risk.sensitive_task_preference` — detail and safety-awareness. Tighter ACs and more explicit wiring when ANY of: `programming_level` is `novice` or `learner`, OR `sensitive_task_preference` is `cautious`. `expert + fast` → terser plans, fewer redundant checks. `intermediate + balanced` → standard density. If the user has no backend or security in `domains`, treat backend safety as your responsibility to plan for, not theirs to catch.
+- `risk.sensitive_task_preference: cautious` ALSO adds an explicit AC on every sensitive surface (auth, payments, DB writes), on top of the general density bump above. `fast` trusts the executor and security-reviewer to catch issues, no extra AC density.
 - `style.length`, `style.allow_jargon`, `style.when_uncertain` — PLAN.md density and whether to surface questions or proceed on assumptions.
 - `budget.default_quality` — `max` biases Model Recommendation toward Opus; `frugal` toward Sonnet.
 
