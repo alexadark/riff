@@ -16,13 +16,15 @@ paths:
 >
 > **Source of truth:** dir symlinks to `~/DEV/frameworks/riff/references/taste/stacks/`. Edits propagate across all RIFF projects.
 
-| File                | Read when...                                                       |
-| ------------------- | ------------------------------------------------------------------ |
-| `react-router-7.md` | Touching `app/routes/`, loader, action, form, navigation, RR7 auth |
-| `drizzle.md`        | DB schema, queries, migrations, JSONB ops, upserts                 |
-| `zod.md`            | Writing/modifying Zod schemas, validation, form parsing            |
-| `vitest.md`         | Writing tests, mocking modules, MSW handlers                       |
-| `node-esm.md`       | Standalone scripts (`scripts/*.ts`) for seeds, imports, backfills  |
+| File                  | Read when...                                                                |
+| --------------------- | --------------------------------------------------------------------------- |
+| `react-router-7.md`   | Touching `app/routes/`, loader, action, form, navigation, RR7 auth          |
+| `drizzle.md`          | DB schema, queries, migrations, JSONB ops, upserts                          |
+| `zod.md`              | Writing/modifying Zod schemas, validation, form parsing                     |
+| `vitest.md`           | Writing tests, mocking modules, MSW handlers                                |
+| `node-esm.md`         | Standalone scripts (`scripts/*.ts`) for seeds, imports, backfills           |
+| `server-utilities.md` | Editing `app/lib/server/**` in saas-starter / web-starter projects          |
+| `deep-module.md`      | Adding or refactoring features under `app/lib/server/` or `app/server/services/` |
 
 ## When to use
 

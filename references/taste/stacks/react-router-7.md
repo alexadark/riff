@@ -77,11 +77,6 @@ export function shouldRevalidate({ formAction }: { formAction?: string | null })
 - **Global progress bar** — `useNavigation()` in layout, indicator when `state === "loading"`.
 - **Optimistic UI** — `fetcher.formData` reflects changes before server response.
 
-## SSR hydration safety
-
-- No `Date.now()`, `new Date()`, `Math.random()` during render.
-- De-dupe arrays before using as React keys.
-
 ## Type safety
 
 Always use generated route types:
@@ -146,8 +141,6 @@ export default function MyRoute({ loaderData, actionData }: Route.ComponentProps
 ## UX & Accessibility
 
 - **Clickable elements need pointer cursor.** Every `<button>`, `<a>`, `role="button"`, or Tailwind-styled clickable `<div>` needs `cursor-pointer`. shadcn primitives (Button, DropdownMenuItem, SelectTrigger, etc.) verify — default shadcn Button does NOT include `cursor-pointer`. Add in primitive or via wrapper. Looks clickable → cursor confirms it.
-- **Keyboard accessible** — anything clickable is focusable + activates on Enter/Space.
-- **Axe-core checks** — wire into Playwright E2E.
 
 ## Anti-Pattern Checklist (flag and replace)
 
