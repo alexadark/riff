@@ -98,6 +98,18 @@ When an API handler reads request body, checks for schema validation (Zod .parse
 
 Detects database queries using params.id without user scoping (userId, user.id, etc.). The #1 vulnerability in solo-dev projects.
 
+### Notify Human (called manually by agents in AFK mode)
+
+`notify-human.sh "<message>"` dispatches to the channel set in `notifications.channel` (resolved per `references/PROFILE-RESOLUTION.md`):
+
+- `telegram` — POST to the bundled n8n Telegram webhook
+- `slack` — POST to `notifications.slack_webhook` (skips + warns to stderr if missing)
+- `email` — `gws gmail users messages send` if `gws` is on PATH, else system `mail`, else skip + warn
+- `none` — exit 0 silently
+- channel missing or unknown → defaults to `telegram` (backwards-compat for pre-channel installs); unknown values skip + warn
+
+Never fails the calling phase: a misconfigured channel prints a one-line warning and returns 0.
+
 ### Voice Rules Inject (SessionStart, PreCompact)
 
 Reads `.riff/profile.yaml` at session start (and after compaction so rules survive the summary) and injects three rules:

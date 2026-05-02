@@ -203,13 +203,11 @@ Per-project override: a project's `ROADMAP.yaml` can set `budget_quality:` to ov
 
 **Q12. AFK mode notifications** (when the agent needs your attention while running unattended)
 - `none` — I'll check manually
-- `email`
-- `slack`
-- `discord`
-- `telegram`
-- `other` — free-form (ask for value)
+- `telegram` — POSTs to the n8n Telegram webhook bundled with RIFF
+- `slack` — POSTs to a Slack incoming webhook (also asks for `notifications.slack_webhook`)
+- `email` — sends via `gws gmail` if available, else system `mail` (also asks for `notifications.email_to`)
 
-Maps to: `notifications.channel`
+Maps to: `notifications.channel`. When the user picks `slack` or `email`, ask one follow-up question (free-form `AskUserQuestion`) for the webhook URL or recipient address and write it to `notifications.slack_webhook` or `notifications.email_to`. Skip the follow-up for `none` and `telegram`.
 
 ### Section 6 — Git workflow
 
@@ -268,7 +266,9 @@ budget:
   default_quality: <frugal | balanced | max>
 
 notifications:
-  channel: <none | email | slack | discord | telegram | other>
+  channel: <none | telegram | slack | email>
+  slack_webhook: <url>          # required when channel=slack
+  email_to: <address>           # required when channel=email
 
 git:
   merge_strategy: <github_button | local_no_ff>
@@ -304,6 +304,7 @@ budget:
   default_quality: balanced
 notifications:
   channel: slack
+  slack_webhook: https://hooks.slack.com/services/REPLACE-ME
 git:
   merge_strategy: github_button
 dashboard:
