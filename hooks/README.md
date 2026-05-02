@@ -102,13 +102,31 @@ Detects database queries using params.id without user scoping (userId, user.id, 
 
 `notify-human.sh "<message>"` dispatches to the channel set in `notifications.channel` (resolved per `references/PROFILE-RESOLUTION.md`):
 
-- `telegram` — POST to the bundled n8n Telegram webhook
-- `slack` — POST to `notifications.slack_webhook` (skips + warns to stderr if missing)
-- `email` — `gws gmail users messages send` if `gws` is on PATH, else system `mail`, else skip + warn
+- `telegram` — POSTs to `api.telegram.org/bot<TOKEN>/sendMessage` using `notifications.telegram_bot_token` + `notifications.telegram_chat_id`. See § Telegram setup below.
+- `email` — `gws gmail users messages send` if `gws` is on PATH, else system `mail`, else skip + warn. Requires `notifications.email_to`.
 - `none` — exit 0 silently
-- channel missing or unknown → defaults to `telegram` (backwards-compat for pre-channel installs); unknown values skip + warn
+- Channel missing, unknown, or required sub-field missing → one-line warning to stderr, returns 0.
+
+Slack is intentionally not supported yet (incoming-webhook setup is more involved). Add it later if needed.
 
 Never fails the calling phase: a misconfigured channel prints a one-line warning and returns 0.
+
+#### Telegram setup
+
+Run this once before picking `channel: telegram`:
+
+1. Open Telegram, message [@BotFather](https://t.me/BotFather) and send `/newbot`. Pick a name + username. BotFather replies with a bot token like `123456:ABC-DEF...`.
+2. Open a chat with your new bot and send any message (this lets the bot see you).
+3. Visit `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser, find the `"chat":{"id":<NUMBER>}` value: that's your chat_id.
+4. Add to `profile.yaml`:
+   ```yaml
+   notifications:
+     channel: telegram
+     telegram_bot_token: "123456:ABC-DEF..."   # quoted, contains a colon
+     telegram_chat_id: 12345678
+   ```
+
+Test with: `bash hooks/notify-human.sh "test from RIFF"`. You should receive the message in Telegram within a second.
 
 ### Voice Rules Inject (SessionStart, PreCompact)
 

@@ -196,11 +196,27 @@ Per-project override: a project's `ROADMAP.yaml` can set `budget_quality:` to ov
 
 **Q12. AFK mode notifications** (when the agent needs your attention while running unattended)
 - `none` — I'll check manually
-- `telegram` — POSTs to the n8n Telegram webhook bundled with RIFF
-- `slack` — POSTs to a Slack incoming webhook (also asks for `notifications.slack_webhook`)
+- `telegram` — sends via the official Telegram Bot API (also asks for bot_token + chat_id, see § Telegram setup below)
 - `email` — sends via `gws gmail` if available, else system `mail` (also asks for `notifications.email_to`)
 
-Maps to: `notifications.channel`. When the user picks `slack` or `email`, ask one follow-up question (free-form `AskUserQuestion`) for the webhook URL or recipient address and write it to `notifications.slack_webhook` or `notifications.email_to`. Skip the follow-up for `none` and `telegram`.
+Maps to: `notifications.channel`. When the user picks `telegram`, ask two follow-up questions (free-form `AskUserQuestion`) for `notifications.telegram_bot_token` and `notifications.telegram_chat_id` and link them to the § Telegram setup section below for the how-to. When the user picks `email`, ask one follow-up question for `notifications.email_to`. Skip the follow-up for `none`.
+
+> Slack is intentionally not offered yet (workspace + incoming-webhook setup is more involved). Add it later if needed.
+
+**Telegram setup** (run this once before picking `channel: telegram`)
+
+1. Open Telegram, message [@BotFather](https://t.me/BotFather) and send `/newbot`. Pick a name + username. BotFather replies with a bot token like `123456:ABC-DEF...`.
+2. Open a chat with your new bot and send any message (this lets the bot see you).
+3. Visit `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser, find the `"chat":{"id":<NUMBER>}` value: that's your chat_id.
+4. Add to `profile.yaml` (or let the onboarding write it):
+   ```yaml
+   notifications:
+     channel: telegram
+     telegram_bot_token: "123456:ABC-DEF..."   # quoted because of the colon
+     telegram_chat_id: 12345678
+   ```
+
+If either value is missing, `notify-human.sh` prints a one-line warning to stderr and returns 0 (never blocks a phase).
 
 ### Section 6 — Git workflow
 
@@ -258,9 +274,10 @@ budget:
   default_quality: <frugal | balanced | max>
 
 notifications:
-  channel: <none | telegram | slack | email>
-  slack_webhook: <url>          # required when channel=slack
-  email_to: <address>           # required when channel=email
+  channel: <none | telegram | email>
+  telegram_bot_token: <"BOT_TOKEN">    # required when channel=telegram (quote it, has a colon)
+  telegram_chat_id: <CHAT_ID>          # required when channel=telegram
+  email_to: <address>                  # required when channel=email
 
 git:
   merge_strategy: <github_button | local_no_ff>
@@ -294,8 +311,7 @@ style:
 budget:
   default_quality: balanced
 notifications:
-  channel: slack
-  slack_webhook: https://hooks.slack.com/services/REPLACE-ME
+  channel: none
 git:
   merge_strategy: github_button
 dashboard:

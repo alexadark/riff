@@ -57,11 +57,13 @@ budget:
   default_quality: balanced          # frugal | balanced | max
 
 notifications:
-  channel: none                      # none | telegram | slack | email
-  # slack_webhook: https://hooks.slack.com/services/...   # required when channel=slack
-  # email_to: you@example.com                             # required when channel=email
-                                     # telegram uses the bundled n8n webhook (no extra config).
-                                     # email tries `gws gmail` first, falls back to system `mail`.
+  channel: none                      # none | telegram | email
+  # telegram_bot_token: "123456:ABC-DEF..."   # required when channel=telegram (quoted: contains a colon)
+  # telegram_chat_id: 12345678                # required when channel=telegram
+  # email_to: you@example.com                 # required when channel=email
+                                     # telegram → POSTs to api.telegram.org/bot<TOKEN>/sendMessage.
+                                     #   Get a bot_token + chat_id by following commands/onboard.md § Telegram setup.
+                                     # email    → tries `gws gmail` first, falls back to system `mail`.
                                      # If a required sub-field is missing, notify-human.sh skips + warns (never fails the phase).
 
 git:
