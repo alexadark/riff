@@ -15,7 +15,21 @@ Writes `profile.yaml` at the framework root. Every agent reads it on startup to 
 
 ## Steps
 
-1. **Locate framework root.** Run `git rev-parse --show-toplevel` from this command's directory. Profile file path = `<root>/profile.yaml`.
+1. **Locate framework root.** Run `git rev-parse --show-toplevel` from this command's directory. Validate it looks like a RIFF clone (has `agents/`, `commands/`, `protocols/`). If not, fail with: "Run `/riff:onboard` from inside a RIFF clone."
+
+   Profile file path = `<root>/profile.yaml`.
+
+1b. **Register framework path.** Write the detected root to the user-level registry so other RIFF commands can locate the framework without hardcoded paths:
+
+   ```bash
+   mkdir -p ~/.config/riff
+   cat > ~/.config/riff/config.yaml <<EOF
+   framework_path: <detected root>
+   registered_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+   EOF
+   ```
+
+   If the file already exists, overwrite `framework_path` (single source of truth, no multi-RIFF). The registry is consumed by `/riff:init` and any future command that needs to resolve the framework root from outside the clone.
 
 2. **Check existing profile.** If `profile.yaml` exists, AskUserQuestion: `replace` / `keep and exit` / `abort`. On `replace`, copy current to `profile.yaml.bak` first.
 

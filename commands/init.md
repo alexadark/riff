@@ -9,10 +9,12 @@ Install RIFF into the current project via symlink to the local framework repo.
 
 ## How it works
 
-`.riff/` is a symlink to `~/DEV/frameworks/riff/` (single source of truth). Commands, agents, and hooks in `.claude/` are symlinks to `.riff/`. Update the framework once, every project sees the change instantly.
+`.riff/` is a symlink to your local RIFF clone (single source of truth). Commands, agents, and hooks in `.claude/` are symlinks to `.riff/`. Update the framework once, every project sees the change instantly.
+
+The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`), written by `/riff:onboard` on first run. If the registry is missing, falls back to `~/DEV/frameworks/riff` for backwards compat.
 
 ```
-~/DEV/frameworks/riff/              ← source
+<framework_path>/              ← source (resolved from ~/.config/riff/config.yaml)
         ↑
 .riff/ → symlink
         ↓
@@ -23,10 +25,20 @@ Install RIFF into the current project via symlink to the local framework repo.
 
 1. **Prerequisites:** confirm git repo exists. If `.riff/` or `.planning/` exist, ask before overwriting.
 
-2. **Link RIFF:**
+2. **Resolve framework path and link RIFF:**
 
    ```bash
-   ln -s ~/DEV/frameworks/riff .riff
+   if [ -f ~/.config/riff/config.yaml ]; then
+     RIFF_PATH=$(awk '/^framework_path:/ {print $2}' ~/.config/riff/config.yaml)
+   fi
+   if [ -z "${RIFF_PATH:-}" ] || [ ! -d "$RIFF_PATH" ]; then
+     RIFF_PATH=~/DEV/frameworks/riff
+   fi
+   if [ ! -d "$RIFF_PATH" ]; then
+     echo "ERROR: RIFF not found. Run /riff:onboard from your RIFF clone first." >&2
+     exit 1
+   fi
+   ln -s "$RIFF_PATH" .riff
    ```
 
    Verify: `ls .riff/commands/` shows the RIFF commands.
