@@ -56,7 +56,9 @@ Open with: **"What do you want to build?"** Then follow the thread.
 
 ### Scope gate (mandatory)
 
-Before the PROJECT.md decision gate, AskUserQuestion to set the project scope:
+If `.planning/config.json` already has `scope` set (e.g. `/riff:init` Step 3b populated it), skip this gate and use the existing value. Surface it in the next message ("Scope: <value> from .planning/config.json") so the user can correct it conversationally.
+
+Otherwise, before the PROJECT.md decision gate, AskUserQuestion to set the project scope:
 
 > **"Is this app personal/local, or production-bound?"**
 >

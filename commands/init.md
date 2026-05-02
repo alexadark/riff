@@ -50,6 +50,30 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
    .claude/{commands/riff,agents/riff,hooks/riff}
    ```
 
+3b. **Project scope.** If `.planning/config.json` already has `scope`, skip this prompt (re-running init keeps the existing scope). Otherwise AskUserQuestion:
+
+   > **Project scope?**
+   > - **production** — others will use it, deployed, has auth/payments/PII, or is destined to. Full RIFF discipline. (Recommended)
+   > - **scratch** — personal/local, no auth, no public exposure. Light discovery, no security gates.
+
+   Write to `.planning/config.json` (create or merge):
+
+   ```json
+   { "scope": "production" }
+   ```
+
+   `/riff:start` Stage 1 detects this value and skips its own scope gate, so the user is not asked twice.
+
+3c. **Profile choice.** AskUserQuestion:
+
+   > **Profile for this project?**
+   > - **use my default profile (recommended)** — agents read the framework `profile.yaml`. Same persona, strictness, and language as your other projects.
+   > - **customize for this project** — write a project-local profile at `.planning/profile.yaml`. Useful for stricter client work, a different language, or a workshop demo. Replaces the global default in this project only (full override, no merge).
+
+   On `customize`: invoke `/riff:onboard` inline. It detects the project context (because `.planning/` now exists) and writes `.planning/profile.yaml`. The user runs through the standard preset/custom flow.
+
+   On `use my default profile`: do nothing. Agents fall through to the framework default per `references/PROFILE-RESOLUTION.md`.
+
 4. **Create symlinks** (relative paths, 3 levels up from `.claude/*/riff/`):
 
    ```bash
