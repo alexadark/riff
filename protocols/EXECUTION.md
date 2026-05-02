@@ -45,11 +45,11 @@ When reality doesn't match the plan, react with the right tool:
 
 What each agent reads before acting. Read in this order, skip what's already in context.
 
-**All agents — language rule:** read `profile.yaml` at the framework root for `user.conversational_language` (chat output) and `user.artifact_language` (committed files). Reply to the user in `conversational_language`; write all `.planning/**` artifacts and code in `artifact_language`. Defaults: both `en`. See `.riff/CLAUDE.md` § Language.
+**All agents — language rule:** read `profile.yaml` per `.riff/references/PROFILE-RESOLUTION.md` for `user.conversational_language` (chat output) and `user.artifact_language` (committed files). Reply to the user in `conversational_language`; write all `.planning/**` artifacts and code in `artifact_language`. Defaults: both `en`. See `.riff/CLAUDE.md` § Language.
 
 ### Planner reads
 
-1. **Always:** ROADMAP.yaml, STATE.md, PROJECT.md, taste.md (`## Architecture`), `profile.yaml` (framework root)
+1. **Always:** ROADMAP.yaml, STATE.md, PROJECT.md, taste.md (`## Architecture`), `profile.yaml` (resolved per `.riff/references/PROFILE-RESOLUTION.md`)
 2. **If exists:** CONTEXT.md, previous SUMMARY.md files, `.planning/expertise/planner.md`
 3. **Relevant taste section:** `## Backend` for backend tasks, `## Frontend` for frontend, etc.
 4. **The codebase:** Read the actual files you're planning to modify. Never plan blind.
@@ -62,7 +62,7 @@ If `profile.yaml` is missing, fall back to `neutre` preset defaults (see `comman
 2. **taste.md** — `## Architecture` always + relevant section
 3. **Boundaries** — each task lists which files you CAN modify, nothing else
 4. **Previous SUMMARY.md** — if wave 2+, read what wave 1 built
-5. **profile.yaml** (framework root): always, for user calibration. Fall back to `neutre` defaults if missing.
+5. **profile.yaml** (resolved per `.riff/references/PROFILE-RESOLUTION.md`): always, for user calibration. Fall back to `neutre` defaults if missing.
 6. **If exists:** `.planning/expertise/executor.md`
 
 ### Verifier reads (for manual re-audits and post-build doc check)
@@ -76,7 +76,7 @@ If `profile.yaml` is missing, fall back to `neutre` preset defaults (see `comman
 
 - Files modified in the phase (from SUMMARY.md or git diff)
 - OWASP checklist (see `agents/security-reviewer.md`)
-- `profile.yaml` (framework root) for user calibration. Fall back to `neutre` defaults if missing.
+- `profile.yaml` (resolved per `.riff/references/PROFILE-RESOLUTION.md`) for user calibration. Fall back to `neutre` defaults if missing.
 
 ---
 

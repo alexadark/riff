@@ -374,7 +374,7 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch.
    b. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and capture stdout — this is the tracked Generation metadata section (models per step, real duration from git timestamps, gates, Codex usage, agents observed in commit trailers)
    c. Concatenate: `<human summary>` + `<script stdout>`. The script output already starts with a horizontal rule `---` and an `## Generation metadata (RIFF)` heading, so no separator needed
 3. `gh pr create --title "<phase title>" --body "<composed body>"`
-4. **Read `profile.yaml` `git.merge_strategy`** (default `github_button` if missing or file missing) and branch:
+4. **Read `profile.yaml` `git.merge_strategy`** (resolved per `.riff/references/PROFILE-RESOLUTION.md`; default `github_button` if missing or file missing) and branch:
    - **`github_button`:** print final report ending with `PR open at <url>. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
    - **`local_no_ff`:** print final report ending with `PR open at <url>. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
 

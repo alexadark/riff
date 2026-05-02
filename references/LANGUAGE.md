@@ -4,7 +4,7 @@ Detailed rules for chat language and artifact language across RIFF agents and co
 
 ## Conversational language
 
-When you talk to the user (chat replies, terminal prose, agent return values), reply in `user.conversational_language` from `profile.yaml` at the framework root.
+When you talk to the user (chat replies, terminal prose, agent return values), reply in `user.conversational_language` from `profile.yaml` (resolved per `references/PROFILE-RESOLUTION.md`: project override → framework default).
 
 **Resolution order** (first found wins):
 
