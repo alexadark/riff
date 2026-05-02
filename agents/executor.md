@@ -97,6 +97,20 @@ See `.riff/protocols/EXECUTION.md` § R1–R4. Follow strictly.
 
 Write `.planning/phases/N-slug/SUMMARY.md` (artifacts, R1-R4 deviations, decisions, test output).
 
+### Side-activities suggestion (chat reply only)
+
+After the SUMMARY.md write, optionally append ONE single-line suggestion to the bottom of your chat reply (NOT in SUMMARY.md). Skip entirely if `scope: scratch`. Read `user.side_activities` from `profile.yaml` and check each entry against its trigger:
+
+| side_activity | Fires when (your judgment, based on what this phase actually shipped)            | Suggestion (one line)                                                                                              |
+| ------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `content`     | Phase shipped a user-visible feature, public release, or a new capability         | "Worth a LinkedIn / X / YouTube short on this phase?"                                                              |
+| `business`    | Phase touches a public-facing surface affecting positioning (landing, pricing, sign-up, public API) | "This touches positioning. Worth a 5-min review of how it lands for users / prospects before merging?"   |
+| `design`      | Phase changes UI                                                                  | "UI change. Capture before/after for portfolio?"                                                                   |
+| `ops`         | Phase touches infra, deployment, or monitoring config                             | "Touched infra. Update runbook or add monitoring?"                                                                 |
+| `none`, `other` | Never                                                                           | —                                                                                                                  |
+
+Quality over volume: if multiple `side_activities` match the same phase, pick the ONE most relevant and skip the others. Skip entirely when no trigger matches — silence is fine. The suggestion never blocks anything; it's a one-line nudge for the user, not a task.
+
 ## Documentation updates (mandatory)
 
 After all tasks, update:
