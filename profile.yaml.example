@@ -7,9 +7,18 @@
 #      It will walk you through 13 questions or let you pick a preset.
 #   2. Or copy this file to profile.yaml and edit by hand.
 #
-# Every RIFF agent reads profile.yaml at startup and adapts its persona,
-# strictness, length, and budget. Missing file → agents fall back to the
-# `neutre` preset (the values shown below).
+# Every RIFF agent reads the resolved profile at startup and adapts its
+# persona, strictness, length, and budget.
+#
+# Resolution order (first found wins):
+#   1. <project_root>/.planning/profile.yaml  — per-project override
+#   2. <framework_root>/profile.yaml           — global default (this file's location)
+#   3. neutre preset                           — when both are missing
+#
+# Project override is full-replace (no field-by-field merge). Use it for
+# genuinely divergent setups (stricter client work, different language,
+# workshop demo). Most projects keep the global default.
+# Full rule: references/PROFILE-RESOLUTION.md
 #
 # Schema and field meanings: commands/onboard.md § Profile schema
 # Other presets to start from: commands/onboard.md § Presets

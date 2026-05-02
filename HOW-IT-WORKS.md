@@ -280,7 +280,7 @@ Human review  <-- You correct what the explorer got wrong
 | `/riff:quick <task>`     | Small task without phase overhead. Bug fixes, tweaks, config. |
 | `/riff:debug <issue>`    | Structured debugging with root cause analysis.                |
 | `/riff:add-phase`        | Add one or more phases to ROADMAP.yaml.                       |
-| `/riff:onboard`          | Write `profile.yaml` (13 questions or pick a preset).         |
+| `/riff:onboard`          | Write `profile.yaml` (13 questions or pick a preset). Detects context: framework root → global default; project root → `.planning/profile.yaml` override. |
 | `/riff:learn-stack`      | Add a new stack reference file under `references/taste/stacks/`. |
 | `/riff:loop`             | Run unattended mode (Ralph loop) for AFK phases.              |
 
@@ -292,7 +292,7 @@ Human review  <-- You correct what the explorer got wrong
 | "incident review" / "review du trimestre"                                                | Read `protocols/INCIDENT.md` § Part 2, write quarterly draft, run Codex adversarial pass             |
 | "promote to production" / "passe en production"                                          | Read `protocols/PROMOTE.md`, flip `scope: scratch → production`, run skipped discovery stages       |
 | "re-audit phase N" / "re-run security on this branch"                                    | Mirror `/riff:next` Steps 5c, 6, 7 against the named phase, write `VERIFICATION.md`                  |
-| "set my notification channel to X" / "edit profile.yaml"                                 | Edit `profile.yaml` at framework root directly                                                       |
+| "set my notification channel to X" / "edit profile.yaml"                                 | Edit the active profile (project override `.planning/profile.yaml` if it exists, else framework default; see `references/PROFILE-RESOLUTION.md`) |
 | Pending expertise patches at end of phase                                                | Inline review (Stack/Architecture/Project routing) via `/riff:next` Step 10                          |
 
 ### When to use what
@@ -582,9 +582,26 @@ RIFF has 8 specialized agents. Each runs in a fresh context with only the files 
 - Gated by `auto_debug:` in ROADMAP.yaml (default `true`)
 - If root cause requires an architectural decision (R3): writes UNRESOLVED and surfaces to user instead of guessing
 
+### Profile resolution (every agent)
+
+Every agent resolves `profile.yaml` in this order:
+
+1. `<project_root>/.planning/profile.yaml` — per-project override, if it exists
+2. `<framework_root>/profile.yaml` — global default
+3. Missing both → `neutre` preset
+
+The first existing file wins. The override fully replaces the framework default for that project (no field-by-field merge). Most projects keep the framework default; the override is for genuinely divergent setups: stricter client work, different artifact language, workshop demo where several personas share one framework.
+
+The framework root itself is registered at `~/.config/riff/config.yaml` on first `/riff:onboard`, with fallback to `~/DEV/frameworks/riff` for older installs. See [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
+
+To create or remove an override:
+- During `/riff:init`, pick `customize for this project` (writes `.planning/profile.yaml`).
+- After init, run `/riff:onboard` from the project root — it detects the project context and writes the override.
+- Delete `.planning/profile.yaml` to fall back to the framework default.
+
 ### Language and explanation level (every agent)
 
-Every agent reads `profile.yaml` at the framework root before replying. Two language settings, two output channels, **decoupled by design**:
+Every agent reads `profile.yaml` (resolved per the order above) before replying. Two language settings, two output channels, **decoupled by design**:
 
 - `user.conversational_language` → chat replies returned to the orchestrator/user (terminal prose, agent verdicts, status updates). Default `en`.
 - `user.artifact_language` → committed files (PLAN.md, SUMMARY.md, REVIEW.md, DEBUG.md, REFACTOR.md, AUDIT.md, code comments, commit messages). Default `en`.

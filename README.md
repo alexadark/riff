@@ -33,9 +33,11 @@ When Claude Code ships a native feature that replaces one of your hooks or comma
 ## Install
 
 ```bash
-git clone <this-repo-url> ~/DEV/frameworks/riff
-cd ~/DEV/frameworks/riff
+git clone <this-repo-url> ~/your/path/riff
+cd ~/your/path/riff
 ```
+
+Clone wherever you like. The path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
 
 Open Claude Code in the framework directory and run:
 
@@ -56,12 +58,15 @@ cd ~/my-project
 Open Claude Code and run:
 
 ```
-/riff:init         # installs RIFF into this project, wires hooks per your profile
+/riff:init         # installs RIFF, picks scope (production/scratch), and asks
+                   # whether to keep the framework profile or customize one for this project
 /riff:start        # greenfield discovery (5 stages: problem, users, MVP, research, roadmap)
                    # OR /riff:map for an existing codebase
 /riff:next         # the main loop: plan a phase, execute, review, open a PR
 /riff:dashboard    # open the local web dashboard (kanban + plain-language explanations)
 ```
+
+> Most projects keep the framework profile. The per-project override is for genuinely divergent setups (stricter client work, different artifact language, workshop demo). Resolution order and edge cases: [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
 
 Run `/riff:status` anytime to see where you are. Run `/riff:loop 5` to let it build 5 phases unattended. Run `/riff:dashboard` to watch progress in a browser.
 
@@ -69,7 +74,7 @@ Run `/riff:status` anytime to see where you are. Run `/riff:loop 5` to let it bu
 
 ### profile.yaml: the personalization layer
 
-One file at the framework root. Holds your user context, risk appetite, style, budget, notification channel. Every agent reads it on startup and adapts.
+One file at the framework root by default, optionally overridden per project at `<project>/.planning/profile.yaml`. Holds your user context, risk appetite, style, budget, notification channel. Every agent reads the resolved profile on startup and adapts. Resolution order: [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
 
 Fields (full schema in `commands/onboard.md` § Profile schema):
 
