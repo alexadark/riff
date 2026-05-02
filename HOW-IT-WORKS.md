@@ -167,6 +167,9 @@ You have an idea. No code exists yet. Here's the full workflow:
     |    - Self-critique: ordering, dependencies, gaps, sizing
     |
     |  Stage 5: Bootstrap
+    |    - (Greenfield production only) Match stack vs `templates/registry.yaml`.
+    |      If a starter matches (saas-starter, web-starter, ...), offer to clone
+    |      it as the project base. Starter ships stack-specific code; RIFF layers on top.
     |    - Writes PROJECT.md, ROADMAP.yaml, CONTEXT.md
     |    - Initial taste.md (Architecture + Stack-specific + Backend, Security, Testing, UX)
     |    - STATE.md, .planning/ directory structure

@@ -1,0 +1,55 @@
+# Starter Registry
+#
+# Maps stack signatures to public starter repos. /riff:start reads this in
+# Stage 5 (production greenfield only) and proposes cloning a starter when
+# the project's stack matches an entry. Adding a new starter (e.g. a Python
+# FastAPI one) only requires a new entry here and a public repo URL.
+#
+# Match heuristic: tokens from PROJECT.md "Stack" section + Constraints axis
+# are intersected with each starter's `signature`. Highest-overlap entry
+# wins. Ties → ask the user.
+
+starters:
+  - name: saas-starter
+    repo: https://github.com/alexadark/saas-starter.git
+    description: SaaS template, RR7 framework mode + Supabase auth + Drizzle Postgres + Tailwind 4 + shadcn/ui. Ships server utilities (logger, events, config, rate-limit, form, feature flags) and security headers.
+    signature:
+      framework: react-router-7
+      language: typescript
+      database: drizzle-postgres
+      auth: supabase
+      styling: tailwind-4-shadcn
+    triggers:
+      - "react router 7"
+      - "rr7"
+      - "react router"
+      - "supabase"
+      - "saas"
+      - "auth"
+      - "multi-tenant"
+
+  - name: web-starter
+    repo: https://github.com/alexadark/web-starter.git
+    description: Marketing/web template, RR7 framework mode + Drizzle Postgres + Tailwind 4 + shadcn/ui + Unpic for CDN images. No auth, no multi-tenancy. Use for landing pages, marketing sites, blogs.
+    signature:
+      framework: react-router-7
+      language: typescript
+      database: drizzle-postgres
+      auth: none
+      styling: tailwind-4-shadcn
+    triggers:
+      - "react router 7"
+      - "rr7"
+      - "marketing"
+      - "landing"
+      - "website"
+      - "blog"
+      - "no auth"
+      - "static"
+
+# Adding a starter:
+# 1. Push your starter to a public git repo.
+# 2. Add an entry above with a unique name, the repo URL, the stack signature,
+#    and trigger tokens that should match the user's PROJECT.md.
+# 3. The starter's CLAUDE.md should be ~40-80 lines (always-loaded essentials);
+#    stack-specific patterns belong in references/taste/stacks/*.md inside RIFF.
