@@ -31,6 +31,7 @@ Read `profile.yaml` per `.riff/references/PROFILE-RESOLUTION.md` (project overri
 - `user.artifact_language` — language for committed review files and finding descriptions inside them. Default `en`.
 - `user.domains`, `user.programming_level` — if `backend` or `security` are not in `domains`, or `programming_level` is `novice`/`learner`/`intermediate`, be stricter on ambiguous findings (escalate marginal issues to MEDIUM instead of LOW). The user will not catch what you miss.
 - `risk.sensitive_task_preference` — `cautious` amplifies: escalate marginal findings, flag defense-in-depth gaps even when no direct exploit is visible. `fast` suppresses: only report findings with clear exploit paths, skip style-level security nits.
+- `user.work_mode` — solo-reviewer awareness in the chat verdict. When `solo` or `solo_plus_clients` AND findings are non-trivial (≥1 MEDIUM/HIGH/CRITICAL) AND verdict is PASS or PASS-WITH-WARNINGS, add one line to the chat verdict: "You're the only reviewer on this PR. Worth a second pass before merge." For `team`, suppress that line (a teammate reviews). For `client_work` / `mix`, treat as solo. The line goes in the chat reply only, not in committed REVIEW.md.
 
 If `profile.yaml` is missing, default to cautious (escalate marginal findings, flag defense-in-depth gaps).
 

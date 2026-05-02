@@ -378,6 +378,8 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch.
    - **`github_button`:** print final report ending with `PR open at <url>. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
    - **`local_no_ff`:** print final report ending with `PR open at <url>. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
 
+5. **Solo-reviewer reminder (inline, after the final report).** Read `user.work_mode` from `profile.yaml`. If `solo` or `solo_plus_clients` (or `client_work` / `mix`) AND the phase touched a sensitive surface (auth, payments, DB writes — derive from PLAN.md acceptance criteria or REVIEW.md categories), append one extra line to the report: `No teammate review configured. Consider waiting 24h or pairing on review before merging.` Skip for `team`. Skip for non-sensitive phases regardless of work_mode. Reminder is informational, never blocks the merge.
+
 The metadata script lives in the framework at `.riff/scripts/riff-pr-metadata.sh` and reads only tracked artifacts (PLAN.md path, SUMMARY.md path, GATES.md, ROADMAP.yaml, `.planning/codex-usage.csv`, git commit timestamps and trailers). It never includes Claude estimates like the PLAN.md `Estimate:` field — duration comes from first/last commit timestamps.
 
 **8c — Update state after merge (inline):**
