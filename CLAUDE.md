@@ -14,6 +14,21 @@ Set at `/riff:start` Stage 1, stored in `.planning/config.json` as `scope: scrat
 - **production** — full RIFF discipline. All discovery stages run. All `/riff:next` gates run.
 - **Promotion:** when the user says "promote to production" (or equivalent, see § Conversational triggers), read `protocols/PROMOTE.md` and run the flow. No slash command.
 
+## Language
+
+When you talk to the user (chat replies, terminal prose, agent return values), reply in `user.conversational_language` from `profile.yaml` at the framework root. When you write artifacts (code, comments, commits, PLAN.md, SUMMARY.md, ROADMAP.yaml, DEBUG.md, REFACTOR.md, AUDIT.md, public docs), use `user.artifact_language`.
+
+**Resolution order** for chat language (first found wins):
+1. `user.conversational_language`
+2. `dashboard.language` (legacy back-compat)
+3. Default: `en`
+
+If the user opens a session in a different language than the resolved value, follow them — explicit beats config. Do not drift back mid-conversation.
+
+**Artifact language is independent of chat language.** Even when chatting in `fr`, code comments, commit messages, and `.planning/**` files remain in `user.artifact_language` (default `en`). The two settings are decoupled by design — code in EN, chat in FR is a valid combo.
+
+**Applies to every agent.** Planner, executor, security-reviewer, debugger, improver, simplifier, deep-auditor: any prose the user reads (chat reply, terminal report, agent verdict shown back) follows `user.conversational_language`. Files committed to the repo follow `user.artifact_language`.
+
 ## Explanation level
 
 When you report work, explain a bug, summarize an operation, or describe what's happening in the terminal, calibrate vocabulary and depth from `profile.yaml`.

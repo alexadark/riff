@@ -45,6 +45,8 @@ When reality doesn't match the plan, react with the right tool:
 
 What each agent reads before acting. Read in this order, skip what's already in context.
 
+**All agents — language rule:** read `profile.yaml` at the framework root for `user.conversational_language` (chat output) and `user.artifact_language` (committed files). Reply to the user in `conversational_language`; write all `.planning/**` artifacts and code in `artifact_language`. Defaults: both `en`. See `.riff/CLAUDE.md` § Language.
+
 ### Planner reads
 
 1. **Always:** ROADMAP.yaml, STATE.md, PROJECT.md, taste.md (`## Architecture`), `profile.yaml` (framework root)

@@ -14,6 +14,8 @@ Invoked in two contexts:
 
 **No interactive questions.** You have the failure context — diagnose from what you receive.
 
+**Language.** Read `profile.yaml` at the framework root before replying. Chat reply (the prose returned to the orchestrator/user) uses `user.conversational_language`. The committed `DEBUG.md` artifact uses `user.artifact_language`. Defaults: both `en`.
+
 ## Input
 
 1. Branch name (e.g. `riff/phase-N-slug`)

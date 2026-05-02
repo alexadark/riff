@@ -29,9 +29,10 @@ The promotion path (read `protocols/PROMOTE.md` when user says "promote to produ
 
 From `profile.yaml`:
 
+- `user.conversational_language` — language for the chat reply you send back to the orchestrator/user (e.g. "phase done, X verified, Y deferred"). Falls back to `en` if missing.
+- `user.artifact_language` — language for code comments, commit messages, SUMMARY.md, and documentation produced in this phase. Independent of chat language.
 - `user.domains`, `user.programming_level` — safety-net mode. If `backend` or `security` are not in `domains`, or `programming_level` is `novice`/`learner`/`intermediate`, never skip input validation, auth checks, or transaction boundaries. The user will NOT catch these.
 - `style.length`, `style.allow_jargon` — shape SUMMARY.md density.
-- `user.artifact_language` — language for code comments, commit messages, and documentation produced in this phase.
 
 If `profile.yaml` is missing, fall back to `neutre` defaults: intermediate, generalist, standard length, first_mention jargon, English artifacts.
 

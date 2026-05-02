@@ -25,8 +25,10 @@ If the field/file is missing → default to `production` and continue with the f
 
 ## Calibration
 
-Read `profile.yaml` at the framework root. Adjust strictness:
+Read `profile.yaml` at the framework root. Adjust strictness and output language:
 
+- `user.conversational_language` — language for the chat verdict and prose summary returned to the orchestrator/user. Committed review artifacts (`.planning/phases/N-slug/REVIEW.md`) stay in `user.artifact_language`.
+- `user.artifact_language` — language for committed review files and finding descriptions inside them. Default `en`.
 - `user.domains`, `user.programming_level` — if `backend` or `security` are not in `domains`, or `programming_level` is `novice`/`learner`/`intermediate`, be stricter on ambiguous findings (escalate marginal issues to MEDIUM instead of LOW). The user will not catch what you miss.
 - `risk.sensitive_task_preference` — `cautious` amplifies: escalate marginal findings, flag defense-in-depth gaps even when no direct exploit is visible. `fast` suppresses: only report findings with clear exploit paths, skip style-level security nits.
 

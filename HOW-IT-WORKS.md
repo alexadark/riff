@@ -579,6 +579,19 @@ RIFF has 8 specialized agents. Each runs in a fresh context with only the files 
 - Gated by `auto_debug:` in ROADMAP.yaml (default `true`)
 - If root cause requires an architectural decision (R3): writes UNRESOLVED and surfaces to user instead of guessing
 
+### Language and explanation level (every agent)
+
+Every agent reads `profile.yaml` at the framework root before replying. Two language settings, two output channels, **decoupled by design**:
+
+- `user.conversational_language` → chat replies returned to the orchestrator/user (terminal prose, agent verdicts, status updates). Default `en`.
+- `user.artifact_language` → committed files (PLAN.md, SUMMARY.md, REVIEW.md, DEBUG.md, REFACTOR.md, AUDIT.md, code comments, commit messages). Default `en`.
+
+This lets you talk to the agents in `fr` while keeping the codebase and `.planning/` tree in `en` for reviewability.
+
+Vocabulary depth (`technical` / `simple` / `eli5`) follows `style.terminal_explanation_level` (override) → `style.explanation_level` (canonical) → `dashboard.level` (legacy) → `simple` default. See framework `CLAUDE.md` § Language and § Explanation level for the full rule, and `protocols/EXECUTION.md` § 3 Context Loading for the per-agent contract.
+
+If the user opens a session in a language different from the resolved value, follow them — explicit beats config. Do not drift back mid-conversation.
+
 ---
 
 ## Debugging
