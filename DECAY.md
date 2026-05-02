@@ -37,6 +37,10 @@ For each component below, answer:
 - [ ] taste.md
 - [ ] REGISTRY.md chain
 - [ ] references/taste/stacks/\* (one entry per stack file — see "Stack drift audit" below)
+- [ ] references/LANGUAGE.md
+- [ ] references/EXPLANATION-LEVEL.md
+- [ ] references/CONTEXT-BUDGET.md
+- [ ] references/PROJECT-SCOPE.md
 
 ## Stack drift audit
 

@@ -10,9 +10,8 @@ DECISIONS.md
 LEGACY-README.md
 IMPROVEMENTS.md
 
-# Research references used to build RIFF (keep taste/ which is part of the framework)
-references/*
-!references/taste/
+# Personal research and notes used to build RIFF (not part of the public framework)
+research/
 
 # Dev session artifacts - never ship with the framework
 specs/handoffs/
