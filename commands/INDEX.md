@@ -6,7 +6,7 @@
 
 | Command                 | When to run                                                                                                         | Output                                     |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `/riff:onboard`         | First time installing RIFF. Interactive questionnaire (or preset), writes `profile.yaml` to personalize the agents. | `profile.yaml` at the framework root       |
+| `/riff:onboard`         | First time installing RIFF, or to override the profile for one specific project. Detects context: framework root → `profile.yaml`, project root → `.planning/profile.yaml`. | `profile.yaml` (framework or project) |
 | `/riff:learn-stack`     | When you want RIFF to build a taste rule file for a stack it doesn't already know (Rust, Go, FastAPI, etc).         | `references/taste/stacks/<stack>.md`       |
 | `/riff:dashboard`       | Open the local web dashboard for the current project (kanban of phases, plain-language explanations, metadata).     | Browser at `http://localhost:4000`         |
 
@@ -47,7 +47,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 | "re-audit phase N", "re-run security on this branch"                      | Mirror `/riff:next` Steps 5c, 6, 7 against the named phase, write `VERIFICATION.md`                                                    |
 | "deep audit", "audit ce module", "milestone review"                       | Read `protocols/DEEP-AUDIT.md`, run cross-phase Codex audit at a milestone boundary                                                    |
 | "resync riff", "sync framework"                                           | Run `bash .riff/riff-resync.sh` to refresh symlinks; same as `/riff:resync` but works pre-bootstrap                                    |
-| "set my notification channel to X", "edit profile.yaml"                   | Edit `profile.yaml` at framework root directly                                                                                         |
+| "set my notification channel to X", "edit profile.yaml"                   | Edit the active profile directly (project override `.planning/profile.yaml` if it exists, else framework default). See `references/PROFILE-RESOLUTION.md`. |
 | (automatic at end of phase) Pending expertise patches                     | Inline review (Stack/Architecture/Project routing) via `/riff:next` Step 10 with Review now / Defer to next phase / Reject all options |
 
 ## Cheat sheet — "I want to..."

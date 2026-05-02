@@ -5,21 +5,29 @@ allowed-tools: Read, Write, AskUserQuestion, Bash
 
 # /riff:onboard
 
-Writes `profile.yaml` at the framework root. Every agent reads it on startup to adapt its persona, tone, confidence threshold, and budget to you. Edit the file by hand later, or ask Claude to change a specific field (e.g. "set my notification channel to telegram").
+Writes a profile that personalizes RIFF. Two modes:
+
+- **Framework mode** (run from inside the RIFF clone) → writes `<framework_root>/profile.yaml`, the global default for every project.
+- **Project mode** (run from a project with `.planning/`) → writes `<project_root>/.planning/profile.yaml`, an override that replaces the global default for this project only (full override, no merge).
+
+Every agent reads the resolved profile on startup (see `references/PROFILE-RESOLUTION.md`). Edit the file by hand later, or ask Claude to change a specific field (e.g. "set my notification channel to telegram").
 
 ## How it works
 
-- Profile lives at `<framework_root>/profile.yaml` (one per framework instance, not per-project).
-- Two paths: **preset** (0 extra questions) or **custom** (13 questions, ~5 min).
-- Re-running `/riff:onboard` backs up the previous profile to `profile.yaml.bak` before overwriting.
+- Two paths: **preset** (0 extra questions) or **custom** (16 questions, ~5 min).
+- Re-running `/riff:onboard` backs up the previous profile to `<file>.bak` before overwriting.
 
 ## Steps
 
-1. **Locate framework root.** Run `git rev-parse --show-toplevel` from this command's directory. Validate it looks like a RIFF clone (has `agents/`, `commands/`, `protocols/`). If not, fail with: "Run `/riff:onboard` from inside a RIFF clone."
+1. **Detect context.** Decide which file to write:
 
-   Profile file path = `<root>/profile.yaml`.
+   - **Framework context:** `git rev-parse --show-toplevel` is a RIFF clone (has `agents/`, `commands/`, `protocols/`). Target = `<framework_root>/profile.yaml`. Also register the path (Step 1b).
+   - **Project context:** pwd has a `.planning/` directory (RIFF-installed project). Target = `<project_root>/.planning/profile.yaml`.
+   - **Ambiguous:** neither matches. AskUserQuestion: `framework default` (path to RIFF clone) / `project override` (path to project) / `abort`. Validate the chosen path matches its expected shape, then proceed.
 
-1b. **Register framework path.** Write the detected root to the user-level registry so other RIFF commands can locate the framework without hardcoded paths:
+   Report the chosen target before continuing so the user can abort.
+
+1b. **Register framework path** (framework context only). Write the detected root to the user-level registry so other RIFF commands can locate the framework without hardcoded paths:
 
    ```bash
    mkdir -p ~/.config/riff
@@ -29,9 +37,9 @@ Writes `profile.yaml` at the framework root. Every agent reads it on startup to 
    EOF
    ```
 
-   If the file already exists, overwrite `framework_path` (single source of truth, no multi-RIFF). The registry is consumed by `/riff:init` and any future command that needs to resolve the framework root from outside the clone.
+   If the file already exists, overwrite `framework_path` (single source of truth, no multi-RIFF). Skip this step in project context.
 
-2. **Check existing profile.** If `profile.yaml` exists, AskUserQuestion: `replace` / `keep and exit` / `abort`. On `replace`, copy current to `profile.yaml.bak` first.
+2. **Check existing profile.** If the target file exists, AskUserQuestion: `replace` / `keep and exit` / `abort`. On `replace`, copy current to `<target>.bak` first.
 
 3. **Entry choice.** AskUserQuestion:
    - `preset` — quick start, 0 extra questions
@@ -41,18 +49,22 @@ Writes `profile.yaml` at the framework root. Every agent reads it on startup to 
 
 5. **Custom path.** Walk the 16 questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect.
 
-6. **Write profile.yaml** to `<root>/profile.yaml` using the schema below. YAML format, quote string values with special characters.
+6. **Write profile.yaml** to the target resolved in Step 1 (framework root or project `.planning/`) using the schema below. YAML format, quote string values with special characters.
 
-7. **Report:**
+7. **Report.** Adapt the message to context:
 
    ```
-   profile.yaml written to <root>/profile.yaml.
+   profile.yaml written to <target>.
+
+   Mode: <framework default | project override>.
 
    Next:
-     - Edit profile.yaml directly anytime (plain text).
+     - Edit the file directly anytime (plain text).
      - Or ask Claude to change a specific field ("set my notification channel to slack").
      - Per-project budget override: set `budget_quality:` in the project's ROADMAP.yaml.
    ```
+
+   In project mode, also remind the user: "This profile only applies in this project. Other projects keep using your framework default."
 
 ## Questions
 

@@ -35,13 +35,13 @@ These actions are NOT slash commands. Read the listed protocol or just do the th
 | "deep audit", "audit this module", "milestone review", "full review"                    | Read `protocols/DEEP-AUDIT.md`, run flow                                                                  |
 | "audit codebase", "health check", "assess this project"                                 | Read skill `audit-codebase` SKILL.md, run mode `bug` / `ai` / `full` based on user phrasing (default `full`). Skip silently if `scope=scratch`. |
 | "resync riff", "sync framework", "re-link riff symlinks"                                | Run `bash .riff/riff-resync.sh` from the project root, paste output back. Surfaces CLAUDE.md drift; never auto-patches. |
-| "change my profile X to Y", "set my notification channel to Z", "edit profile.yaml"     | Edit `profile.yaml` at framework root directly. Preserve other fields. Confirm the change.                |
+| "change my profile X to Y", "set my notification channel to Z", "edit profile.yaml"     | Edit the active profile (project override `.planning/profile.yaml` if it exists, else framework default; see `references/PROFILE-RESOLUTION.md`). Preserve other fields. Confirm the change. |
 
 Discoverable via this section. Do not invent commands the user did not invoke.
 
 ## Where to look
 
-- User profile: `profile.yaml` at the framework root. Every agent reads it on startup for persona, strictness, length, budget.
+- User profile: `profile.yaml` (resolved per `references/PROFILE-RESOLUTION.md`: project override `.planning/profile.yaml` → framework default). Every agent reads it on startup for persona, strictness, length, budget.
 - Command catalog: `commands/INDEX.md`.
 - Planning: `agents/planner.md` (Confidence Gate, Assumptions Mode, Wave grouping, Logical Dependency Check).
 - Executing: `agents/executor.md` (Confidence Gate, Model Dispatch, Documentation Updates).
