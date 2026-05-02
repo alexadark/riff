@@ -1,6 +1,7 @@
 ---
 description: Interactive onboarding — writes profile.yaml to personalize RIFF to you
 allowed-tools: Read, Write, AskUserQuestion, Bash
+argument-hint: [--no-register]
 ---
 
 # /riff:onboard
@@ -16,8 +17,11 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
 - Two paths: **preset** (0 extra questions) or **custom** (16 questions, ~5 min).
 - Re-running `/riff:onboard` backs up the previous profile to `<file>.bak` before overwriting.
+- Flag `--no-register`: in framework context, skip writing `~/.config/riff/config.yaml`. Use this for workshop demos or testing on a throwaway clone, so the global registry keeps pointing at your real RIFF.
 
 ## Steps
+
+0. **Parse args.** If `$ARGUMENTS` contains `--no-register`, set `NO_REGISTER=true`. Default false.
 
 1. **Detect context.** Decide which file to write:
 
@@ -27,7 +31,7 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
    Report the chosen target before continuing so the user can abort.
 
-1b. **Register framework path** (framework context only). Write the detected root to the user-level registry so other RIFF commands can locate the framework without hardcoded paths:
+1b. **Register framework path** (framework context only, skipped in project context or when `NO_REGISTER=true`). Write the detected root to the user-level registry so other RIFF commands can locate the framework without hardcoded paths:
 
    ```bash
    mkdir -p ~/.config/riff
@@ -37,7 +41,9 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
    EOF
    ```
 
-   If the file already exists, overwrite `framework_path` (single source of truth, no multi-RIFF). Skip this step in project context.
+   If the file already exists, overwrite `framework_path` (single source of truth, no multi-RIFF).
+
+   When `NO_REGISTER=true`, skip the write and report: `registry untouched (--no-register), still pointing at <existing framework_path or "unset">`.
 
 2. **Check existing profile.** If the target file exists, AskUserQuestion: `replace` / `keep and exit` / `abort`. On `replace`, copy current to `<target>.bak` first.
 
@@ -127,19 +133,19 @@ Maps to: `user.side_activities` (array)
 Maps to: `user.parallel_projects`
 
 **Q7a. Conversational language** (how the agent talks to you)
+- `en` — English (default)
 - `fr` — French
-- `en` — English
 - `mix` — adapt to the question language
-- `other` — free-form (ask for value)
+- `other` — free-form, ask for an ISO 639-1 code (e.g. `es`, `ro`, `de`, `ja`, `pt`)
 
-Maps to: `user.conversational_language`
+Maps to: `user.conversational_language`. Default `en` if the user skips the question.
 
 **Q7b. Artifact language** (committed code, commits, shared docs)
-- `en` — English (standard for code and international collaboration)
+- `en` — English (default, standard for code and international collaboration)
 - `fr` — French
-- `other` — free-form (ask for value)
+- `other` — free-form, ask for an ISO 639-1 code
 
-Maps to: `user.artifact_language`
+Maps to: `user.artifact_language`. Default `en` if the user skips the question.
 
 > Nuance: non-commit personal notes default to `conversational_language`. Rule: "if it's going in a commit → `artifact_language`; for personal use → `conversational_language`".
 
@@ -226,7 +232,12 @@ Maps to: `style.explanation_level`. Default: `simple`.
 
 > Want different verbosity in the terminal vs the dashboard? After onboarding, edit `profile.yaml` and set `style.terminal_explanation_level: technical` (or any of the three values) — that overrides terminal output only.
 
-> The dashboard's language defaults to `user.conversational_language` when it is `fr` or `en`, else falls back to `en`. Override by editing `profile.yaml` `dashboard.language` directly.
+**Q15. Dashboard language**
+- `en` — English (default, always available)
+- `fr` — French (currently the only other supported translation)
+- `other` — fall back to English (the dashboard UI is not yet translated for other languages)
+
+Maps to: `dashboard.language`. Default: `en`. The dashboard UI strings only exist in EN and FR today, so any other choice falls back to EN at runtime — but the user is free to pick FR even if `conversational_language` is something else.
 
 > Both `user.conversational_language` and `style.explanation_level` (or `style.terminal_explanation_level`) drive the `voice-rules-inject` SessionStart hook (see `hooks/README.md`). That hook injects language + explanation-depth rules at every session start so ad-hoc interactions honor the same preferences as RIFF agents, not only `/riff:next` phase reports. Profile edits take effect on the next session.
 
@@ -240,8 +251,8 @@ user:
   work_mode: <solo | team | solo_plus_clients | client_work | mix>
   side_activities: [<none | content | business | design | ops | other>]
   parallel_projects: <one | few | many>
-  conversational_language: <fr | en | mix | other>
-  artifact_language: <en | fr | other>
+  conversational_language: <en | fr | mix | ISO 639-1 code (es, ro, de, ja, …)>  # default: en
+  artifact_language: <en | fr | ISO 639-1 code>                                  # default: en
 
 risk:
   sensitive_task_preference: <cautious | balanced | fast>
@@ -263,7 +274,7 @@ git:
   merge_strategy: <github_button | local_no_ff>
 
 dashboard:
-  language: <en | fr | other>   # optional; defaults to conversational_language when fr/en, else en
+  language: <en | fr | ISO 639-1 code>   # optional; defaults to conversational_language when supported, else en
 ```
 
 > Legacy: `dashboard.level` is still read by the dashboard parser as a fallback for older profiles. New profiles should use `style.explanation_level`.
@@ -309,7 +320,7 @@ user:
   work_mode: solo
   side_activities: [none]
   parallel_projects: few
-  conversational_language: mix
+  conversational_language: en
   artifact_language: en
 risk:
   sensitive_task_preference: balanced
