@@ -2,6 +2,8 @@
 
 Set at `/riff:start` Stage 1, stored in `.planning/config.json` as `scope: scratch | production`. Default when missing → `production` (existing projects are unaffected).
 
+> Project scope and project profile are independent. Scope drives which stages and gates run; profile drives persona, strictness, language, and budget. For per-project profile override, see `references/PROFILE-RESOLUTION.md`.
+
 ## scratch
 
 Personal/local apps, no auth, no public exposure, no other users.

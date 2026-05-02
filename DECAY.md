@@ -41,6 +41,7 @@ For each component below, answer:
 - [ ] references/EXPLANATION-LEVEL.md
 - [ ] references/CONTEXT-BUDGET.md
 - [ ] references/PROJECT-SCOPE.md
+- [ ] references/PROFILE-RESOLUTION.md
 
 ## Stack drift audit
 

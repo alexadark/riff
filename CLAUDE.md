@@ -14,6 +14,10 @@
 
 Reply in `user.conversational_language` from `profile.yaml`. Write artifacts in `user.artifact_language`. Resolution order, edge cases, agent-by-agent applicability: `references/LANGUAGE.md`.
 
+## Profile resolution
+
+Every reference to "`profile.yaml`" in this framework resolves per `references/PROFILE-RESOLUTION.md`: project override (`.planning/profile.yaml`) → framework default (`<framework_root>/profile.yaml`) → `neutre` preset.
+
 ## Explanation level
 
 Calibrate from `style.terminal_explanation_level` (override) → `style.explanation_level` → default `simple`. Per-level vocabulary rules: `references/EXPLANATION-LEVEL.md`.
