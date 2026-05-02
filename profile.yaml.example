@@ -4,7 +4,7 @@
 #
 # To set up your own:
 #   1. Run /riff:onboard from inside the framework directory in Claude Code.
-#      It will walk you through 13 questions or let you pick a preset.
+#      It will walk you through 15 questions or let you pick a preset.
 #   2. Or copy this file to profile.yaml and edit by hand.
 #
 # Every RIFF agent reads the resolved profile at startup and adapts its
@@ -33,7 +33,6 @@ user:
   domains: [generalist]              # frontend, backend, fullstack, data_ml, systems, mobile, generalist
   work_mode: solo                    # solo | team | solo_plus_clients | client_work | mix
   side_activities: [none]            # none, content, business, design, ops, other
-  parallel_projects: few             # one | few | many
   conversational_language: en        # en | fr | mix | any ISO 639-1 code (es, ro, de, …). Default: en
   artifact_language: en              # en | fr | any ISO 639-1 code. Default: en (code, commits, docs)
 

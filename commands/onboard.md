@@ -15,7 +15,7 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
 ## How it works
 
-- Two paths: **preset** (0 extra questions) or **custom** (16 questions, ~5 min).
+- Two paths: **preset** (0 extra questions) or **custom** (15 questions, ~5 min).
 - Re-running `/riff:onboard` backs up the previous profile to `<file>.bak` before overwriting.
 - Flag `--no-register`: in framework context, skip writing `~/.config/riff/config.yaml`. Use this for workshop demos or testing on a throwaway clone, so the global registry keeps pointing at your real RIFF.
 
@@ -49,11 +49,11 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
 3. **Entry choice.** AskUserQuestion:
    - `preset` — quick start, 0 extra questions
-   - `custom` — 16 questions, ~5 min
+   - `custom` — 15 questions, ~5 min
 
 4. **Preset path.** AskUserQuestion with the 4 presets (descriptions in the "Presets" section below). Pick one, grab its full answer map, jump to step 6.
 
-5. **Custom path.** Walk the 16 questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect.
+5. **Custom path.** Walk the 15 questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect. Note: Q6 was removed (parallel_projects is handled by the dashboard project dropdown), so the numbering jumps from Q5 to Q7a — leave the gap, do not renumber downstream questions.
 
 6. **Write profile.yaml** to the target resolved in Step 1 (framework root or project `.planning/`) using the schema below. YAML format, quote string values with special characters.
 
@@ -124,13 +124,6 @@ Maps to: `user.work_mode`
 - `other`
 
 Maps to: `user.side_activities` (array)
-
-**Q6. Parallel projects**
-- `one` — one at a time, focused
-- `few` — 2 or 3
-- `many` — I switch often
-
-Maps to: `user.parallel_projects`
 
 **Q7a. Conversational language** (how the agent talks to you)
 - `en` — English (default)
@@ -248,7 +241,6 @@ user:
   domains: [<frontend | backend | fullstack | data_ml | systems | mobile | generalist>]
   work_mode: <solo | team | solo_plus_clients | client_work | mix>
   side_activities: [<none | content | business | design | ops | other>]
-  parallel_projects: <one | few | many>
   conversational_language: <en | fr | mix | ISO 639-1 code (es, ro, de, ja, …)>  # default: en
   artifact_language: <en | fr | ISO 639-1 code>                                  # default: en
 
@@ -290,7 +282,6 @@ user:
   domains: [backend]
   work_mode: team
   side_activities: [none]
-  parallel_projects: few
   conversational_language: en
   artifact_language: en
 risk:
@@ -320,7 +311,6 @@ user:
   domains: [generalist]
   work_mode: solo
   side_activities: [none]
-  parallel_projects: few
   conversational_language: en
   artifact_language: en
 risk:
@@ -349,7 +339,6 @@ user:
   domains: [generalist]
   work_mode: solo
   side_activities: [none]
-  parallel_projects: one
   conversational_language: fr
   artifact_language: en
 risk:
@@ -378,7 +367,6 @@ user:
   domains: [frontend, fullstack]
   work_mode: solo_plus_clients
   side_activities: [content, business]
-  parallel_projects: many
   conversational_language: fr
   artifact_language: en
 risk:
