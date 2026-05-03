@@ -70,6 +70,10 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - **Quarterly review of incidents** → ask Claude for "incident review"
 - **My local/perso script is going public** → ask Claude to "promote to production"
 
+## Protocols referenced by commands
+
+- `protocols/HANDOFF.md` — session checkpoint contract for `/riff:start`, `/riff:next`, `/riff:loop`. Session bloats past safe context → propose `/clear`, reopen with STATE.md. Read at Stage / Step boundaries when 2+ heuristics fire (sub-agents, revisions, tool calls, files written).
+
 ## Agents referenced by commands and protocols
 
 - `agents/scope-checker.md` — invoked by `/riff:next` Step 5c to diff PLAN.md vs SUMMARY.md and flag silently dropped tasks before review.

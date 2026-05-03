@@ -312,6 +312,14 @@ Phase 1: {{TITLE}}
 Run /riff:next to start building. Ask Claude to "promote to production" later if this app goes public.
 ```
 
+## Session handoff (between Stages)
+
+Stage 2.5 + 4.5 = adversarial + revision cycles → parent bloats past 200k fast.
+
+Close of each Stage (S1, S2, S2.5, S3, S4, S4.5) → check heuristic in [`protocols/HANDOFF.md`](../protocols/HANDOFF.md) § Trigger. 2+ fire → update STATE.md per contract, surface suggestion before next Stage. User override OK.
+
+Mid-Stage handoff = no. Finish artifact (PROJECT.md, design files, ARCHITECTURE-REVIEW.md, ROADMAP.yaml, ROADMAP-REVIEW.md) first.
+
 ## Anti-Patterns
 
 - Don't skip wireframes for web projects

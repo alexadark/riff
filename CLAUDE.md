@@ -54,4 +54,4 @@ Discoverable via this section. Do not invent commands the user did not invoke.
 
 ## Context budget
 
-GREEN under 100k, YELLOW 100k-200k (be selective), RED 200k+ (checkpoint, propose `/clear`). Sub-agent returns and inline file reads are the biggest bloat source. Full guidance: `references/CONTEXT-BUDGET.md`.
+GREEN under 100k, YELLOW 100k-200k (be selective), RED 200k+ (checkpoint, propose `/clear`). Sub-agent returns and inline file reads are the biggest bloat source. Full guidance: `references/CONTEXT-BUDGET.md`. Session handoff contract (when to propose `/clear` mid-command, what STATE.md must carry for clean reprise): `protocols/HANDOFF.md`.

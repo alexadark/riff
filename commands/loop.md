@@ -32,6 +32,12 @@ The loop handles: reading ROADMAP, spawning fresh agents, atomic commits, Telegr
 | All remaining blocked   | Stop, human intervention needed           |
 | Iteration limit         | Stop (safety)                             |
 
+## Session handoff
+
+Each iteration = fresh Claude Code context via `riff-loop.sh` → handoff between iterations automatic, no heuristic.
+
+Inside iteration: per-`/riff:next` checkpoints in [`protocols/HANDOFF.md`](../protocols/HANDOFF.md) apply. Heuristic trips mid-iteration → spawned process surfaces suggestion, stops clean. User resumes manually in fresh window before re-launch.
+
 ## Anti-Patterns
 
 - Don't run on HITL phases (loop skips them automatically)

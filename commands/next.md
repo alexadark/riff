@@ -494,25 +494,25 @@ Skip silently if the `codex:codex-rescue` skill is not configured (log one-line 
 
 ## Session checkpoints
 
-`/riff:next` runs 10 steps in a single parent session. For non-trivial phases this blows past 200k tokens fast — every sub-agent return, every inline file read, every status update accumulates in the parent. Past ~200k, hallucination risk goes up regardless of nominal context size. See `CLAUDE.md` § Context budget.
+10 steps / parent session → past 200k fast for non-trivial phases. Sub-agent returns + inline reads + status updates accumulate. Past 200k = hallucination risk up. See `CLAUDE.md` § Context budget + [`protocols/HANDOFF.md`](../protocols/HANDOFF.md).
 
-**Three natural session-break points** where the parent context can be flushed (`/clear`) and resumed from artifacts on disk without losing work:
+3 break points (parent flush via `/clear`, resume from disk):
 
-| Checkpoint | Triggered after | Resume the next session by reading |
+| Checkpoint | Triggered after | Bootstrap reads |
 |---|---|---|
-| **A — Plan validated** | Step 4b returns PROCEED on PLAN-REVIEW.md | PLAN.md, PLAN-REVIEW.md, ROADMAP.yaml entry for the phase |
-| **B — Code shipped** | Step 5 SUMMARY.md written, tests green | SUMMARY.md, `git diff main...HEAD`, PLAN.md |
-| **C — Review passed** | Step 7 PASS (or RESOLVED via debugger) | SUMMARY.md, REVIEW.md, DEBUG.md if any, AUTHORIZATION-MATRIX.md if any |
+| **next-A** Plan validated | Step 4b PROCEED on PLAN-REVIEW.md | PLAN.md, PLAN-REVIEW.md, ROADMAP entry |
+| **next-B** Code shipped | Step 5 SUMMARY.md, tests green | SUMMARY.md, `git diff main...HEAD`, PLAN.md |
+| **next-C** Review passed | Step 7 PASS / RESOLVED via debugger | SUMMARY.md, REVIEW.md, DEBUG.md if any, AUTHORIZATION-MATRIX.md if any |
 
-**When to propose a break.** Track approximate token usage mentally (every file read = 1-5k, every sub-agent return = 5-20k, every system-reminder injection = 5-10k). At end of any step, if the next step will push past 200k:
+Close of checkpoint → eval heuristic in [`protocols/HANDOFF.md`](../protocols/HANDOFF.md) § Trigger. 2+ fire →
 
-1. Finish the current step cleanly. Write the artifact.
-2. Surface to user: "Context at NNNk, suggest `/clear` and reopen at checkpoint X with this prompt: <paste-back>".
-3. Provide a paste-back prompt the user can copy. The prompt names the artifact paths and the next step number — no chat history needed.
+1. Finish step. Write artifact.
+2. Update STATE.md per HANDOFF.md § STATE.md contract — Active Decisions, Open Buckets, Files to bootstrap, Resume Command.
+3. Surface: `Context at NNNk, M heuristics fired. /clear + reopen at checkpoint X with: continue /riff:next at Step Y for phase N-slug. Read STATE.md.`
 
-**Don't checkpoint mid-step.** A sub-agent must complete and write its artifact before the parent can flush. Aborting a sub-agent loses its work.
+Mid-step checkpoint = no. Sub-agent lands artifact before parent flush.
 
-**Phases under 25 files / 4 sub-agent passes typically don't need checkpointing.** Default is single-session. Checkpointing is for the multi-surface security/refactor phases that touch 50+ files.
+Phases < 25 files / 4 sub-agent passes = single-session default. Checkpoint for 50+ file phases.
 
 ---
 
