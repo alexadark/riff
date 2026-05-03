@@ -131,8 +131,31 @@ if [[ -f "$usage_md" ]]; then
 fi
 
 # Agent prompts (verbatim from PROMPTS.md, wrapped in collapsible <details>)
+#
+# Strict mode: if PROMPTS.md still contains the template placeholder
+# `{{prompt verbatim}}` in any section, the orchestrator forgot to capture
+# at least one sub-agent's prompt. Fail loud — the PR body would otherwise
+# leak template tokens to stakeholders.
+#
+# To opt out of a section (e.g. Debugger when no failure occurred), the
+# orchestrator must replace the placeholder with `_(not invoked)_`.
 prompts_md="$phase_dir/PROMPTS.md"
 if [[ -f "$prompts_md" ]]; then
+	if grep -q "{{prompt verbatim}}" "$prompts_md"; then
+		unfilled=$(awk '
+			/^## / { current=$0 }
+			/{{prompt verbatim}}/ && current != "" { print "  " current; current="" }
+		' "$prompts_md" | sort -u)
+		echo "ERROR: $prompts_md still contains template placeholders." >&2
+		echo "The orchestrator did not capture every sub-agent's prompt for this phase." >&2
+		echo "Sections with unfilled placeholders:" >&2
+		echo "$unfilled" >&2
+		echo "" >&2
+		echo "Fix: open $prompts_md and replace each remaining '{{prompt verbatim}}' with" >&2
+		echo "either the actual prompt sent to that agent, or '_(not invoked)_' if the" >&2
+		echo "agent did not fire during this phase. Then re-run /riff:next Step 8." >&2
+		exit 1
+	fi
 	prompts_contents=$(cat "$prompts_md")
 	prompts_block=$(printf '<details>\n<summary>Agent prompts (click to expand)</summary>\n\n%s\n\n</details>' "$prompts_contents")
 else
