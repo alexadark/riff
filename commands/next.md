@@ -107,6 +107,17 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 git checkout -b riff/phase-N-slug
 ```
 
+### Step 2c: Ensure PROMPTS.md exists (inline)
+
+When entering a phase, ensure `.planning/phases/N-slug/PROMPTS.md` exists. If missing, copy from the framework template:
+
+```bash
+mkdir -p .planning/phases/N-slug
+[[ ! -f .planning/phases/N-slug/PROMPTS.md ]] && cp .riff/templates/PROMPTS.md .planning/phases/N-slug/PROMPTS.md
+```
+
+This file captures the verbatim prompts sent to each sub-agent in Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. The `riff-pr-metadata.sh` script reads it at Step 8 and injects it into the PR body in a collapsible `<details>` block for stakeholder review.
+
 ### Step 3: Confidence gate (inline)
 
 See `protocols/EXECUTION.md` § Confidence Gate. Any dimension < 0.7 → STOP.
@@ -123,6 +134,8 @@ Inject thinking keyword per MODEL.md § Planner selection.
 2. [KEYWORD] Draft the plan. Break into waves. Mark independent tasks with `parallel: [task-A, task-B]` (independent = zero shared files)
 3. Write to `.planning/phases/N-slug/PLAN.md`. Do NOT update STATE.md or ROADMAP.yaml
 4. Include `## Model Recommendation`: default `executor_model: sonnet`. Recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs
+
+**Prompt capture:** Step 4 is inline (no sub-agent invoked), so the "prompt" is the orchestrator's self-instruction. Append a short note describing the inputs read and the planning brief into `.planning/phases/N-slug/PROMPTS.md` under the `## Planner` section heading.
 
 ---
 
@@ -151,6 +164,8 @@ Runs before execution so the planner can revise BEFORE code is written. Plan-sta
 Prompt: phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/plan-adversarial-reviewer.md`. Read `.planning/phases/N-slug/PLAN.md`, PROJECT.md, the ROADMAP.yaml entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write `.planning/phases/N-slug/PLAN-REVIEW.md` with PROCEED or REVISE verdict."_
 
 If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_
+
+**Prompt capture:** After launching the plan-adversarial-reviewer sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Adversarial reviewer (Codex)` section heading (or a new `## Plan adversarial reviewer (Codex)` subsection if both Step 4b and Step 6 ran in the same phase — keep them distinct).
 
 **On REVISE:**
 
@@ -208,6 +223,8 @@ Agent prompt (give paths — do NOT paste file contents):
 - Read: `.planning/phases/N-slug/PLAN.md`, `taste.md`, `.planning/expertise/executor.md`, `CLAUDE.md`
 - Instruction: _"FIRST: verify you are on branch `riff/phase-N-slug`. Read PLAN.md and execute all tasks. For tasks marked `parallel:`, launch them as separate sub-agents in a single message. Commit after each task (conventional format, stage explicitly). Write `.planning/phases/N-slug/SUMMARY.md`."_
 
+**Prompt capture:** After launching the executor sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Executor` section heading.
+
 Wait until SUMMARY.md exists on disk.
 
 **Auto-debug trigger:** scan SUMMARY.md for `FAILED` / `ERROR` / `unresolved` / incomplete tasks. Found → run auto-debug pattern (below) with `failure_type: executor_fail`, `artifact: SUMMARY.md`.
@@ -229,6 +246,8 @@ Runs before review so reviewers audit simplified code.
 **If running:** Agent tool, `model: "haiku"`.
 
 Prompt: branch name, phase N-slug, instruction _"Read `agents/simplifier.md`. Scope: diff of branch `riff/phase-N-slug` against main only. Apply the protocol. Write `.planning/phases/N-slug/REFACTOR.md`. Commit simplifications as separate `refactor(phase-N): ...` commits, staging explicitly."_
+
+**Prompt capture:** After launching the simplifier sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under a `## Simplifier` section heading (append the section if not already present in the template).
 
 ---
 
@@ -342,9 +361,13 @@ Launch BOTH in a single message.
 
 **If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_ If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_ Append `Step 6: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=6`, `outcome=pass|fail|error`, `duration_sec=<measured>`.
 
+**Prompt capture:** After launching the adversarial-reviewer (Codex) sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Adversarial reviewer (Codex)` section heading.
+
 - Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 
 **Step 7 (Security — Sonnet):** Agent tool, `model: "sonnet"`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, instruction _"Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on all changed files. CRITICAL/HIGH → mark blocked. Write findings inline."_
+
+**Prompt capture:** After launching the security-reviewer sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Security reviewer` section heading.
 
 - Auto-debug on CRITICAL/HIGH → `failure_type: security_fail`, `artifact: [findings inline]`. On RESOLVED, re-run Step 7.
 
@@ -371,7 +394,7 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch.
 1. `git push -u origin riff/phase-N-slug`
 2. Compose the PR body:
    a. Draft the human summary (phase title, artifacts touched, review + security verdict, key changes from SUMMARY.md)
-   b. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and capture stdout — this is the tracked Generation metadata section (models per step, real duration from git timestamps, gates, Codex usage, agents observed in commit trailers)
+   b. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and capture stdout — this is the tracked Generation metadata section (models per step, real duration from git timestamps, gates, Codex usage, agents observed in commit trailers, **token usage per agent parsed from USAGE.md**, and **agent prompts in a collapsible block parsed from PROMPTS.md**)
    c. Concatenate: `<human summary>` + `<script stdout>`. The script output already starts with a horizontal rule `---` and an `## Generation metadata (RIFF)` heading, so no separator needed
 3. `gh pr create --title "<phase title>" --body "<composed body>"`
 4. **Read `profile.yaml` `git.merge_strategy`** (resolved per `.riff/references/PROFILE-RESOLUTION.md`; default `github_button` if missing or file missing) and branch:
@@ -419,6 +442,8 @@ The flow depends on `git.merge_strategy`:
 Collect `total_tokens`, `tool_uses`, `duration_ms` from each Agent result.
 
 Write `.planning/phases/N-slug/USAGE.md` using **`templates/usage.md`**.
+
+`PROMPTS.md` is a sibling phase artifact (alongside USAGE.md, PLAN.md, SUMMARY.md, GATES.md) — it was seeded at Step 2c and appended to throughout Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. Both USAGE.md and PROMPTS.md are read by `riff-pr-metadata.sh` at Step 8 to enrich the PR body with token usage and verbatim sub-agent prompts.
 
 Append to `.planning/usage-log.csv` (create with header if missing):
 
@@ -525,6 +550,8 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 **Prompt:**
 
 > Read `agents/debugger.md`. Branch: `riff/phase-N-slug`. Failure type: `{{failure_type}}`. Failure artifact: `{{artifact}}`. Phase path: `.planning/phases/N-slug/`. Diagnose, attempt fix, write `.planning/phases/N-slug/DEBUG.md`.
+
+**Prompt capture:** After launching the debugger sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Debugger (if invoked)` section heading.
 
 **After completion:**
 

@@ -115,6 +115,30 @@ if [[ "$commits_count" -gt 0 ]]; then
 	[[ -n "$matched" ]] && trailer_agents="$matched"
 fi
 
+# Token usage per agent (parsed from USAGE.md)
+usage_md="$phase_dir/USAGE.md"
+tokens_block="_(USAGE.md not yet written)_"
+if [[ -f "$usage_md" ]]; then
+	# Extract the markdown table: lines starting with `|` after the first `|` line.
+	# Keep header, separator, and data rows verbatim. Stop at first blank line after table.
+	parsed=$(awk '
+		/^\|/ { in_table=1; print; next }
+		in_table && !/^\|/ { exit }
+	' "$usage_md" 2>/dev/null || true)
+	if [[ -n "$parsed" ]]; then
+		tokens_block="$parsed"
+	fi
+fi
+
+# Agent prompts (verbatim from PROMPTS.md, wrapped in collapsible <details>)
+prompts_md="$phase_dir/PROMPTS.md"
+if [[ -f "$prompts_md" ]]; then
+	prompts_contents=$(cat "$prompts_md")
+	prompts_block=$(printf '<details>\n<summary>Agent prompts (click to expand)</summary>\n\n%s\n\n</details>' "$prompts_contents")
+else
+	prompts_block="_(PROMPTS.md not yet written; this phase predates the prompt-capture directive)_"
+fi
+
 cat <<EOF
 
 ---
@@ -149,4 +173,12 @@ $gates_block
 
 **Agents observed in commit trailers**:
 $trailer_agents
+
+## Token usage per agent
+
+$tokens_block
+
+## Agent prompts
+
+$prompts_block
 EOF
