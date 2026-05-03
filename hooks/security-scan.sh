@@ -140,17 +140,21 @@ if [ -z "${RIFF_SKIP_MIGRATION_GATE:-}" ] && [ -f "$SCRIPT_DIR/migration-gate.sh
   ISSUES_FOUND=$((ISSUES_FOUND + $?))
 fi
 
-# Check 7: Tests pass
-echo -n "  Running test suite... "
-TEST_OUTPUT=$(npx vitest run 2>&1)
-TEST_EXIT=$?
-if [ $TEST_EXIT -ne 0 ]; then
-  echo ""
-  echo -e "  ${RED}BLOCKED: Tests failing${NC}"
-  echo "$TEST_OUTPUT" | tail -10
-  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+# Check 7: Tests pass (skip when project is not yet a TS/JS workspace with deps installed)
+if [ -f package.json ] && [ -d node_modules ]; then
+  echo -n "  Running test suite... "
+  TEST_OUTPUT=$(npx vitest run 2>&1)
+  TEST_EXIT=$?
+  if [ $TEST_EXIT -ne 0 ]; then
+    echo ""
+    echo -e "  ${RED}BLOCKED: Tests failing${NC}"
+    echo "$TEST_OUTPUT" | tail -10
+    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+  else
+    echo "OK"
+  fi
 else
-  echo "OK"
+  echo "  Running test suite... skipped (no package.json or node_modules)"
 fi
 
 # Final verdict
