@@ -197,6 +197,7 @@ Prompt: project name (one line), instruction _"Run with `--model {{MODEL}} --eff
 Only create what's needed to start building:
 
 - `STATE.md` — phase 1, status: Initialized
+- `README.md` — short stub: project name + "WIP, not for production" + a one-line dev command. If a starter clone shipped its own README, overwrite — its content is about the starter, not your project.
 - `mkdir -p .planning/{phases,sessions}` (no `design/` — no design modules ran)
 
 **No** `CONTEXT.md`, **no** `taste.md`, **no** `taste/` files, **no** `INCIDENTS.md`, **no** stack-specific configs. The executor runs language-agnostic in scratch mode and only enforces R1-R4 + "no hardcoded secrets" (see `agents/executor.md` § Scratch scope).
@@ -244,6 +245,7 @@ Skip this step entirely on brownfield (existing code present) and on scratch sco
   - Verify version-specific rules via `ref_search_documentation` or Context7 MCP before writing.
 - `STATE.md` — phase 1, status: Initialized
 - `INCIDENTS.md` — copy from `templates/INCIDENTS.md` (regression ledger, append-only)
+- `README.md` — write a project-specific README seeded from PROJECT.md. Sections: project name + one-paragraph context (what it does, who for), Stack (bullet list from PROJECT.md), Local dev (prerequisites + the actual `pnpm install` / `pnpm dev` / test commands the bootstrap settled on), Workflow (one-liner pointing to RIFF + `.riff/commands/INDEX.md`), Repo layout (a few key dirs), Status (one line about phase 1). Keep it to ~50-100 lines. If a starter clone shipped its own README (saas-starter, web-starter, etc.), OVERWRITE it — that content describes the template, not your project. Cross-check that the dev commands match `package.json` `scripts:` so you don't ship a README that lies about how to run the app.
 - `mkdir -p .planning/{phases,sessions,design}`
 
 ### Stack detection
