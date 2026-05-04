@@ -116,7 +116,20 @@ mkdir -p .planning/phases/N-slug
 [[ ! -f .planning/phases/N-slug/PROMPTS.md ]] && cp .riff/templates/PROMPTS.md .planning/phases/N-slug/PROMPTS.md
 ```
 
-This file captures the verbatim prompts sent to each sub-agent in Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. The `riff-pr-metadata.sh` script reads it at Step 8 and injects it into the PR body in a collapsible `<details>` block for stakeholder review.
+This file captures the **substantive** prompts sent to each sub-agent in Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. The `riff-pr-metadata.sh` script reads it at Step 8 and injects it into the PR body in a collapsible `<details>` block for stakeholder review.
+
+**Prompt-capture convention.** "Substantive" means: capture only what tells the reader what the agent was asked to DO. Drop the boilerplate that controls how its output gets formatted. The PR reader is a stakeholder, not the agent — they want signal, not the agent's mechanical instructions.
+
+| Keep | Drop |
+|------|------|
+| Mission / role / agent identity | "Output requirements" / format rules / one-sentence-per-line / line-break rules |
+| Phase context (number, slug, branch, working dir) | "Where to save" / file paths to write artifacts to (`SUMMARY.md`, `REVIEW.md`, …) |
+| Files to read | "What to return" / "Reporting back" sections aimed at the orchestrator |
+| Hard rules, contracts, invariants | Output template scaffolding (markdown headers, table headers, frontmatter shape) |
+| Verification criteria, severity grades, gate thresholds | Persistence/idempotency hints ("overwrite if exists", "fail-silent on error") |
+| Locked decisions referenced by ID (D1, B-05, etc.) | Repeated stylistic rules already in `taste.md` / `profile.yaml` |
+
+When in doubt: would removing this line change the reader's understanding of WHAT the agent did? If no, drop it.
 
 ### Step 3: Confidence gate (inline)
 
@@ -165,7 +178,7 @@ Prompt: phase goal (one line), branch, instruction _"Run with `--model {{MODEL}}
 
 If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_
 
-**Prompt capture:** After launching the plan-adversarial-reviewer sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Adversarial reviewer (Codex)` section heading (or a new `## Plan adversarial reviewer (Codex)` subsection if both Step 4b and Step 6 ran in the same phase — keep them distinct).
+**Prompt capture:** After launching the plan-adversarial-reviewer sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Adversarial reviewer (Codex)` section heading (or a new `## Plan adversarial reviewer (Codex)` subsection if both Step 4b and Step 6 ran in the same phase — keep them distinct).
 
 **On REVISE:**
 
@@ -186,7 +199,7 @@ Generates a plain-language description of the phase plan for the `/riff:dashboar
 
 **Resolve level + language:**
 - `level` = `profile.style.explanation_level` → `profile.dashboard.level` (legacy) → `simple`
-- `language`: if `profile.dashboard.language` set, use it. Else if `profile.user.conversational_language` is `fr` or `en`, use it. Else `en`.
+- `language` = `profile.user.narrative_language` → `profile.dashboard.language` (legacy) → `profile.user.conversational_language` if `fr`/`en` → `en`.
 
 Agent tool, `model: "haiku"`. Prompt:
 
@@ -223,7 +236,7 @@ Agent prompt (give paths — do NOT paste file contents):
 - Read: `.planning/phases/N-slug/PLAN.md`, `taste.md`, `.planning/expertise/executor.md`, `CLAUDE.md`
 - Instruction: _"FIRST: verify you are on branch `riff/phase-N-slug`. Read PLAN.md and execute all tasks. For tasks marked `parallel:`, launch them as separate sub-agents in a single message. Commit after each task (conventional format, stage explicitly). Write `.planning/phases/N-slug/SUMMARY.md`."_
 
-**Prompt capture:** After launching the executor sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Executor` section heading.
+**Prompt capture:** After launching the executor sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Executor` section heading.
 
 Wait until SUMMARY.md exists on disk.
 
@@ -247,7 +260,7 @@ Runs before review so reviewers audit simplified code.
 
 Prompt: branch name, phase N-slug, instruction _"Read `agents/simplifier.md`. Scope: diff of branch `riff/phase-N-slug` against main only. Apply the protocol. Write `.planning/phases/N-slug/REFACTOR.md`. Commit simplifications as separate `refactor(phase-N): ...` commits, staging explicitly."_
 
-**Prompt capture:** After launching the simplifier sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under a `## Simplifier` section heading (append the section if not already present in the template).
+**Prompt capture:** After launching the simplifier sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under a `## Simplifier` section heading (append the section if not already present in the template).
 
 ---
 
@@ -361,13 +374,13 @@ Launch BOTH in a single message.
 
 **If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict."_ If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_ Append `Step 6: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=6`, `outcome=pass|fail|error`, `duration_sec=<measured>`.
 
-**Prompt capture:** After launching the adversarial-reviewer (Codex) sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Adversarial reviewer (Codex)` section heading.
+**Prompt capture:** After launching the adversarial-reviewer (Codex) sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Adversarial reviewer (Codex)` section heading.
 
 - Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 
 **Step 7 (Security — Sonnet):** Agent tool, `model: "sonnet"`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, instruction _"Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on all changed files. CRITICAL/HIGH → mark blocked. Write findings inline."_
 
-**Prompt capture:** After launching the security-reviewer sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Security reviewer` section heading.
+**Prompt capture:** After launching the security-reviewer sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Security reviewer` section heading.
 
 - Auto-debug on CRITICAL/HIGH → `failure_type: security_fail`, `artifact: [findings inline]`. On RESOLVED, re-run Step 7.
 
@@ -444,7 +457,7 @@ Collect `total_tokens`, `tool_uses`, `duration_ms` from each Agent result.
 
 Write `.planning/phases/N-slug/USAGE.md` using **`templates/usage.md`**.
 
-`PROMPTS.md` is a sibling phase artifact (alongside USAGE.md, PLAN.md, SUMMARY.md, GATES.md) — it was seeded at Step 2c and appended to throughout Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. Both USAGE.md and PROMPTS.md are read by `riff-pr-metadata.sh` at Step 8 to enrich the PR body with token usage and verbatim sub-agent prompts.
+`PROMPTS.md` is a sibling phase artifact (alongside USAGE.md, PLAN.md, SUMMARY.md, GATES.md) — it was seeded at Step 2c and appended to throughout Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. Both USAGE.md and PROMPTS.md are read by `riff-pr-metadata.sh` at Step 8 to enrich the PR body with token usage and substantive sub-agent prompts.
 
 Append to `.planning/usage-log.csv` (create with header if missing):
 
@@ -552,7 +565,7 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 
 > Read `agents/debugger.md`. Branch: `riff/phase-N-slug`. Failure type: `{{failure_type}}`. Failure artifact: `{{artifact}}`. Phase path: `.planning/phases/N-slug/`. Diagnose, attempt fix, write `.planning/phases/N-slug/DEBUG.md`.
 
-**Prompt capture:** After launching the debugger sub-agent, write the verbatim prompt that was sent into `.planning/phases/N-slug/PROMPTS.md` under the `## Debugger (if invoked)` section heading.
+**Prompt capture:** After launching the debugger sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Debugger (if invoked)` section heading.
 
 **After completion:**
 
