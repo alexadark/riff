@@ -43,7 +43,16 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
    If the file already exists, overwrite `framework_path` (single source of truth, no multi-RIFF).
 
-   When `NO_REGISTER=true`, skip the write and report: `registry untouched (--no-register), still pointing at <existing framework_path or "unset">`.
+   After writing the registry, wire up the global init command so `/riff:init` is available in any new project — including brand-new empty directories before RIFF is installed there:
+
+   ```bash
+   mkdir -p ~/.claude/commands/riff
+   ln -sf "<detected root>/commands/init.md" ~/.claude/commands/riff/init.md
+   ```
+
+   If the symlink already points to the right target, skip silently. Report: `global /riff:init wired → ~/.claude/commands/riff/init.md`.
+
+   When `NO_REGISTER=true`, skip both the registry write and the symlink, and report: `registry untouched (--no-register), still pointing at <existing framework_path or "unset">`. Global init command not wired.
 
 2. **Check existing profile.** If the target file exists, AskUserQuestion: `replace` / `keep and exit` / `abort`. On `replace`, copy current to `<target>.bak` first.
 
