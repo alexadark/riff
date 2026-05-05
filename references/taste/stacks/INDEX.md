@@ -25,6 +25,7 @@ paths:
 | `node-esm.md`         | Standalone scripts (`scripts/*.ts`) for seeds, imports, backfills           |
 | `server-utilities.md` | Editing `app/lib/server/**` in saas-starter / web-starter projects          |
 | `deep-module.md`      | Adding or refactoring features under `app/lib/server/` or `app/server/services/` |
+| `vercel-ai-sdk.md`    | Any LLM streaming, chat UI, structured output (`ai`, `@ai-sdk/*` packages)  |
 
 ## When to use
 

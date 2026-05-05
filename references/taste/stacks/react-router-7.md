@@ -26,6 +26,7 @@ paths:
 8. **Server-only code** — `.server.ts` files OR inside `loader` / `action` only.
 9. **Streaming** — `defer()` + `<Await>` + `<Suspense>` for non-critical data.
 10. **Resource routes** — no `default` export = API endpoint, return `Response.json()`.
+11. **LLM streaming endpoints MUST be resource routes.** A route with a `default` export that handles a raw `fetch()` POST will return the rendered page HTML, not the action's `Response`. RR7 only treats POSTs as data requests when submitted via `<Form>` / `useFetcher` / `useSubmit`. Raw `fetch()` (required for `ReadableStream` consumption or `useChat`) → action runs but response is discarded, document re-renders. Put streaming under `app/routes/api/**/*.ts` with action only, no default. Add a structural test: `expect("default" in mod).toBe(false)`.
 
 ## Component conventions
 
@@ -95,6 +96,8 @@ export default function MyRoute({ loaderData, actionData }: Route.ComponentProps
 
 - **Server-only files.** `.server.ts` files OR code inside `loader` / `action` only. Importing server-only modules from client component → build succeeds but bundle leaks server code.
 
+- **Raw `fetch()` to default-exported route returns HTML, not the action Response.** RR7 differentiates "data request" from "navigation request" by submission method, not by what the action returns. `<Form>`, `useFetcher.submit()`, `useSubmit()` all set internal markers so the action's `Response` is forwarded as-is. Plain `fetch(url, { method: "POST" })` doesn't set those markers → action runs, return value is discarded, document HTML is rendered. **Symptom:** the chat bubble (or whatever consumes the stream) shows `<!DOCTYPE html>...`. **Fix:** move the endpoint to `app/routes/api/**/*.ts` with no default export. Tests miss this because Vitest mocks the request handling — only a real RR7 server (dev or Vercel) reproduces the bug. Add a structural test `expect("default" in mod).toBe(false)` to prevent regression.
+
 - **All response paths from action must carry intent discriminator** when UI toast logic keys on `actionData.jobType`. Failure paths omitting discriminator silently swallow errors:
 
   ```ts
@@ -161,3 +164,5 @@ export default function MyRoute({ loaderData, actionData }: Route.ComponentProps
 | Clickable element without `cursor-pointer` | Add `cursor-pointer` to class list                |
 | `function MyComponent()` in new code       | `const MyComponent = (props: Props) => ...`       |
 | Action `try/catch` without Response/data re-throw | Re-throw `Response` and `{ data, init }` shapes before `Error` branch |
+| Streaming endpoint with `default` export   | Move to `app/routes/api/**/*.ts`, action only, structural test asserting no default export |
+| Raw `fetch()` to `app/routes/<feature>.tsx` action | `useFetcher.submit()` for non-streaming; resource route + raw `fetch()` for streaming |
