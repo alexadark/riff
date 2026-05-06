@@ -7,7 +7,10 @@ import {
   findFrameworkRoot,
   loadProfile,
   removeProject,
+  resolveProjectConfig,
   resolveRegistry,
+  type DashboardConfig,
+  type DashboardLevel,
   type RegistryEntry,
 } from "./parsers/profile.ts";
 import { parseRoadmap, phaseDir, type Roadmap, type RoadmapPhase } from "./parsers/roadmap.ts";
@@ -71,6 +74,29 @@ interface ProjectContext {
   watcher: ProjectWatcher;
   bootstrap: BootstrapRunner;
   bootstrapped: boolean;
+  /**
+   * Per-project resolved config. Honors `<root>/.planning/profile.yaml`
+   * overrides via resolveProjectConfig. Set at context build time only:
+   * `buildContexts` skips already-known slugs, so editing `.planning/profile.yaml`
+   * mid-session does NOT refresh this until the project is removed and re-added,
+   * or the server restarts. Live invalidation on profile change is deferred to
+   * Phase 6 (specs/plans/audit-fixes.md § Phase 6, task 4).
+   */
+  config: DashboardConfig;
+}
+
+/**
+ * Build a per-project DashboardConfig. Level + language come from the
+ * project override (if any), framework profile, or neutre baseline.
+ * `projects` stays empty because the registry is framework-scoped.
+ */
+function buildProjectConfig(projectRoot: string): DashboardConfig {
+  const project = resolveProjectConfig(projectRoot, RESOLVED_FRAMEWORK_ROOT);
+  return {
+    level: project.level,
+    language: project.language,
+    projects: [],
+  };
 }
 
 const contexts = new Map<string, ProjectContext>();
@@ -91,7 +117,8 @@ function buildContexts(registry: RegistryEntry[]): void {
     const watcher = new ProjectWatcher(entry.root);
     watcher.subscribe((event) => broadcast({ ...event, project: entry.slug }));
     watcher.start();
-    const bootstrap = new BootstrapRunner(entry.root, PROFILE_CONFIG);
+    const config = buildProjectConfig(entry.root);
+    const bootstrap = new BootstrapRunner(entry.root, config);
     bootstrap.subscribe((event) => broadcast({ ...event, project: entry.slug }));
     contexts.set(entry.slug, {
       slug: entry.slug,
@@ -99,6 +126,7 @@ function buildContexts(registry: RegistryEntry[]): void {
       watcher,
       bootstrap,
       bootstrapped: false,
+      config,
     });
   }
 }
@@ -132,12 +160,13 @@ function findPhase(roadmap: Roadmap | null, id: number): RoadmapPhase | null {
 function phaseStatus(
   projectRoot: string,
   phase: RoadmapPhase,
+  level: DashboardLevel,
 ): {
   has_explain: boolean;
   has_explain_post: boolean;
   available_levels: string[];
 } {
-  const files = resolvePhaseFiles(projectRoot, phase, PROFILE_CONFIG.level);
+  const files = resolvePhaseFiles(projectRoot, phase, level);
   return {
     has_explain: !!files.explain,
     has_explain_post: !!files.explain_post,
@@ -157,8 +186,8 @@ function firstContentLine(content: string | null): string | null {
   return null;
 }
 
-function explainPreview(projectRoot: string, phase: RoadmapPhase): string | null {
-  const files = resolvePhaseFiles(projectRoot, phase, PROFILE_CONFIG.level);
+function explainPreview(projectRoot: string, phase: RoadmapPhase, level: DashboardLevel): string | null {
+  const files = resolvePhaseFiles(projectRoot, phase, level);
   const sourcePath = files.explain_post ?? files.explain;
   if (!sourcePath) return null;
   return firstContentLine(safeRead(sourcePath));
@@ -347,7 +376,7 @@ app.get("/api/projects/:slug", (c) => {
 
   const roadmap = parseRoadmap(ctx.root);
   const phases = (roadmap?.phases ?? []).map((p) => {
-    const meta = phaseStatus(ctx.root, p);
+    const meta = phaseStatus(ctx.root, p, ctx.config.level);
     return {
       id: p.id,
       slug: p.slug,
@@ -359,7 +388,7 @@ app.get("/api/projects/:slug", (c) => {
       has_explain: meta.has_explain,
       has_explain_post: meta.has_explain_post,
       available_levels: meta.available_levels,
-      explain_preview: explainPreview(ctx.root, p),
+      explain_preview: explainPreview(ctx.root, p, ctx.config.level),
     };
   });
 
@@ -391,7 +420,7 @@ app.get("/api/projects/:slug/phase/:id", async (c) => {
   }
 
   const levelQuery = c.req.query("level");
-  const requestedLevel: ExplainLevel = isValidLevel(levelQuery) ? levelQuery : PROFILE_CONFIG.level;
+  const requestedLevel: ExplainLevel = isValidLevel(levelQuery) ? levelQuery : ctx.config.level;
 
   const files = resolvePhaseFiles(ctx.root, phase, requestedLevel);
   const explain = files.explain ? safeRead(files.explain) : null;
@@ -415,7 +444,7 @@ app.get("/api/projects/:slug/phase/:id", async (c) => {
     };
   }
 
-  const phaseMeta = phaseStatus(ctx.root, phase);
+  const phaseMeta = phaseStatus(ctx.root, phase, ctx.config.level);
 
   return c.json({
     project: ctx.slug,
@@ -452,7 +481,7 @@ app.get("/api/projects/:slug/phase/:id/generate", (c) => {
   if (!Number.isFinite(id)) {
     return c.json({ error: "invalid phase id" }, 400);
   }
-  const levelParam = c.req.query("level") ?? PROFILE_CONFIG.level;
+  const levelParam = c.req.query("level") ?? ctx.config.level;
   const kindParam = c.req.query("kind");
   if (!isValidLevel(levelParam)) {
     return c.json({ error: "invalid level (expected technical|simple|eli5)" }, 400);
@@ -490,7 +519,7 @@ app.get("/api/projects/:slug/phase/:id/generate", (c) => {
         projectRoot: ctx.root,
         phase,
         kind: kindParam,
-        config: PROFILE_CONFIG,
+        config: ctx.config,
         level: levelParam,
         onChunk: (text) => {
           void send({ type: "chunk", text });

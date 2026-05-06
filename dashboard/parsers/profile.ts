@@ -1,6 +1,9 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join, dirname } from "node:path";
 import YAML from "yaml";
+import { resolveProfile, type Profile, type ProfileSource } from "../lib/resolveProfile.ts";
+
+export type { Profile } from "../lib/resolveProfile.ts";
 
 export type DashboardLevel = "technical" | "simple" | "eli5";
 export type DashboardLanguage = "en" | "fr" | "other";
@@ -11,19 +14,10 @@ export interface DashboardConfig {
   projects: string[];
 }
 
-export interface Profile {
-  user?: {
-    conversational_language?: string;
-    artifact_language?: string;
-    [key: string]: unknown;
-  };
-  style?: {
-    explanation_level?: string;
-    terminal_explanation_level?: string;
-    [key: string]: unknown;
-  };
-  dashboard?: Partial<DashboardConfig>;
-  [key: string]: unknown;
+export interface ProjectConfig {
+  level: DashboardLevel;
+  language: DashboardLanguage;
+  source: ProfileSource;
 }
 
 /**
@@ -45,29 +39,12 @@ export function findFrameworkRoot(startDir: string, marker = "profile.yaml.examp
   return null;
 }
 
-function safeReadYaml(path: string): Profile | null {
-  try {
-    if (!existsSync(path)) return null;
-    const raw = readFileSync(path, "utf8");
-    const parsed = YAML.parse(raw);
-    if (parsed && typeof parsed === "object") {
-      return parsed as Profile;
-    }
-    return null;
-  } catch (err) {
-    console.warn(`[profile] failed to parse ${path}:`, (err as Error).message);
-    return null;
-  }
+function isLevel(value: unknown): value is DashboardLevel {
+  return value === "technical" || value === "simple" || value === "eli5";
 }
 
-function normalizeLevel(value: unknown): DashboardLevel {
-  if (value === "technical" || value === "simple" || value === "eli5") return value;
-  return "simple";
-}
-
-function normalizeLanguage(value: unknown): DashboardLanguage {
-  if (value === "en" || value === "fr" || value === "other") return value;
-  return "en";
+function isLanguage(value: unknown): value is DashboardLanguage {
+  return value === "en" || value === "fr" || value === "other";
 }
 
 function normalizeProjects(value: unknown): string[] {
@@ -82,38 +59,73 @@ function normalizeProjects(value: unknown): string[] {
 }
 
 /**
- * Resolve dashboard config from the framework profile.
+ * Derive level + language from a Profile, honoring the canonical and legacy keys.
  *
- * Order of precedence:
- *   1. profile.yaml at framework_root (user-edited).
- *   2. profile.yaml.example at framework_root (committed defaults).
- *   3. Hardcoded fallback: { level: "simple", language: "en", projects: [] }.
+ * Level resolution order:   style.explanation_level → dashboard.level (legacy)
+ * Language resolution order: user.narrative_language → dashboard.language (legacy) → user.conversational_language ("fr"|"en" only)
  *
- * The `projects` array always comes from profile.yaml only (never from the
- * example), since it is machine-specific and per-user.
+ * Unrecognized values are dropped (treated as absent) so the next tier wins. If
+ * nothing valid is found, returns `null` for that field — the caller substitutes
+ * the neutre baseline.
+ */
+function pickLevelAndLanguage(profile: Profile): { level: DashboardLevel | null; language: DashboardLanguage | null } {
+  const styleSection = profile.style ?? {};
+  const userSection = profile.user ?? {};
+  const dashSection = profile.dashboard ?? {};
+
+  const levelCandidates: unknown[] = [styleSection.explanation_level, dashSection.level];
+  let level: DashboardLevel | null = null;
+  for (const candidate of levelCandidates) {
+    if (isLevel(candidate)) {
+      level = candidate;
+      break;
+    }
+  }
+
+  // conversational_language is treated as a language hint only when it is "fr" or "en".
+  // Other ISO codes (de, pt, es, …) are not yet mapped to "other"; the field passes
+  // through and the safety net substitutes "en". Phase 7 task 3 lifts that limitation.
+  const languageCandidates: unknown[] = [
+    userSection.narrative_language,
+    dashSection.language,
+    userSection.conversational_language === "fr" || userSection.conversational_language === "en"
+      ? userSection.conversational_language
+      : undefined,
+  ];
+  let language: DashboardLanguage | null = null;
+  for (const candidate of languageCandidates) {
+    if (isLanguage(candidate)) {
+      language = candidate;
+      break;
+    }
+  }
+
+  return { level, language };
+}
+
+/**
+ * Load the framework-wide dashboard config + the registry of projects.
+ *
+ * Resolution chain (via resolveProfile, no projectRoot supplied):
+ *   1. <frameworkRoot>/profile.yaml         — user's framework profile
+ *   2. <frameworkRoot>/templates/profile.neutre.yaml — canonical baseline
+ *
+ * The registry (`dashboard.projects`) is framework-scoped by design: per-project
+ * overrides do not carry their own registry. For per-project level/language
+ * resolution, use `resolveProjectConfig` instead.
+ *
+ * The "?? simple" / "?? en" fallbacks are a broken-install safety net: in a
+ * healthy install, neutre.yaml supplies those values via the resolver chain.
  */
 export function loadProfile(frameworkRoot: string): { profile: Profile; config: DashboardConfig } {
-  const userPath = join(frameworkRoot, "profile.yaml");
-  const examplePath = join(frameworkRoot, "profile.yaml.example");
-
-  const userProfile = safeReadYaml(userPath);
-  const exampleProfile = safeReadYaml(examplePath);
-  const profile = userProfile ?? exampleProfile ?? {};
-
-  const dashSection = profile.dashboard ?? {};
-  const styleSection = profile.style ?? {};
-  const convoLang = profile.user?.conversational_language;
-  const fallbackLang: DashboardLanguage = convoLang === "fr" ? "fr" : "en";
-
-  // Registry comes only from the user profile, never the example.
-  const projects = normalizeProjects(userProfile?.dashboard?.projects);
-
-  // Level resolution order: style.explanation_level (canonical) → dashboard.level (legacy) → "simple".
-  const rawLevel = styleSection.explanation_level ?? dashSection.level;
+  const resolved = resolveProfile({ frameworkRoot });
+  const profile = resolved.profile;
+  const { level, language } = pickLevelAndLanguage(profile);
+  const projects = normalizeProjects(profile.dashboard?.projects);
 
   const config: DashboardConfig = {
-    level: normalizeLevel(rawLevel),
-    language: dashSection.language === undefined ? fallbackLang : normalizeLanguage(dashSection.language),
+    level: level ?? "simple",
+    language: language ?? "en",
     projects,
   };
 
@@ -121,9 +133,29 @@ export function loadProfile(frameworkRoot: string): { profile: Profile; config: 
 }
 
 /**
+ * Resolve the dashboard-relevant config for a single project, honoring
+ * `<projectRoot>/.planning/profile.yaml` overrides via the full resolveProfile
+ * chain. Used when rendering project-scoped output (phase narratives).
+ *
+ * Does NOT include the registry — that is framework-scoped only.
+ *
+ * Per the resolution contract, no field-by-field merge: a partial project
+ * profile fully replaces the framework profile. Missing keys fall through to
+ * the literal safety net below.
+ */
+export function resolveProjectConfig(projectRoot: string, frameworkRoot: string): ProjectConfig {
+  const resolved = resolveProfile({ projectRoot, frameworkRoot });
+  const { level, language } = pickLevelAndLanguage(resolved.profile);
+
+  return {
+    level: level ?? "simple",
+    language: language ?? "en",
+    source: resolved.source,
+  };
+}
+
+/**
  * Derive a stable slug from a project path. Uses the basename, lowercased.
- * Two projects with the same basename are disambiguated by the caller (see
- * resolveRegistry below).
  */
 export function slugFromPath(path: string): string {
   return basename(path).toLowerCase();
@@ -181,10 +213,7 @@ export function addProject(frameworkRoot: string, projectPath: string): Registry
   const doc = YAML.parseDocument(raw);
   const dashboard = doc.get("dashboard") as YAML.YAMLMap | undefined;
   if (!dashboard) {
-    doc.set(
-      "dashboard",
-      doc.createNode({ level: "simple", language: "en", projects: [projectPath] }),
-    );
+    doc.set("dashboard", doc.createNode({ projects: [projectPath] }));
   } else {
     const existing = dashboard.get("projects");
     let list: string[] = [];

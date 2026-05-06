@@ -1,0 +1,42 @@
+# profile.neutre.yaml — canonical "no preferences set" baseline
+#
+# This is the tier-3 fallback in the profile resolution chain:
+#   1. <project_root>/.planning/profile.yaml   — per-project override
+#   2. <framework_root>/profile.yaml            — global default
+#   3. <framework_root>/templates/profile.neutre.yaml  — this file
+#
+# Mirrors the `neutre` preset documented in commands/onboard.md § Presets.
+# Edit the preset there first, then sync this file. Resolvers
+# (lib/resolve-profile.sh, dashboard/lib/resolveProfile.ts) load this
+# verbatim when neither user profile exists.
+
+user:
+  programming_level: intermediate
+  ai_agents_experience: tried
+  domains: [generalist]
+  work_mode: solo
+  side_activities: [none]
+  conversational_language: en
+  artifact_language: en
+  narrative_language: en
+
+risk:
+  sensitive_task_preference: balanced
+
+style:
+  length: standard
+  allow_jargon: first_mention
+  when_uncertain: important_only
+  explanation_level: simple
+
+budget:
+  default_quality: balanced
+
+notifications:
+  channel: none
+
+git:
+  merge_strategy: github_button
+
+dashboard:
+  projects: []

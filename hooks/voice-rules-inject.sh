@@ -2,28 +2,46 @@
 
 # voice-rules-inject.sh
 # RIFF SessionStart + PreCompact hook.
-# Reads .riff/profile.yaml and injects language + explanation-depth rules
-# tailored to the user's profile, plus a universal mid-conversation override clause.
+# Resolves the active profile (project override → framework default → neutre baseline)
+# via lib/resolve-profile.sh, then injects language + explanation-depth rules tailored to it.
 #
-# Fail-safe: if profile.yaml is missing or unparseable, exits silently (no rules injected).
+# Fail-safe: if no .riff/ symlink, no resolver, or no parseable profile, exits silently
+# (no rules injected). Defaults baked into templates/profile.neutre.yaml.
 
-set -o pipefail
-trap 'exit 0' ERR
+PROJECT_ROOT="${PWD}"
+FRAMEWORK_ROOT="$(cd "$PROJECT_ROOT/.riff" 2>/dev/null && pwd -P || true)"
+[ -z "$FRAMEWORK_ROOT" ] && exit 0
 
-PROFILE=".riff/profile.yaml"
-[ -f "$PROFILE" ] || exit 0
+RESOLVER="$FRAMEWORK_ROOT/lib/resolve-profile.sh"
+[ -x "$RESOLVER" ] || exit 0
 
-# Extract conversational_language (default: en)
-LANG_CODE=$(grep -E "^[[:space:]]+conversational_language:" "$PROFILE" 2>/dev/null \
-  | sed -E 's/.*:[[:space:]]*//' | tr -d '[:space:]"' | head -1)
-LANG_CODE=${LANG_CODE:-en}
+# Resolver stderr ("source: project|framework|neutre (...)") flows through unsuppressed
+# so the hook log shows which tier supplied the profile. Only suppress on error path.
+PROFILE_YAML="$("$RESOLVER" "$PROJECT_ROOT" "$FRAMEWORK_ROOT")" || exit 0
+[ -z "$PROFILE_YAML" ] && exit 0
 
-# Resolve explanation level: terminal_explanation_level → explanation_level → simple
-LEVEL=$(grep -E "^[[:space:]]+terminal_explanation_level:" "$PROFILE" 2>/dev/null \
-  | sed -E 's/.*:[[:space:]]*//' | tr -d '[:space:]"' | head -1)
-[ -z "$LEVEL" ] && LEVEL=$(grep -E "^[[:space:]]+explanation_level:" "$PROFILE" 2>/dev/null \
-  | sed -E 's/.*:[[:space:]]*//' | tr -d '[:space:]"' | head -1)
-LEVEL=${LEVEL:-simple}
+# Helper: extract a single YAML scalar by key from $PROFILE_YAML.
+# Limitation: anchor is "indented key", so the same key name appearing under
+# multiple top-level sections would match the first occurrence. The RIFF
+# profile schema (see profile.yaml.example) keeps each key under one section,
+# so this is safe in practice. For malformed profiles with duplicate keys,
+# behavior may differ from the structural TS resolver.
+extract() {
+  printf '%s\n' "$PROFILE_YAML" \
+    | grep -E "^[[:space:]]+$1:" 2>/dev/null \
+    | sed -E 's/.*:[[:space:]]*//' \
+    | tr -d '[:space:]"' \
+    | head -1
+}
+
+LANG_CODE=$(extract conversational_language)
+
+# Resolve explanation level: terminal_explanation_level → explanation_level
+LEVEL=$(extract terminal_explanation_level)
+[ -z "$LEVEL" ] && LEVEL=$(extract explanation_level)
+
+# If both fields are empty after resolution, the profile is malformed. Exit silently.
+[ -z "$LANG_CODE" ] && [ -z "$LEVEL" ] && exit 0
 
 # Map language code to display name
 case "$LANG_CODE" in

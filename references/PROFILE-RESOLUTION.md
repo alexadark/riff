@@ -6,9 +6,20 @@ Single rule for every RIFF agent and command that needs to read the user profile
 
 1. `<project_root>/.planning/profile.yaml` — per-project override, if it exists
 2. `<framework_root>/profile.yaml` — global default
-3. Missing both → fall back to `neutre` preset (see `commands/onboard.md` § Presets)
+3. `<framework_root>/templates/profile.neutre.yaml` — canonical baseline (mirrors the `neutre` preset in `commands/onboard.md`)
 
 The first existing file wins. No field-by-field merge — if the project file exists, it fully replaces the framework file for that project.
+
+If you write a project override, supply every field you care about: missing keys do NOT inherit from the framework profile. Partial overrides fall through to the literal safety net in code (`simple` / `en`), which is rarely what you want.
+
+## Resolvers
+
+Two helpers implement this chain. Both produce identical output for identical inputs.
+
+- **Shell:** `lib/resolve-profile.sh <project_root> [framework_root]` — outputs the resolved YAML to stdout. Source path echoed to stderr.
+- **TypeScript:** `dashboard/lib/resolveProfile.ts` — exports `resolveProfile({ projectRoot?, frameworkRoot })` returning `{ profile, source, path }`.
+
+Hooks call the shell helper. The dashboard calls the TS helper (directly via `resolveProjectConfig` in `dashboard/parsers/profile.ts` for per-project rendering).
 
 ## How to find `<framework_root>`
 
