@@ -11,10 +11,12 @@ NC='\033[0m' # No Color
 
 ISSUES_FOUND=0
 
-# Get staged files (only check what's being committed)
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+# Get staged files using null-delimited output so filenames with spaces/newlines are safe
+STAGED_FILES=()
+while IFS= read -r -d '' f; do STAGED_FILES+=("$f"); done \
+  < <(git diff --cached --name-only -z --diff-filter=ACM 2>/dev/null)
 
-if [ -z "$STAGED_FILES" ]; then
+if [ ${#STAGED_FILES[@]} -eq 0 ]; then
   exit 0
 fi
 
@@ -34,7 +36,7 @@ SECRET_PATTERNS=(
   'api[_-]?key\s*[:=]\s*["\x27][^"\x27]{10,}' # API keys
 )
 
-for file in $STAGED_FILES; do
+for file in "${STAGED_FILES[@]}"; do
   # Skip binary files, lock files, and test fixtures
   if [[ "$file" =~ \.(png|jpg|gif|ico|woff|woff2|ttf|eot|lock)$ ]] || \
      [[ "$file" =~ (test|spec|fixture|mock|__tests__) ]] || \
@@ -60,7 +62,7 @@ fi
 # Check 2: console.log in production code
 echo -n "  Checking for console.log... "
 CONSOLE_FOUND=0
-for file in $STAGED_FILES; do
+for file in "${STAGED_FILES[@]}"; do
   if [[ "$file" =~ \.(ts|tsx|js|jsx)$ ]] && \
      ! [[ "$file" =~ (test|spec|__tests__|scripts/) ]]; then
     if git diff --cached "$file" | grep -q '^\+.*console\.log' 2>/dev/null; then
@@ -80,7 +82,7 @@ fi
 # Check 3: TypeScript 'any' type
 echo -n "  Checking for 'any' types... "
 ANY_FOUND=0
-for file in $STAGED_FILES; do
+for file in "${STAGED_FILES[@]}"; do
   if [[ "$file" =~ \.(ts|tsx)$ ]] && \
      ! [[ "$file" =~ (test|spec|\.d\.ts) ]]; then
     if git diff --cached "$file" | grep -qE '^\+.*(:\s*any\b|as\s+any\b|<any>)' 2>/dev/null; then
@@ -99,7 +101,7 @@ fi
 
 # Check 4: .env files being committed
 echo -n "  Checking for .env files... "
-for file in $STAGED_FILES; do
+for file in "${STAGED_FILES[@]}"; do
   if [[ "$file" =~ ^\.env ]] && ! [[ "$file" =~ \.example$ ]]; then
     echo ""
     echo -e "  ${RED}BLOCKED: .env file staged for commit: $file${NC}"
@@ -113,7 +115,7 @@ fi
 
 # Check 5: Commit scope (too many files = probably not atomic)
 echo -n "  Checking commit scope... "
-FILE_COUNT=$(echo "$STAGED_FILES" | wc -l | tr -d ' ')
+FILE_COUNT=${#STAGED_FILES[@]}
 if [ "$FILE_COUNT" -gt 15 ]; then
   echo ""
   echo -e "  ${YELLOW}WARNING: $FILE_COUNT files staged. Is this really one atomic task?${NC}"

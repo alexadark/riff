@@ -16,16 +16,20 @@ YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
 ISSUES_FOUND=0
 
-# Detect staged migration files
-DRIZZLE_MIGRATIONS=$(echo "$STAGED_FILES" | grep -E '^drizzle/[0-9].*\.sql$' || true)
-PRISMA_MIGRATIONS=$(echo "$STAGED_FILES" | grep -E '^prisma/migrations/.*\.sql$' || true)
-SCHEMA_CHANGES=$(echo "$STAGED_FILES" | grep -E '(schema\.(ts|prisma)|drizzle\.config\.(ts|js))' || true)
+# Collect staged files using null-delimited output so filenames with spaces/newlines are safe
+DRIZZLE_MIGRATIONS=()
+PRISMA_MIGRATIONS=()
+SCHEMA_CHANGES=()
+while IFS= read -r -d '' f; do
+  [[ "$f" =~ ^drizzle/[0-9].*\.sql$ ]] && DRIZZLE_MIGRATIONS+=("$f")
+  [[ "$f" =~ ^prisma/migrations/.*\.sql$ ]] && PRISMA_MIGRATIONS+=("$f")
+  [[ "$f" =~ (schema\.(ts|prisma)|drizzle\.config\.(ts|js)) ]] && SCHEMA_CHANGES+=("$f")
+done < <(git diff --cached --name-only -z --diff-filter=ACM 2>/dev/null)
 
 # No migration files staged? Nothing to do.
-if [ -z "$DRIZZLE_MIGRATIONS" ] && [ -z "$PRISMA_MIGRATIONS" ] && [ -z "$SCHEMA_CHANGES" ]; then
+if [ ${#DRIZZLE_MIGRATIONS[@]} -eq 0 ] && [ ${#PRISMA_MIGRATIONS[@]} -eq 0 ] && [ ${#SCHEMA_CHANGES[@]} -eq 0 ]; then
   exit 0
 fi
 
@@ -65,11 +69,11 @@ check_destructive_sql() {
 # -------------------------------------------------------------------------
 # Drizzle ORM
 # -------------------------------------------------------------------------
-if [ -n "$DRIZZLE_MIGRATIONS" ] || ([ -n "$SCHEMA_CHANGES" ] && [ -f "drizzle.config.ts" -o -f "drizzle.config.js" ]); then
+if [ ${#DRIZZLE_MIGRATIONS[@]} -gt 0 ] || ([ ${#SCHEMA_CHANGES[@]} -gt 0 ] && { [ -f "drizzle.config.ts" ] || [ -f "drizzle.config.js" ]; }); then
   # Schema drift check: schema staged but no migration staged
-  if [ -n "$SCHEMA_CHANGES" ] && [ -z "$DRIZZLE_MIGRATIONS" ] && [ "${RIFF_SKIP_SCHEMA_DRIFT:-0}" != "1" ]; then
+  if [ ${#SCHEMA_CHANGES[@]} -gt 0 ] && [ ${#DRIZZLE_MIGRATIONS[@]} -eq 0 ] && [ "${RIFF_SKIP_SCHEMA_DRIFT:-0}" != "1" ]; then
     echo -e "  ${RED}BLOCKED: schema drift detected${NC}"
-    echo "  Schema files staged: $SCHEMA_CHANGES"
+    echo "  Schema files staged: ${SCHEMA_CHANGES[*]}"
     echo "  No corresponding migration staged in drizzle/."
     echo "  Run: npx drizzle-kit generate"
     echo "  Then stage the new migration file and re-commit."
@@ -81,7 +85,7 @@ if [ -n "$DRIZZLE_MIGRATIONS" ] || ([ -n "$SCHEMA_CHANGES" ] && [ -f "drizzle.co
   echo -n "  Scanning migration SQL for destructive operations... "
 
   DESTRUCTIVE=0
-  for file in $DRIZZLE_MIGRATIONS; do
+  for file in "${DRIZZLE_MIGRATIONS[@]}"; do
     if [ -f "$file" ]; then
       check_destructive_sql "$file" || DESTRUCTIVE=1
     fi
@@ -131,11 +135,11 @@ fi
 # -------------------------------------------------------------------------
 # Prisma ORM
 # -------------------------------------------------------------------------
-if [ -n "$PRISMA_MIGRATIONS" ] || ([ -n "$SCHEMA_CHANGES" ] && [ -f "prisma/schema.prisma" ]); then
+if [ ${#PRISMA_MIGRATIONS[@]} -gt 0 ] || ([ ${#SCHEMA_CHANGES[@]} -gt 0 ] && [ -f "prisma/schema.prisma" ]); then
   # Schema drift check: schema staged but no migration staged
-  if [ -n "$SCHEMA_CHANGES" ] && [ -z "$PRISMA_MIGRATIONS" ] && [ "${RIFF_SKIP_SCHEMA_DRIFT:-0}" != "1" ]; then
+  if [ ${#SCHEMA_CHANGES[@]} -gt 0 ] && [ ${#PRISMA_MIGRATIONS[@]} -eq 0 ] && [ "${RIFF_SKIP_SCHEMA_DRIFT:-0}" != "1" ]; then
     echo -e "  ${RED}BLOCKED: schema drift detected${NC}"
-    echo "  Schema files staged: $SCHEMA_CHANGES"
+    echo "  Schema files staged: ${SCHEMA_CHANGES[*]}"
     echo "  No corresponding migration staged in prisma/migrations/."
     echo "  Run: npx prisma migrate dev --name <slug>"
     echo "  Then stage the new migration file and re-commit."
@@ -147,7 +151,7 @@ if [ -n "$PRISMA_MIGRATIONS" ] || ([ -n "$SCHEMA_CHANGES" ] && [ -f "prisma/sche
   echo -n "  Scanning Prisma migration SQL for destructive operations... "
 
   DESTRUCTIVE=0
-  for file in $PRISMA_MIGRATIONS; do
+  for file in "${PRISMA_MIGRATIONS[@]}"; do
     if [ -f "$file" ]; then
       check_destructive_sql "$file" || DESTRUCTIVE=1
     fi

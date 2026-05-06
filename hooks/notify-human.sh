@@ -8,8 +8,14 @@
 #
 # Channels:
 #   telegram → POST to api.telegram.org/bot<TOKEN>/sendMessage
-#              requires notifications.telegram_bot_token + notifications.telegram_chat_id
-#              See hooks/README.md § Telegram setup for how to create a bot and get these values.
+#              Token resolution order (first non-empty wins):
+#                1. $TELEGRAM_BOT_TOKEN env var
+#                2. TELEGRAM_BOT_TOKEN= line in ~/.config/riff/secrets (chmod 600)
+#                3. notifications.telegram_bot_token in profile.yaml
+#              The token is written to a temp curl config file so it is NOT
+#              visible in ps auxww output (hidden from process argument list).
+#              Requires notifications.telegram_chat_id in profile.yaml.
+#              See hooks/README.md § Telegram setup for how to create a bot.
 #   email    → gws gmail (if available) or system mail; requires notifications.email_to
 #   none     → exit 0 silently
 #
@@ -52,14 +58,26 @@ case "$CHANNEL" in
     ;;
 
   telegram)
-    TOKEN=$(extract notifications telegram_bot_token)
+    # Resolution: env → ~/.config/riff/secrets → profile.yaml
+    TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+    if [ -z "$TOKEN" ] && [ -f "$HOME/.config/riff/secrets" ]; then
+      TOKEN=$(grep -m1 '^TELEGRAM_BOT_TOKEN=' "$HOME/.config/riff/secrets" | cut -d= -f2-)
+    fi
+    if [ -z "$TOKEN" ]; then
+      TOKEN=$(extract notifications telegram_bot_token)
+    fi
     CHAT=$(extract notifications telegram_chat_id)
-    [ -z "$TOKEN" ] && warn "channel=telegram but notifications.telegram_bot_token is unset (see hooks/README.md § Telegram setup)"
+    [ -z "$TOKEN" ] && warn "channel=telegram but TELEGRAM_BOT_TOKEN is unset (env, ~/.config/riff/secrets, or profile.yaml; see hooks/README.md § Telegram setup)"
     [ -z "$CHAT" ] && warn "channel=telegram but notifications.telegram_chat_id is unset (see hooks/README.md § Telegram setup)"
-    curl -s -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+    # Write URL to a temp curl config so the token is not visible in ps auxww
+    _cfg=$(mktemp)
+    chmod 600 "$_cfg"
+    printf 'url = "https://api.telegram.org/bot%s/sendMessage"\n' "$TOKEN" > "$_cfg"
+    curl -s -K "$_cfg" \
       --data-urlencode "chat_id=${CHAT}" \
       --data-urlencode "text=${MESSAGE}" \
       > /dev/null 2>&1
+    rm -f "$_cfg"
     exit 0
     ;;
 

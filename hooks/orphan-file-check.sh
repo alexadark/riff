@@ -11,16 +11,18 @@ set -e
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Get newly added files (not modified, only Added)
-NEW_FILES=$(git diff --cached --name-only --diff-filter=A 2>/dev/null || true)
+# Get newly added files using null-delimited output so filenames with spaces/newlines are safe
+NEW_FILES=()
+while IFS= read -r -d '' f; do NEW_FILES+=("$f"); done \
+  < <(git diff --cached --name-only -z --diff-filter=A 2>/dev/null)
 
-if [ -z "$NEW_FILES" ]; then
+if [ ${#NEW_FILES[@]} -eq 0 ]; then
   exit 0
 fi
 
 ORPHANS=0
 
-for file in $NEW_FILES; do
+for file in "${NEW_FILES[@]}"; do
   # Only check source files (not configs, not tests, not types)
   if [[ ! "$file" =~ \.(ts|tsx|js|jsx)$ ]]; then
     continue
