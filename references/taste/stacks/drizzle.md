@@ -104,9 +104,11 @@ Make policy creation idempotent (`DROP POLICY IF EXISTS` before each `CREATE POL
 Default `build` does not migrate. Add a `vercel-build` script Vercel auto-detects:
 
 ```json
-"db:check-safe": "tsx scripts/check-safe-migration.ts",
-"vercel-build": "npm run db:check-safe && npm run db:migrate && npm run build"
+"db:check-safe": "tsx --env-file-if-exists=.env scripts/check-safe-migration.ts",
+"vercel-build": "pnpm run db:check-safe && pnpm run db:migrate && pnpm run build"
 ```
+
+Match the package manager the project uses (`pnpm`/`npm`/`yarn`). Mixing `npm run` inside a pnpm project breaks the `node_modules/.bin` path so `tsx` is not found.
 
 `check-safe-migration.ts` (template at `riff/templates/scripts/check-safe-migration.ts`) reads `drizzle/meta/_journal.json`, queries `drizzle.__drizzle_migrations`, and scans pending migrations for destructive patterns (`DROP TABLE/COLUMN`, `TRUNCATE`, `DELETE FROM`, `RENAME`, `ALTER COLUMN ... TYPE`). Match → exit 1 → build fails → migration must be applied manually. Override per-migration with `-- @riff:reviewed` after a careful read.
 
