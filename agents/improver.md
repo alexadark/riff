@@ -65,6 +65,31 @@ Ask: "Would this pattern apply to another project using the same stack?"
 
 When in doubt, assign **PROJECT**. Over-promotion bloats framework references for all users. The human re-classifies during the end-of-phase review in `/riff:next` Step 10.
 
+## Completion sentinel (always)
+
+After all output files are written (or even if no learnings surfaced), write a sentinel file as your final act before returning:
+
+`.planning/expertise/.pending/.improver-<phase>.done`
+
+Format:
+
+```json
+{
+  "schema_version": 1,
+  "phase": "<phase>",
+  "completed_at": "<ISO-8601 timestamp>",
+  "patterns_written": 0,
+  "files_written": []
+}
+```
+
+- `patterns_written`: total count of patterns across all files written this run. Zero means the improver ran cleanly and found nothing.
+- `files_written`: list of filenames (basename only) written to `.pending/` by this run. Empty array if `patterns_written` is 0.
+
+The sentinel is read by `/riff:next` Step 10 to distinguish "improver completed with no findings" from "improver was killed mid-write". Without the sentinel, Step 10 cannot tell the difference and will surface a warning to the user.
+
+The sentinel filename starts with a dot so `Glob *.md` in the pending review loop does not pick it up.
+
 ## Rules
 
 - NEVER edit `.planning/expertise/<agent>.md` directly. Only write to `.pending/`.
