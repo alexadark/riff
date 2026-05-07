@@ -2,6 +2,16 @@
 
 > Completed: {{DATE}}
 > Duration: {{DURATION}}
+> Merge commit: {{MERGE_COMMIT}}
+
+<!-- Merge commit: full 40-char SHA of the merge commit on main. Written by
+     /riff:next Step 8c after `git merge --no-ff` (local_no_ff strategy) or
+     by Step 0 of the next /riff:next run via `gh pr view --json mergeCommit`
+     (github_button strategy). Stays as `{{MERGE_COMMIT}}` until merged.
+     /riff:next Step 0 reads this SHA and runs `git merge-base --is-ancestor
+     <sha> main` to detect "phase merged on main" without depending on the
+     PR title or commit-subject grep. -->
+
 
 ## What Was Built
 

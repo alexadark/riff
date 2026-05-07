@@ -67,24 +67,44 @@ Step 8c of the previous run only fires if the same Claude session is alive when 
 
      Ask the user how they want to proceed. Do not run any destructive command without explicit confirmation.
 
-2. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check if its branch was merged into main. Match either a squash-merge subject or a `--no-ff` merge commit:
+2. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
+
+   **Tier 1 — SHA ancestry (canonical).** Read `.planning/phases/<id>-<slug>/SUMMARY.md`. Look for a line matching `^> Merge commit: ([0-9a-f]{7,40})$`. If found, run:
+
+   ```bash
+   git merge-base --is-ancestor <sha> main
+   ```
+
+   Exit 0 → phase is merged. Exit 1 → not merged yet (continue to next phase). PR titles can be free-form; this check ignores them entirely.
+
+   **Tier 2 — `gh pr view` lookup.** SHA absent from SUMMARY.md but a PR number is recorded (look for `PR #<num>` or `(#<num>)` near the top of SUMMARY.md). Try:
+
+   ```bash
+   gh pr view <PR-number> --json mergeCommit,state -q '.state + " " + (.mergeCommit.oid // "")'
+   ```
+
+   If state is `MERGED` and a SHA comes back, write the line `> Merge commit: <sha>` into SUMMARY.md: replace the `{{MERGE_COMMIT}}` placeholder if the line exists, otherwise insert a new `> Merge commit: <sha>` line into the blockquote header block (right after `> Duration:`) so legacy SUMMARY.md files written before this line was templated still get the SHA. Then re-run the Tier 1 ancestry check to confirm.
+
+   **Tier 3 — commit-subject grep (legacy fallback).** Only if Tiers 1 and 2 give nothing. Pre-Phase-4 phases have no `> Merge commit:` line and may not have a PR number recorded:
 
    ```bash
    git log --oneline --grep="Phase <id>:" main | head -1
    ```
 
-   A match means the PR is merged but ROADMAP.yaml was never updated.
+   A match means the PR was merged with the canonical RIFF subject. If none of the three tiers detect a merge, the phase is genuinely still todo.
 
 3. **If a stale-todo phase is found:**
-   - Read `.planning/phases/<N-slug>/SUMMARY.md` to get the shipped scope, file/test counts, and PR number.
+   - Read `.planning/phases/<id>-<slug>/SUMMARY.md` to get the shipped scope, file/test counts, and PR number.
    - Set `status: done` for that phase in ROADMAP.yaml.
    - Update STATE.md: rewrite the `## Current Phase` prose to describe the shipped phase, append a row to the `## Phases Completed` table, refresh `## Next Action` to drop the now-shipped phase from "eligible".
    - Commit:
      ```bash
-     git add ROADMAP.yaml STATE.md
+     git add ROADMAP.yaml STATE.md .planning/phases/<id>-<slug>/SUMMARY.md
      git commit -m "docs(phase-<N>): mark done in roadmap and state after merge"
      git push origin main
      ```
+
+   The SUMMARY.md is included in the commit when Tier 2 just back-filled the merge SHA, so the durable artifact catches up to reality.
 
 4. **No stale phase found:** continue to Step 1 (you're already on a clean main).
 
@@ -435,15 +455,18 @@ The flow depends on `git.merge_strategy`:
   git checkout main
   git pull --ff-only origin main
   git merge --no-ff riff/phase-N-slug -m "Phase N: <title> (#<PR-number>)"
+  merge_sha=$(git rev-parse HEAD)
   git push origin main
   git branch -d riff/phase-N-slug || git branch -D riff/phase-N-slug
   git push origin :riff/phase-N-slug
   ```
 
+  **Capture the merge SHA into SUMMARY.md.** Replace the `{{MERGE_COMMIT}}` placeholder (or any prior empty value) on the `> Merge commit:` line of `.planning/phases/N-slug/SUMMARY.md` with `$merge_sha`. This is the durable artifact that lets Step 0 of any future `/riff:next` confirm merge state via `git merge-base --is-ancestor` instead of grepping commit subjects.
+
   Then update ROADMAP.yaml (`status: done`) + STATE.md (Current Phase prose, Phases Completed row, Next Action), commit, push:
 
   ```bash
-  git add ROADMAP.yaml STATE.md
+  git add ROADMAP.yaml STATE.md .planning/phases/N-slug/SUMMARY.md
   git commit -m "docs(phase-N): mark done in roadmap and state after merge"
   git push origin main
   ```
