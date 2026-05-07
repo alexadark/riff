@@ -21,6 +21,8 @@ Score these 4 dimensions before proceeding. **Any dimension < 0.7 → STOP** and
 - **Likely** (0.5–0.8) — probably right, could be wrong
 - **Unclear** (0.0–0.5) — need human input
 
+**Phrasing of surfaced questions** follows resolved `explanation_level`. `simple`/`eli5` → plain words, user-flow framing, no framework jargon. See `references/EXPLANATION-LEVEL.md` § Interactive questions. Applies to every `AskUserQuestion` in every RIFF command/protocol, not just the confidence gate.
+
 ### AFK mode behavior
 
 - Confident / Likely → proceed

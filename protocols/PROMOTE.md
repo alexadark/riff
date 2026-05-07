@@ -14,6 +14,8 @@ User says any of:
 
 **Always confirm before running.** Promotion is a one-way door (well, two-way technically, but you'd lose the rationale). Surface what will change and ask for confirmation before touching anything.
 
+**Question phrasing:** every `AskUserQuestion` in this protocol (Step 1 proceed/cancel, Step 1.5 high-bug triage + audit opt-out, Step 3 v1/Later/OOS loop, Step 4 module picker) follows the resolved `explanation_level`. See `references/EXPLANATION-LEVEL.md` § Interactive questions.
+
 ---
 
 ## Prerequisites

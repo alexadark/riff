@@ -15,6 +15,8 @@ Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR
 
 **Auto-gate heuristics:** see [`protocols/AUTO-TRIGGERS.md`](../protocols/AUTO-TRIGGERS.md). Design rationale: see [`DECISIONS.md`](../DECISIONS.md) (D25–D27).
 
+**Interactive question phrasing:** every `AskUserQuestion` in this command (Step 3 confidence gate, Step 4b plan-review REVISE escalation, Step 5c DROPPED triage, Step 5d fallow-fail triage, Step 5d runtime-error skip/halt, Step 7 security/adversarial findings, Step 8 unpushed-main prompt, Pending expertise review, Milestone deep audit prompt) follows the resolved `explanation_level`. `simple`/`eli5` → plain words, user-flow framing, drop framework jargon. See [`references/EXPLANATION-LEVEL.md`](../references/EXPLANATION-LEVEL.md) § Interactive questions.
+
 ## Arguments
 
 - No args → auto-pick next (highest priority, deps met, not blocked)

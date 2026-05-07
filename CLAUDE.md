@@ -20,7 +20,7 @@ Every reference to "`profile.yaml`" in this framework resolves per `references/P
 
 ## Explanation level
 
-Calibrate from `style.terminal_explanation_level` (override) → `style.explanation_level` → default `simple`. Per-level vocabulary rules: `references/EXPLANATION-LEVEL.md`.
+Calibrate from `style.terminal_explanation_level` (override) → `style.explanation_level` → default `simple`. Per-level vocabulary rules: `references/EXPLANATION-LEVEL.md`. Same rule governs `AskUserQuestion` prompts mid-pipeline (see `references/EXPLANATION-LEVEL.md` § Interactive questions).
 
 ## Conversational triggers
 

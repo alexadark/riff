@@ -14,6 +14,8 @@ User says any of:
 
 Don't trigger on every bug discussion. Only when the user explicitly asks, OR when something failed in production after merge (not during a build phase, where security-reviewer + adversarial Codex would have caught it).
 
+**Question phrasing:** every `AskUserQuestion` in this protocol (Part 1 Step 2 detail-gathering loop) follows the resolved `explanation_level`. See `references/EXPLANATION-LEVEL.md` § Interactive questions.
+
 ---
 
 ## Part 1: Logging an incident

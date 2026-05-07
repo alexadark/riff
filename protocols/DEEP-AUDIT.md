@@ -11,6 +11,8 @@ User says any of:
 - "deep audit", "audit ce module", "milestone review", "review complète"
 - Or `/riff:next` Step 10 detects the just-completed phase has a `milestone:` tag and the user picks "run now" on the AskUserQuestion prompt.
 
+**Question phrasing:** every `AskUserQuestion` in this protocol (Step 1 milestone picker, Step 3 BLOCKER/HIGH triage, Step 3 DECAY append confirm) follows the resolved `explanation_level`. See `references/EXPLANATION-LEVEL.md` § Interactive questions.
+
 ---
 
 ## Prerequisites

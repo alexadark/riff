@@ -9,6 +9,8 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, AskUser
 
 **Think harder** throughout. Discovery decisions lock in the entire project trajectory.
 
+**Interactive question phrasing:** every `AskUserQuestion` in this command (brownfield audit prompt, scope gate, PROJECT.md confirm loop, design module picker, feature-scoping v1/Later/OOS loop, starter-clone confirm, etc.) follows the resolved `explanation_level`. See [`references/EXPLANATION-LEVEL.md`](../references/EXPLANATION-LEVEL.md) § Interactive questions.
+
 ## Prerequisites
 
 - RIFF installed (`/riff:init`), git repo exists
