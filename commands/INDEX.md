@@ -1,6 +1,6 @@
 # RIFF Commands — Index
 
-12 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
+13 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
 
 ## Framework (global to the framework install)
 
@@ -33,7 +33,7 @@
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | `/riff:add-phase [name] [goal]` | Append a new phase to ROADMAP.yaml. Use `depends_on` for ordering, `status: skipped` to remove.                     | Updated `ROADMAP.yaml`            |
 | `/riff:quick <task>`            | One-off task that doesn't deserve a phase (config tweak, copy fix, dependency bump).                                | Direct commit, no phase artifacts |
-| `/riff:debug <bug>`             | Manual debug invocation outside the auto-debug pipeline. For bugs that surfaced post-merge or outside `/riff:next`. | `.planning/debug/DEBUG-NNN.md`    |
+| `/riff:debug <bug>`             | Manual debug invocation outside the auto-debug pipeline. For bugs that surfaced post-merge or outside `/riff:next`. | `.planning/debug/YYYY-MM-DD-[slug].md`    |
 
 ## Conversational triggers (no slash command)
 
@@ -76,6 +76,8 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 
 ## Agents referenced by commands and protocols
 
+- `agents/planner.md` — read inline by `/riff:next` Step 4 (goal-backward planning policy, AC rules, HITL/AFK criteria, TDD mode, anti-patterns).
+- `agents/adversarial-reviewer.md` — read by the Codex sub-agent invoked at `/riff:next` Step 6 (review contract, severity scale, REVIEW.md format).
 - `agents/scope-checker.md` — invoked by `/riff:next` Step 5c to diff PLAN.md vs SUMMARY.md and flag silently dropped tasks before review.
 - `agents/architecture-adversarial-reviewer.md` — invoked by `/riff:start` Stage 2.5 to challenge the System Architecture before scope and roadmap lock.
 - `agents/roadmap-adversarial-reviewer.md` — invoked by `/riff:start` Stage 4.5 to challenge `ROADMAP.yaml` before bootstrap.

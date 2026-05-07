@@ -6,7 +6,9 @@ import { resolveProfile, type Profile, type ProfileSource } from "../lib/resolve
 export type { Profile } from "../lib/resolveProfile.ts";
 
 export type DashboardLevel = "technical" | "simple" | "eli5";
-export type DashboardLanguage = "en" | "fr" | "other";
+// Lowercase ISO 639-1 code (e.g. "en", "fr", "de", "pt"); "other" is a legacy
+// sentinel kept for back-compat with profiles that predate ISO passthrough.
+export type DashboardLanguage = string;
 
 export interface DashboardConfig {
   level: DashboardLevel;
@@ -44,7 +46,9 @@ function isLevel(value: unknown): value is DashboardLevel {
 }
 
 function isLanguage(value: unknown): value is DashboardLanguage {
-  return value === "en" || value === "fr" || value === "other";
+  if (typeof value !== "string") return false;
+  if (value === "other") return true;
+  return /^[a-z]{2}$/.test(value);
 }
 
 function normalizeProjects(value: unknown): string[] {
@@ -62,11 +66,12 @@ function normalizeProjects(value: unknown): string[] {
  * Derive level + language from a Profile, honoring the canonical and legacy keys.
  *
  * Level resolution order:   style.explanation_level → dashboard.level (legacy)
- * Language resolution order: user.narrative_language → dashboard.language (legacy) → user.conversational_language ("fr"|"en" only)
+ * Language resolution order: user.narrative_language → dashboard.language (legacy) → user.conversational_language
  *
- * Unrecognized values are dropped (treated as absent) so the next tier wins. If
- * nothing valid is found, returns `null` for that field — the caller substitutes
- * the neutre baseline.
+ * Language values are any ISO 639-1 lowercase 2-letter code (or the legacy
+ * "other" sentinel). Unrecognized values are dropped (treated as absent) so the
+ * next tier wins. If nothing valid is found, returns `null` for that field —
+ * the caller substitutes the neutre baseline.
  */
 function pickLevelAndLanguage(profile: Profile): { level: DashboardLevel | null; language: DashboardLanguage | null } {
   const styleSection = profile.style ?? {};
@@ -82,15 +87,12 @@ function pickLevelAndLanguage(profile: Profile): { level: DashboardLevel | null;
     }
   }
 
-  // conversational_language is treated as a language hint only when it is "fr" or "en".
-  // Other ISO codes (de, pt, es, …) are not yet mapped to "other"; the field passes
-  // through and the safety net substitutes "en". Phase 7 task 3 lifts that limitation.
+  // conversational_language passes through as any ISO 639-1 lowercase code; the
+  // isLanguage validator below filters anything that doesn't look like one.
   const languageCandidates: unknown[] = [
     userSection.narrative_language,
     dashSection.language,
-    userSection.conversational_language === "fr" || userSection.conversational_language === "en"
-      ? userSection.conversational_language
-      : undefined,
+    userSection.conversational_language,
   ];
   let language: DashboardLanguage | null = null;
   for (const candidate of languageCandidates) {

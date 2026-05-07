@@ -24,14 +24,38 @@ Pass `--stop` to terminate the running server.
    command -v bun >/dev/null 2>&1 || { echo "Bun is required. Install: curl -fsSL https://bun.sh/install | bash"; exit 1; }
    ```
 
-4. **Locate the dashboard server.** Path: `$HOME/DEV/frameworks/riff/dashboard/`. If missing, the framework is not properly installed, print an error and STOP.
+4. **Locate the dashboard server.** Resolve the framework root in this order, per `references/PROFILE-RESOLUTION.md`:
 
-5. **Run the lifecycle block.** This single Bash block handles state-dir setup, health probe, optional server start, auto-registration of cwd, and browser open.
+   1. `.riff/` symlink in the current project (canonicalized via `cd .riff && pwd -P`).
+   2. `framework_path:` field in `~/.config/riff/config.yaml` (written by `/riff:onboard`).
+   3. Legacy fallback `~/DEV/frameworks/riff`.
+
+   `$DASHBOARD_DIR = <framework_root>/dashboard`. If the resolved path has no `dashboard/`, the framework is not properly installed, print an error and STOP.
+
+5. **Run the lifecycle block.** This single Bash block handles framework-path resolution, state-dir setup, health probe, optional server start, auto-registration of cwd, and browser open.
 
    ```bash
    set -e
 
-   DASHBOARD_DIR="$HOME/DEV/frameworks/riff/dashboard"
+   # Resolve framework root: prefer the project's .riff/ symlink, then
+   # ~/.config/riff/config.yaml's framework_path, then the legacy ~/DEV path.
+   RIFF_ROOT=""
+   if [ -L .riff ] || [ -d .riff ]; then
+     RIFF_ROOT=$(cd .riff 2>/dev/null && pwd -P)
+   fi
+   if [ -z "$RIFF_ROOT" ] && [ -f "$HOME/.config/riff/config.yaml" ]; then
+     RIFF_ROOT=$(awk '/^framework_path:/ { sub(/^framework_path:[[:space:]]*/, ""); gsub(/^"|"$/, ""); print; exit }' "$HOME/.config/riff/config.yaml")
+   fi
+   if [ -z "$RIFF_ROOT" ] || [ ! -d "$RIFF_ROOT/dashboard" ]; then
+     RIFF_ROOT="$HOME/DEV/frameworks/riff"
+   fi
+
+   DASHBOARD_DIR="$RIFF_ROOT/dashboard"
+   if [ ! -d "$DASHBOARD_DIR" ]; then
+     echo "Dashboard directory not found at $DASHBOARD_DIR. Framework not properly installed."
+     exit 1
+   fi
+
    STATE_DIR="$HOME/.riff"
    PID_FILE="$STATE_DIR/dashboard.pid"
    LOG_FILE="$DASHBOARD_DIR/.last-run.log"

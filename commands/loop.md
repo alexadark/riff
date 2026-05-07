@@ -15,8 +15,19 @@ Launch autonomous phase execution. Each phase runs in a fresh Claude Code contex
 
 ## What You Do
 
-1. Check: `riff-loop.sh` exists, ROADMAP.yaml exists, `.planning/` exists
-2. Launch: `./riff-loop.sh -n {{N}}`
+1. Check: ROADMAP.yaml exists, `.planning/` exists, the loop script is reachable (try `.riff/riff-loop.sh` first per `commands/init.md`, fall back to `./riff-loop.sh` for framework-root dev runs).
+2. Launch — pick the first that exists:
+
+   ```bash
+   if [ -x .riff/riff-loop.sh ]; then
+     bash .riff/riff-loop.sh -n {{N}}
+   elif [ -x ./riff-loop.sh ]; then
+     bash ./riff-loop.sh -n {{N}}
+   else
+     echo "riff-loop.sh not found. Run /riff:init first."
+     exit 1
+   fi
+   ```
 
 The loop handles: reading ROADMAP, spawning fresh agents, atomic commits, Telegram notifications, stop conditions.
 

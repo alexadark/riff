@@ -26,13 +26,15 @@ Calibrate from `style.terminal_explanation_level` (override) → `style.explanat
 
 These actions are NOT slash commands. Read the listed protocol or just do the thing inline when the user says one of these:
 
+The triggers below are matched by the FULL phrase, not by isolated words. If the user says only "review" (with no qualifier like "incident", "milestone", "phase N"), do NOT silently load DEEP-AUDIT or INCIDENT — ask which one they mean.
+
 | User says...                                                                            | Do                                                                                                       |
 | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | "log incident", "log this as an incident", "production bug"                             | Read `protocols/INCIDENT.md` § Part 1, run logging flow                                                  |
 | "incident review", "quarterly incident review"                                          | Read `protocols/INCIDENT.md` § Part 2, run quarterly review flow                                          |
 | "promote to production", "this app is going public"                                     | Read `protocols/PROMOTE.md`, run promotion flow (always confirm at Step 1)                                |
 | "re-audit phase N", "re-run security on this branch", "verify phase N before merge"     | Mirror `/riff:next` Steps 5c, 6, 7: spawn scope-checker + adversarial Codex + security-reviewer in parallel against the named phase. Write `.planning/phases/N-slug/VERIFICATION.md`. |
-| "deep audit", "audit this module", "milestone review", "full review"                    | Read `protocols/DEEP-AUDIT.md`, run flow                                                                  |
+| "deep audit", "audit this module", "milestone review", "full milestone review"          | Read `protocols/DEEP-AUDIT.md`, run flow                                                                  |
 | "audit codebase", "health check", "assess this project"                                 | Read skill `audit-codebase` SKILL.md, run mode `bug` / `ai` / `full` based on user phrasing (default `full`). Skip silently if `scope=scratch`. |
 | "resync riff", "sync framework", "re-link riff symlinks"                                | Run `bash .riff/riff-resync.sh` from the project root, paste output back. Surfaces CLAUDE.md drift; never auto-patches. |
 | "change my profile X to Y", "set my notification channel to Z", "edit profile.yaml"     | Edit the active profile (project override `.planning/profile.yaml` if it exists, else framework default; see `references/PROFILE-RESOLUTION.md`). Preserve other fields. Confirm the change. |
