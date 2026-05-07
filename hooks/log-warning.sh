@@ -33,8 +33,22 @@ if [ ! -f "$LOG_FILE" ]; then
   echo "" >> "$LOG_FILE"
 fi
 
-# Append warning with timestamp
+# Append warning with timestamp (atomic via flock if available)
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-echo "[$TIMESTAMP] [$HOOK_NAME] $FILE_PATH" >> "$LOG_FILE"
-echo "  $MESSAGE" >> "$LOG_FILE"
-echo "" >> "$LOG_FILE"
+
+if command -v flock >/dev/null 2>&1; then
+  (
+    flock -x 200
+    {
+      echo "[$TIMESTAMP] [$HOOK_NAME] $FILE_PATH"
+      echo "  $MESSAGE"
+      echo ""
+    } >> "$LOG_FILE"
+  ) 200>"$LOG_FILE.lock"
+else
+  # flock unavailable (macOS without util-linux): best-effort append.
+  # Multi-process concurrent appends may interleave on APFS.
+  echo "[$TIMESTAMP] [$HOOK_NAME] $FILE_PATH" >> "$LOG_FILE"
+  echo "  $MESSAGE" >> "$LOG_FILE"
+  echo "" >> "$LOG_FILE"
+fi
