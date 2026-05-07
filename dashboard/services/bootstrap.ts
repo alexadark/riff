@@ -103,7 +103,8 @@ export class BootstrapRunner {
     for (const phase of roadmap.phases) {
       const files = resolvePhaseFiles(this.projectRoot, phase, this.config.level);
       const isPlanned = phase.status === "todo" || phase.status === "in-progress" || phase.status === "blocked";
-      if (isPlanned && files.plan && !files.explain) {
+      // Pre-EXPLAIN works from ROADMAP description alone; PLAN.md enriches it but is not required.
+      if (isPlanned && !files.explain) {
         queue.push({ phase, kind: "pre" });
       }
       if (phase.status === "done" && files.summary && !files.explain_post) {

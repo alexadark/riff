@@ -248,12 +248,12 @@ Maps to: `style.explanation_level`. Default: `simple`.
 
 > Want different verbosity in the terminal vs the dashboard? After onboarding, edit `profile.yaml` and set `style.terminal_explanation_level: technical` (or any of the three values) — that overrides terminal output only.
 
-**Q15. Dashboard language**
-- `en` — English (default, always available)
-- `fr` — French (currently the only other supported translation)
-- `other` — fall back to English (the dashboard UI is not yet translated for other languages)
+**Q15. Narrative language** (language of dashboard EXPLAIN summaries — independent from `artifact_language`)
+- `en` — English (default)
+- `fr` — French
+- `other` — falls back to English
 
-Maps to: `dashboard.language`. Default: `en`. The dashboard UI strings only exist in EN and FR today, so any other choice falls back to EN at runtime — but the user is free to pick FR even if `conversational_language` is something else.
+Maps to: `user.narrative_language`. Default: falls back to `conversational_language` when `fr`/`en`, else `en`. Drives the language of `EXPLAIN.*.md` and `EXPLAIN-POST.*.md` files generated for the dashboard. These files are private (gitignore `.planning/phases/`), so picking `fr` here while keeping `artifact_language: en` lets you read native-language summaries while shipping public artifacts in English.
 
 > Both `user.conversational_language` and `style.explanation_level` (or `style.terminal_explanation_level`) drive the `voice-rules-inject` SessionStart hook (see `hooks/README.md`). That hook injects language + explanation-depth rules at every session start so ad-hoc interactions honor the same preferences as RIFF agents, not only `/riff:next` phase reports. Profile edits take effect on the next session.
 
@@ -268,6 +268,7 @@ user:
   side_activities: [<none | content | business | design | ops | other>]
   conversational_language: <en | fr | mix | ISO 639-1 code (es, ro, de, ja, …)>  # default: en
   artifact_language: <en | fr | ISO 639-1 code>                                  # default: en
+  narrative_language: <en | fr | other>                                          # default: falls back to conversational_language
 
 risk:
   sensitive_task_preference: <cautious | balanced | fast>
@@ -292,10 +293,10 @@ git:
   merge_strategy: <github_button | local_no_ff>
 
 dashboard:
-  language: <en | fr | ISO 639-1 code>   # optional; defaults to conversational_language when supported, else en
+  projects: []                            # registry of project paths (auto-managed)
 ```
 
-> Legacy: `dashboard.level` is still read by the dashboard parser as a fallback for older profiles. New profiles should use `style.explanation_level`.
+> Legacy: `dashboard.level` and `dashboard.language` are still read by the dashboard parser as a fallback for older profiles. New profiles should use `style.explanation_level` and `user.narrative_language`.
 
 ## Presets
 

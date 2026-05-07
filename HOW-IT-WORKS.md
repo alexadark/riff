@@ -601,12 +601,13 @@ To create or remove an override:
 
 ### Language and explanation level (every agent)
 
-Every agent reads `profile.yaml` (resolved per the order above) before replying. Two language settings, two output channels, **decoupled by design**:
+Every agent reads `profile.yaml` (resolved per the order above) before replying. Three language settings, three output channels, **decoupled by design**:
 
 - `user.conversational_language` → chat replies returned to the orchestrator/user (terminal prose, agent verdicts, status updates). Default `en`.
-- `user.artifact_language` → committed files (PLAN.md, SUMMARY.md, REVIEW.md, DEBUG.md, REFACTOR.md, AUDIT.md, code comments, commit messages). Default `en`.
+- `user.artifact_language` → committed files (PLAN.md, ROADMAP.yaml, REVIEW.md, DEBUG.md, REFACTOR.md, AUDIT.md, code comments, commit messages, PR text). Default `en`.
+- `user.narrative_language` → dashboard-only narrative content (EXPLAIN.*.md, EXPLAIN-POST.*.md). Default falls back to `conversational_language`. Meant to stay private (gitignore `.planning/phases/`).
 
-This lets you talk to the agents in `fr` while keeping the codebase and `.planning/` tree in `en` for reviewability.
+This lets you talk to the agents in `fr`, ship public artifacts in `en` for reviewability, and read your own dashboard summaries in `fr`. See `references/LANGUAGE.md` for the per-agent contract.
 
 Vocabulary depth (`technical` / `simple` / `eli5`) follows `style.terminal_explanation_level` (override) → `style.explanation_level` (canonical) → `dashboard.level` (legacy) → `simple` default. See framework `CLAUDE.md` § Language and § Explanation level for the full rule, and `protocols/EXECUTION.md` § 3 Context Loading for the per-agent contract.
 
@@ -750,7 +751,7 @@ A local Bun web server (`/riff:dashboard`) that turns the on-disk artifacts of e
 ### What it shows
 
 - **Kanban per project** sourced from `ROADMAP.yaml` + `STATE.md` (Backlog / In Progress / Done columns)
-- **Per-phase explanations** in plain language at your `profile.style.explanation_level` (technical / simple / eli5), in `profile.dashboard.language` (French / English / etc). One pre-execution view (what THIS PHASE WILL DO, generated at Step 4c of `/riff:next`) and one post-execution view (what was built, generated at Step 5e)
+- **Per-phase explanations** in plain language at your `profile.style.explanation_level` (technical / simple / eli5), in `profile.user.narrative_language` (French / English / etc). One pre-execution view (what THIS PHASE WILL DO, generated lazily on first dashboard visit and refreshed at Step 4c of `/riff:next`) and one post-execution view (what was built, generated at Step 5e)
 - **Generation metadata block** per phase: real duration from git timestamps, file diff stats, gate outcomes (Step 4b plan-adversarial, 5b simplifier, 5d fallow, 6 adversarial, 7 security), Codex usage (model / effort / outcome / duration), agents observed in commit trailers
 - **Multi-project registry** at `~/.riff/projects.json` — one server, many projects. Switching is a route change, not a server restart
 
@@ -774,7 +775,7 @@ The server keeps a file watcher on `.planning/phases/**` and `STATE.md`. Any cha
 
 ### Bootstrap (lazy generation)
 
-Plain-language explanations are not committed — they live as `EXPLAIN.{level}.md` and `EXPLAIN-POST.{level}.md` under each phase folder. On first visit per project the server triggers a background bootstrap that fills in missing explanations via `claude --print` runs (Haiku, level + language from profile). Progress shows in the UI, takes 30s to 3min depending on phase count. Re-running `/riff:dashboard` is idempotent — if a healthy server is up, it auto-registers cwd and opens the browser without restarting anything.
+Plain-language explanations are not committed — they live as `EXPLAIN.{level}.md` and `EXPLAIN-POST.{level}.md` under each phase folder, and `.planning/phases/` should be gitignored. On first visit per project the server triggers a background bootstrap that fills in missing explanations via `claude --print` runs (Haiku, level + language from profile). Pre-EXPLAINs run from the ROADMAP description alone when PLAN.md is not yet written, then get a richer regen at Step 4c of `/riff:next` once PLAN.md exists. Progress shows in the UI, takes 30s to 3min depending on phase count. Re-running `/riff:dashboard` is idempotent — if a healthy server is up, it auto-registers cwd and opens the browser without restarting anything.
 
 ### Read-only by design
 
@@ -784,8 +785,9 @@ The dashboard never runs `/riff:next` for you, never edits ROADMAP.yaml, never o
 
 - `style.explanation_level` (`technical` | `simple` | `eli5`): vocabulary depth in the explanations. Default `simple`.
 - `style.terminal_explanation_level` (optional): override only for terminal output, dashboard keeps using `style.explanation_level`.
-- `dashboard.language` (optional): explicit language code (`fr`, `en`, etc). Falls back to `user.conversational_language`, then `en`.
+- `user.narrative_language` (optional): language for EXPLAIN/EXPLAIN-POST. Falls back to `dashboard.language` (legacy), then `user.conversational_language`, then `en`.
 - `dashboard.level` (legacy): equivalent to `style.explanation_level`, kept for back-compat.
+- `dashboard.language` (legacy): equivalent to `user.narrative_language`, kept for back-compat.
 
 Edit `profile.yaml` and run `/riff:dashboard --stop && /riff:dashboard` to pick up the new values (cached explanations regenerate on next visit).
 

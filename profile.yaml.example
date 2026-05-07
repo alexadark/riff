@@ -34,7 +34,10 @@ user:
   work_mode: solo                    # solo | team | solo_plus_clients | client_work | mix
   side_activities: [none]            # none, content, business, design, ops, other
   conversational_language: en        # en | fr | mix | any ISO 639-1 code (es, ro, de, …). Default: en
-  artifact_language: en              # en | fr | any ISO 639-1 code. Default: en (code, commits, docs)
+  artifact_language: en              # en | fr | any ISO 639-1 code. Default: en (code, commits, docs, public PR text)
+  narrative_language: en             # en | fr | other. Default: falls back to conversational_language when fr/en, else en.
+                                     # Drives the dashboard narrative content (EXPLAIN.*.md, EXPLAIN-POST.*.md).
+                                     # Lets you keep public artifacts in EN while reading dashboard summaries in your native language.
 
 risk:
   sensitive_task_preference: balanced  # cautious | balanced | fast
@@ -72,8 +75,6 @@ git:
                                      # local_no_ff: RIFF merges locally on "merge" cue. Better for solo work where main may have unpushed personal commits.
 
 dashboard:
-  language: en                       # en | fr | other
-                                     # If unset, falls back to user.conversational_language when fr/en, else en.
   projects: []                       # registry of RIFF projects to display in the dashboard.
                                      # Absolute paths only. Auto-populated by /riff:start.
                                      # Add/remove from the dashboard UI, or edit by hand.
@@ -81,5 +82,6 @@ dashboard:
                                      #   - /Users/me/DEV/personal-projects/my-app
                                      #   - /Users/me/DEV/clients-projects/acme/website
                                      #
-                                     # NOTE: legacy `dashboard.level` is still read for back-compat.
-                                     # New profiles should use `style.explanation_level` instead.
+                                     # NOTE: legacy `dashboard.level` and `dashboard.language` are still read
+                                     # for back-compat. New profiles should use `style.explanation_level` and
+                                     # `user.narrative_language` instead.
