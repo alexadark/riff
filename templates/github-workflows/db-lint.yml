@@ -1,0 +1,40 @@
+name: DB Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily at 07:00 UTC (09:00 Paris). Catches tables added directly via the
+    # Supabase SQL editor or any path that bypasses the PR flow.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: db-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rls:
+    name: RLS audit (Supabase rules)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check RLS
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm run db:check-rls

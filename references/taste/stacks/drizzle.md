@@ -111,3 +111,17 @@ Default `build` does not migrate. Add a `vercel-build` script Vercel auto-detect
 `check-safe-migration.ts` (template at `riff/templates/scripts/check-safe-migration.ts`) reads `drizzle/meta/_journal.json`, queries `drizzle.__drizzle_migrations`, and scans pending migrations for destructive patterns (`DROP TABLE/COLUMN`, `TRUNCATE`, `DELETE FROM`, `RENAME`, `ALTER COLUMN ... TYPE`). Match → exit 1 → build fails → migration must be applied manually. Override per-migration with `-- @riff:reviewed` after a careful read.
 
 The framework hook `hooks/migration-gate.sh` enforces the RLS pairing on commit: any `CREATE TABLE` in a staged migration without a matching `ENABLE ROW LEVEL SECURITY` blocks the commit (Supabase projects only, detected via `@supabase/*` in `package.json`). Bypass: `RIFF_SKIP_RLS_CHECK=1`.
+
+## Daily RLS audit (catches what slipped past the hook)
+
+The pre-commit hook only sees migrations that go through the local commit pipeline. Tables added directly via the Supabase SQL editor, a different machine without the hook, or a `--no-verify` bypass land in prod unchecked. To catch those, drop in the linter:
+
+- `templates/scripts/check-rls.ts` — runs the two Supabase rules that matter for multi-tenancy (`rls_disabled_in_public` + `policy_exists_rls_disabled`) directly against `pg_class` / `pg_policy`. Exits 1 if any public table is unprotected.
+- `templates/github-workflows/db-lint.yml` — runs the script daily (cron) and on push to `main`/PRs, with `DATABASE_URL` from repo secrets.
+
+Wire-up:
+```json
+"db:check-rls": "tsx --env-file-if-exists=.env scripts/check-rls.ts"
+```
+
+The daily cron is the safety net: even a table created from a coffee-shop laptop with no RIFF hooks installed shows up as a red CI run within 24h.
