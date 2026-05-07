@@ -5,11 +5,22 @@
 
 FILE_PATH="$1"
 
-# Find the current active PLAN.md
-CURRENT_PLAN=$(find .planning/phases -name "PLAN.md" -newer STATE.md 2>/dev/null | head -1)
+# Read the active phase from the sidecar file (written by /riff:next Step 2b,
+# cleared by Step 0 at the start of every run and Step 8c on local_no_ff merge).
+# This replaces the previous mtime heuristic which broke under github_button
+# strategy (STATE.md was not updated until the next run's Step 0).
+ACTIVE_PHASE_FILE=".planning/active-phase.txt"
 
-if [ -z "$CURRENT_PLAN" ]; then
-  # No active plan - skip check (probably /riff:quick or manual edit)
+if [ ! -f "$ACTIVE_PHASE_FILE" ]; then
+  # No active phase declared - skip check (probably /riff:quick or manual edit)
+  exit 0
+fi
+
+ACTIVE_PHASE=$(cat "$ACTIVE_PHASE_FILE")
+CURRENT_PLAN=".planning/phases/$ACTIVE_PHASE/PLAN.md"
+
+if [ ! -f "$CURRENT_PLAN" ]; then
+  # Plan not yet written - skip check
   exit 0
 fi
 
