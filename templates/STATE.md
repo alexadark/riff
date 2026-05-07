@@ -8,6 +8,22 @@
 - **Status**: Not started
 - **Last action**: Project initialized
 
+## Active Phase
+
+- **Id**: -
+- **Slug**: -
+- **Branch**: -
+- **Step**: -
+
+<!--
+Written by /riff:next Step 2b when the phase branch is created.
+Cleared by Step 0 at the start of every run AND by Step 8c on local_no_ff merge (all fields back to -).
+Format must stay machine-parseable: bullet, bold key, colon, space, value.
+
+Mirror of the runtime sidecar `.planning/active-phase.txt` (read by hooks/boundary-check.sh).
+This section is the human-readable + agent-bootstrap copy.
+-->
+
 ## Active Decisions
 
 <!--
