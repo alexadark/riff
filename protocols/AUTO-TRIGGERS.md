@@ -4,6 +4,8 @@ Path patterns, tag matches, and string searches that drive `auto` gate decisions
 
 Design rationale → [`DECISIONS.md`](../DECISIONS.md) (D25, D26, D27).
 
+**Priority vocabulary.** Accepted values for `priority:` in ROADMAP.yaml entries are `P0` | `P1` | `P2` | `critical` | `high` | `medium` | `low`. The first four are treated as "high-stakes" and trigger heavier auto-gates (plan adversarial, Step 6 Codex). The last three are "routine".
+
 ---
 
 ## Simplifier auto <a id="simplifier-auto"></a>
@@ -32,10 +34,10 @@ Triggers read from PLAN.md and the phase's ROADMAP.yaml entry (no diff exists ye
 
 **Run condition (any is sufficient):**
 
-- `priority: P0` AND any tag in `architecture` / `novel` / `security_critical`
+- ROADMAP entry has `priority` in {`P0`, `P1`, `critical`, `high`} AND any tag in `architecture` / `novel` / `security_critical`
 - Phase touches any of — auth, SSO/OAuth, payments, crypto/HMAC/tokens, RLS/multi-tenancy, irreversible migration, public API breaking change, threat model
 - Phase tags include `adversarial-plan`
-- PLAN.md introduces a new architectural pattern (first use of: queue, multi-step transaction, webhook handler, background job, cross-service contract)
+- PLAN.md introduces a new architectural pattern. Markers: `first use of`, `introduces a new`, `first time`, `novel pattern`, `new architecture`, `new integration with`, `new external service`. Typical triggers: queue, multi-step transaction, webhook handler, background job, cross-service contract.
 - PLAN.md has 4+ tasks across 3+ waves (high-coordination plan, more room for ordering errors)
 
 **Skip otherwise.** Pure UI, refactor, docs, P2 phases skip.
@@ -88,7 +90,7 @@ Triggers read from `ROADMAP.yaml` and PROJECT.md.
 
 **Used by:** Step 6 of `/riff:next` when `adversarial: auto` (default).
 
-**Run condition (domain):** the phase touches any of — auth, secrets, HMAC/crypto/tokens, RLS/multi-tenancy, payments, webhooks/callbacks, public routes, DB migrations — OR `priority: critical`.
+**Run condition (domain):** the phase touches any of — auth, secrets, HMAC/crypto/tokens, RLS/multi-tenancy, payments, webhooks/callbacks, public routes, DB migrations — OR `priority` in {`P0`, `P1`, `critical`, `high`}.
 
 **Run condition (path heuristics):** grep the diff file list for any match:
 

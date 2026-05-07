@@ -21,7 +21,7 @@ phases:
     slug: "phase-slug"
     title: "Phase Title"
     status: todo
-    priority: P0
+    priority: P0    # P0|P1|P2|critical|high|medium|low — see protocols/AUTO-TRIGGERS.md
     mode: AFK
     depends_on: []
     description: "What this phase delivers"
