@@ -33,6 +33,37 @@ Sync main → Reconcile stale bookkeeping → Read state → Pick next → Confi
 
 Step 8c of the previous run only fires if the same Claude session is alive when the user clicks Merge (and the user is on `merge_strategy: github_button`). If the session was cleared/closed between PR creation and merge, the previous phase is shipped on main but still `status: todo` in ROADMAP.yaml. Step 0 catches that drift before picking the next phase, and also guarantees Step 2b branches from a clean main.
 
+**Session sidecar reset (do FIRST).** Before any git operation, clear runtime sidecars left over from any prior `/riff:next` run:
+
+```bash
+# Cleared by every Step 0 start. Rewritten by Step 2b once a new phase is picked.
+rm -f .planning/active-phase.txt
+
+# Wipe stale CRASH.json files from any phase the user previously aborted
+# (verdict: abandoned). The fresh run gets a clean slate; if Step 5 crashes
+# again, it writes a fresh CRASH.json with the current timestamp.
+find .planning/phases -name CRASH.json -exec grep -l '"verdict": *"abandoned"' {} \; 2>/dev/null | xargs rm -f 2>/dev/null || true
+```
+
+If `STATE.md` does not yet have an `## Active Phase` section (legacy projects from before this contract), insert one. Detection: `grep -q '^## Active Phase' STATE.md`.
+
+Insertion anchors, in priority order:
+
+1. Insert between `## Current Position` and `## Active Decisions` (canonical position).
+2. If `## Active Decisions` is not found, insert immediately after the `## Current Position` block.
+3. If `## Current Position` is also not found, prepend the section after the first level-1 heading (top of file).
+
+```markdown
+## Active Phase
+
+- **Id**: -
+- **Slug**: -
+- **Branch**: -
+- **Step**: -
+```
+
+If the section already exists, reset all four field values to `-`.
+
 1. **Switch to main + check divergence (do NOT blindly pull).**
 
    ```bash
@@ -106,7 +137,19 @@ Step 8c of the previous run only fires if the same Claude session is alive when 
 
    The SUMMARY.md is included in the commit when Tier 2 just back-filled the merge SHA, so the durable artifact catches up to reality.
 
-4. **No stale phase found:** continue to Step 1 (you're already on a clean main).
+4. **No stale phase found:** continue to the dirty-tree preflight (below).
+
+5. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
+
+   - **All dirty files are inside `.planning/` only:** auto-skip. These are RIFF artifact residue (interrupted hook writes, etc.) safe to leave; Step 5's executor will overwrite them. Print a one-line notice and continue.
+   - **Any dirty file is outside `.planning/`:** AskUserQuestion:
+     > Working tree has uncommitted changes outside .planning/:
+     > <git status --porcelain output, max 10 lines>
+     > A) Stash and continue (recovered after PR)
+     > B) Abort, commit or discard manually then re-run /riff:next
+
+     On A: `git stash push -m "riff-preflight-stash-<timestamp>"`. Record the stash ref in STATE.md `## Open Buckets` (`Stashed before phase <N>: <stash-ref>`). Continue.
+     On B: halt.
 
 ### Step 1: Read state (inline)
 
@@ -125,9 +168,62 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 
 ### Step 2b: Phase branch (inline)
 
+Before creating the branch, run two preflight checks against the picked phase to detect crash residue from a prior run.
+
+**Check 2b-i (existing branch):** if `git branch --list "riff/phase-N-slug"` returns non-empty, the branch was created in a prior run.
+
+- If `.planning/phases/N-slug/SUMMARY.md` exists, jump to Check 2b-ii (partial SUMMARY.md drives the decision).
+- If SUMMARY.md does NOT exist, the branch was created but execution never started. AskUserQuestion:
+  > Branch riff/phase-N-slug exists but no SUMMARY.md found. Likely a crashed run before execution started.
+  > A) Delete branch and start fresh (recommended)
+  > B) Abort, inspect manually
+
+  On A: `git branch -D riff/phase-N-slug && git push origin :riff/phase-N-slug 2>/dev/null || true`. Continue.
+  On B: halt.
+
+**Check 2b-ii (partial SUMMARY.md):** if `.planning/phases/N-slug/SUMMARY.md` exists AND the phase is `status: todo` in ROADMAP.yaml AND the file does NOT contain a `> Merge commit: <40-char-sha>` line (i.e. the line is absent or still reads `{{MERGE_COMMIT}}`), this is a crashed Step 5 from a prior run.
+
+- If `.planning/phases/N-slug/PLAN.md` does NOT exist (very early crash, before plan was written), delete SUMMARY.md and continue from Step 4 normally.
+- Otherwise AskUserQuestion:
+  > Phase N-slug has a partial execution log (SUMMARY.md exists, executor appears to have crashed before completing).
+  > A) Resume — checkout the existing branch, re-run from Step 5 (executor re-reads PLAN.md and continues; may produce duplicate commits for already-done tasks)
+  > B) Restart — delete SUMMARY.md and re-plan from scratch
+  > C) Abort, inspect manually
+
+  On A:
+    - `git checkout riff/phase-N-slug` (if branch missing, fall back to B with a warning).
+    - Update STATE.md `## Open Buckets` with one line: `Resuming crashed phase N-slug from Step 5 — SUMMARY.md was partial`.
+    - Skip Steps 2c (PROMPTS.md already exists), 3, 4, 4b, 4c. Jump to the active-phase sidecar write below, then to Step 5.
+  On B:
+    - `rm .planning/phases/N-slug/SUMMARY.md` (keep PLAN.md, planner reuses it).
+    - `rm -f .planning/phases/N-slug/CRASH.json` (clean previous crash marker if any).
+    - `git branch -D riff/phase-N-slug 2>/dev/null || true`.
+    - `git push origin :riff/phase-N-slug 2>/dev/null || true`.
+    - Continue (branch is recreated below).
+  On C: halt.
+
+**Branch creation (skip if Check 2b-ii Resume picked the existing branch):**
+
 ```bash
 git checkout -b riff/phase-N-slug
 ```
+
+**Write the active-phase sidecar AND update STATE.md `## Active Phase`:**
+
+```bash
+echo "N-slug" > .planning/active-phase.txt
+```
+
+Update STATE.md `## Active Phase`:
+
+```markdown
+- **Id**: N
+- **Slug**: N-slug
+- **Branch**: riff/phase-N-slug
+- **Step**: 5 (pending)
+```
+
+The sidecar is read by `hooks/boundary-check.sh` to identify the active PLAN.md deterministically. STATE.md is the human-readable mirror used by HANDOFF bootstrap. Both are reset to default by Step 0 of the next run AND by Step 8c on `local_no_ff` merge.
 
 ### Step 2c: Ensure PROMPTS.md exists (inline)
 
@@ -260,9 +356,36 @@ Agent prompt (give paths — do NOT paste file contents):
 
 **Prompt capture:** After launching the executor sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Executor` section heading.
 
-Wait until SUMMARY.md exists on disk.
+**After the executor sub-agent returns, check for crash residue:**
 
-**Auto-debug trigger:** scan SUMMARY.md for `FAILED` / `ERROR` / `unresolved` / incomplete tasks. Found → run auto-debug pattern (below) with `failure_type: executor_fail`, `artifact: SUMMARY.md`.
+1. **If `.planning/phases/N-slug/SUMMARY.md` is absent**, the executor crashed silently (internal error, context exhaustion, killed sub-agent). Write a crash marker to `.planning/phases/N-slug/CRASH.json`:
+
+   ```json
+   {
+     "schema_version": 1,
+     "phase": "N-slug",
+     "crashed_at": "<ISO-8601 timestamp>",
+     "crash_type": "executor_silent_exit",
+     "last_step": 5,
+     "summary_written": false,
+     "verdict": "pending",
+     "notes": ""
+   }
+   ```
+
+   Then AskUserQuestion:
+   > Executor returned but did not write SUMMARY.md. Likely an internal crash or context exhaustion.
+   > A) Trigger auto-debug (failure_type: `executor_silent_exit`, artifact: `CRASH.json`)
+   > B) Resume manually (keep the branch, re-run /riff:next when ready, Step 0 detects partial state)
+   > C) Abort, mark phase as crashed (verdict: abandoned)
+
+   On A: run auto-debug. On RESOLVED, re-run Step 5. On UNRESOLVED, halt with DEBUG.md surfaced.
+   On B: update STATE.md Resume Command to `continue /riff:next at Step 5 for phase N-slug. Read STATE.md.` Halt.
+   On C: set CRASH.json `verdict: abandoned`. Update STATE.md `## Active Phase` Step to `CRASHED`. Halt.
+
+2. **If SUMMARY.md exists**, scan it for `FAILED` / `ERROR` / `unresolved` / incomplete tasks. Found → run auto-debug pattern (below) with `failure_type: executor_fail`, `artifact: SUMMARY.md`.
+
+3. **On successful Step 5 completion** (including after auto-debug RESOLVED), `rm -f .planning/phases/N-slug/CRASH.json` to clear any prior crash marker.
 
 ---
 
@@ -290,13 +413,21 @@ Prompt: branch name, phase N-slug, instruction _"Read `agents/simplifier.md`. Sc
 
 Before review, verify executor honored the plan. Run scope-checker sub-agent.
 
-**Agent:** Agent tool, model: haiku. Prompt: _"Read agents/scope-checker.md. Branch: riff/phase-N-slug. Read .planning/phases/N-slug/PLAN.md and SUMMARY.md. Diff task lists. Return MATCH | DROPPED: <list> | MALFORMED: <reason>."_
+**Agent:** Agent tool, model: haiku. Prompt: _"Read agents/scope-checker.md. Branch: riff/phase-N-slug. Read .planning/phases/N-slug/PLAN.md and SUMMARY.md. Diff task lists. Write `.planning/phases/N-slug/SCOPE-CHECK.json` per the schema in scope-checker.md. Return nothing to stdout."_
 
-**On DROPPED:** STOP. AskUserQuestion: for each dropped task, pick "completed (mark done in SUMMARY)" | "defer to new phase (will run /riff:add-phase)" | "rejected (write rationale)". Apply the user's choice for each, then re-run Step 5c. Loop until MATCH.
+**Read the verdict from SCOPE-CHECK.json:**
 
-**On MALFORMED:** surface the parsing error to user, ask whether to skip (acceptable for unstructured PLAN.md formats) or fix the format and retry.
+1. Read `.planning/phases/N-slug/SCOPE-CHECK.json`.
+2. If file absent → treat as `MALFORMED` with reason `"file not written"`.
+3. If invalid JSON → treat as `MALFORMED` with reason `"invalid JSON"`.
+4. If `schema_version != 1` → surface mismatch to user, halt.
+5. Branch on the `verdict` field.
 
-**On MATCH:** proceed to Step 5d.
+**On `MATCH`:** proceed to Step 5d.
+
+**On `DROPPED`:** STOP. Iterate the `unmatched_tasks` array. For each task, AskUserQuestion: "completed (mark done in SUMMARY)" | "defer to new phase (will run /riff:add-phase)" | "rejected (write rationale)". Apply the choice for each, then re-run Step 5c (sub-agent overwrites SCOPE-CHECK.json). Loop until `verdict == MATCH`. **Max 3 cycles**, then STOP and escalate to user with both SCOPE-CHECK.json and PLAN.md, ask whether to skip the gate (record `Step 5c: override` to `GATES.md`) or halt for manual fix.
+
+**On `MALFORMED`:** surface `malformed_reason` to user, ask whether to skip (acceptable for unstructured PLAN.md formats) or fix the format and retry.
 
 ---
 
@@ -400,11 +531,18 @@ Launch BOTH in a single message.
 
 - Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 
-**Step 7 (Security — Sonnet):** Agent tool, `model: "sonnet"`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, instruction _"Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on all changed files. CRITICAL/HIGH → mark blocked. Write findings inline."_
+**Step 7 (Security — Sonnet):** Agent tool, `model: "sonnet"`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, instruction _"Read `agents/security-reviewer.md`. Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on all changed files. Write `.planning/phases/N-slug/SECURITY.md` per the File Output section of the agent spec (frontmatter `verdict: PASS | PASS-WITH-WARNINGS | BLOCKED`). CRITICAL/HIGH → `BLOCKED`."_
 
 **Prompt capture:** After launching the security-reviewer sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Security reviewer` section heading.
 
-- Auto-debug on CRITICAL/HIGH → `failure_type: security_fail`, `artifact: [findings inline]`. On RESOLVED, re-run Step 7.
+**Reading the verdict back:**
+
+1. Read `.planning/phases/N-slug/SECURITY.md`.
+2. Parse the `verdict` field from the frontmatter.
+3. If `verdict: BLOCKED`, also confirm via grep: `grep -E '^### \[(CRITICAL|HIGH)\]' SECURITY.md` returns a non-empty match. If frontmatter and grep disagree, treat as BLOCKED (defensive).
+4. If SECURITY.md is absent after the sub-agent returns: treat as `failure_type: security_silent_exit`, `artifact: "SECURITY.md not written"`. Trigger auto-debug.
+
+- Auto-debug on `verdict: BLOCKED` → `failure_type: security_fail`, `artifact: SECURITY.md`. On RESOLVED, re-run Step 7 (security-reviewer overwrites SECURITY.md, populating the `## Resolved Findings` table per its idempotency contract).
 
 **Wait for BOTH.** If security CRITICAL/HIGH or adversarial FAIL → do NOT create PR.
 
@@ -414,7 +552,7 @@ Launch BOTH in a single message.
 
 **If running:** Agent tool, `model: "haiku"`, `run_in_background: true`.
 
-Prompt: _"Read `.planning/phases/N-slug/SUMMARY.md` and `.planning/expertise/` files. Write learnings to `.planning/expertise/.pending/` if any. Do not auto-merge. Use Context7 or Ref MCP for recent libs."_
+Prompt: _"Read `agents/improver.md`. Read `.planning/phases/N-slug/SUMMARY.md` and `.planning/expertise/` files. Write learnings to `.planning/expertise/.pending/` if any. Do not auto-merge. Use Context7 or Ref MCP for recent libs. As your final act before returning, write the completion sentinel `.planning/expertise/.pending/.improver-N-slug.done` per the agent spec — this lets Step 10 distinguish 'completed with no findings' from 'killed mid-write'."_
 
 ---
 
@@ -463,6 +601,14 @@ The flow depends on `git.merge_strategy`:
 
   **Capture the merge SHA into SUMMARY.md.** Replace the `{{MERGE_COMMIT}}` placeholder (or any prior empty value) on the `> Merge commit:` line of `.planning/phases/N-slug/SUMMARY.md` with `$merge_sha`. This is the durable artifact that lets Step 0 of any future `/riff:next` confirm merge state via `git merge-base --is-ancestor` instead of grepping commit subjects.
 
+  **Clear runtime session sidecars:**
+
+  ```bash
+  rm -f .planning/active-phase.txt
+  ```
+
+  Reset STATE.md `## Active Phase` section: set all four fields back to `-`.
+
   Then update ROADMAP.yaml (`status: done`) + STATE.md (Current Phase prose, Phases Completed row, Next Action), commit, push:
 
   ```bash
@@ -486,7 +632,18 @@ Write `.planning/phases/N-slug/USAGE.md` using **`templates/usage.md`**.
 
 `PROMPTS.md` is a sibling phase artifact (alongside USAGE.md, PLAN.md, SUMMARY.md, GATES.md) — it was seeded at Step 2c and appended to throughout Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. Both USAGE.md and PROMPTS.md are read by `riff-pr-metadata.sh` at Step 8 to enrich the PR body with token usage and substantive sub-agent prompts.
 
-Append to `.planning/usage-log.csv` (create with header if missing):
+Append to `.planning/usage-log.csv` via the standalone helper at `.riff/scripts/csv-append.sh` (flock-protected, falls back to bare `>>` if flock is not installed). Invoke as a child bash process so the shebang applies (caller shell may be zsh, which does not parse the fd-redirect syntax).
+
+**Two-step append (orchestrator owns the header):** the helper does ONLY a row append; it never writes a header. Before the first append, the orchestrator must create the file with the header line if it does not already exist:
+
+```bash
+if [ ! -f .planning/usage-log.csv ]; then
+  echo "phase,title,date,total_tokens,duration_min,tool_calls,planner_tokens,executor_tokens,adversarial_tokens,security_tokens,debugger_tokens" > .planning/usage-log.csv
+fi
+bash .riff/scripts/csv-append.sh .planning/usage-log.csv "$row"
+```
+
+Header (written once on file creation by the block above):
 
 ```csv
 phase,title,date,total_tokens,duration_min,tool_calls,planner_tokens,executor_tokens,adversarial_tokens,security_tokens,debugger_tokens
@@ -503,6 +660,8 @@ Next: Phase {{N+1}}: {{NEXT_TITLE}}
 ```
 
 ### Pending expertise review (inline)
+
+**Improver completion check (only if Step 7b ran this phase):** look for the sentinel `.planning/expertise/.pending/.improver-N-slug.done`. If absent, surface a one-line warning to the user: `Improver may not have completed for phase N-slug — sentinel missing.` The review loop below still operates on `*.md` files in `.pending/`. When the loop completes (accept, reject-all, or defer), `rm -f .planning/expertise/.pending/.improver-N-slug.done`.
 
 Compute pending count: `ls .planning/expertise/.pending/*.md 2>/dev/null | wc -l`. If 0 → skip this section.
 
@@ -568,7 +727,7 @@ Skip silently if the `codex:codex-rescue` skill is not configured (log one-line 
 |---|---|---|
 | **next-A** Plan validated | Step 4b PROCEED on PLAN-REVIEW.md | PLAN.md, PLAN-REVIEW.md, ROADMAP entry |
 | **next-B** Code shipped | Step 5 SUMMARY.md, tests green | SUMMARY.md, `git diff main...HEAD`, PLAN.md |
-| **next-C** Review passed | Step 7 PASS / RESOLVED via debugger | SUMMARY.md, REVIEW.md, DEBUG.md if any, AUTHORIZATION-MATRIX.md if any |
+| **next-C** Review passed | Step 7 PASS / RESOLVED via debugger | SUMMARY.md, REVIEW.md, SECURITY.md, DEBUG.md if any, AUTHORIZATION-MATRIX.md if any |
 
 Close of checkpoint → eval heuristic in [`protocols/HANDOFF.md`](../protocols/HANDOFF.md) § Trigger. 2+ fire →
 
@@ -611,7 +770,14 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 
 Every Codex call (Step 4b, Step 6) appends a row to `.planning/codex-usage.csv` at project root. This is a Plus-quota awareness counter, not a billing tool. Already covered by the project-level `.gitignore` rule on `.planning/`.
 
-**File:** `.planning/codex-usage.csv` (create with header on first call if missing).
+**File:** `.planning/codex-usage.csv` (create with header on first call if missing). The helper does row-only appends; the orchestrator owns the header. Before the first append in a session:
+
+```bash
+if [ ! -f .planning/codex-usage.csv ]; then
+  echo "timestamp,phase,step,model,effort,outcome,duration_sec" > .planning/codex-usage.csv
+fi
+bash .riff/scripts/csv-append.sh .planning/codex-usage.csv "$row"
+```
 
 ```csv
 timestamp,phase,step,model,effort,outcome,duration_sec
