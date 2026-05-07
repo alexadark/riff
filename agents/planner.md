@@ -82,6 +82,17 @@ Mark `mode: HITL` ONLY when the phase requires manual human verification that no
 
 **Code-only auth/security/payment work stays AFK** (password hashing, RBAC logic, JWT signing, rate limiters, Zod validation, CSRF tokens) — tests + security-reviewer + adversarial Codex cover it.
 
+## Improver opt-in (when to set `improver: true`)
+
+Set `improver: true` on the ROADMAP entry when the phase is likely to generate framework-relevant learnings:
+
+- First use of a new stack on this project (first React Router page, first Drizzle schema, first vitest test, first MCP server, etc.)
+- First integration with an external API or third-party service
+- Novel architectural choice (multi-tenant boundary, new auth flow, new data partitioning strategy)
+- Phase explicitly explores unknown territory (e.g. a tracer-bullet for new tech)
+
+For routine work (CRUD, copy fixes, refactors, UI tweaks), leave `improver:` unset — the heuristic in `protocols/AUTO-TRIGGERS.md#improver-heuristic` will catch surprise learnings via SUMMARY.md signals, debug fires, or review revision cycles, and the every-3rd-phase baseline ensures retrospectives don't fall to zero.
+
 ## Automatic AC rules
 
 | Artifact                | Mandatory AC                           |

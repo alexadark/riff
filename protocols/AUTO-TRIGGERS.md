@@ -116,9 +116,14 @@ Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 6
 
 **Used by:** Step 7b of `/riff:next`.
 
-**Run condition (either is sufficient):**
+**Run condition (any is sufficient):**
 
-- ROADMAP.yaml entry has `improver: true` (explicit opt-in)
-- SUMMARY.md contains any of the strings: `"new pattern"`, `"first use of"`, `"novel"` (executor flagged something worth extracting)
+- ROADMAP.yaml entry has `improver: true` (explicit opt-in by planner or user — see `agents/planner.md` § Improver opt-in for when the planner sets it)
+- A debug session fired during this phase: either `.planning/phases/N-slug/DEBUG.md` exists, or any `.planning/debug/*.md` was created/modified after the phase's PLAN.md timestamp
+- The adversarial review went through at least one revision cycle: `.planning/phases/N-slug/REVIEW.md` contains a `## Resolved Findings` section (executor + reviewer round-tripped)
+- Phase id is a multiple of 3 (gentle baseline cadence — guarantees one in three phases gets retrospective even when nothing else fires)
+- SUMMARY.md contains any of: `"new pattern"`, `"first use of"`, `"novel"`, `"surprised"`, `"unexpected"`, `"discovered"`, `"learned that"`, `"had to retry"`, `"deviated"` (executor or reviewer flagged something worth extracting)
 
-**Skip otherwise.** Default mode: skip per-phase, batch via `/riff:improver` every ~3 phases.
+**Skip otherwise.** Even with the broader heuristic, you can always batch on demand with `/riff:improver [N]`.
+
+Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 7b: skipped — <reason>`). If multiple run conditions fire, log the first one matched.

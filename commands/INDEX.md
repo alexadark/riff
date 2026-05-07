@@ -1,6 +1,6 @@
 # RIFF Commands — Index
 
-13 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
+14 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
 
 ## Framework (global to the framework install)
 
@@ -34,6 +34,7 @@
 | `/riff:add-phase [name] [goal]` | Append a new phase to ROADMAP.yaml. Use `depends_on` for ordering, `status: skipped` to remove.                     | Updated `ROADMAP.yaml`            |
 | `/riff:quick <task>`            | One-off task that doesn't deserve a phase (config tweak, copy fix, dependency bump).                                | Direct commit, no phase artifacts |
 | `/riff:debug <bug>`             | Manual debug invocation outside the auto-debug pipeline. For bugs that surfaced post-merge or outside `/riff:next`. | `.planning/debug/YYYY-MM-DD-[slug].md`    |
+| `/riff:improver [N\|--all]`     | Batch the improver across the last N phases (default 3) to harvest learnings into `.planning/expertise/.pending/`. Fallback when Step 7b auto-trigger didn't fire. | `.planning/expertise/.pending/<agent>-<phase>.md` (+ sentinels) |
 
 ## Conversational triggers (no slash command)
 
@@ -63,6 +64,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - **Add work the planner didn't think of** → `/riff:add-phase`
 - **Fix a tiny thing that doesn't need a phase** → `/riff:quick`
 - **Hunt down a bug not caught by auto-debug** → `/riff:debug`
+- **Harvest learnings from recent phases** → `/riff:improver` (or `/riff:improver --all` for the full backlog)
 - **Re-audit a phase before merging** → ask Claude to "re-audit phase N"
 - **Pull a framework update into a project** → `/riff:resync` (or `bash .riff/riff-resync.sh` if not bootstrapped yet)
 - **See where I am with a kanban view + plain-language explanations** → `/riff:dashboard`
