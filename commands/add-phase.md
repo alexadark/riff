@@ -17,9 +17,10 @@ Append phases to ROADMAP.yaml. No renumbering — use `depends_on` for ordering.
 
    ```yaml
    - id: { N }
-     name: { slug }
+     slug: { slug }
+     title: { human-readable title }
      status: todo
-     priority: { high|medium|low }
+     priority: { P0|P1|P2|P3 }
      mode: { HITL|AFK|tdd }
      depends_on: [{ dep IDs }]
      goal: |
@@ -29,11 +30,14 @@ Append phases to ROADMAP.yaml. No renumbering — use `depends_on` for ordering.
        - { task 2 }
    ```
 
-   Optional fields: `references`, `notes`, `constraints`.
+   Optional fields: `description`, `references`, `notes`, `constraints`.
 
-5. **Create phase directory:** `.planning/phases/{NN}-{slug}/` (empty, ready for PLAN.md).
-6. **Update STATE.md:** add phase to the roadmap section if one exists.
-7. **Confirm:** show phase ID, name, depends_on chain.
+   `slug` must be kebab-case (lowercase letters/digits/hyphens). `title` is the human-readable label shown in the dashboard and PR titles. Never use a phase-level `name:` field — the validator rejects it.
+
+5. **Validate the roadmap:** run `bash .riff/lib/validate-roadmap.sh ROADMAP.yaml`. If it exits non-zero, fix the offending phase and re-run before continuing. Hard fail: do not proceed to step 6 with an invalid roadmap.
+6. **Create phase directory:** `.planning/phases/{NN}-{slug}/` (empty, ready for PLAN.md).
+7. **Update STATE.md:** add phase to the roadmap section if one exists.
+8. **Confirm:** show phase ID, title, depends_on chain.
 
 ## Rules
 

@@ -21,6 +21,11 @@ export interface Roadmap {
   phases: RoadmapPhase[];
 }
 
+// STATUS_ALIASES intentionally accepts more than the canonical 5 statuses so
+// brownfield roadmaps render. validateRoadmap() mirrors this leniency by
+// normalizing through STATUS_ALIASES before flagging an error. The bash
+// validator at lib/validate-roadmap.sh stays strict (canonical-only) because
+// it gates new-phase creation, where there's no excuse for an alias.
 const STATUS_ALIASES: Record<string, PhaseStatus> = {
   todo: "todo",
   pending: "todo",
@@ -102,6 +107,17 @@ function findFolderSlug(projectRoot: string, id: number): string | null {
   return match ? match.slice(prefix.length) : null;
 }
 
+const warnedSlugMismatch = new Set<string>();
+
+function warnSlugMismatch(projectRoot: string, id: number, yamlSlug: string, folderSlug: string): void {
+  const key = `${projectRoot}#${id}`;
+  if (warnedSlugMismatch.has(key)) return;
+  warnedSlugMismatch.add(key);
+  console.warn(
+    `[roadmap] phase ${id}: YAML slug "${yamlSlug}" does not match folder slug "${folderSlug}" — using YAML. Rename the folder to .planning/phases/${id}-${yamlSlug}/ to silence this warning.`,
+  );
+}
+
 function resolvePhase(
   projectRoot: string,
   id: number,
@@ -111,33 +127,28 @@ function resolvePhase(
 
   const folderSlug = findFolderSlug(projectRoot, id);
   const rawSlug = typeof entry.slug === "string" ? entry.slug : "";
-  const rawName = typeof entry.name === "string" ? entry.name : "";
   const rawTitle = typeof entry.title === "string" ? entry.title : "";
 
   let slug = "";
-  let title = "";
 
-  if (folderSlug) {
-    slug = folderSlug;
-  } else if (rawSlug && isSlugLike(rawSlug)) {
+  // YAML is canonical for slug. Folder slug is a fallback only when YAML is
+  // missing or malformed. If both exist and disagree, YAML wins and we warn
+  // once per (project, id) so drift is visible without spamming logs.
+  if (rawSlug && isSlugLike(rawSlug)) {
     slug = rawSlug;
-  } else if (rawName && isSlugLike(rawName)) {
-    slug = rawName;
-  } else if (rawName) {
-    slug = slugify(rawName);
+    if (folderSlug && folderSlug !== rawSlug) {
+      warnSlugMismatch(projectRoot, id, rawSlug, folderSlug);
+    }
+  } else if (folderSlug) {
+    slug = folderSlug;
   } else if (rawTitle) {
     slug = slugify(rawTitle);
   } else {
     slug = `phase-${id}`;
   }
 
-  if (rawTitle) {
-    title = rawTitle;
-  } else if (rawName && !isSlugLike(rawName)) {
-    title = rawName;
-  } else {
-    title = humanize(slug);
-  }
+  // Title: YAML wins. Falls back to a humanized version of the slug.
+  const title = rawTitle ? rawTitle : humanize(slug);
 
   const description =
     typeof entry.description === "string" ? entry.description :
@@ -154,11 +165,113 @@ function resolvePhase(
   };
 }
 
+export interface RoadmapValidation {
+  errors: string[];
+  warnings: string[];
+}
+
+const VALID_STATUSES: ReadonlySet<string> = new Set([
+  "todo",
+  "in-progress",
+  "done",
+  "blocked",
+  "skipped",
+]);
+
 /**
- * Parse ROADMAP.yaml from a project root. Handles three known formats:
- *   1. `phases: [{ id, slug, title, ... }]` — canonical RIFF template
- *   2. `phases: [{ id, name, ... }]` — brownfield with `name` as slug-like
- *   3. Top-level `phase-N: { name, ... }` keys — legacy /riff:map output
+ * Lightweight schema check on the raw YAML object. Returns errors (block
+ * progress) and warnings (informational, dashboard still loads). Mirrors
+ * the bash validator at lib/validate-roadmap.sh — keep both in sync.
+ */
+export function validateRoadmap(parsed: unknown): RoadmapValidation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!parsed || typeof parsed !== "object") {
+    errors.push("ROADMAP.yaml must be a YAML mapping at the top level");
+    return { errors, warnings };
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  const phases = obj.phases;
+
+  if (!Array.isArray(phases)) {
+    // Legacy top-level `phase-N:` format is parsed elsewhere; only flag it as
+    // a warning so old roadmaps don't go red.
+    const hasLegacy = Object.keys(obj).some((k) => /^phase-\d+$/i.test(k));
+    if (hasLegacy) {
+      warnings.push("ROADMAP.yaml uses legacy top-level `phase-N:` keys; migrate to a `phases: [...]` array");
+    } else {
+      errors.push("ROADMAP.yaml is missing a `phases:` array");
+    }
+    return { errors, warnings };
+  }
+
+  phases.forEach((entry, index) => {
+    const where = `phases[${index}]`;
+    if (!entry || typeof entry !== "object") {
+      errors.push(`${where}: not a YAML mapping`);
+      return;
+    }
+    const p = entry as Record<string, unknown>;
+    const idLabel = typeof p.id === "number" || typeof p.id === "string" ? `id=${p.id}` : "id=?";
+
+    if (typeof p.id !== "number" && (typeof p.id !== "string" || !Number.isFinite(Number(p.id)))) {
+      errors.push(`${where}: missing or non-numeric \`id\``);
+    }
+    if (typeof p.slug !== "string" || p.slug.trim() === "") {
+      errors.push(`${where} (${idLabel}): missing required field \`slug\``);
+    } else if (!isSlugLike(p.slug)) {
+      errors.push(`${where} (${idLabel}): slug "${p.slug}" is not kebab-case`);
+    }
+    if (typeof p.title !== "string" || p.title.trim() === "") {
+      errors.push(`${where} (${idLabel}): missing required field \`title\``);
+    }
+    if (typeof p.status !== "string" || p.status.trim() === "") {
+      errors.push(`${where} (${idLabel}): missing required field \`status\``);
+    } else {
+      // Apply the same alias normalization that resolvePhase uses, so the
+      // validator does not flag well-known synonyms like "pending" or "wip"
+      // that the parser already tolerates. Bash validator is strict; this
+      // intentional divergence is documented next to STATUS_ALIASES.
+      const normalized = STATUS_ALIASES[p.status.trim().toLowerCase()];
+      if (!normalized || !VALID_STATUSES.has(normalized)) {
+        errors.push(`${where} (${idLabel}): status "${p.status}" is not one of: todo | in-progress | done | blocked | skipped (or accepted alias)`);
+      }
+    }
+    if ("name" in p) {
+      errors.push(`${where} (${idLabel}): uses deprecated phase-level \`name:\` field, use \`title:\` instead`);
+    }
+  });
+
+  return { errors, warnings };
+}
+
+const warnedValidation = new Set<string>();
+
+function logValidationOnce(path: string, validation: RoadmapValidation): void {
+  if (validation.errors.length === 0 && validation.warnings.length === 0) return;
+  const sig = JSON.stringify(validation);
+  const key = `${path}#${sig}`;
+  if (warnedValidation.has(key)) return;
+  warnedValidation.add(key);
+  for (const w of validation.warnings) {
+    console.warn(`[roadmap] ${path}: ${w}`);
+  }
+  for (const e of validation.errors) {
+    console.warn(`[roadmap] ${path}: ${e}`);
+  }
+}
+
+/**
+ * Parse ROADMAP.yaml from a project root. Tolerant of two formats:
+ *   1. `phases: [{ id, slug, title, status, ... }]` — canonical RIFF template
+ *   2. Top-level `phase-N: { ... }` keys — legacy roadmap shape, kept readable
+ *      so old projects don't go blank in the dashboard.
+ *
+ * Schema problems are surfaced via console.warn (once per path+signature) but
+ * never block the parse — a partially-broken roadmap is still more useful in
+ * the UI than a blank screen.
  */
 export function parseRoadmap(projectRoot: string): Roadmap | null {
   const path = join(projectRoot, "ROADMAP.yaml");
@@ -185,9 +298,11 @@ export function parseRoadmap(projectRoot: string): Roadmap | null {
   if (!parsed || typeof parsed !== "object") return null;
   const obj = parsed as Record<string, unknown>;
 
+  logValidationOnce(path, validateRoadmap(parsed));
+
   const phases: RoadmapPhase[] = [];
 
-  // Format 1 + 2: phases: [...] array
+  // Format 1: phases: [...] array (canonical)
   if (Array.isArray(obj.phases)) {
     for (const entry of obj.phases) {
       if (!entry || typeof entry !== "object") continue;
@@ -198,7 +313,7 @@ export function parseRoadmap(projectRoot: string): Roadmap | null {
     }
   }
 
-  // Format 3: top-level phase-N keys (only if no phases array was found)
+  // Format 2: top-level phase-N keys (only if no phases array was found)
   if (phases.length === 0) {
     for (const [key, value] of Object.entries(obj)) {
       const match = /^phase-(\d+)$/i.exec(key);

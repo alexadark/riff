@@ -24,7 +24,6 @@ if [[ -z "$phase_dir" ]]; then
 	exit 1
 fi
 
-phase_slug=$(basename "$phase_dir")
 plan="$phase_dir/PLAN.md"
 summary="$phase_dir/SUMMARY.md"
 gates="$phase_dir/GATES.md"
@@ -35,8 +34,9 @@ get_yaml_field() {
 	local field="$1"
 	[[ ! -f "$roadmap" ]] && return
 	awk -v id="$phase_id" -v field="$field" '
+		BEGIN { gsub(/[[:space:]]/, "", id) }
 		/^[[:space:]]*-[[:space:]]+id:[[:space:]]*/ {
-			val=$0; sub(/^[[:space:]]*-[[:space:]]+id:[[:space:]]*/, "", val); gsub(/[\"'\'' ]/, "", val)
+			val=$0; sub(/^[[:space:]]*-[[:space:]]+id:[[:space:]]*/, "", val); gsub(/[\"'\''[:space:]]/, "", val)
 			in_phase = (val == id) ? 1 : 0
 			next
 		}
@@ -47,6 +47,16 @@ get_yaml_field() {
 		}
 	' "$roadmap"
 }
+
+# Slug comes from ROADMAP.yaml (canonical), not from the folder name. The folder
+# name still encodes id+slug for filesystem lookup but is no longer the source
+# of truth. If the YAML has no slug field (legacy roadmap), fall back to the
+# folder basename so the script does not break on old projects.
+phase_slug=$(get_yaml_field "slug" || true)
+if [[ -z "$phase_slug" ]]; then
+	phase_slug=$(basename "$phase_dir")
+	echo "[riff-pr-metadata] warning: ROADMAP.yaml has no slug for phase $phase_id, falling back to folder name '$phase_slug'" >&2
+fi
 
 executor_model=$(get_yaml_field "executor_model" || true)
 [[ -z "$executor_model" ]] && executor_model="sonnet"
