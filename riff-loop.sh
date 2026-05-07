@@ -32,6 +32,10 @@ set -e
 CLAUDE_PID=""
 PROMPT_FILE=""
 
+# Per-loop session identifier so concurrent loop processes (or stale markers
+# from a prior run) don't cross-trigger each other's LOOP_STOP detection.
+LOOP_ID="$$_$(date -u +%s)"
+
 # Cleanup trap - kill Claude child process on Ctrl+C / SIGTERM
 cleanup() {
   if [ -n "$CLAUDE_PID" ] && kill -0 "$CLAUDE_PID" 2>/dev/null; then
@@ -114,12 +118,12 @@ if [ ! -d ".planning" ]; then
   exit 1
 fi
 
-# Clear stale LOOP_STOP markers from prior runs so a fixed issue can resume.
-# We strip any line containing LOOP_STOP from STATE.md before starting; only
-# markers written during THIS run will trigger the stop check below.
-if [ -f STATE.md ] && grep -q "LOOP_STOP" STATE.md 2>/dev/null; then
+# Clear stale LOOP_STOP markers OWNED BY THIS PROCESS or in legacy unscoped
+# form. Markers from other loop sessions (LOOP_STOP[<other-id>]:) are left in
+# place so concurrent loops don't clobber each other's stop signals.
+if [ -f STATE.md ] && grep -qE "LOOP_STOP(:|\[$LOOP_ID\]:)" STATE.md 2>/dev/null; then
   notify "Clearing stale LOOP_STOP markers from previous run." "info"
-  tmp=$(mktemp) && grep -v "LOOP_STOP" STATE.md > "$tmp" && mv "$tmp" STATE.md
+  tmp=$(mktemp) && grep -vE "LOOP_STOP(:|\[$LOOP_ID\]:)" STATE.md > "$tmp" && mv "$tmp" STATE.md
 fi
 
 notify "Starting RIFF loop in $(pwd)" "info"
@@ -173,16 +177,19 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   echo "" >> STATE.md
   echo "$ITER_MARKER" >> STATE.md
 
-  # Create a temporary prompt file for this iteration
+  # Create a temporary prompt file for this iteration. Heredoc is unquoted so
+  # $LOOP_ID interpolates — Claude will tag every LOOP_STOP marker with the
+  # current loop session id, which keeps stop signals from different loops
+  # (or stale legacy markers) from cross-triggering.
   PROMPT_FILE=$(mktemp)
-  cat > "$PROMPT_FILE" << 'RIFF_PROMPT'
+  cat > "$PROMPT_FILE" << RIFF_PROMPT
 You are running in RIFF loop (AFK mode). Execute /riff:next with these constraints:
 - Only pick phases with mode: AFK
 - On Confident/Likely assumptions: proceed without asking
-- On Unclear assumptions: write "LOOP_STOP: unclear assumptions" to STATE.md and exit
-- On R3 deviation: write "LOOP_STOP: R3 architecture change needed" to STATE.md and exit
-- On verification FAIL: write "LOOP_STOP: verification failed" to STATE.md and exit
-- On security CRITICAL/HIGH: write "LOOP_STOP: security issue" to STATE.md and exit
+- On Unclear assumptions: write "LOOP_STOP[$LOOP_ID]: unclear assumptions" to STATE.md and exit
+- On R3 deviation: write "LOOP_STOP[$LOOP_ID]: R3 architecture change needed" to STATE.md and exit
+- On verification FAIL: write "LOOP_STOP[$LOOP_ID]: verification failed" to STATE.md and exit
+- On security CRITICAL/HIGH: write "LOOP_STOP[$LOOP_ID]: security issue" to STATE.md and exit
 - After successful completion: exit normally
 - Branch workflow: create branch riff/phase-N-slug, commit per task, create PR, then STOP
 - Never auto-merge PRs. The user reviews and merges manually after the loop completes.
@@ -226,11 +233,13 @@ RIFF_PROMPT
   fi
 
   # Check if the loop should stop — only consider LOOP_STOP lines written
-  # AFTER the iteration marker, so stale markers from prior iterations
-  # (already cleared at startup, but defensive) don't trigger.
-  STOP_REASON=$(awk -v marker="$ITER_MARKER" '
+  # AFTER the iteration marker AND owned by this loop session (or in legacy
+  # unscoped form, in case Claude drops the namespace tag). Trade-off: the
+  # legacy arm risks cross-triggering on a concurrent loop's bare marker, but
+  # we'd rather over-stop than miss a real stop signal (e.g. security issue).
+  STOP_REASON=$(awk -v marker="$ITER_MARKER" -v loop_id="$LOOP_ID" '
     $0==marker { seen=1; next }
-    seen && /LOOP_STOP/ { print; exit }
+    seen && (index($0, "LOOP_STOP[" loop_id "]") || index($0, "LOOP_STOP:")) { print; exit }
   ' STATE.md 2>/dev/null)
   if [ -n "$STOP_REASON" ]; then
     notify "Loop stopped: $STOP_REASON" "warn"
