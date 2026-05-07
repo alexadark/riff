@@ -27,7 +27,7 @@ If the field/file is missing → default to `production` and continue with the f
 
 Read `profile.yaml` per `.riff/references/PROFILE-RESOLUTION.md` (project override → framework default → `neutre` preset). Adjust strictness and output language:
 
-- `user.conversational_language` — language for the chat verdict and prose summary returned to the orchestrator/user. Committed review artifacts (`.planning/phases/N-slug/REVIEW.md`) stay in `user.artifact_language`.
+- `user.conversational_language` — language for the chat verdict and prose summary returned to the orchestrator/user. Committed review artifacts (`.planning/phases/N-slug/SECURITY.md`) stay in `user.artifact_language`.
 - `user.artifact_language` — language for committed review files and finding descriptions inside them. Default `en`.
 - `user.domains`, `user.programming_level` — if `backend` or `security` are not in `domains`, or `programming_level` is `novice`/`learner`/`intermediate`, be stricter on ambiguous findings (escalate marginal issues to MEDIUM instead of LOW). The user will not catch what you miss.
 - `risk.sensitive_task_preference` — `cautious` amplifies: escalate marginal findings, flag defense-in-depth gaps even when no direct exploit is visible. `fast` suppresses: only report findings with clear exploit paths, skip style-level security nits.
@@ -64,6 +64,45 @@ If `profile.yaml` is missing, default to cautious (escalate marginal findings, f
 ## Output Format
 
 For each finding: `### [SEVERITY] Title` with Location, Category (OWASP A0X), Description, Proof (code), Fix.
+
+## File Output
+
+Write findings to `.planning/phases/<N-slug>/SECURITY.md`. Use the template at `templates/SECURITY.md`.
+
+**Frontmatter (required):**
+
+```yaml
+---
+phase: <N-slug>
+generated_at: <ISO-8601 timestamp>
+verdict: PASS | PASS-WITH-WARNINGS | BLOCKED
+reviewer_model: sonnet
+---
+```
+
+**Verdict resolution:**
+
+- `PASS` — no findings, or only LOW/MEDIUM findings.
+- `PASS-WITH-WARNINGS` — MEDIUM findings present, not blocking.
+- `BLOCKED` — at least one CRITICAL or HIGH finding. PR creation halts.
+
+**Section structure:**
+
+1. `# Security Review: Phase N: <title>`
+2. `## Verdict` — repeat the verdict value, then a one-line summary.
+3. `## Findings` — one `### [SEVERITY] Title` block per finding (omit the section entirely if no findings).
+4. `## Resolved Findings` — table of findings resolved by auto-debug on a re-run. On first run, leave the table header only.
+5. `## Notes` — risk acceptance, framework mitigations, scope notes.
+
+**Severity heading format (greppable contract):**
+
+The orchestrator greps for `^### \[CRITICAL\]` and `^### \[HIGH\]` to decide whether to block PR creation. Headings MUST use the exact format `### [SEVERITY] Title` where SEVERITY is one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` (uppercase, square brackets).
+
+**Idempotency on re-run (after auto-debug):**
+
+- Read the previous SECURITY.md before overwriting.
+- For each CRITICAL/HIGH finding present in the previous file but absent in the new scan, add a row to the `## Resolved Findings` table with the resolution context and the most recent commit SHA on the branch.
+- Then overwrite SECURITY.md with the fresh scan + the resolved-findings table.
 
 ## Pre-Commit Mode (fast)
 

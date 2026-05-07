@@ -45,7 +45,7 @@ Contradiction on resume (re-asked question, new answer ≠ STATE.md) → STOP, s
 |---|---|---|
 | **next-A** Plan validated | Step 4b PROCEED | PLAN.md, PLAN-REVIEW.md, ROADMAP entry |
 | **next-B** Code shipped | Step 5 SUMMARY.md, tests green | SUMMARY.md, `git diff main...HEAD`, PLAN.md |
-| **next-C** Review passed | Step 7 PASS / RESOLVED | SUMMARY.md, REVIEW.md, DEBUG.md if any |
+| **next-C** Review passed | Step 7 PASS / RESOLVED | SUMMARY.md, REVIEW.md, SECURITY.md, DEBUG.md if any |
 
 **`/riff:loop`** — between iterations automatic (fresh context / phase via `riff-loop.sh`). Inside iteration: `/riff:next` checkpoints apply.
 
