@@ -100,6 +100,45 @@ if [ ${#DRIZZLE_MIGRATIONS[@]} -gt 0 ] || ([ ${#SCHEMA_CHANGES[@]} -gt 0 ] && { 
     return 2>/dev/null || exit $ISSUES_FOUND
   fi
 
+  # ---------------------------------------------------------------------
+  # Supabase RLS gate: every CREATE TABLE in a new migration must be
+  # paired with an ALTER TABLE ... ENABLE ROW LEVEL SECURITY statement
+  # somewhere in the drizzle/ tree. Without RLS, anon Supabase clients
+  # can read/write the table directly through PostgREST.
+  # Skipped for non-Supabase projects (no @supabase/* dep in package.json).
+  # ---------------------------------------------------------------------
+  if [ -f "package.json" ] && grep -q '"@supabase/' package.json 2>/dev/null; then
+    echo -n "  Verifying new tables have RLS enabled... "
+    RLS_MISSING=()
+    for file in "${DRIZZLE_MIGRATIONS[@]}"; do
+      [ -f "$file" ] || continue
+      while IFS= read -r tbl; do
+        [ -z "$tbl" ] && continue
+        if ! grep -qiE "ALTER[[:space:]]+TABLE[[:space:]]+\"?${tbl}\"?[[:space:]]+ENABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY" drizzle/*.sql 2>/dev/null; then
+          RLS_MISSING+=("$tbl ($(basename "$file"))")
+        fi
+      done < <(grep -oiE 'CREATE TABLE (IF NOT EXISTS )?"[^"]+"' "$file" | sed -E 's/.*"([^"]+)".*/\1/')
+    done
+
+    if [ ${#RLS_MISSING[@]} -gt 0 ] && [ "${RIFF_SKIP_RLS_CHECK:-0}" != "1" ]; then
+      echo ""
+      echo -e "  ${RED}BLOCKED: tables created without RLS${NC}"
+      for entry in "${RLS_MISSING[@]}"; do
+        echo "    - $entry"
+      done
+      echo ""
+      echo -e "  ${YELLOW}Supabase exposes every public table to the anon role through PostgREST.${NC}"
+      echo "  Add to a migration (existing or new):"
+      echo "    ALTER TABLE \"<table>\" ENABLE ROW LEVEL SECURITY;"
+      echo "    -- plus a CREATE POLICY per access pattern, or no policy = deny-all."
+      echo "  Bypass for non-public tables: RIFF_SKIP_RLS_CHECK=1 git commit ..."
+      ISSUES_FOUND=$((ISSUES_FOUND + ${#RLS_MISSING[@]}))
+      return 2>/dev/null || exit $ISSUES_FOUND
+    else
+      echo "OK"
+    fi
+  fi
+
   # Check if drizzle-kit is available
   if [ ! -f "node_modules/.bin/drizzle-kit" ]; then
     echo -e "  ${YELLOW}WARNING: drizzle-kit not found in node_modules, skipping migration check${NC}"

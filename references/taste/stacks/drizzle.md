@@ -77,3 +77,37 @@ paths:
    ```
 
    Same applies to any non-string, non-primitive param passed via `${}` into raw `sql` template (Buffer, BigInt, custom objects). Stringify or use Drizzle's typed query builder (`eq`, `gt`, etc.) which handles serialization correctly.
+
+## Supabase + Drizzle: RLS belongs in migrations
+
+Drizzle never emits `ENABLE ROW LEVEL SECURITY`. Supabase exposes every table in `public` to the anon role through PostgREST, so a fresh table is world-readable until RLS is on. Don't keep an out-of-band `rls-policies.sql` "to run manually in the SQL Editor" — it WILL drift. Land RLS as a numbered migration so `db:migrate` applies it everywhere it goes.
+
+Per new table, in the same migration that creates it:
+
+```sql
+ALTER TABLE "<table>" ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "<table>_select" ON "<table>";
+CREATE POLICY "<table>_select" ON "<table>"
+  FOR SELECT USING (
+    organization_id = (SELECT organization_id FROM profiles WHERE id = auth.uid())
+  );
+-- + insert/update/delete as needed, or omit = deny-all through PostgREST.
+```
+
+Server-only tables (config, cache, log tables that no client should hit) get `ENABLE RLS` with no policy. Drizzle connects as table owner and bypasses RLS, so server code is unaffected.
+
+Make policy creation idempotent (`DROP POLICY IF EXISTS` before each `CREATE POLICY`) so the migration is safe to re-run after a partial apply.
+
+## Auto-apply migrations on Vercel build
+
+Default `build` does not migrate. Add a `vercel-build` script Vercel auto-detects:
+
+```json
+"db:check-safe": "tsx scripts/check-safe-migration.ts",
+"vercel-build": "npm run db:check-safe && npm run db:migrate && npm run build"
+```
+
+`check-safe-migration.ts` (template at `riff/templates/scripts/check-safe-migration.ts`) reads `drizzle/meta/_journal.json`, queries `drizzle.__drizzle_migrations`, and scans pending migrations for destructive patterns (`DROP TABLE/COLUMN`, `TRUNCATE`, `DELETE FROM`, `RENAME`, `ALTER COLUMN ... TYPE`). Match → exit 1 → build fails → migration must be applied manually. Override per-migration with `-- @riff:reviewed` after a careful read.
+
+The framework hook `hooks/migration-gate.sh` enforces the RLS pairing on commit: any `CREATE TABLE` in a staged migration without a matching `ENABLE ROW LEVEL SECURITY` blocks the commit (Supabase projects only, detected via `@supabase/*` in `package.json`). Bypass: `RIFF_SKIP_RLS_CHECK=1`.
