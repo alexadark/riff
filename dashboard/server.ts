@@ -21,6 +21,7 @@ import {
   resolvePhaseFiles,
   safeRead,
 } from "./parsers/phase.ts";
+import { parseProjectState } from "./parsers/state.ts";
 import {
   BootstrapRunner,
   generateExplanation,
@@ -41,11 +42,14 @@ if (!FRAMEWORK_ROOT) {
 }
 const RESOLVED_FRAMEWORK_ROOT = FRAMEWORK_ROOT ?? join(import.meta.dir, "..");
 
-const { config: PROFILE_CONFIG } = loadProfile(RESOLVED_FRAMEWORK_ROOT);
+// Boot-time snapshot used only for the startup banner. All API responses
+// re-resolve the profile per request so edits to profile.yaml take effect
+// without a server restart.
+const { config: BOOT_CONFIG } = loadProfile(RESOLVED_FRAMEWORK_ROOT);
 
 console.log(`[server] framework root: ${RESOLVED_FRAMEWORK_ROOT}`);
-console.log(`[server] dashboard config: level=${PROFILE_CONFIG.level} language=${PROFILE_CONFIG.language}`);
-console.log(`[server] registry: ${PROFILE_CONFIG.projects.length} project(s)`);
+console.log(`[server] dashboard config: level=${BOOT_CONFIG.level} language=${BOOT_CONFIG.language}`);
+console.log(`[server] registry: ${BOOT_CONFIG.projects.length} project(s)`);
 if (!isClaudeAvailable()) {
   console.warn("[server] claude CLI not on PATH — generation endpoints will return errors.");
 }
@@ -74,23 +78,18 @@ interface ProjectContext {
   watcher: ProjectWatcher;
   bootstrap: BootstrapRunner;
   bootstrapped: boolean;
-  /**
-   * Per-project resolved config. Honors `<root>/.planning/profile.yaml`
-   * overrides via resolveProjectConfig. Set at context build time only:
-   * `buildContexts` skips already-known slugs, so editing `.planning/profile.yaml`
-   * mid-session does NOT refresh this until the project is removed and re-added,
-   * or the server restarts. Live invalidation on profile change is deferred to
-   * Phase 6 (specs/plans/audit-fixes.md § Phase 6, task 4).
-   */
-  config: DashboardConfig;
 }
 
 /**
  * Build a per-project DashboardConfig. Level + language come from the
  * project override (if any), framework profile, or neutre baseline.
  * `projects` stays empty because the registry is framework-scoped.
+ *
+ * Called per request so that edits to `.planning/profile.yaml` (or to the
+ * framework `profile.yaml`) take effect without a server restart. Cheap:
+ * resolveProfile reads two short YAML files from disk.
  */
-function buildProjectConfig(projectRoot: string): DashboardConfig {
+function projectConfigFor(projectRoot: string): DashboardConfig {
   const project = resolveProjectConfig(projectRoot, RESOLVED_FRAMEWORK_ROOT);
   return {
     level: project.level,
@@ -117,8 +116,10 @@ function buildContexts(registry: RegistryEntry[]): void {
     const watcher = new ProjectWatcher(entry.root);
     watcher.subscribe((event) => broadcast({ ...event, project: entry.slug }));
     watcher.start();
-    const config = buildProjectConfig(entry.root);
-    const bootstrap = new BootstrapRunner(entry.root, config);
+    // Bootstrap is constructed with the current per-project config. If level
+    // or language changes mid-session, in-flight bootstrap keeps the old
+    // value. Subsequent API renders use the fresh value via projectConfigFor.
+    const bootstrap = new BootstrapRunner(entry.root, projectConfigFor(entry.root));
     bootstrap.subscribe((event) => broadcast({ ...event, project: entry.slug }));
     contexts.set(entry.slug, {
       slug: entry.slug,
@@ -126,7 +127,6 @@ function buildContexts(registry: RegistryEntry[]): void {
       watcher,
       bootstrap,
       bootstrapped: false,
-      config,
     });
   }
 }
@@ -140,14 +140,19 @@ function currentRegistry(): RegistryEntry[] {
 // Initial wiring.
 buildContexts(currentRegistry());
 
-/** Trigger bootstrap on first interaction with a project (lazy). */
+/**
+ * Trigger bootstrap on first interaction with a project (lazy).
+ *
+ * Only marks `bootstrapped = true` once we have a valid roadmap to feed it.
+ * If ROADMAP.yaml does not exist yet (e.g. project freshly registered before
+ * `/riff:start` runs), the next request retries.
+ */
 function ensureBootstrapped(ctx: ProjectContext): void {
   if (ctx.bootstrapped) return;
-  ctx.bootstrapped = true;
   const roadmap = parseRoadmap(ctx.root);
-  if (roadmap) {
-    ctx.bootstrap.start(roadmap);
-  }
+  if (!roadmap) return;
+  ctx.bootstrapped = true;
+  ctx.bootstrap.start(roadmap);
 }
 
 // ---------- Helpers ----------
@@ -274,6 +279,7 @@ app.get("/api/projects", (c) => {
         exists: false,
         progress: progressOf(null),
         active_phase: null,
+        state: null,
         last_modified_ms: null,
       };
     }
@@ -285,12 +291,16 @@ app.get("/api/projects", (c) => {
       exists: true,
       progress: progressOf(roadmap),
       active_phase: activePhase(roadmap),
+      state: parseProjectState(entry.root),
       last_modified_ms: lastModifiedMs(entry.root),
     };
   });
+  // Fresh per-request profile read so edits to profile.yaml take effect
+  // without restarting the server.
+  const { config: liveConfig } = loadProfile(RESOLVED_FRAMEWORK_ROOT);
   return c.json({
     projects,
-    profile: { dashboard: { level: PROFILE_CONFIG.level, language: PROFILE_CONFIG.language } },
+    profile: { dashboard: { level: liveConfig.level, language: liveConfig.language } },
     framework_root: RESOLVED_FRAMEWORK_ROOT,
   });
 });
@@ -374,9 +384,12 @@ app.get("/api/projects/:slug", (c) => {
 
   ensureBootstrapped(ctx);
 
+  // Fresh per-request profile so a mid-session edit to .planning/profile.yaml
+  // (or to the framework profile) takes effect on next render.
+  const liveConfig = projectConfigFor(ctx.root);
   const roadmap = parseRoadmap(ctx.root);
   const phases = (roadmap?.phases ?? []).map((p) => {
-    const meta = phaseStatus(ctx.root, p, ctx.config.level);
+    const meta = phaseStatus(ctx.root, p, liveConfig.level);
     return {
       id: p.id,
       slug: p.slug,
@@ -388,7 +401,7 @@ app.get("/api/projects/:slug", (c) => {
       has_explain: meta.has_explain,
       has_explain_post: meta.has_explain_post,
       available_levels: meta.available_levels,
-      explain_preview: explainPreview(ctx.root, p, ctx.config.level),
+      explain_preview: explainPreview(ctx.root, p, liveConfig.level),
     };
   });
 
@@ -399,6 +412,8 @@ app.get("/api/projects/:slug", (c) => {
     phases,
     progress: progressOf(roadmap),
     active_phase: activePhase(roadmap),
+    state: parseProjectState(ctx.root),
+    config: { level: liveConfig.level, language: liveConfig.language },
     bootstrap_status: ctx.bootstrap.getStatus(),
   });
 });
@@ -419,8 +434,9 @@ app.get("/api/projects/:slug/phase/:id", async (c) => {
     return c.json({ error: "phase not found" }, 404);
   }
 
+  const liveConfig = projectConfigFor(ctx.root);
   const levelQuery = c.req.query("level");
-  const requestedLevel: ExplainLevel = isValidLevel(levelQuery) ? levelQuery : ctx.config.level;
+  const requestedLevel: ExplainLevel = isValidLevel(levelQuery) ? levelQuery : liveConfig.level;
 
   const files = resolvePhaseFiles(ctx.root, phase, requestedLevel);
   const explain = files.explain ? safeRead(files.explain) : null;
@@ -444,7 +460,7 @@ app.get("/api/projects/:slug/phase/:id", async (c) => {
     };
   }
 
-  const phaseMeta = phaseStatus(ctx.root, phase, ctx.config.level);
+  const phaseMeta = phaseStatus(ctx.root, phase, liveConfig.level);
 
   return c.json({
     project: ctx.slug,
@@ -481,7 +497,8 @@ app.get("/api/projects/:slug/phase/:id/generate", (c) => {
   if (!Number.isFinite(id)) {
     return c.json({ error: "invalid phase id" }, 400);
   }
-  const levelParam = c.req.query("level") ?? ctx.config.level;
+  const liveConfig = projectConfigFor(ctx.root);
+  const levelParam = c.req.query("level") ?? liveConfig.level;
   const kindParam = c.req.query("kind");
   if (!isValidLevel(levelParam)) {
     return c.json({ error: "invalid level (expected technical|simple|eli5)" }, 400);
@@ -519,7 +536,7 @@ app.get("/api/projects/:slug/phase/:id/generate", (c) => {
         projectRoot: ctx.root,
         phase,
         kind: kindParam,
-        config: ctx.config,
+        config: liveConfig,
         level: levelParam,
         onChunk: (text) => {
           void send({ type: "chunk", text });

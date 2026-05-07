@@ -1,6 +1,6 @@
 # RIFF Dashboard
 
-Local web dashboard for the RIFF framework. Reads `ROADMAP.yaml`, `STATE.md`, and `.planning/phases/**` from every registered project, and serves a kanban + phase-detail view in a browser. Read-only — driving still happens in the terminal via `/riff:next`.
+Local web dashboard for the RIFF framework. Reads `ROADMAP.yaml`, `STATE.md`, and `.planning/phases/**` from every registered project (kanban from the roadmap; current-position / blockers / resume command from STATE.md), and serves a kanban + phase-detail view in a browser. Read-only — driving still happens in the terminal via `/riff:next`.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -51,11 +51,11 @@ Default port: `4000`. Override with `PORT=5000 bun run start`.
 
 ## Multi-project registry
 
-The dashboard supports many RIFF projects from a single server. The registry lives at `~/.riff/projects.json` and is populated by `/riff:dashboard` (which auto-registers `cwd` on every run) and by `/riff:start` (which posts to `/api/projects` if the dashboard is already up).
+The dashboard supports many RIFF projects from a single server. The registry lives in `<frameworkRoot>/profile.yaml` under the `dashboard.projects` key (an array of absolute project paths). It is populated by `/riff:dashboard` (which auto-registers `cwd` on every run) and by `/riff:start` (which posts to `/api/projects` if the dashboard is already up).
 
-Each registry entry stores: project root path, slug (derived from the directory name), human-readable label, and a `realpath` for symlink-safe matching.
+Each registry entry exposes: `slug` (derived from the directory basename, with a `-N` suffix on collision), `root` (the absolute path), and `exists` (whether the path is still on disk). Stale entries are not auto-pruned — the UI surfaces them so you can decide whether to remove them.
 
-Projects can be removed via `DELETE /api/projects/:slug` or directly by editing `~/.riff/projects.json`. Each project card has a hover-revealed `×` button that triggers the same delete (with confirmation).
+Projects can be removed via `DELETE /api/projects/:slug` or by editing the `dashboard.projects` array in `profile.yaml` directly. Each project card has a hover-revealed `×` button that triggers the same delete (with confirmation).
 
 ### Adding from the UI (macOS)
 
@@ -67,11 +67,11 @@ On non-macOS platforms, the picker endpoint returns `501` and the user falls bac
 
 | Method | Path                                              | Purpose                                                                 |
 | ------ | ------------------------------------------------- | ----------------------------------------------------------------------- |
-| GET    | `/api/projects`                                   | List registered projects + active dashboard config                      |
+| GET    | `/api/projects`                                   | List registered projects + active dashboard config + parsed `STATE.md` per project |
 | POST   | `/api/projects`                                   | Register a project (`{ "path": "/abs/path/to/project" }`)              |
 | DELETE | `/api/projects/:slug`                             | Remove a project from the registry                                      |
 | POST   | `/api/pick-folder`                                | Open a native macOS folder picker (via `osascript`). Returns `{ path }`, `{ cancelled: true }`, or `501` on non-darwin |
-| GET    | `/api/projects/:slug`                             | Project metadata + parsed `ROADMAP.yaml` shape                          |
+| GET    | `/api/projects/:slug`                             | Project metadata + parsed `ROADMAP.yaml` shape + parsed `STATE.md` + per-project resolved `config` |
 | GET    | `/api/projects/:slug/phase/:id`                   | Phase detail: PLAN.md, SUMMARY.md, gates, explanations, metadata        |
 | GET    | `/api/projects/:slug/phase/:id/generate`          | SSE stream of `claude --print` chunks (lazy explanation generation)     |
 | GET    | `/api/projects/:slug/bootstrap-status`            | Background bootstrap progress (per-project)                             |
@@ -91,7 +91,8 @@ dashboard/
 ├─ parsers/
 │  ├─ phase.ts        Artifact files → JSON (PLAN.md, SUMMARY.md, GATES.md)
 │  ├─ profile.ts      profile.yaml resolution + registry I/O
-│  └─ roadmap.ts      ROADMAP.yaml → kanban shape
+│  ├─ roadmap.ts      ROADMAP.yaml → kanban shape
+│  └─ state.ts        STATE.md → JSON (current position, blockers, resume command)
 └─ public/
    ├─ index.html
    ├─ app.js          Vanilla JS, no build step
@@ -104,10 +105,11 @@ The frontend is intentionally build-free (vanilla JS + CSS) so the dashboard can
 
 ### Environment
 
-| Variable     | Default                | Purpose                                                |
-| ------------ | ---------------------- | ------------------------------------------------------ |
-| `PORT`       | `4000`                 | Server port                                            |
-| `PROJECT_ROOT` | `process.cwd()`     | Fallback project root if the registry is empty         |
+| Variable | Default | Purpose     |
+| -------- | ------- | ----------- |
+| `PORT`   | `4000`  | Server port |
+
+The server discovers the framework root by walking up from `dashboard/` until it finds `profile.yaml.example`. Project roots come from the registry (`dashboard.projects` in `profile.yaml`), not from any environment variable.
 
 ### profile.yaml (at the framework root)
 
@@ -119,15 +121,14 @@ style:
 dashboard:
   language: fr                # fr | en | es | ... — falls back to user.conversational_language, then en
   level: simple               # legacy field, equivalent to style.explanation_level
+  projects:                   # the registry — absolute paths to every RIFF project served
+    - /Users/me/DEV/projects/my-saas
+    - /Users/me/DEV/projects/another-app
 ```
 
-The dashboard caches its profile on startup. Edit `profile.yaml`, then restart with:
+Profile is re-read on every API request, so editing `profile.yaml` (or a per-project `.planning/profile.yaml` override) takes effect on the next page reload. No server restart required.
 
-```bash
-/riff:dashboard --stop && /riff:dashboard
-```
-
-Existing per-phase explanations regenerate on next visit (lazy bootstrap detects the level/language drift).
+Already-generated per-phase explanations are NOT regenerated when you switch level/language — the lazy bootstrap fills in the new level on next visit, or you can trigger a regen explicitly via the regenerate button.
 
 ## Live updates
 
@@ -162,7 +163,7 @@ If `claude` is not on `PATH`, generation fails gracefully and the UI shows a pla
 
 ## Troubleshooting
 
-**Browser shows "Project not found"** — the slug in the URL does not match any registered project. Check `~/.riff/projects.json` and re-register with `POST /api/projects` or `/riff:dashboard` from the project directory.
+**Browser shows "Project not found"** — the slug in the URL does not match any registered project. Check the `dashboard.projects` array in `<frameworkRoot>/profile.yaml` and re-register with `POST /api/projects` or `/riff:dashboard` from the project directory.
 
 **Explanations are stuck at "generating..."** — likely a `claude` CLI failure. Check `dashboard/.last-run.log` for stderr from the `claude --print` subprocess. Common cause: API rate limit, missing auth, or stale auth token.
 

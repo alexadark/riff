@@ -750,10 +750,10 @@ A local Bun web server (`/riff:dashboard`) that turns the on-disk artifacts of e
 
 ### What it shows
 
-- **Kanban per project** sourced from `ROADMAP.yaml` + `STATE.md` (Backlog / In Progress / Done columns)
+- **Kanban per project** sourced from `ROADMAP.yaml` (Backlog / In Progress / Done columns). `STATE.md` is parsed for live status fields (current command, phase, last action, blockers, resume command, next action) returned alongside the kanban
 - **Per-phase explanations** in plain language at your `profile.style.explanation_level` (technical / simple / eli5), in `profile.user.narrative_language` (French / English / etc). One pre-execution view (what THIS PHASE WILL DO, generated lazily on first dashboard visit and refreshed at Step 4c of `/riff:next`) and one post-execution view (what was built, generated at Step 5e)
 - **Generation metadata block** per phase: real duration from git timestamps, file diff stats, gate outcomes (Step 4b plan-adversarial, 5b simplifier, 5d fallow, 6 adversarial, 7 security), Codex usage (model / effort / outcome / duration), agents observed in commit trailers
-- **Multi-project registry** at `~/.riff/projects.json` — one server, many projects. Switching is a route change, not a server restart
+- **Multi-project registry** stored in `<frameworkRoot>/profile.yaml` under `dashboard.projects` (an array of absolute project paths). One server, many projects. Switching is a route change, not a server restart. Add via `POST /api/projects` (auto-called by `/riff:dashboard` from inside any RIFF project), remove via `DELETE /api/projects/:slug`
 
 ### Architecture
 
@@ -763,11 +763,13 @@ dashboard/
 ├─ services/          claude.ts (CLI invoke), bootstrap.ts (lazy gen),
 │                     git.ts, watcher.ts (chokidar)
 ├─ parsers/           phase.ts (artifact → JSON), profile.ts (resolve level + lang),
-│                     roadmap.ts (YAML → kanban shape)
+│                     roadmap.ts (YAML → kanban shape), state.ts (STATE.md → JSON)
 └─ public/            Static frontend (vanilla JS + CSS, no build step)
 ```
 
-The server reads `PROJECT_ROOT` from the environment (set by `/riff:dashboard`) or falls back to `process.cwd()`. Multi-project support is layered on top: each project is a registry entry resolved by slug at request time.
+The server walks up from its own location to find the framework root (the directory containing `profile.yaml.example`) and reads `<frameworkRoot>/profile.yaml` for the registry. There is no `PROJECT_ROOT` env var: every project served is an entry in `dashboard.projects` and is resolved by slug at request time. The only env var is `PORT` (default `4000`).
+
+Profile is re-resolved on every API request, so editing the framework `profile.yaml` or any project's `.planning/profile.yaml` takes effect on the next page reload — no server restart required.
 
 ### Live updates
 
@@ -789,7 +791,7 @@ The dashboard never runs `/riff:next` for you, never edits ROADMAP.yaml, never o
 - `dashboard.level` (legacy): equivalent to `style.explanation_level`, kept for back-compat.
 - `dashboard.language` (legacy): equivalent to `user.narrative_language`, kept for back-compat.
 
-Edit `profile.yaml` and run `/riff:dashboard --stop && /riff:dashboard` to pick up the new values (cached explanations regenerate on next visit).
+Edit `profile.yaml` (or `.planning/profile.yaml` for a per-project override) and reload the dashboard page — the new level and language take effect immediately. Already-generated `EXPLAIN.{level}.md` files are not auto-regenerated when you switch levels; the lazy bootstrap fills in the new level on next visit, or you can trigger it explicitly via the regenerate button.
 
 ### Stopping it
 

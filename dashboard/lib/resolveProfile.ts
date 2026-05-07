@@ -80,7 +80,6 @@ export function resolveProfile(opts: ResolveOptions): ResolvedProfile {
     const projectPath = join(projectRoot, ".planning", "profile.yaml");
     const projectProfile = readYaml(projectPath);
     if (projectProfile) {
-      console.log(`[resolve-profile] source: project (${projectPath})`);
       return { profile: projectProfile, source: "project", path: projectPath };
     }
   }
@@ -88,14 +87,12 @@ export function resolveProfile(opts: ResolveOptions): ResolvedProfile {
   const frameworkPath = join(frameworkRoot, "profile.yaml");
   const frameworkProfile = readYaml(frameworkPath);
   if (frameworkProfile) {
-    console.log(`[resolve-profile] source: framework (${frameworkPath})`);
     return { profile: frameworkProfile, source: "framework", path: frameworkPath };
   }
 
   const neutrePath = join(frameworkRoot, "templates", "profile.neutre.yaml");
   const neutreProfile = readYaml(neutrePath);
   if (neutreProfile) {
-    console.log(`[resolve-profile] source: neutre (${neutrePath})`);
     return { profile: neutreProfile, source: "neutre", path: neutrePath };
   }
 
