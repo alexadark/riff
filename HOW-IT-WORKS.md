@@ -714,6 +714,15 @@ Check stop conditions:
 
 **HITL protection:** the loop only runs phases marked `mode: AFK` in ROADMAP.yaml. Phases marked `mode: HITL` (human-in-the-loop) are skipped, they need you present. HITL is reserved for phases requiring manual human verification: OAuth/SSO browser flow, real payment checkout, DNS/prod cutover, irreversible migrations. Code-only auth/payment/security work stays AFK, security-reviewer + adversarial Codex are the safety net. When only HITL phases remain, the loop stops and notifies you.
 
+### AFK safety
+
+The loop launches Claude Code with `--settings <framework>/templates/settings.afk.json`, not `--dangerously-skip-permissions`. Two layers of defense replace the old bypass:
+
+1. **Permission allowlist** in `templates/settings.afk.json`: `defaultMode: dontAsk` plus a curated Bash allow list (git, gh read-only, npm/pnpm/yarn/bun, common build tools) and a strict deny list (destruction, privilege escalation, remote-fetch-and-execute, bash-syntax evasion, git history rewrite, supply-chain push, privileged side-channels, auth tampering). Read/Edit/Write are scoped away from `~/.ssh`, `~/.aws`, `.env`, and system paths.
+2. **Defense-in-depth hook** `hooks/dangerous-command-guard.sh`: PreToolUse Bash guard that scans the literal command string against ~40 regex patterns covering the same threat families plus obfuscation forms (`eval`, `bash -c`, base64-pipe). Fail-closed on parse error. Logs blocked commands to `<project>/.planning/security-events.log` (chmod 600, one JSON line per event).
+
+The loop refuses to start if `templates/settings.afk.json` is missing. `gh pr merge` is denied: the loop opens a PR per phase and stops; chaining is the topic of a separate design (see `specs/plans/audit-fixes.md` Phase 9). Full threat model and what's NOT covered: `references/AFK-SAFETY.md`.
+
 ### Telegram Notifications Setup
 
 The loop can notify you via Telegram when it stops (verification failure, HITL needed, build complete, etc.). Setup:
