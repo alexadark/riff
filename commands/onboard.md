@@ -311,6 +311,7 @@ user:
   side_activities: [none]
   conversational_language: en
   artifact_language: en
+  narrative_language: en
 risk:
   sensitive_task_preference: fast
 style:
@@ -339,6 +340,7 @@ user:
   side_activities: [none]
   conversational_language: en
   artifact_language: en
+  narrative_language: en
 risk:
   sensitive_task_preference: balanced
 style:
@@ -367,6 +369,7 @@ user:
   side_activities: [none]
   conversational_language: fr
   artifact_language: en
+  narrative_language: fr
 risk:
   sensitive_task_preference: cautious
 style:
@@ -395,6 +398,7 @@ user:
   side_activities: [content, business]
   conversational_language: fr
   artifact_language: en
+  narrative_language: fr
 risk:
   sensitive_task_preference: cautious
 style:

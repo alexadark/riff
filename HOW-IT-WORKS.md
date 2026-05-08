@@ -136,6 +136,15 @@ You have an idea. No code exists yet. Here's the full workflow:
     v
 /riff:start  <-- 5-stage discovery pipeline (interactive)
     |
+    |  Stage 0: Brownfield Detection (auto, runs first)
+    |    - Heuristic check: ≥3 commits AND >5 source files → brownfield signal
+    |    - Greenfield (no substantial code): skip Stage 0, jump to Stage 1
+    |    - Brownfield detected: AskUserQuestion — run `audit-codebase` now
+    |      (AI-readiness score + Assay bug baseline) / defer / skip
+    |    - On "run now": invokes skill `audit-codebase` mode `full`, surfaces
+    |      score + TLDR. Findings feed Stage 1 questioning as constraints.
+    |    - Scratch scope: Stage 0 skipped (brownfield audit rarely repays time)
+    |
     |  Stage 1: Deep Questioning (9 extraction axes)
     |    - End Goal, Core Problem, User Types, Business Model
     |    - MVP Functionalities, Key User Stories, Competitive Context
@@ -269,7 +278,6 @@ Human review  <-- You correct what the explorer got wrong
 
 | Command                  | When to use it                                                |
 | ------------------------ | ------------------------------------------------------------- |
-| `/riff:init`             | Once, at the start. Installs RIFF into the project.           |
 | `/riff:init`             | Install RIFF into a project. Run once per repo.               |
 | `/riff:start`            | Greenfield only. Define what to build before writing code.    |
 | `/riff:map`              | Brownfield only. Explore an existing codebase.                |
@@ -280,9 +288,11 @@ Human review  <-- You correct what the explorer got wrong
 | `/riff:quick <task>`     | Small task without phase overhead. Bug fixes, tweaks, config. |
 | `/riff:debug <issue>`    | Structured debugging with root cause analysis.                |
 | `/riff:add-phase`        | Add one or more phases to ROADMAP.yaml.                       |
+| `/riff:improver [N\|--all]` | Batch the improver across the last N phases (default 3) to harvest learnings into `.planning/expertise/.pending/`. Fallback when Step 7b auto-trigger didn't fire. |
 | `/riff:onboard`          | Write `profile.yaml` (13 questions or pick a preset). Detects context: framework root → global default; project root → `.planning/profile.yaml` override. |
 | `/riff:learn-stack`      | Add a new stack reference file under `references/taste/stacks/`. |
 | `/riff:loop`             | Run unattended mode (Ralph loop) for AFK phases.              |
+| `/riff:dashboard`        | Open the local web dashboard (kanban, phase detail, plain-language explanations). See `dashboard/README.md`. |
 
 ### Conversational triggers (no slash command)
 
@@ -943,6 +953,25 @@ The verifier audits the phase git log and logs an R1 deviation if a `feat:`/`fix
 
 **Not proposed for:** UI/component phases (Storybook covers it), refactors, integrations, skills/scripts/automation.
 
+### GATES.md (per-phase gate log)
+
+Each phase accumulates a `GATES.md` in `.planning/phases/N-slug/`. This is an append-only log written by `/riff:next` as each gate resolves — one line per gate, recording whether it ran or was skipped and why.
+
+Example:
+
+```
+Step 4b: skipped — trivial (< 3 tasks)
+Step 5b: ran
+Step 5c: MATCH
+Step 5d: warn — 2 findings
+Step 6: ran — model=gpt-5.5 effort=medium
+Step 7b: skipped — gate not met
+```
+
+The `scripts/riff-pr-metadata.sh` script reads GATES.md and includes the entries in the PR description under "Generation metadata." The dashboard shows a condensed gate summary per phase (green/yellow/red indicators).
+
+**Template:** `templates/GATES.md` contains the blank structure with comments explaining each step and example entries. The orchestrator creates the file at the start of each phase and appends to it throughout.
+
 ### REGISTRY.md staleness reminder
 
 A pre-commit sub-hook (`hooks/registry-reminder.sh`) warns when a commit touches the public surface (`app/routes/`, `app/components/`, `app/lib/`, `schema.*`, `.env*`) but doesn't update `REGISTRY.md`. Set `RIFF_SKIP_REGISTRY=1` to bypass intentionally. The hook is chained automatically by `security-scan.sh`, no extra install step.
@@ -951,9 +980,32 @@ A pre-commit sub-hook (`hooks/registry-reminder.sh`) warns when a commit touches
 
 `DECAY.md` at the repo root is a discipline document that lists every RIFF component (commands, agents, hooks, scripts) and forces a review every 3 months: when did I last use it, what real problem did it solve, can it be removed or simplified? It also keeps a **Considered and rejected** section so settled debates (Docker sandbox, expertise.yaml, meta-agents, ADWs, worktrees, STATS dashboard, etc.) are not reopened without new evidence. Pruning protects RIFF from framework bloat.
 
+**When to prune:** quarterly, or after a major framework rewrite lands. The review is forced by a calendar reminder, not by any automated trigger.
+
+**How:** open `DECAY.md`, work through each row in the tables. For each component: check the last used date (search `git log` or your memory), write the verdict (`keep`, `simplify`, `remove`), and note why. If removing, delete the file, update `INDEX.md`, remove any symlinks via `/riff:resync`. Add a "Considered and rejected" entry if the debate might resurface. Commit as `chore: prune <component>`.
+
+**Template:** `templates/DECAY.md` is the blank version for new framework installs. Copy it to the repo root on first setup. The root `DECAY.md` accumulates history over time; the template resets to blank tables.
+
 ### Hooks test script
 
 `hooks/test.sh` exercises the critical hooks against known-bad inputs in an isolated temp git repo (with a stubbed `npx`). It covers `security-scan.sh` (secrets, `any`, `console.log`, staged `.env`) and `registry-reminder.sh` (surface change without `REGISTRY.md`, with `REGISTRY.md` staged, and `RIFF_SKIP_REGISTRY=1` bypass). Run `./hooks/test.sh`, it exits 0 when every hook behaves correctly.
+
+### Deep Audit (milestone boundary review)
+
+A cross-phase coherence pass that catches what per-phase Step 6 cannot see: drift between phases, duplicated helpers that appeared across waves, broken assumptions accumulated over a milestone, module-level security gaps. Runs via `protocols/DEEP-AUDIT.md`.
+
+**When it fires:**
+
+| Trigger | Source |
+| ------- | ------ |
+| User says "deep audit", "audit this module", "milestone review", "full milestone review" | Conversational trigger → `CLAUDE.md` |
+| `/riff:next` Step 10 detects the completed phase has a `milestone:` tag and user picks "run now" | Auto-prompt at end of phase |
+
+**Milestone boundary:** a phase tagged `milestone: <name>` in ROADMAP.yaml marks the end of a logical group (e.g., `milestone: auth-complete`, `milestone: v1`). A deep audit at a milestone covers all phases in that group at once — the combined file scope is wider than any single phase review.
+
+**Frequency:** there is no fixed cadence. You decide where to place `milestone:` tags in your roadmap. Typical usage: one milestone per major feature group (3-8 phases), one before a production deployment, one at the end of each sprint if working in sprints.
+
+**What it uses:** `codex:codex-rescue` skill (`--effort xhigh`). If missing, logs a warning and skips — never blocks. Optionally runs an Assay baseline first (Step 0) to give Codex a head start on what static analysis already found.
 
 ### Expertise Files
 
@@ -968,6 +1020,7 @@ Capped at 15 entries per agent. When full, similar entries are merged and low-im
 ```
 project/
   .riff/ -> ~/DEV/frameworks/riff/  # Symlink to framework repo (gitignored)
+    scripts/                        # Pipeline scripts: riff-pr-metadata.sh (PR body generator), csv-append.sh (atomic codex-usage.csv append). See scripts/README.md.
     protocols/                      # Shared rules: EXECUTION.md (confidence gate, R1-R4, context, waves), QUALITY.md (doc check, expertise, review), MODEL.md (model selection), AUTO-TRIGGERS.md (gate heuristics)
     agents/                         # Agent definitions (planner, executor, simplifier, scope-checker, adversarial-reviewer, security-reviewer, improver, debugger)
     commands/                       # Command definitions (next, start, check, etc.)
