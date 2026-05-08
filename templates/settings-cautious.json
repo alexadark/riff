@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/riff/destructive-guard.sh \"$TOOL_INPUT\""
+            "command": "bash .claude/hooks/riff/destructive-guard.sh"
           }
         ]
       }

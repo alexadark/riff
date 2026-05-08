@@ -196,14 +196,20 @@ You are running in RIFF loop (AFK mode). Execute /riff:next with these constrain
 RIFF_PROMPT
 
   # Execute with Claude Code CLI (synchronous, foreground)
-  # --dangerously-skip-permissions: never block on permission prompts in AFK
-  # --model: pin model for reproducibility across iterations
+  # --settings: AFK allowlist (Bash prefix allow + denylist + dangerous-command-guard hook).
+  # Replaces --dangerously-skip-permissions so prompt-injection in repo content
+  # cannot escalate to host destruction. See references/AFK-SAFETY.md.
+  AFK_SETTINGS="$SCRIPT_DIR/templates/settings.afk.json"
+  if [ ! -f "$AFK_SETTINGS" ]; then
+    notify "AFK settings missing at $AFK_SETTINGS. Refusing to run without sandboxed permissions." "error"
+    exit 1
+  fi
   PRE_SPAWN_BRANCH=$(git branch --show-current)
 
   set +e
   claude -p "$(cat "$PROMPT_FILE")" \
     --model "$MODEL" \
-    --dangerously-skip-permissions 2>&1 &
+    --settings "$AFK_SETTINGS" 2>&1 &
   CLAUDE_PID=$!
   wait "$CLAUDE_PID"
   CLAUDE_EXIT=$?
