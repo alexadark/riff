@@ -721,7 +721,26 @@ The loop launches Claude Code with `--settings <framework>/templates/settings.af
 1. **Permission allowlist** in `templates/settings.afk.json`: `defaultMode: dontAsk` plus a curated Bash allow list (git, gh read-only, npm/pnpm/yarn/bun, common build tools) and a strict deny list (destruction, privilege escalation, remote-fetch-and-execute, bash-syntax evasion, git history rewrite, supply-chain push, privileged side-channels, auth tampering). Read/Edit/Write are scoped away from `~/.ssh`, `~/.aws`, `.env`, and system paths.
 2. **Defense-in-depth hook** `hooks/dangerous-command-guard.sh`: PreToolUse Bash guard that scans the literal command string against ~40 regex patterns covering the same threat families plus obfuscation forms (`eval`, `bash -c`, base64-pipe). Fail-closed on parse error. Logs blocked commands to `<project>/.planning/security-events.log` (chmod 600, one JSON line per event).
 
-The loop refuses to start if `templates/settings.afk.json` is missing. `gh pr merge` is denied: the loop opens a PR per phase and stops; chaining is the topic of a separate design (see `specs/plans/audit-fixes.md` Phase 9). Full threat model and what's NOT covered: `references/AFK-SAFETY.md`.
+The loop refuses to start if `templates/settings.afk.json` is missing. Full threat model and what's NOT covered: `references/AFK-SAFETY.md`.
+
+### Merge strategy and chaining
+
+What happens after `/riff:next` opens a PR is controlled by `git.merge_strategy` in the resolved profile (`references/PROFILE-RESOLUTION.md`):
+
+| Strategy | After PR opens | Next iteration starts when | AFK chaining |
+|----------|---------------|----------------------------|--------------|
+| `github_button` (default) | Print PR URL, agent STOPs | Iteration N+1 begins after the fixed `RIFF_COOLDOWN` (default 5s); Step 0 reconciles any merged PR via stale-todo detection | Manual (human clicks Merge on GitHub) |
+| `local_no_ff` | Print PR URL, stay alive in session | User says "merge" in chat, Step 8c runs local `--no-ff` merge + push | Manual (HITL by design) |
+| `auto_merge` | Schedule `gh pr merge --auto --squash --delete-branch`, STOP | The loop polls `gh pr list` every 30s; once the prior PR is merged, the next iteration fires | Automatic |
+
+Under `auto_merge`, the loop reads two extra fields from profile:
+
+- `git.auto_merge_blocking_labels`: list of labels (default `["do-not-merge", "wip", "hold"]`) that pause chaining if present on the open PR. Add one of these labels on GitHub to halt the loop without killing the process; remove to resume by re-running `riff-loop.sh`.
+- `loop.merge_wait_timeout_min`: how long the loop waits for the prior PR to merge before stopping with `LOOP_STOP[<id>]: merge timeout` (default 30 minutes).
+
+`auto_merge` requires `yq` on PATH (the loop reads the profile through it). Without `yq`, the loop falls back to `github_button` and warns. `auto_merge` also swaps the AFK settings file to `templates/settings.afk.auto-merge.json` and the PreToolUse Bash guard to `hooks/dangerous-command-guard.auto-merge.sh`; the new pair permits exactly `gh pr merge --auto --squash --delete-branch` and rejects every other variant (including compound forms like `gh pr merge ... && rm -rf .`). Full design: `specs/designs/phase9-afk-chaining.md`.
+
+Gate semantics in `auto_merge`: the scheduled merge fires only when both durable artifacts agree, security-reviewer's `SECURITY.md` has no `### [CRITICAL]` or `### [HIGH]` finding AND scope-checker's `SCOPE-CHECK.json` reports `"verdict": "MATCH"`. Either failure writes a `LOOP_STOP` and halts the loop instead of merging.
 
 ### Telegram Notifications Setup
 

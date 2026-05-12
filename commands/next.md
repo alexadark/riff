@@ -98,7 +98,37 @@ If the section already exists, reset all four field values to `-`.
 
      Ask the user how they want to proceed. Do not run any destructive command without explicit confirmation.
 
-2. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
+2. **Merge-wait (`auto_merge` strategy only).** Skip this sub-step entirely unless `git.merge_strategy` resolves to `auto_merge`. For `github_button` and `local_no_ff`, the stale-todo detection below already handles all reconciliation needed (the loop's outer cooldown also waits in `auto_merge`, but this inner check guards the case where the agent restarts before the prior PR merges).
+
+   Read `git.merge_wait_timeout_min` from the resolved profile (default `30`). Compute `deadline = now + timeout_min * 60`.
+
+   Enumerate open RIFF PRs by branch prefix:
+
+   ```bash
+   gh pr list --author @me --state open \
+     --json number,headRefName,title \
+     --jq '[.[] | select(.headRefName | startswith("riff/phase-"))]'
+   ```
+
+   If the result is empty, continue to sub-step 3 (stale-todo detection). Otherwise, poll each PR every 30 seconds:
+
+   ```bash
+   gh pr view <number> \
+     --json state,mergeStateStatus,labels \
+     --jq '{state: .state, mergeStateStatus: .mergeStateStatus, labels: [.labels[].name]}'
+   ```
+
+   For each poll result, branch:
+
+   - `state == "MERGED"`: mark this PR done in the poll list. When all polled PRs are MERGED, continue to sub-step 3 (stale-todo detection will formalize the ROADMAP/STATE update via Tier 2 lookup).
+   - `state == "CLOSED"`: append `LOOP_STOP[$LOOP_ID]: PR #<number> closed without merge — CI failure or manual close` to STATE.md and STOP.
+   - Any label in the resolved `git.auto_merge_blocking_labels` list appears (default `["do-not-merge", "wip", "hold"]`): append `LOOP_STOP[$LOOP_ID]: blocking label on PR #<number> — human must resolve` to STATE.md and STOP.
+   - `now >= deadline`: append `LOOP_STOP[$LOOP_ID]: merge timeout on PR #<number> after <timeout_min> min` to STATE.md and STOP.
+   - Otherwise (`state == "OPEN"`, mergeStateStatus `BLOCKED` / `CLEAN` / `UNSTABLE` / `UNKNOWN`): sleep 30s and poll again.
+
+   The 30s sleep runs inside the agent's synchronous invocation; the loop wrapper's outer cooldown (see `riff-loop.sh`) provides a second layer of coverage if the agent exits cleanly after scheduling auto-merge but before the PR lands.
+
+3. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
 
    **Tier 1 — SHA ancestry (canonical).** Read `.planning/phases/<id>-<slug>/SUMMARY.md`. Look for a line matching `^> Merge commit: ([0-9a-f]{7,40})$`. If found, run:
 
@@ -124,7 +154,7 @@ If the section already exists, reset all four field values to `-`.
 
    A match means the PR was merged with the canonical RIFF subject. If none of the three tiers detect a merge, the phase is genuinely still todo.
 
-3. **If a stale-todo phase is found:**
+4. **If a stale-todo phase is found:**
    - Read `.planning/phases/<id>-<slug>/SUMMARY.md` to get the shipped scope, file/test counts, and PR number.
    - Set `status: done` for that phase in ROADMAP.yaml.
    - Update STATE.md: rewrite the `## Current Phase` prose to describe the shipped phase, append a row to the `## Phases Completed` table, refresh `## Next Action` to drop the now-shipped phase from "eligible".
@@ -137,9 +167,9 @@ If the section already exists, reset all four field values to `-`.
 
    The SUMMARY.md is included in the commit when Tier 2 just back-filled the merge SHA, so the durable artifact catches up to reality.
 
-4. **No stale phase found:** continue to the dirty-tree preflight (below).
+5. **No stale phase found:** continue to the dirty-tree preflight (below).
 
-5. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
+6. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
 
    - **All dirty files are inside `.planning/` only:** auto-skip. These are RIFF artifact residue (interrupted hook writes, etc.) safe to leave; Step 5's executor will overwrite them. Print a one-line notice and continue.
    - **Any dirty file is outside `.planning/`:** AskUserQuestion:
@@ -572,10 +602,27 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch.
    b. **Finalize PROMPTS.md.** Open `.planning/phases/N-slug/PROMPTS.md`. For any section whose sub-agent did not fire this phase (typically `## Debugger (if invoked)` when no failure occurred, or `## Simplifier` if Step 5b skipped), replace the remaining `{{prompt verbatim}}` placeholder with `_(not invoked)_`. Every section must end up either with the actual prompt or with `_(not invoked)_`. The metadata script in (c) hard-fails if any `{{prompt verbatim}}` remains, blocking PR creation — by design, so stakeholders never see template tokens leaking into the body.
    c. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and capture stdout — this is the tracked Generation metadata section (models per step, real duration from git timestamps, gates, Codex usage, agents observed in commit trailers, **token usage per agent parsed from USAGE.md**, and **agent prompts in a collapsible block parsed from PROMPTS.md**)
    d. Concatenate: `<human summary>` + `<script stdout>`. The script output already starts with a horizontal rule `---` and an `## Generation metadata (RIFF)` heading, so no separator needed
-3. `gh pr create --title "<phase title>" --body "<composed body>"`
+3. `PR_URL=$(gh pr create --title "<phase title>" --body "<composed body>")`
+   Capture stdout (the URL) so every strategy can interpolate the real PR URL into the final report. Required for `auto_merge` (passed to `gh pr merge`); improves report accuracy for the other two.
 4. **Read `profile.yaml` `git.merge_strategy`** (resolved per `.riff/references/PROFILE-RESOLUTION.md`; default `github_button` if missing or file missing) and branch:
-   - **`github_button`:** print final report ending with `PR open at <url>. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
-   - **`local_no_ff`:** print final report ending with `PR open at <url>. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
+   - **`github_button`:** print final report ending with `PR open at $PR_URL. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
+   - **`local_no_ff`:** print final report ending with `PR open at $PR_URL. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
+   - **`auto_merge`:** (AFK chaining path)
+     1. **Blocking-label check.** Read `git.auto_merge_blocking_labels` from resolved profile (default `["do-not-merge", "wip", "hold"]`). Then:
+        ```bash
+        labels=$(gh pr view "$PR_URL" --json labels --jq '[.labels[].name] | @csv' | tr -d '"')
+        ```
+        If any label in `labels` appears in the blocking list, append `LOOP_STOP[$LOOP_ID]: blocking label on PR <PR_URL> — human must resolve` to STATE.md, print the report, STOP.
+     2. **Re-verify gates (read-only, no agent re-spawn).** Both must pass:
+        - Security: `grep -Eq '^### \[(CRITICAL|HIGH)\]' .planning/phases/<id>-<slug>/SECURITY.md` → any match fails (security-reviewer writes SECURITY.md per `agents/security-reviewer.md` and `templates/SECURITY.md`; CRITICAL/HIGH headings use this exact format).
+        - Scope: `jq -e '.verdict == "MATCH"' .planning/phases/<id>-<slug>/SCOPE-CHECK.json` (exit 0 = pass; non-zero = fail). The file is the structured output produced by `agents/scope-checker.md`.
+        On either failure: append `LOOP_STOP[$LOOP_ID]: gate failure before auto-merge on PR <PR_URL> — <security|scope>` to STATE.md, print the report, STOP. The gates already ran at Steps 6-7; this is a fast assertion against their durable artifacts.
+     3. **Schedule merge:**
+        ```bash
+        gh pr merge "$PR_URL" --auto --squash --delete-branch
+        ```
+        Returns immediately; GitHub merges when all required checks pass. Exit code non-zero (e.g. branch protections, auto-merge disabled on the repo): append `LOOP_STOP[$LOOP_ID]: gh pr merge failed on PR <PR_URL>` and STOP.
+     4. Print final report ending with `PR open at $PR_URL. Auto-merge scheduled. Loop continues after CI completes; Step 0 of the next run reconciles ROADMAP/STATE.` STOP. Skip 8c (same as `github_button` — Step 0 stale-todo detection handles bookkeeping after the squash-merge lands).
 
 5. **Solo-reviewer reminder (inline, after the final report).** Read `user.work_mode` from `profile.yaml`. If `solo` or `solo_plus_clients` (or `client_work` / `mix`) AND the phase touched a sensitive surface (auth, payments, DB writes — derive from PLAN.md acceptance criteria or REVIEW.md categories), append one extra line to the report: `No teammate review configured. Consider waiting 24h or pairing on review before merging.` Skip for `team`. Skip for non-sensitive phases regardless of work_mode. Reminder is informational, never blocks the merge.
 

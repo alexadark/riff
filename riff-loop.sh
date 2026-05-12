@@ -118,6 +118,38 @@ if [ ! -d ".planning" ]; then
   exit 1
 fi
 
+# Resolve merge strategy + merge-wait timeout from profile (Phase 9 AFK chaining).
+# Defaults preserve the pre-Phase-9 behavior: github_button (HITL merge).
+# auto_merge requires yq AND a profile that opts in explicitly.
+MERGE_STRATEGY="github_button"
+MERGE_WAIT_TIMEOUT=30
+if command -v yq >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/lib/resolve-profile.sh" ]; then
+  _PROFILE_YAML="$(bash "$SCRIPT_DIR/lib/resolve-profile.sh" "$(pwd)" "$SCRIPT_DIR" 2>/dev/null)" || _PROFILE_YAML=""
+  if [ -n "$_PROFILE_YAML" ]; then
+    _STRATEGY="$(printf '%s' "$_PROFILE_YAML" | yq '.git.merge_strategy // ""' 2>/dev/null)"
+    if [ -n "$_STRATEGY" ] && [ "$_STRATEGY" != "null" ]; then
+      MERGE_STRATEGY="$_STRATEGY"
+    fi
+    _TIMEOUT="$(printf '%s' "$_PROFILE_YAML" | yq '.loop.merge_wait_timeout_min // ""' 2>/dev/null)"
+    if [ -n "$_TIMEOUT" ] && [ "$_TIMEOUT" != "null" ]; then
+      MERGE_WAIT_TIMEOUT="$_TIMEOUT"
+    fi
+  fi
+elif ! command -v yq >/dev/null 2>&1; then
+  notify "yq not found - merge_strategy stays github_button (auto_merge requires yq)." "warn"
+fi
+
+# Validate strategy against the documented enum. Typos like "auto-merge" (hyphen)
+# would otherwise silently fall through to github_button, defeating the user's
+# opt-in for chaining.
+case "$MERGE_STRATEGY" in
+  github_button|local_no_ff|auto_merge) ;;
+  *)
+    notify "Invalid git.merge_strategy '$MERGE_STRATEGY'. Valid values: github_button | local_no_ff | auto_merge." "error"
+    exit 1
+    ;;
+esac
+
 # Clear stale LOOP_STOP markers OWNED BY THIS PROCESS or in legacy unscoped
 # form. Markers from other loop sessions (LOOP_STOP[<other-id>]:) are left in
 # place so concurrent loops don't clobber each other's stop signals.
@@ -128,6 +160,7 @@ fi
 
 notify "Starting RIFF loop in $(pwd)" "info"
 notify "Max iterations: $MAX_ITERATIONS | Cooldown: ${COOLDOWN}s | Model: $MODEL" "info"
+notify "Merge strategy: $MERGE_STRATEGY | Merge-wait timeout: ${MERGE_WAIT_TIMEOUT}min" "info"
 
 # Main loop
 while [ $ITERATION -lt $MAX_ITERATIONS ]; do
@@ -178,9 +211,19 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   echo "$ITER_MARKER" >> STATE.md
 
   # Create a temporary prompt file for this iteration. Heredoc is unquoted so
-  # $LOOP_ID interpolates — Claude will tag every LOOP_STOP marker with the
-  # current loop session id, which keeps stop signals from different loops
-  # (or stale legacy markers) from cross-triggering.
+  # $LOOP_ID and $MERGE_INSTRUCTION interpolate — Claude will tag every
+  # LOOP_STOP marker with the current loop session id, which keeps stop signals
+  # from different loops (or stale legacy markers) from cross-triggering.
+  # SECURITY: only LOOP_ID (numeric) and MERGE_INSTRUCTION (static branches in
+  # this script) are safe to interpolate here. Do NOT add variables derived
+  # from repo content, branch names, or PR titles — they would be prompt-
+  # injectable into Claude's instructions. Quote the delimiter (`'RIFF_PROMPT'`)
+  # if you ever need to neutralize expansion entirely.
+  if [ "$MERGE_STRATEGY" = "auto_merge" ]; then
+    MERGE_INSTRUCTION="- Auto-merge is enabled. After /riff:next Step 8b creates the PR and all gates pass, schedule auto-merge with: gh pr merge \"\$PR_URL\" --auto --squash --delete-branch. GitHub merges when CI passes; the loop's outer cooldown waits for the merge before the next iteration."
+  else
+    MERGE_INSTRUCTION="- Never auto-merge PRs. The user reviews and merges manually after the loop completes."
+  fi
   PROMPT_FILE=$(mktemp)
   cat > "$PROMPT_FILE" << RIFF_PROMPT
 You are running in RIFF loop (AFK mode). Execute /riff:next with these constraints:
@@ -192,14 +235,20 @@ You are running in RIFF loop (AFK mode). Execute /riff:next with these constrain
 - On security CRITICAL/HIGH: write "LOOP_STOP[$LOOP_ID]: security issue" to STATE.md and exit
 - After successful completion: exit normally
 - Branch workflow: create branch riff/phase-N-slug, commit per task, create PR, then STOP
-- Never auto-merge PRs. The user reviews and merges manually after the loop completes.
+$MERGE_INSTRUCTION
 RIFF_PROMPT
 
   # Execute with Claude Code CLI (synchronous, foreground)
   # --settings: AFK allowlist (Bash prefix allow + denylist + dangerous-command-guard hook).
   # Replaces --dangerously-skip-permissions so prompt-injection in repo content
   # cannot escalate to host destruction. See references/AFK-SAFETY.md.
-  AFK_SETTINGS="$SCRIPT_DIR/templates/settings.afk.json"
+  # auto_merge selects a mirror settings file + hook variant that permits
+  # exactly `gh pr merge --auto --squash --delete-branch` (Phase 9 design).
+  if [ "$MERGE_STRATEGY" = "auto_merge" ]; then
+    AFK_SETTINGS="$SCRIPT_DIR/templates/settings.afk.auto-merge.json"
+  else
+    AFK_SETTINGS="$SCRIPT_DIR/templates/settings.afk.json"
+  fi
   if [ ! -f "$AFK_SETTINGS" ]; then
     notify "AFK settings missing at $AFK_SETTINGS. Refusing to run without sandboxed permissions." "error"
     exit 1
@@ -259,10 +308,39 @@ RIFF_PROMPT
     break
   fi
 
-  # Cooldown between iterations
+  # Cooldown between iterations.
+  # auto_merge: poll for the prior PR to merge before the next iteration so
+  # phase N+1 builds on top of phase N's merge, not on top of stale main.
+  # Other strategies: keep the fixed sleep (HITL clicks the button manually).
   if [ $ITERATION -lt $MAX_ITERATIONS ]; then
-    echo -e "${BLUE}Cooldown: ${COOLDOWN}s before next iteration...${NC}"
-    sleep "$COOLDOWN"
+    if [ "$MERGE_STRATEGY" = "auto_merge" ]; then
+      DEADLINE=$(($(date +%s) + MERGE_WAIT_TIMEOUT * 60))
+      while true; do
+        # Distinguish gh failure from "no open PRs" — both could otherwise
+        # collapse to "continue" and race the next iteration onto stale main.
+        if OPEN_RIFF_PR_COUNT=$(gh pr list --author @me --state open \
+            --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("riff/phase-"))] | length' 2>/dev/null); then
+          if [ "$OPEN_RIFF_PR_COUNT" -eq 0 ]; then
+            echo -e "${GREEN}Prior RIFF PR merged. Continuing to iteration $((ITERATION + 1)).${NC}"
+            break
+          fi
+          STATUS_LINE="Waiting for $OPEN_RIFF_PR_COUNT open RIFF PR to merge"
+        else
+          STATUS_LINE="gh pr list failed (auth or network) - retrying"
+          notify "$STATUS_LINE" "warn"
+        fi
+        if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+          notify "Merge-wait timeout after ${MERGE_WAIT_TIMEOUT}min. Stopping loop." "warn"
+          break 2  # break inner poll loop + outer iteration loop
+        fi
+        echo -e "${BLUE}${STATUS_LINE} (timeout: ${MERGE_WAIT_TIMEOUT}min)...${NC}"
+        sleep 30
+      done
+    else
+      echo -e "${BLUE}Cooldown: ${COOLDOWN}s before next iteration...${NC}"
+      sleep "$COOLDOWN"
+    fi
   fi
 done
 
