@@ -194,7 +194,10 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 3. AFK mode → filter to `mode: AFK` only
 4. Last VERIFICATION.md has `FAIL` → don't pick new; create fix plan on existing branch
 
-**Seed check:** scan `.planning/seeds/`. Seed's `trigger:` met → surface it. AFK → log only.
+**Seed check:** scan `.planning/seeds/`. For each seed whose `Trigger:` is met against the picked phase:
+- If the seed contains `Pre-approved: yes` near the top (typically `> Pre-approved: yes (approved by <user>, <date>)`) → auto-integrate the seed's `Proposed fix` (or `Idea`) into the current phase's task list as a new task. Do NOT surface to the user. Note the auto-merge in PLAN.md (`Source: seed-NNNN, auto-integrated per pre-approval flag`). The seed file stays in `.planning/seeds/` for traceability — delete it manually if you want a clean folder, or leave it as a record.
+- Otherwise → surface the seed to the user (current behavior).
+- AFK mode → log only, never block.
 
 ### Step 2b: Phase branch (inline)
 
