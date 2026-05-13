@@ -20,3 +20,18 @@
    ```
 
 5. **N-tier match: ALL rows per tier; multi-distinct-id = conflict.** Match external entity vs local rows across N priority keys. Never `LIMIT 1` per tier — same-tier dupes + cross-tier disagreement are real signals. Tiers parallel, dedupe by local id (keep highest-priority tier label). 1 distinct id → match. 2+ → `{ status: "conflict", conflicts: [...] }`. Caller stops writes, appends review queue. Never silent rows[0] or "highest tier wins".
+
+6. **New observability calls (gate / cost record / analytics emit) MUST be wrapped best-effort try/catch on existing user-visible code paths.** Pre-phase user-visible behavior is the contract; observability is best-effort. Any unwrapped `await` to a budget gate / cost ledger / analytics SDK can crash a flow on infra hiccup that previously had a placeholder fallback.
+
+    ```ts
+    // GOOD — gate failure does not short-circuit the existing fallback
+    let gate: Awaited<ReturnType<typeof checkBudgetGate>> | undefined;
+    try {
+      gate = await checkBudgetGate(...);
+    } catch (e) {
+      logger.warn("gate_failed", { errorClass: e?.constructor?.name });
+    }
+    // downstream uses gate?.budgetPeriodId (undefined-safe)
+    ```
+
+    Same for `recordProviderCost` / structured analytics writes. The pattern composes with rule #3 (fire-and-forget audit with `.catch()`); choose `.catch()` only when no return value is needed downstream.

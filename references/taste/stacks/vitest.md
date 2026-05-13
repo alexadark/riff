@@ -65,3 +65,13 @@ paths:
 9. **RR7 `data()` vs `redirect()` return shapes.** `data()` → `DataWithResponseInit`, extract `.data` and `.init?.status` for assertions. `redirect()` → native `Response` with status 302. Test `return redirect()` vs `throw redirect()` accordingly.
 
 10. **http-client retry testing — avoid 429/500 for non-retry assertions.** Use 401 (FatalError, no retry) to validate error propagation without 60s retry delays. Test actual retry behavior in http-client unit tests, not adapter tests.
+
+11. **`include` glob is explicit, not "wildcard all".** Default `vitest.config.ts` typically scopes to one root (e.g. `app/**/*.test.{ts,tsx}`). Test files outside that root — `scripts/`, `packages/*/`, `lib/`, `tools/` — are silently ignored. The suite passes green while those tests never run. When adding tests outside the configured root, extend `include` explicitly:
+
+    ```ts
+    test: {
+      include: ["app/**/*.test.{ts,tsx}", "scripts/**/*.test.{ts,tsx}"],
+    }
+    ```
+
+    Audit by running `vitest list` after config changes — it prints the discovered set so orphans are visible. Especially important for seed scripts, migration helpers, and one-off CLI utilities that ship with their own tests.
