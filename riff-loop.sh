@@ -103,10 +103,34 @@ bash "$SCRIPT_DIR/templates/banner.sh"
 # Check prerequisites
 cd "$PROJECT_PATH"
 
-# Detect main branch once (reliable fallback chain)
-MAIN_BRANCH=$(git remote show origin 2>/dev/null | awk '/HEAD branch/ {print $NF}') \
-  || MAIN_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null) \
-  || MAIN_BRANCH="main"
+# Detect main branch once. Resolution order:
+#   1. gh CLI (most authoritative — reads GitHub default branch directly)
+#   2. git remote show origin (reads remote HEAD, can be wrong if HEAD points to a feature branch)
+#   3. current HEAD as last resort
+#   4. hardcoded "main"
+#
+# Why the gh CLI step: `git remote show origin` reports whatever the remote HEAD
+# points at. When a brand-new GitHub repo is initialized by pushing a feature
+# branch first (e.g. /riff:next pushes `riff/phase-1-foundation` before main exists),
+# GitHub sets the remote HEAD on that feature branch. Subsequent runs of this
+# script then adopt the feature branch as MAIN_BRANCH and the loop re-runs the
+# same phase forever. Reported: knowledge-pipeline 2026-05-14.
+MAIN_BRANCH=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null)
+if [ -z "$MAIN_BRANCH" ]; then
+  MAIN_BRANCH=$(git remote show origin 2>/dev/null | awk '/HEAD branch/ {print $NF}')
+fi
+
+# Sanity check: a RIFF feature branch must never be treated as the default.
+# If it is, the remote HEAD is misconfigured — warn loudly and fall back to "main".
+if [[ "$MAIN_BRANCH" =~ ^riff/phase- ]]; then
+  echo -e "${YELLOW}Warning: remote default branch detected as '$MAIN_BRANCH' (looks like a RIFF feature branch).${NC}"
+  echo -e "${YELLOW}Falling back to 'main'. Fix the remote with: gh repo edit --default-branch main${NC}"
+  MAIN_BRANCH="main"
+fi
+
+if [ -z "$MAIN_BRANCH" ]; then
+  MAIN_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null) || MAIN_BRANCH="main"
+fi
 
 if [ ! -f "ROADMAP.yaml" ]; then
   echo -e "${RED}Error: ROADMAP.yaml not found. Run /riff:init and /riff:start first.${NC}"
