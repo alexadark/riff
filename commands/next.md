@@ -627,8 +627,6 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch.
         Returns immediately; GitHub merges when all required checks pass. Exit code non-zero (e.g. branch protections, auto-merge disabled on the repo): append `LOOP_STOP[$LOOP_ID]: gh pr merge failed on PR <PR_URL>` and STOP.
      4. Print final report ending with `PR open at $PR_URL. Auto-merge scheduled. Loop continues after CI completes; Step 0 of the next run reconciles ROADMAP/STATE.` STOP. Skip 8c (same as `github_button` — Step 0 stale-todo detection handles bookkeeping after the squash-merge lands).
 
-5. **Solo-reviewer reminder (inline, after the final report).** Read `user.work_mode` from `profile.yaml`. If `solo` or `solo_plus_clients` (or `client_work` / `mix`) AND the phase touched a sensitive surface (auth, payments, DB writes — derive from PLAN.md acceptance criteria or REVIEW.md categories), append one extra line to the report: `No teammate review configured. Consider waiting 24h or pairing on review before merging.` Skip for `team`. Skip for non-sensitive phases regardless of work_mode. Reminder is informational, never blocks the merge.
-
 The metadata script lives in the framework at `.riff/scripts/riff-pr-metadata.sh` and reads only tracked artifacts (PLAN.md path, SUMMARY.md path, GATES.md, ROADMAP.yaml, `.planning/codex-usage.csv`, git commit timestamps and trailers). It never includes Claude estimates like the PLAN.md `Estimate:` field — duration comes from first/last commit timestamps.
 
 **8c — Update state after merge (inline):**
@@ -858,3 +856,4 @@ Skip human interaction. Proceed on Confident/Likely. STOP on: Unclear, R3, FAIL,
 - Sub-agents need explicit `model:` on the Agent call — frontmatter inheritance is not enough
 - Auto-debug artifacts (DEBUG.md) are required input for the next cycle — don't skip triggers
 - One phase per `/riff:next` call
+- **Do not stop and ask "should I continue?" between steps.** The user invoked the pipeline; flow through every step until either (a) a gate fires (REVISE / DROPPED / fail / FAILED / executor crash), (b) an `AskUserQuestion` block in the step spec explicitly requires HITL input, or (c) the phase reaches Step 10 (final SUMMARY). Successful gate transitions (PROCEED, MATCH, pass, RESOLVED) are not checkpoints. Mid-pipeline "want me to continue?" prompts are a defect, not caution.
