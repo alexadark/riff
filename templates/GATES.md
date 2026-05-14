@@ -7,6 +7,7 @@
 <!-- Step 5b — simplifier -->
 <!-- Step 5c — scope-checker -->
 <!-- Step 5d — fallow audit (TS/JS only) -->
+<!-- Step 5e — smoke test (gated, TS/JS only) -->
 <!-- Step 6  — adversarial review (Codex) -->
 <!-- Step 7b — improver -->
 
@@ -25,6 +26,13 @@ Step 5d: warn — 2 findings
 Step 5d: fail → fix-in-place cycle 1
 Step 5d: accepted-exception — legacy duplication in vendor shim, not worth cleaning
 Step 5d: override
+Step 5e: skipped — smoke_test not enabled
+Step 5e: skipped — lightpanda not installed
+Step 5e: pass
+Step 5e: warn — 1 findings
+Step 5e: fail → fix-in-place cycle 1
+Step 5e: accepted-exception — known dev-only console noise from third-party widget
+Step 5e: override
 Step 6: skipped — gate=false
 Step 6: skipped — pure UI, low priority, diff < 100 lines
 Step 6: ran — model=gpt-5.5 effort=medium
