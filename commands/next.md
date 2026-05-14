@@ -161,10 +161,12 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 
 1. Filter `status: todo` phases where all `depends_on` are `done`
 2. Sort by `priority` (P0 first)
-3. AFK mode → filter to `mode: AFK` only
+3. AFK mode → filter to AFK-eligible phases only. **AFK-eligible** = `mode: AFK` OR (`mode: HITL` AND `provider_mode: sandbox`). Production-provider HITL phases (`mode: HITL` with `provider_mode: production` or unset) are skipped. See `commands/loop.md` § HITL vs sandbox-HITL and `agents/planner.md` § `provider_mode`.
 4. Last VERIFICATION.md has `FAIL` → don't pick new; create fix plan on existing branch
 
 **Seed check:** scan `.planning/seeds/`. Seed's `trigger:` met → surface it. AFK → log only.
+
+**Sandbox-HITL routing:** when the picked phase is `mode: HITL` AND `provider_mode: sandbox`, any provider verification step inside the phase (OAuth callback, Stripe test checkout, magic-link click, email-confirmation flow, etc.) MUST be driven through the user-level `browser-automation` skill with a headless driver (Lightpanda or agent-browser). Capture screenshots + console transcript and append them under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`. Use sandbox / test credentials only — never production. If `browser-automation` is unavailable or cannot run headlessly in this environment, do NOT silently skip: write `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md and pause. AFK mode otherwise (Step 800 § AFK mode) still applies.
 
 ### Step 2b: Phase branch (inline)
 
@@ -800,6 +802,8 @@ Do NOT block. Just warn and proceed.
 ## AFK mode
 
 Skip human interaction. Proceed on Confident/Likely. STOP on: Unclear, R3, FAIL, CRITICAL/HIGH security, all done.
+
+When the active phase is sandbox-HITL (`mode: HITL` AND `provider_mode: sandbox`), AFK mode does NOT pause for provider verification — it routes through the `browser-automation` skill with a headless driver. See Step 2 § Sandbox-HITL routing for the contract (driver choice, sandbox-only creds, evidence capture, fallback). If routing is impossible, write a `LOOP_STOP` line and pause; never silently skip the verification.
 
 ## Ground rules
 

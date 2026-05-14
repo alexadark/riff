@@ -139,18 +139,28 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   echo -e "${GREEN}═══════════════════════════════════════════${NC}"
   echo ""
 
-  # Count phases by status+mode using a single awk pass (robust against YAML formatting)
+  # Count phases by status + mode + provider_mode using a single awk pass.
+  # AFK-eligible = mode:AFK OR (mode:HITL AND provider_mode:sandbox). Sandbox
+  # HITL phases run inside the loop via the browser-automation skill; only
+  # production-provider HITL phases pause the loop. See commands/loop.md
+  # § HITL vs sandbox-HITL and agents/planner.md § provider_mode.
+  #
+  # We flush the previous phase ONLY when we hit the next `- id:` line (or EOF),
+  # not as soon as status+mode are set — otherwise a `provider_mode:` line that
+  # appears after `mode:` would be missed.
   eval "$(awk '
-    /^[[:space:]]*-[[:space:]]*id:/ { status=""; mode="" }
-    /^[[:space:]]*status:/ { s=$0; sub(/.*status:[[:space:]]*/,"",s); gsub(/["'\''[:space:]]/,"",s); status=s }
-    /^[[:space:]]*mode:/ { m=$0; sub(/.*mode:[[:space:]]*/,"",m); gsub(/["'\''[:space:]]/,"",m); mode=m }
-    status!="" && mode!="" {
+    function flush() {
+      if (status=="") return
       if (status=="todo") { todo++ }
       if (status=="blocked") { blocked++ }
-      if (status=="todo" && mode=="AFK") { afk_todo++ }
-      status=""; mode=""
+      if (status=="todo" && (mode=="AFK" || (mode=="HITL" && provider=="sandbox"))) { afk_todo++ }
+      status=""; mode=""; provider=""
     }
-    END { printf "TODO_COUNT=%d\nBLOCKED_COUNT=%d\nAFK_TODO_COUNT=%d\n", todo+0, blocked+0, afk_todo+0 }
+    /^[[:space:]]*-[[:space:]]*id:/ { flush() }
+    /^[[:space:]]*status:/ { s=$0; sub(/.*status:[[:space:]]*/,"",s); gsub(/["'\''[:space:]]/,"",s); status=s }
+    /^[[:space:]]*provider_mode:/ { p=$0; sub(/.*provider_mode:[[:space:]]*/,"",p); gsub(/["'\''[:space:]]/,"",p); provider=p; next }
+    /^[[:space:]]*mode:/ { m=$0; sub(/.*mode:[[:space:]]*/,"",m); gsub(/["'\''[:space:]]/,"",m); mode=m }
+    END { flush(); printf "TODO_COUNT=%d\nBLOCKED_COUNT=%d\nAFK_TODO_COUNT=%d\n", todo+0, blocked+0, afk_todo+0 }
   ' ROADMAP.yaml 2>/dev/null)"
 
   if [ "$TODO_COUNT" -eq 0 ]; then
@@ -164,7 +174,7 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   fi
 
   if [ "$TODO_COUNT" -gt 0 ] && [ "$AFK_TODO_COUNT" -eq 0 ]; then
-    notify "Only HITL phases remain. Human presence required for: auth, payment, or public API work." "warn"
+    notify "Only production-provider HITL phases remain. Human presence required for: real OAuth, real payment, MFA, DNS cutover, or irreversible migrations. Sandbox-HITL phases (provider_mode: sandbox) would have been counted as AFK-eligible." "warn"
     break
   fi
 
@@ -184,7 +194,8 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   PROMPT_FILE=$(mktemp)
   cat > "$PROMPT_FILE" << RIFF_PROMPT
 You are running in RIFF loop (AFK mode). Execute /riff:next with these constraints:
-- Only pick phases with mode: AFK
+- Eligible phases: mode: AFK OR (mode: HITL AND provider_mode: sandbox). Production-provider HITL phases are NOT eligible and must be skipped.
+- For sandbox-HITL phases: route any provider verification through the user-level browser-automation skill using a headless driver (Lightpanda or agent-browser). Capture screenshots + console transcript into the phase SUMMARY.md under a "## Sandbox verification" block. Use sandbox/test credentials only. If browser-automation is unavailable or cannot run headlessly, write "LOOP_STOP[$LOOP_ID]: sandbox verification unavailable — falling back to HITL" to STATE.md and exit.
 - On Confident/Likely assumptions: proceed without asking
 - On Unclear assumptions: write "LOOP_STOP[$LOOP_ID]: unclear assumptions" to STATE.md and exit
 - On R3 deviation: write "LOOP_STOP[$LOOP_ID]: R3 architecture change needed" to STATE.md and exit
