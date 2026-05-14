@@ -23,7 +23,7 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
 ## Steps
 
-1. **Prerequisites:** confirm git repo exists. If `.riff/` or `.planning/` exist, ask before overwriting.
+1. **Prerequisites:** if no git repo exists in the current directory (`! -d .git`), run `git init -q` and proceed without asking — a git repo is a non-negotiable RIFF requirement, no need to confirm. If `.riff/` or `.planning/` already exist, ask before overwriting.
 
 2. **Resolve framework path and link RIFF:**
 
@@ -124,29 +124,46 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
     ```bash
     if [ ! -d .github/workflows ]; then
-      mkdir -p .github/workflows
-      cp .riff/templates/github-workflows/ci.yml  .github/workflows/ci.yml
-      cp .riff/templates/github-workflows/e2e.yml .github/workflows/e2e.yml
-      # If the project uses pnpm, swap the package manager references:
-      # sed -i.bak -E 's|actions/setup-node@v4|pnpm/action-setup@v4|;s|npm ci|pnpm install --frozen-lockfile|;s|npm run|pnpm run|' .github/workflows/ci.yml .github/workflows/e2e.yml
-      echo "Installed default RIFF workflows. Review .github/workflows/ before pushing."
+      if [ -f package.json ]; then
+        mkdir -p .github/workflows
+        cp .riff/templates/github-workflows/ci.yml  .github/workflows/ci.yml
+        cp .riff/templates/github-workflows/e2e.yml .github/workflows/e2e.yml
+        # If the project uses pnpm, swap the package manager references:
+        # sed -i.bak -E 's|actions/setup-node@v4|pnpm/action-setup@v4|;s|npm ci|pnpm install --frozen-lockfile|;s|npm run|pnpm run|' .github/workflows/ci.yml .github/workflows/e2e.yml
+        echo "Installed default RIFF workflows. Review .github/workflows/ before pushing."
+      else
+        echo "No package.json detected — skipping default RIFF workflows (they target JS/TS). Add your own .github/workflows/ when ready."
+      fi
     else
       echo "Existing .github/workflows/ detected — skipped. Check against .riff/templates/github-workflows/README.md for drift."
     fi
     ```
 
-11.5. **Tooling config:** copy canonical tooling configs from `templates/` into project root if absent. Mirrors the Step 11 pattern (per-file conditional copy, no overwrite).
+11.5. **Tooling config:** copy canonical tooling configs from `templates/` into project root if absent. Stack-agnostic security configs (`.semgrep.yml`, `.gitleaks.toml`) are always copied. JS/TS stack configs are gated on the presence of `package.json` so Python, Go, Rust, bash, or scratch projects don't get JS/TS files dumped at their root.
 
     ```bash
-    for f in biome.json vitest.config.ts vitest.setup.ts drizzle.config.ts playwright.config.ts tsconfig.json components.json vite.config.ts .semgrep.yml .gitleaks.toml; do
+    # Stack-agnostic security configs, always copy
+    for f in .semgrep.yml .gitleaks.toml; do
       if [ ! -f "$f" ] && [ -f ".riff/templates/$f" ]; then
         cp ".riff/templates/$f" "./$f"
         echo "Installed $f from RIFF templates."
       fi
     done
-    if [ -f vitest.config.ts ] && ! grep -q '@vitest/coverage-v8' package.json 2>/dev/null; then
-      echo "  hint: vitest coverage thresholds require @vitest/coverage-v8."
-      echo "        run: npm install --save-dev @vitest/coverage-v8"
+
+    # JS/TS stack configs, only if package.json signals a JS/TS project
+    if [ -f package.json ]; then
+      for f in biome.json vitest.config.ts vitest.setup.ts drizzle.config.ts playwright.config.ts tsconfig.json components.json vite.config.ts; do
+        if [ ! -f "$f" ] && [ -f ".riff/templates/$f" ]; then
+          cp ".riff/templates/$f" "./$f"
+          echo "Installed $f from RIFF templates."
+        fi
+      done
+      if [ -f vitest.config.ts ] && ! grep -q '@vitest/coverage-v8' package.json 2>/dev/null; then
+        echo "  hint: vitest coverage thresholds require @vitest/coverage-v8."
+        echo "        run: npm install --save-dev @vitest/coverage-v8"
+      fi
+    else
+      echo "No package.json detected — skipping JS/TS tooling configs. /riff:start will install them later if a JS/TS stack is chosen."
     fi
     ```
 

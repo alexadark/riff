@@ -18,19 +18,34 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, AskUser
 
 ---
 
-## Stage 0: Brownfield Detection
+## Stage 0: Brownfield / Starter / Greenfield Detection
 
-Check if the repository already contains substantial code (this is a brownfield project being adopted into RIFF rather than a new greenfield project).
+Distinguish three states based on existing code + git history:
+
+- **Greenfield**: no substantial code. Skip to Stage 1.
+- **Starter**: existing code present but fresh git history (≤2 commits). A template or scaffold was dropped here. Ask the user before assuming.
+- **Brownfield**: existing code with meaningful git history (≥3 commits). True adoption. Offer the audit-codebase baseline.
 
 **Detection:** run a quick heuristic via Bash:
 
 ```bash
 COMMITS=$(git log --oneline 2>/dev/null | wc -l | tr -d ' ')
 SRC_FILES=$(find src app lib 2>/dev/null -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.py" -o -name "*.go" -o -name "*.rs" \) 2>/dev/null | wc -l | tr -d ' ')
-test "$COMMITS" -ge 3 -a "$SRC_FILES" -gt 5 && echo "brownfield" || echo "greenfield"
+if [ "$SRC_FILES" -gt 5 ]; then
+  if [ "$COMMITS" -ge 3 ]; then echo "brownfield"; else echo "starter"; fi
+else
+  echo "greenfield"
+fi
 ```
 
 **Greenfield (no substantial code):** skip Stage 0, jump to Stage 1.
+
+**Starter (code present, fresh git history):** AskUserQuestion:
+
+> "I see existing code here (~N source files) but git history is fresh. Is this a starter template you want to use as the project base?"
+>
+> - **Yes, use as starter (recommended)** — record `stack_source: starter-local` in `.planning/config.json`. Stage 1 will infer the stack from `package.json` / `pyproject.toml` / `Cargo.toml` / `go.mod` and confirm with you instead of asking from scratch.
+> - **No, start fresh** — flag that pre-existing files may need cleanup. Continue to Stage 1 as greenfield, ignore the existing code for discovery purposes.
 
 **Skip if scope is clearly `scratch`** (e.g., pre-existing `.planning/config.json` with `scope: scratch`, or user explicitly declares this is a personal/local script). Brownfield audit on scratch rarely repays the time.
 
@@ -55,6 +70,20 @@ Open with: **"What do you want to build?"** Then follow the thread.
 **Style:** Follow energy, challenge vagueness, make abstract concrete, surface assumptions, find edges, reveal motivation. Do NOT walk through axes as a checklist.
 
 **9 Extraction Axes** (weave naturally): End Goal, Core Problem, User Types, Business Model, MVP Functionalities, Key User Stories, Competitive Context, Success Metrics, Constraints. Skip axes consciously when irrelevant (CLI doesn't need business model).
+
+### Stack source gate (early in the conversation)
+
+Stack is one of the 9 axes but it has a unique property: the user may already know it, may have a starter to clone, or genuinely want to decide it from requirements. After the user's initial answer to "what do you want to build?" and before going deep on features, ask explicitly via AskUserQuestion:
+
+> **"Do you already know what stack you'll use?"**
+>
+> - **I have a starter** — local files already present, or a repo URL to clone. We infer stack from the starter, no debate.
+> - **I know my stack** — you state it (TS + Vite + Drizzle, Python + FastAPI + SQLite, bash + sqlite3, etc.), we use it.
+> - **Let's discuss together** — stack emerges from requirements (default for greenfield with no preference).
+
+**Skip this gate** if Stage 0 set `stack_source: starter-local` (the starter answered it). In that case, surface the inferred stack in the next message ("Stack from your starter: <X>. Sound right?") and let the user correct conversationally.
+
+Record the choice in `.planning/config.json` under `stack_source` (`starter-local | starter-clone | known | discussed`). Stage 4 starter clone (via `templates/registry.yaml`) only runs if `stack_source: starter-clone` — the user explicitly opted into cloning a starter. All other modes (`starter-local`, `known`, `discussed`) skip Stage 4's auto-suggest entirely. No surprise clones based on stack-name matching.
 
 ### Scope gate (mandatory)
 
@@ -212,9 +241,11 @@ Jump to Output.
 
 ### production scope (full)
 
-#### Starter clone (greenfield only, before bootstrap)
+#### Starter clone (opt-in only, before bootstrap)
 
-If the project is greenfield (Stage 0 reported `greenfield`), check `templates/registry.yaml` for a starter that matches the stack captured in Stage 1.
+**Gate:** skip this entire subsection unless `stack_source: starter-clone` in `.planning/config.json`. The Stack source gate in Stage 1 makes starter cloning explicit opt-in. For `starter-local` (user dropped a starter manually), `known` (user stated their stack), or `discussed` (stack emerged from requirements), jump straight to **Bootstrap files** below. No auto-suggest based on stack-name matching.
+
+If the gate passes and the project is greenfield (Stage 0 reported `greenfield`), check `templates/registry.yaml` for a starter that matches the stack captured in Stage 1.
 
 ```bash
 REGISTRY="$(readlink -f .riff)/templates/registry.yaml"
