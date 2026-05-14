@@ -93,9 +93,48 @@ See `.riff/protocols/EXECUTION.md` § R1–R4. Follow strictly.
 
 **Scratch scope:** No hardcoded secrets (only). The other rules don't apply because the project may not be TS, may not have routes, may not have auth.
 
+## Smoke (mandatory before SUMMARY when PLAN.md has a Smoke section)
+
+Before writing SUMMARY.md, you MUST run every command in PLAN.md's `## Smoke` section. This runs in EVERY scope (production AND scratch). It is the project-agnostic safety net that catches "feature works on the path the executor tried, broken on every other path."
+
+**Backward compatibility:** if PLAN.md has NO `## Smoke` heading at all, it is a legacy plan written before the smoke contract existed. Log a one-line warning (`Smoke skipped — legacy PLAN.md has no Smoke section`) and continue without running smoke. Do NOT fabricate smoke entries on your own. The scope-checker handles legacy plans gracefully.
+
+### Steps (when `## Smoke` heading is present)
+
+1. Parse `## Smoke` from PLAN.md. Each line starts with a backtick, contains a shell command, then `→` (or `->`), then an expected observable.
+2. Run each command from the project root, in order, in a subshell that inherits the project environment (`.env`, `uv`/`node_modules`, etc.).
+3. For each, capture: command, observed stdout/stderr tail (last ~10 lines), exit code, pass/fail status.
+4. If a smoke entry is marked `(skip when network unavailable)`, treat a network-error failure as `skipped`, not `fail`.
+5. **If ANY entry fails**, do NOT write SUMMARY.md claiming success. Either:
+   - Patch the bug in place (commit as `fix(phase-N): smoke regression on X`, stage explicitly), then re-run all smokes, OR
+   - If the failure points to a missing planned surface, treat as R2 (missing piece) and add it, OR
+   - If the failure is architectural (cannot fix without R3), STOP and surface to orchestrator.
+
+   Do not write SUMMARY.md until every smoke either passes or is explicitly `skipped`.
+
+### Write to SUMMARY.md
+
+Add a `## Smoke Results` section in SUMMARY.md with one row per PLAN.md smoke line:
+
+```markdown
+## Smoke Results
+
+| Command | Expected | Observed | Status |
+| ------- | -------- | -------- | ------ |
+| `uv run kp ingest url https://example.com/x` | exit 0, accepted | exit 0, status=accepted, id=2 | pass |
+| `uv run kp filter check https://example.com/x` | exit 0, verdict prints | exit 0, "Not clickbait" printed | pass |
+| `uv run kp --help` | exit 0, groups listed | exit 0, groups present | pass |
+```
+
+Status values: `pass`, `fail` (you must NOT reach here — see step 5), `skipped`. Order MUST match PLAN.md `## Smoke` order so the scope-checker can pair lines.
+
+### Why mandatory in scratch too
+
+Scratch skips the heavy gates (security, adversarial, simplify, fallow, smoke-browser) because they don't apply to personal/local code. Smoke is different: it is the cheapest possible "does my code run at all" check, written by the planner against THIS phase's surfaces. Skipping it leaves silent regressions that only surface when the user manually tries a command the executor forgot.
+
 ## Output
 
-Write `.planning/phases/N-slug/SUMMARY.md` (artifacts, R1-R4 deviations, decisions, test output).
+Write `.planning/phases/N-slug/SUMMARY.md` (artifacts, R1-R4 deviations, decisions, test output, **Smoke Results table**).
 
 ### Side-activities suggestion (chat reply only)
 

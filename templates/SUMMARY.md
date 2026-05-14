@@ -34,6 +34,17 @@
 
 <!-- Non-obvious choices during execution. Format: "Chose X over Y because Z" -->
 
+## Smoke Results
+
+<!-- MANDATORY. One row per PLAN.md `## Smoke` line, in the same order.
+     Status values: pass | fail | skipped.
+     The executor MUST NOT write this section claiming `pass` if a smoke
+     actually failed. Fail-on-fail is enforced by the scope-checker. -->
+
+| Command | Expected | Observed | Status |
+| ------- | -------- | -------- | ------ |
+|         |          |          |        |
+
 ## Tests
 
 <!-- Actual test output, not assertions -->

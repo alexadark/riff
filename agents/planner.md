@@ -135,6 +135,66 @@ When ROADMAP.yaml declares `mode: tdd`: structure tasks as strict RED → GREEN 
 
 For the FIRST phase of any new feature: plan a thin end-to-end slice through all layers (DB + API + UI). Not complete — just proof all layers connect.
 
+## Smoke section (mandatory in EVERY plan)
+
+Every PLAN.md MUST end with a `## Smoke` section, regardless of scope. This is the executor's executable smoke contract — it lists every surface the phase touches and the exact shell command that exercises each one.
+
+**Why mandatory:** the executor runs every line in `## Smoke` before writing SUMMARY.md. If any fails, the phase does not complete. The scope-checker (Step 5c) flags a missing or thin Smoke section as DROPPED. This is the framework-level safety net against "feature works on the path the executor tried, broken on every other path."
+
+**The user does NOT write this.** You, the planner, write it. The user does not know which CLI commands exist, which routes the diff touches, or which neighbor functions share a modified file.
+
+### What to list
+
+For EVERY surface touched (directly or in a shared file) by this phase, include one line:
+
+| Surface category                          | What to include                                                                              |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| CLI subcommands                           | Every subcommand in any file you modify, even ones you didn't refactor (neighbor surfaces). |
+| HTTP routes / API endpoints               | Each new or modified route with a typical request.                                           |
+| Public functions / module exports         | An import smoke proving the symbol exists and is callable.                                   |
+| Background jobs / schedulers              | A one-shot invocation that exercises the job logic.                                          |
+| DB migrations / schema changes            | A migration check or a re-init smoke.                                                        |
+| Config file shape changes                 | A load smoke that parses the new shape.                                                      |
+| UI routes (TS/JS web)                     | Already covered by Step 5e (Lightpanda); list explicitly only if the phase opted out.        |
+
+**Neighbor surfaces matter as much as touched surfaces.** If you modify `src/cli.py` to add `kp ingest url <article>` support, list ALSO `kp filter check`, `kp status`, `kp init` if they live in the same file or share a helper. The most common bug class this catches is "you patched one branch of the dispatch and forgot the sibling."
+
+### Format
+
+Bullet list, one entry per line, exact shell command in backticks, then `→`, then the expected observable:
+
+```markdown
+## Smoke
+
+- `uv run kp ingest url https://youtu.be/<id>` → exit 0, status=accepted|duplicate
+- `uv run kp ingest url https://example.com/article` → exit 0, status=accepted|duplicate, source_type=article in DB
+- `uv run kp filter check https://example.com/article` → exit 0, verdict line prints (NOT a yt-dlp error)
+- `uv run kp --help` → exit 0, command groups listed
+- `uv run python -c "from kp.rss import fetch_article; print(fetch_article('https://example.com').get('title'))"` → exit 0, non-empty title
+```
+
+Rules:
+
+- Each line MUST start with `` ` `` (backtick) to be parseable.
+- The arrow `→` separates command from expected outcome. ASCII `->` is also accepted.
+- Expected outcomes must be observable from stdout/stderr/exit code, not subjective ("works fine" is forbidden).
+- Use stable, free, real-world URLs when possible. Avoid URLs that require auth. Avoid URLs that will rot fast.
+- For commands that need credentials (Gemini API, etc.), assume the project's standard `.env` is loaded. If a smoke truly cannot run offline, mark it `(skip when network unavailable)` and the executor will tolerate that.
+
+### Minimum density
+
+A phase that touches code must have AT LEAST 2 smoke entries. A phase with `## Smoke` containing only `- N/A` or fewer than 2 actionable commands fails scope-checker.
+
+A phase that is pure docs/README/refactor with no behavioral change writes:
+
+```markdown
+## Smoke
+
+- `git diff --stat main...HEAD` → only docs/comment files in stat, no `src/` changes
+```
+
+That's a valid 1-entry smoke for a docs-only phase.
+
 ## Output
 
 Write `.planning/phases/N-slug/PLAN.md`. Do NOT update STATE.md or ROADMAP.yaml (state updates happen on main after merge).
