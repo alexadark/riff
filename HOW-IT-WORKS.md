@@ -172,7 +172,7 @@ You have an idea. No code exists yet. Here's the full workflow:
     |  Stage 4: Roadmap Generation with Self-Critique
     |    - Vertical slices, not horizontal layers
     |    - Phase 1 is always a tracer bullet (thin end-to-end)
-    |    - HITL only for phases needing manual verification (OAuth flow, payment, prod cutover)
+    |    - HITL only for phases needing manual verification against a production surface (real OAuth flow, real payment, MFA, prod cutover); sandbox provider flows (`provider_mode: sandbox`) run AFK via the `browser-automation` skill
     |    - Self-critique: ordering, dependencies, gaps, sizing
     |
     |  Stage 5: Bootstrap
@@ -521,6 +521,19 @@ RIFF has 8 specialized agents. Each runs in a fresh context with only the files 
 - Writes `.planning/phases/N-slug/FALLOW.json` (full structured output) and a one-line entry to `GATES.md`
 - Missing fallow binary skips silently (does not break legacy projects predating this integration)
 
+### Smoke test browser (Step 5e, not an agent)
+
+**Role:** runtime check that the dev server boots and the changed routes load in a browser. Not an agent — a deterministic gate the orchestrator runs inline via a headless browser ([Lightpanda](https://lightpanda.io) by preference, fallback `chrome-devtools-mcp`).
+**Model:** none. Pure HTTP + console capture.
+**What it does:** boots the project's dev server, derives a URL list from routes touched in the phase diff (`routes/**`, `pages/**`, `app/**`), loads each URL headless, captures HTTP status and console errors/warnings into `.planning/phases/N-slug/SMOKE.json`. Sub-second per route, no LLM tax.
+**Key behaviors:**
+
+- Opt-in per phase via `smoke_test: true` in ROADMAP.yaml; default off (zero impact on existing projects)
+- Skips on `scope: scratch`, on non-TS/JS projects (no `package.json`), when no `dev`/`start` script exists, and when no headless browser binary is available
+- Verdicts mirror Fallow: `pass` continues, `warn` continues with count in Step 10 report, `fail` surfaces three options (re-run executor with findings / accept exception with rationale / one-time override)
+- Mandatory dev-server PID cleanup on every exit path (success, failure, runtime error)
+- Full spec in [`references/SMOKE-TEST.md`](references/SMOKE-TEST.md)
+
 ### Scope-checker
 
 **Role:** plan-vs-completion auditor.
@@ -591,6 +604,7 @@ RIFF has 8 specialized agents. Each runs in a fresh context with only the files 
 - After fix: re-runs the originating step, OR accepts RESOLVED without re-run when debugger ran with Opus AND verification reports tests green + tsc clean AND every finding has a corresponding new test pinning the fix
 - Gated by `auto_debug:` in ROADMAP.yaml (default `true`)
 - If root cause requires an architectural decision (R3): writes UNRESOLVED and surfaces to user instead of guessing
+- For frontend failures (paths matching `.tsx`/`.jsx`/`/routes/`/`/components/`/`/pages/`/`/app/`): opens the failing route via the `browser-automation` skill (Claude in Chrome in HITL mode, Lightpanda in AFK mode), reproduces the interaction, captures console errors, network failures, and a screenshot to `.planning/phases/N-slug/debug-screenshots/`, and appends a `## Visual evidence` block to `DEBUG.md`
 
 ### Profile resolution (every agent)
 
