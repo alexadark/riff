@@ -16,7 +16,7 @@ Claude wrote this ROADMAP.yaml. You are GPT/Codex. A bad phase order, a missing 
    - Features in PROJECT.md v1 scope NOT covered by any phase
    - Phases >5 days of senior-dev work — sizing failure, should be split
    - Horizontal phases (full backend, then full frontend) instead of vertical slices
-   - HITL/AFK mode mismatches — a phase touching a real OAuth browser flow / real payment checkout / DNS cutover / irreversible migration marked AFK; a code-only auth/payment phase incorrectly marked HITL; a sandbox-only provider phase marked `mode: HITL` without `provider_mode: sandbox` (it should run AFK through `browser-automation`); a production-provider phase incorrectly marked `provider_mode: sandbox`
+   - HITL/AFK mode mismatches — a phase touching a real OAuth browser flow / real payment checkout / DNS cutover / irreversible migration marked AFK; a code-only auth/payment phase incorrectly marked HITL; a sandbox-only provider phase marked `mode: HITL` without `provider_mode: sandbox` (it should run AFK through the browser verification protocol — see `references/BROWSER-VERIFICATION.md`); a production-provider phase incorrectly marked `provider_mode: sandbox`
    - Tag inconsistencies — a phase touching auth/payments/migrations missing `security_critical`; a routine phase tagged `architecture` for no reason
    - `depends_on` chains that introduce unintended sequential bottlenecks (forced serial work that could parallelize)
    - Phases bundling unrelated changes (refactor + new feature in the same phase)

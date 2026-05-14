@@ -172,7 +172,7 @@ You have an idea. No code exists yet. Here's the full workflow:
     |  Stage 4: Roadmap Generation with Self-Critique
     |    - Vertical slices, not horizontal layers
     |    - Phase 1 is always a tracer bullet (thin end-to-end)
-    |    - HITL only for phases needing manual verification against a production surface (real OAuth flow, real payment, MFA, prod cutover); sandbox provider flows (`provider_mode: sandbox`) run AFK via the `browser-automation` skill
+    |    - HITL only for phases needing manual verification against a production surface (real OAuth flow, real payment, MFA, prod cutover); sandbox provider flows (`provider_mode: sandbox`) run AFK via the browser verification protocol (`references/BROWSER-VERIFICATION.md`)
     |    - Self-critique: ordering, dependencies, gaps, sizing
     |
     |  Stage 5: Bootstrap
@@ -604,7 +604,7 @@ RIFF has 8 specialized agents. Each runs in a fresh context with only the files 
 - After fix: re-runs the originating step, OR accepts RESOLVED without re-run when debugger ran with Opus AND verification reports tests green + tsc clean AND every finding has a corresponding new test pinning the fix
 - Gated by `auto_debug:` in ROADMAP.yaml (default `true`)
 - If root cause requires an architectural decision (R3): writes UNRESOLVED and surfaces to user instead of guessing
-- For frontend failures (paths matching `.tsx`/`.jsx`/`/routes/`/`/components/`/`/pages/`/`/app/`): opens the failing route via the `browser-automation` skill (Claude in Chrome in HITL mode, Lightpanda in AFK mode), reproduces the interaction, captures console errors, network failures, and a screenshot to `.planning/phases/N-slug/debug-screenshots/`, and appends a `## Visual evidence` block to `DEBUG.md`
+- For frontend failures (paths matching `.tsx`/`.jsx`/`/routes/`/`/components/`/`/pages/`/`/app/`): opens the failing route via the browser verification protocol (`references/BROWSER-VERIFICATION.md`) — Lightpanda headless by default, chrome-devtools-mcp as visible fallback — reproduces the interaction, captures console errors, network failures, and a screenshot to `.planning/phases/N-slug/screenshots/`, and appends a `## Visual evidence` block to `DEBUG.md`
 
 ### Profile resolution (every agent)
 

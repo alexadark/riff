@@ -174,9 +174,10 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
 
   # Count phases by status + mode + provider_mode using a single awk pass.
   # AFK-eligible = mode:AFK OR (mode:HITL AND provider_mode:sandbox). Sandbox
-  # HITL phases run inside the loop via the browser-automation skill; only
-  # production-provider HITL phases pause the loop. See commands/loop.md
-  # § HITL vs sandbox-HITL and agents/planner.md § provider_mode.
+  # HITL phases run inside the loop via the browser verification protocol
+  # (references/BROWSER-VERIFICATION.md); only production-provider HITL phases
+  # pause the loop. See commands/loop.md § HITL vs sandbox-HITL and
+  # agents/planner.md § provider_mode.
   #
   # We flush the previous phase ONLY when we hit the next `- id:` line (or EOF),
   # not as soon as status+mode are set — otherwise a `provider_mode:` line that
@@ -238,7 +239,7 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   cat > "$PROMPT_FILE" << RIFF_PROMPT
 You are running in RIFF loop (AFK mode). Execute /riff:next with these constraints:
 - Eligible phases: mode: AFK OR (mode: HITL AND provider_mode: sandbox). Production-provider HITL phases are NOT eligible and must be skipped.
-- For sandbox-HITL phases: route any provider verification through the user-level browser-automation skill using a headless driver (Lightpanda or agent-browser). Capture screenshots + console transcript into the phase SUMMARY.md under a "## Sandbox verification" block. Use sandbox/test credentials only. If browser-automation is unavailable or cannot run headlessly, write "LOOP_STOP[$LOOP_ID]: sandbox verification unavailable — falling back to HITL" to STATE.md and exit.
+- For sandbox-HITL phases: route any provider verification through the browser verification protocol (references/BROWSER-VERIFICATION.md) using a headless driver (Lightpanda). Capture screenshots + console transcript into the phase SUMMARY.md under a "## Sandbox verification" block. Use sandbox/test credentials only. If no headless driver from the protocol is available, write "LOOP_STOP[$LOOP_ID]: sandbox verification unavailable — falling back to HITL" to STATE.md and exit.
 - On Confident/Likely assumptions: proceed without asking
 - On Unclear assumptions: write "LOOP_STOP[$LOOP_ID]: unclear assumptions" to STATE.md and exit
 - On R3 deviation: write "LOOP_STOP[$LOOP_ID]: R3 architecture change needed" to STATE.md and exit

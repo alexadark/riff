@@ -16,7 +16,7 @@ For every route touched by the branch diff (`main...HEAD`), Step 5e loads the UR
 | **Console errors** | JS errors surfaced at runtime: undefined references, unhandled promise rejections, framework-thrown hydration mismatches |
 | **Console warnings** | Soft signals: deprecated APIs, slow renders, framework hints. Not blocking, but surfaced in the report |
 
-The orchestrator does NOT inspect the rendered DOM or run interaction scripts — that's clickOps territory and lives in dedicated browser-automation skills, not in a hot-path gate.
+The orchestrator does NOT inspect the rendered DOM or run interaction scripts — that's clickOps territory and lives in the browser verification protocol (`references/BROWSER-VERIFICATION.md`); the smoke test uses only the navigate-and-capture subset, not the interactive subset.
 
 ---
 

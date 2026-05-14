@@ -23,7 +23,8 @@ Append phases to ROADMAP.yaml. No renumbering — use `depends_on` for ordering.
      priority: { P0|P1|P2|P3 }
      mode: { HITL|AFK|tdd }
      # Optional. Default production. Set sandbox to allow HITL phases to run AFK
-     # via the browser-automation skill when only sandbox/test creds are touched.
+     # via the browser verification protocol (references/BROWSER-VERIFICATION.md)
+     # when only sandbox/test creds are touched.
      # provider_mode: { sandbox|production }
      depends_on: [{ dep IDs }]
      goal: |
@@ -48,7 +49,7 @@ Append phases to ROADMAP.yaml. No renumbering — use `depends_on` for ordering.
 - Don't touch ROADMAP.md (human-facing historical record, updated separately).
 - Validate `depends_on` references exist in ROADMAP.yaml.
 - Default `mode: AFK`. Mark `mode: HITL` only for unavoidable manual human verification (real OAuth/SSO against a production IdP, real payment checkout, MFA, public API breaking change, DNS/prod cutover, irreversible migrations).
-- Optional `provider_mode: sandbox | production` (default `production`). Set `provider_mode: sandbox` when the phase touches an external provider via sandbox/test credentials only (test Stripe card, Auth0 dev tenant, Clerk test mode, Supabase test project, Mailtrap, etc.) — `mode: HITL` + `provider_mode: sandbox` runs AFK via the `browser-automation` skill. See `agents/planner.md` § `provider_mode`.
+- Optional `provider_mode: sandbox | production` (default `production`). Set `provider_mode: sandbox` when the phase touches an external provider via sandbox/test credentials only (test Stripe card, Auth0 dev tenant, Clerk test mode, Supabase test project, Mailtrap, etc.) — `mode: HITL` + `provider_mode: sandbox` runs AFK via the browser verification protocol (`references/BROWSER-VERIFICATION.md`). See `agents/planner.md` § `provider_mode`.
 - Default `priority: medium`.
 - **YAML safety:** task strings must not contain unescaped `"`, `'`, `:` followed by space, `#`, or backticks. Wrap special-char strings in single quotes; use `''` to escape a literal single quote. Prefer plain rewording over quoting (e.g. "do not" instead of "don't").
 
