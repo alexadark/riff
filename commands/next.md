@@ -199,7 +199,17 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 - Otherwise → surface the seed to the user (current behavior).
 - AFK mode → log only, never block.
 
-**Sandbox-HITL routing:** when the picked phase is `mode: HITL` AND `provider_mode: sandbox`, any provider verification step inside the phase (OAuth callback, Stripe test checkout, magic-link click, email-confirmation flow, etc.) MUST be driven through the user-level `browser-automation` skill with a headless driver (Lightpanda or agent-browser). Capture screenshots + console transcript and append them under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`. Use sandbox / test credentials only — never production. If `browser-automation` is unavailable or cannot run headlessly in this environment, do NOT silently skip: write `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md and pause. AFK mode otherwise (Step 800 § AFK mode) still applies.
+**Sandbox-HITL routing:** when the picked phase is `mode: HITL` AND `provider_mode: sandbox`, this contract applies whether `/riff:next` was invoked standalone or from `/riff:loop`. Any provider verification step inside the phase (OAuth callback, Stripe test checkout, magic-link click, email-confirmation flow, etc.) MUST be driven through the user-level `browser-automation` skill. Capture screenshots + console transcript and append them under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`. Use sandbox / test credentials only — never production.
+
+Driver choice depends on invocation context:
+
+- **AFK mode (inside `/riff:loop`)** → headless driver only (Lightpanda or agent-browser). Visible browsers (Claude in Chrome) would block the loop.
+- **Interactive mode (standalone `/riff:next`)** → either headless or Claude in Chrome is acceptable. Default to Claude in Chrome so the user sees the verification happen; let them override.
+
+If `browser-automation` is unavailable or no compatible driver is installed, do NOT silently skip:
+
+- In AFK mode → write `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md and pause.
+- In interactive mode → AskUserQuestion: `verify manually now (open the URL yourself) | install browser-automation and retry | halt`. Default `verify manually now` on no answer.
 
 ### Step 2b: Phase branch (inline)
 
