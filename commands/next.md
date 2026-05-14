@@ -11,7 +11,7 @@ Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR
 
 **Models:** see [`protocols/MODEL.md`](../protocols/MODEL.md). Parent is forced to Opus via frontmatter. Sub-agents MUST pass `model:` explicitly on the Agent tool call.
 
-**Inline vs sub-agent:** Steps 1–4, 5c, 5d, 8, 9, 10 run inline. Steps 4b, 4c, 5, 5b, 5e, 6, 7, 7b, 8a spawn sub-agents.
+**Inline vs sub-agent:** Steps 1–4, 5c, 5d, 5e, 8, 9, 10 run inline. Steps 4b, 4c, 5, 5b, 5f, 6, 7, 7b, 8a spawn sub-agents.
 
 **Auto-gate heuristics:** see [`protocols/AUTO-TRIGGERS.md`](../protocols/AUTO-TRIGGERS.md). Design rationale: see [`DECISIONS.md`](../DECISIONS.md) (D25–D27).
 
@@ -493,7 +493,81 @@ Mechanical codebase intelligence on the phase diff via [`fallow`](https://github
 
 ---
 
-### Step 5e: Post-mortem explanation — sub-agent (always, fail-silent)
+### Step 5e: Smoke test browser — inline (gated)
+
+**Skip if `scope: scratch`.** Personal/local code doesn't need a runtime browser check.
+
+**Skip if not a TS/JS project.** Detection: `package.json` exists at project root. If absent, log `Step 5e: skipped — not TS/JS` to `GATES.md` and continue to Step 5f.
+
+**Skip if `smoke_test: true` is not set on the phase entry in ROADMAP.yaml.** Default OFF — the gate is opt-in. Log `Step 5e: skipped — smoke_test not enabled` to `GATES.md` and continue.
+
+**Skip if no Lightpanda binary is present.** Detection: `command -v lightpanda` returns non-zero AND no fallback `chrome-devtools-mcp` binary is on PATH. Log `Step 5e: skipped — lightpanda not installed` to `GATES.md` and continue. Don't block. Full installation guidance lives in [`references/SMOKE-TEST.md`](../references/SMOKE-TEST.md) § Installation.
+
+Runtime smoke test on the phase diff: boot the project's dev server, load every route touched by the diff in a headless browser, capture console errors and HTTP status codes. Catches "compiles green but blows up at boot" regressions — type-clean code with a busted import path, a hydration error, a 500 on a route handler, a missing env var the bundler doesn't catch.
+
+**Run (inline — orchestrator drives a shell pipeline, no sub-agent needed):**
+
+1. **Detect dev server command.** Read `package.json` `scripts`. Prefer `scripts.dev`, fallback to `scripts.start`. If neither exists, log `Step 5e: skipped — no dev/start script` to `GATES.md` and continue.
+
+2. **Detect package manager runner** (same logic as Step 5d): `pnpm-lock.yaml` → `pnpm`, `bun.lock` → `bun`, `yarn.lock` → `yarn`, otherwise `npm`.
+
+3. **Start dev server in background with a timeout.** Pick a free port (default `3000`; if busy, try `3001`–`3010`; if all busy, treat as runtime error). Boot with `<runner> run <script> &` and capture the PID. Wait up to 30s for the server to respond on its port (`curl -fsS http://localhost:<port>/ -o /dev/null` returns 0). If timeout elapses → runtime error path below.
+
+4. **Extract touched routes from the phase diff.** Heuristic: `git diff --name-only main...HEAD` and keep paths that match `routes/**`, `pages/**`, `app/**` (the three common framework conventions — React Router, Next.js pages router, Next.js app router, SvelteKit, Remix). For each path, derive the URL:
+   - `routes/users/$id.tsx` → `/users/<sample-id>`
+   - `pages/index.tsx` → `/`
+   - `pages/blog/[slug].tsx` → `/blog/<sample-slug>`
+   - `app/posts/[id]/page.tsx` → `/posts/<sample-id>`
+
+   Dynamic segments use a stub value (`sample-id`, `sample-slug`, `1`). If derivation is ambiguous, default to `/` plus the cleanest derivation; skip routes that can't be derived and note them in `SMOKE.json`. If zero routes derived, log `Step 5e: skipped — no routes in diff` to `GATES.md`, stop the dev server, continue.
+
+5. **Load each touched route in Lightpanda** (or `chrome-devtools-mcp` if Lightpanda absent — same shell contract). For each URL:
+   - Capture HTTP status code.
+   - Capture console errors and warnings (stderr stream from the browser process).
+   - Cap per-URL wallclock at 10s.
+
+6. **Stop the dev server.** `kill <PID>` then `wait <PID> 2>/dev/null`. If the process refuses to die within 5s, `kill -9 <PID>`.
+
+7. **Write findings to `.planning/phases/N-slug/SMOKE.json`** with this schema:
+
+   ```json
+   {
+     "schema_version": 1,
+     "phase": "N-slug",
+     "verdict": "pass | warn | fail",
+     "dev_server": { "runner": "pnpm", "script": "dev", "port": 3000 },
+     "routes": [
+       {
+         "url": "/users/sample-id",
+         "source": "routes/users/$id.tsx",
+         "status": 200,
+         "console_errors": [],
+         "console_warnings": ["..."]
+       }
+     ],
+     "skipped_routes": [{ "path": "...", "reason": "..." }],
+     "runtime_errors": []
+   }
+   ```
+
+8. **Parse the `verdict` field:** `pass` (all routes 200, no console errors), `warn` (all routes 200 but at least one console warning), `fail` (any non-200 OR any console error).
+
+**Behavior (initial integration — fail-on-fail only, warn does not block):**
+
+- `pass` → log `Step 5e: pass` to GATES.md. Continue.
+- `warn` → log `Step 5e: warn — <count> findings` to GATES.md. Continue. Include the count in Step 10 report.
+- `fail` → STOP. Surface the failing routes (URL, status, first console error) to the user via AskUserQuestion:
+  - **Fix in place** — re-run the executor with SMOKE.json as additional input, then re-run Step 5e. Max 2 cycles, then escalate.
+  - **Mark as accepted exception** — write a one-line rationale to GATES.md (`Step 5e: accepted-exception — <reason>`) and continue.
+  - **Skip this gate** — one-time override, log `Step 5e: override` to GATES.md and continue.
+
+**On runtime error** (dev server won't boot, port conflict on all candidates, browser binary crashes mid-run): surface stderr to the user, AskUserQuestion `skip and continue | halt`. Default skip on no answer. Always stop the dev server PID before exiting the step (cleanup is not optional).
+
+Full spec: [`references/SMOKE-TEST.md`](../references/SMOKE-TEST.md).
+
+---
+
+### Step 5f: Post-mortem explanation — sub-agent (always, fail-silent)
 
 Generates a plain-language post-mortem of what was built, with a metadata block, for the `/riff:dashboard` view. Failure NEVER blocks the pipeline.
 
