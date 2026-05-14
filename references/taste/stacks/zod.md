@@ -44,3 +44,14 @@ paths:
 4. **`superRefine` for cross-field conditional requirements.** Field required only for certain enum values, or validation depends on multiple fields → `superRefine`, not top-level `.refine()` per field. Check lives at object level, references siblings.
 
 5. **UUID validation in tests.** `00000000-0000-0000-0000-000000000001` REJECTED by `z.string().uuid()` — variant bits `00` (must be `89ab`). Use properly-formatted UUIDs like `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d` in fixtures + constants.
+
+6. **Normalize before validate.** Field with both validation rules AND data cleanup → transform first, validate after. `z.string().email().transform(s => s.trim().toLowerCase())` rejects `"  FOO@Bar.com  "` as "invalid email" even though it would be valid after cleanup. Reorder via `.transform()` then `.pipe()` so the validator sees clean input:
+
+   ```ts
+   const EmailSchema = z
+     .string()
+     .transform((s) => s.trim().toLowerCase())
+     .pipe(z.string().email());
+   ```
+
+   Same applies to any normalize-then-validate pair (slug formatting + length check, phone-number formatting + regex). User-facing forms hit this most.

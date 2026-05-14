@@ -78,6 +78,15 @@ paths:
 
    Same applies to any non-string, non-primitive param passed via `${}` into raw `sql` template (Buffer, BigInt, custom objects). Stringify or use Drizzle's typed query builder (`eq`, `gt`, etc.) which handles serialization correctly.
 
+7. **Drizzle DSL does NOT emit `CHECK` constraints.** Schema-level `check(...)` calls in `schema.ts` are typed but `drizzle-kit generate` skips them in the SQL output. The constraint silently never lands in the migration. Same gap for partial unique indexes with `WHERE` predicates — DSL accepts the syntax but the emitted SQL drops the predicate. Workflow:
+
+   1. Run `drizzle-kit generate` to produce the numbered migration.
+   2. Open the migration file.
+   3. Manually append `ALTER TABLE "<t>" ADD CONSTRAINT "<name>" CHECK (...)` (or inline `CHECK` in the `CREATE TABLE` if the table is new in this migration).
+   4. For partial unique indexes: append `CREATE UNIQUE INDEX "<name>" ON "<t>" (<col>) WHERE <predicate>` after the table-creation block.
+
+   Test the constraint shipped by asserting its presence in the migration text from a unit test (`expect(migrationSql).toContain('CHECK (kind IN ...)')`). Re-run `drizzle-kit generate` after a schema change → re-add the constraint manually each time, or maintain a separate `manual/` SQL directory referenced from the numbered migration.
+
 ## Supabase + Drizzle: RLS belongs in migrations
 
 Drizzle never emits `ENABLE ROW LEVEL SECURITY`. Supabase exposes every table in `public` to the anon role through PostgREST, so a fresh table is world-readable until RLS is on. Don't keep an out-of-band `rls-policies.sql` "to run manually in the SQL Editor" — it WILL drift. Land RLS as a numbered migration so `db:migrate` applies it everywhere it goes.

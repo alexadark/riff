@@ -44,8 +44,17 @@ When in doubt: keep the global default. The override is for genuinely divergent 
 
 Delete `.planning/profile.yaml`. The next agent run falls through to the framework default.
 
+## Merge strategy values
+
+`git.merge_strategy` controls what `/riff:next` Step 8 does after the PR is open. Three valid values:
+
+- **`github_button`** (default): print the PR URL, STOP. The user clicks Merge on GitHub. Step 0 of the next run reconciles ROADMAP/STATE.
+- **`local_no_ff`**: print the PR URL and stay alive. When the user says "merge", run a local `--no-ff` merge, push, update bookkeeping in the same session.
+- **`auto_merge`**: schedule `gh pr merge --auto --squash --delete-branch` after gates pass, STOP. GitHub merges when CI lands. The AFK loop polls and chains the next phase automatically. Requires `yq` and the AFK loop. Companion fields: `git.auto_merge_blocking_labels` (default `["do-not-merge", "wip", "hold"]`) pauses chaining when a label is on the PR; `loop.merge_wait_timeout_min` (default 30) caps the wait. Full contract: `specs/designs/phase9-afk-chaining.md`.
+
 ## Cross-references
 
 - Project scope (independent of profile): `references/PROJECT-SCOPE.md`
 - Onboard flow: `commands/onboard.md`
 - Init flow: `commands/init.md`
+- AFK safety model (per-strategy threat coverage): `references/AFK-SAFETY.md`

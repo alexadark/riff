@@ -106,9 +106,69 @@ Resolution:
 
 **R3 (needs architectural decision):** Do not guess. Set status `UNRESOLVED` with a clear description. The pipeline surfaces it.
 
+## Step 4b: Frontend failure reproduction
+
+Before writing DEBUG.md, decide whether to add visual evidence. Most failures are backend-only and skip this step entirely.
+
+### Trigger detection
+
+Classify the failure as **frontend** if the failure context (failure artifact, stack trace, changed files, or failing test path) mentions any of:
+
+- `.tsx` or `.jsx` files
+- `/routes/`, `/components/`, `/pages/`, or `/app/` path segments
+- a `vitest` (or other unit-test) failure where the test file imports a component / route / page
+
+If none of these match → skip this step. Proceed to Step 5.
+
+### Action when triggered
+
+1. **Identify the target.** Extract the route or component to reproduce from the failing test, the changed file, or the failure artifact. Pick one: a route path (`/foo/bar`) or a single component story. If neither is inferable → skip (see Skip conditions).
+
+2. **Mode detection.** Read the phase entry in `ROADMAP.yaml` (or `STATE.md` if running standalone). `mode: AFK` → headless. `mode: HITL` (or unset) → visible. Standalone `/riff:debug` invocations default to HITL.
+
+3. **Start the dev server** if not already running. Detect command from `package.json` (`scripts.dev` typically). Launch in the background, wait for the port to respond (default 5173 for Vite, 3000 for Next/RR). 30s timeout — if it doesn't come up, skip (see Skip conditions).
+
+4. **Open the browser** via the global `browser-automation` skill. Default tool selection:
+   - HITL mode → Claude in Chrome (visible)
+   - AFK mode → Lightpanda (headless)
+
+5. **Navigate** to the target route. If a vitest test failure is the trigger and the test simulates user actions (clicks, form input), **replay that action sequence** in the live browser.
+
+6. **Capture three artifacts:**
+   - **Console transcript** — full console output (all levels: log, warn, error). Do not truncate.
+   - **Network errors** — every request with non-2xx response (URL, status, method).
+   - **Screenshot** — final state of the page after the reproduction sequence. Save to `.planning/phases/N-slug/debug-screenshots/<ISO-timestamp>.png` (or `.planning/debug/screenshots/<slug>-<ISO-timestamp>.png` for `user_reported` without a phase).
+
+7. **Stop the dev server** you started (don't leave background processes).
+
+8. **Carry the evidence into DEBUG.md.** Step 5 will append a `## Visual evidence` section using the captured data.
+
+### Skip conditions
+
+Skip this step silently and add a single line to DEBUG.md (`Visual evidence: skipped — <reason>`) when any of these hold:
+
+- No `package.json` at project root
+- Dev server fails to start within 30s
+- No route or component is inferable from the failure context
+- `browser-automation` skill is unavailable
+- Triggered on a backend-only file under a frontend path (e.g. a `*.server.ts` co-located in `/routes/`)
+
+Reasons are mechanical — do not editorialize. Examples:
+- `Visual evidence: skipped — no package.json`
+- `Visual evidence: skipped — dev server did not respond on :5173 within 30s`
+- `Visual evidence: skipped — route not inferable from test file`
+
 ## Step 5: Write DEBUG.md
 
 Write `.planning/phases/N-slug/DEBUG.md` (or `.planning/debug/YYYY-MM-DD-[slug].md` for `user_reported` without a phase) using **`templates/debug-report.md`**.
+
+**If Step 4b captured visual evidence**, append a `## Visual evidence` section to DEBUG.md containing:
+
+- Screenshot path (relative to project root)
+- Console transcript (fenced code block, full — no truncation)
+- Network errors (bulleted list: `<METHOD> <url> → <status>`)
+
+**If Step 4b was skipped**, append the one-line skip note instead of the full section.
 
 ## Ground Rules
 

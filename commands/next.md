@@ -11,7 +11,7 @@ Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR
 
 **Models:** see [`protocols/MODEL.md`](../protocols/MODEL.md). Parent is forced to Opus via frontmatter. Sub-agents MUST pass `model:` explicitly on the Agent tool call.
 
-**Inline vs sub-agent:** Steps 1–4, 5c, 5d, 8, 9, 10 run inline. Steps 4b, 4c, 5, 5b, 5e, 6, 7, 7b, 8a spawn sub-agents.
+**Inline vs sub-agent:** Steps 1–4, 5c, 5d, 5e, 8, 9, 10 run inline. Steps 4b, 4c, 5, 5b, 5f, 6, 7, 7b, 8a spawn sub-agents.
 
 **Auto-gate heuristics:** see [`protocols/AUTO-TRIGGERS.md`](../protocols/AUTO-TRIGGERS.md). Design rationale: see [`DECISIONS.md`](../DECISIONS.md) (D25–D27).
 
@@ -98,7 +98,37 @@ If the section already exists, reset all four field values to `-`.
 
      Ask the user how they want to proceed. Do not run any destructive command without explicit confirmation.
 
-2. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
+2. **Merge-wait (`auto_merge` strategy only).** Skip this sub-step entirely unless `git.merge_strategy` resolves to `auto_merge`. For `github_button` and `local_no_ff`, the stale-todo detection below already handles all reconciliation needed (the loop's outer cooldown also waits in `auto_merge`, but this inner check guards the case where the agent restarts before the prior PR merges).
+
+   Read `git.merge_wait_timeout_min` from the resolved profile (default `30`). Compute `deadline = now + timeout_min * 60`.
+
+   Enumerate open RIFF PRs by branch prefix:
+
+   ```bash
+   gh pr list --author @me --state open \
+     --json number,headRefName,title \
+     --jq '[.[] | select(.headRefName | startswith("riff/phase-"))]'
+   ```
+
+   If the result is empty, continue to sub-step 3 (stale-todo detection). Otherwise, poll each PR every 30 seconds:
+
+   ```bash
+   gh pr view <number> \
+     --json state,mergeStateStatus,labels \
+     --jq '{state: .state, mergeStateStatus: .mergeStateStatus, labels: [.labels[].name]}'
+   ```
+
+   For each poll result, branch:
+
+   - `state == "MERGED"`: mark this PR done in the poll list. When all polled PRs are MERGED, continue to sub-step 3 (stale-todo detection will formalize the ROADMAP/STATE update via Tier 2 lookup).
+   - `state == "CLOSED"`: append `LOOP_STOP[$LOOP_ID]: PR #<number> closed without merge — CI failure or manual close` to STATE.md and STOP.
+   - Any label in the resolved `git.auto_merge_blocking_labels` list appears (default `["do-not-merge", "wip", "hold"]`): append `LOOP_STOP[$LOOP_ID]: blocking label on PR #<number> — human must resolve` to STATE.md and STOP.
+   - `now >= deadline`: append `LOOP_STOP[$LOOP_ID]: merge timeout on PR #<number> after <timeout_min> min` to STATE.md and STOP.
+   - Otherwise (`state == "OPEN"`, mergeStateStatus `BLOCKED` / `CLEAN` / `UNSTABLE` / `UNKNOWN`): sleep 30s and poll again.
+
+   The 30s sleep runs inside the agent's synchronous invocation; the loop wrapper's outer cooldown (see `riff-loop.sh`) provides a second layer of coverage if the agent exits cleanly after scheduling auto-merge but before the PR lands.
+
+3. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
 
    **Tier 1 — SHA ancestry (canonical).** Read `.planning/phases/<id>-<slug>/SUMMARY.md`. Look for a line matching `^> Merge commit: ([0-9a-f]{7,40})$`. If found, run:
 
@@ -124,7 +154,7 @@ If the section already exists, reset all four field values to `-`.
 
    A match means the PR was merged with the canonical RIFF subject. If none of the three tiers detect a merge, the phase is genuinely still todo.
 
-3. **If a stale-todo phase is found:**
+4. **If a stale-todo phase is found:**
    - Read `.planning/phases/<id>-<slug>/SUMMARY.md` to get the shipped scope, file/test counts, and PR number.
    - Set `status: done` for that phase in ROADMAP.yaml.
    - Update STATE.md: rewrite the `## Current Phase` prose to describe the shipped phase, append a row to the `## Phases Completed` table, refresh `## Next Action` to drop the now-shipped phase from "eligible".
@@ -137,9 +167,9 @@ If the section already exists, reset all four field values to `-`.
 
    The SUMMARY.md is included in the commit when Tier 2 just back-filled the merge SHA, so the durable artifact catches up to reality.
 
-4. **No stale phase found:** continue to the dirty-tree preflight (below).
+5. **No stale phase found:** continue to the dirty-tree preflight (below).
 
-5. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
+6. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
 
    - **All dirty files are inside `.planning/` only:** auto-skip. These are RIFF artifact residue (interrupted hook writes, etc.) safe to leave; Step 5's executor will overwrite them. Print a one-line notice and continue.
    - **Any dirty file is outside `.planning/`:** AskUserQuestion:
@@ -161,10 +191,25 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 
 1. Filter `status: todo` phases where all `depends_on` are `done`
 2. Sort by `priority` (P0 first)
-3. AFK mode → filter to `mode: AFK` only
+3. AFK mode → filter to AFK-eligible phases only. **AFK-eligible** = `mode: AFK` OR (`mode: HITL` AND `provider_mode: sandbox`). Production-provider HITL phases (`mode: HITL` with `provider_mode: production` or unset) are skipped. See `commands/loop.md` § HITL vs sandbox-HITL and `agents/planner.md` § `provider_mode`.
 4. Last VERIFICATION.md has `FAIL` → don't pick new; create fix plan on existing branch
 
-**Seed check:** scan `.planning/seeds/`. Seed's `trigger:` met → surface it. AFK → log only.
+**Seed check:** scan `.planning/seeds/`. For each seed whose `Trigger:` is met against the picked phase:
+- If the seed contains `Pre-approved: yes` near the top (typically `> Pre-approved: yes (approved by <user>, <date>)`) → auto-integrate the seed's `Proposed fix` (or `Idea`) into the current phase's task list as a new task. Do NOT surface to the user. Note the auto-merge in PLAN.md (`Source: seed-NNNN, auto-integrated per pre-approval flag`). The seed file stays in `.planning/seeds/` for traceability — delete it manually if you want a clean folder, or leave it as a record.
+- Otherwise → surface the seed to the user (current behavior).
+- AFK mode → log only, never block.
+
+**Sandbox-HITL routing:** when the picked phase is `mode: HITL` AND `provider_mode: sandbox`, this contract applies whether `/riff:next` was invoked standalone or from `/riff:loop`. Any provider verification step inside the phase (OAuth callback, Stripe test checkout, magic-link click, email-confirmation flow, etc.) MUST be driven through the user-level `browser-automation` skill. Capture screenshots + console transcript and append them under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`. Use sandbox / test credentials only — never production.
+
+Driver choice depends on invocation context:
+
+- **AFK mode (inside `/riff:loop`)** → headless driver only (Lightpanda or agent-browser). Visible browsers (Claude in Chrome) would block the loop.
+- **Interactive mode (standalone `/riff:next`)** → either headless or Claude in Chrome is acceptable. Default to Claude in Chrome so the user sees the verification happen; let them override.
+
+If `browser-automation` is unavailable or no compatible driver is installed, do NOT silently skip:
+
+- In AFK mode → write `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md and pause.
+- In interactive mode → AskUserQuestion: `verify manually now (open the URL yourself) | install browser-automation and retry | halt`. Default `verify manually now` on no answer.
 
 ### Step 2b: Phase branch (inline)
 
@@ -460,7 +505,81 @@ Mechanical codebase intelligence on the phase diff via [`fallow`](https://github
 
 ---
 
-### Step 5e: Post-mortem explanation — sub-agent (always, fail-silent)
+### Step 5e: Smoke test browser — inline (gated)
+
+**Skip if `scope: scratch`.** Personal/local code doesn't need a runtime browser check.
+
+**Skip if not a TS/JS project.** Detection: `package.json` exists at project root. If absent, log `Step 5e: skipped — not TS/JS` to `GATES.md` and continue to Step 5f.
+
+**Skip if `smoke_test: true` is not set on the phase entry in ROADMAP.yaml.** Default OFF — the gate is opt-in. Log `Step 5e: skipped — smoke_test not enabled` to `GATES.md` and continue.
+
+**Skip if no Lightpanda binary is present.** Detection: `command -v lightpanda` returns non-zero AND no fallback `chrome-devtools-mcp` binary is on PATH. Log `Step 5e: skipped — lightpanda not installed` to `GATES.md` and continue. Don't block. Full installation guidance lives in [`references/SMOKE-TEST.md`](../references/SMOKE-TEST.md) § Installation.
+
+Runtime smoke test on the phase diff: boot the project's dev server, load every route touched by the diff in a headless browser, capture console errors and HTTP status codes. Catches "compiles green but blows up at boot" regressions — type-clean code with a busted import path, a hydration error, a 500 on a route handler, a missing env var the bundler doesn't catch.
+
+**Run (inline — orchestrator drives a shell pipeline, no sub-agent needed):**
+
+1. **Detect dev server command.** Read `package.json` `scripts`. Prefer `scripts.dev`, fallback to `scripts.start`. If neither exists, log `Step 5e: skipped — no dev/start script` to `GATES.md` and continue.
+
+2. **Detect package manager runner** (same logic as Step 5d): `pnpm-lock.yaml` → `pnpm`, `bun.lock` → `bun`, `yarn.lock` → `yarn`, otherwise `npm`.
+
+3. **Start dev server in background with a timeout.** Pick a free port (default `3000`; if busy, try `3001`–`3010`; if all busy, treat as runtime error). Boot with `<runner> run <script> &` and capture the PID. Wait up to 30s for the server to respond on its port (`curl -fsS http://localhost:<port>/ -o /dev/null` returns 0). If timeout elapses → runtime error path below.
+
+4. **Extract touched routes from the phase diff.** Heuristic: `git diff --name-only main...HEAD` and keep paths that match `routes/**`, `pages/**`, `app/**` (the three common framework conventions — React Router, Next.js pages router, Next.js app router, SvelteKit, Remix). For each path, derive the URL:
+   - `routes/users/$id.tsx` → `/users/<sample-id>`
+   - `pages/index.tsx` → `/`
+   - `pages/blog/[slug].tsx` → `/blog/<sample-slug>`
+   - `app/posts/[id]/page.tsx` → `/posts/<sample-id>`
+
+   Dynamic segments use a stub value (`sample-id`, `sample-slug`, `1`). If derivation is ambiguous, default to `/` plus the cleanest derivation; skip routes that can't be derived and note them in `SMOKE.json`. If zero routes derived, log `Step 5e: skipped — no routes in diff` to `GATES.md`, stop the dev server, continue.
+
+5. **Load each touched route in Lightpanda** (or `chrome-devtools-mcp` if Lightpanda absent — same shell contract). For each URL:
+   - Capture HTTP status code.
+   - Capture console errors and warnings (stderr stream from the browser process).
+   - Cap per-URL wallclock at 10s.
+
+6. **Stop the dev server.** `kill <PID>` then `wait <PID> 2>/dev/null`. If the process refuses to die within 5s, `kill -9 <PID>`.
+
+7. **Write findings to `.planning/phases/N-slug/SMOKE.json`** with this schema:
+
+   ```json
+   {
+     "schema_version": 1,
+     "phase": "N-slug",
+     "verdict": "pass | warn | fail",
+     "dev_server": { "runner": "pnpm", "script": "dev", "port": 3000 },
+     "routes": [
+       {
+         "url": "/users/sample-id",
+         "source": "routes/users/$id.tsx",
+         "status": 200,
+         "console_errors": [],
+         "console_warnings": ["..."]
+       }
+     ],
+     "skipped_routes": [{ "path": "...", "reason": "..." }],
+     "runtime_errors": []
+   }
+   ```
+
+8. **Parse the `verdict` field:** `pass` (all routes 200, no console errors), `warn` (all routes 200 but at least one console warning), `fail` (any non-200 OR any console error).
+
+**Behavior (initial integration — fail-on-fail only, warn does not block):**
+
+- `pass` → log `Step 5e: pass` to GATES.md. Continue.
+- `warn` → log `Step 5e: warn — <count> findings` to GATES.md. Continue. Include the count in Step 10 report.
+- `fail` → STOP. Surface the failing routes (URL, status, first console error) to the user via AskUserQuestion:
+  - **Fix in place** — re-run the executor with SMOKE.json as additional input, then re-run Step 5e. Max 2 cycles, then escalate.
+  - **Mark as accepted exception** — write a one-line rationale to GATES.md (`Step 5e: accepted-exception — <reason>`) and continue.
+  - **Skip this gate** — one-time override, log `Step 5e: override` to GATES.md and continue.
+
+**On runtime error** (dev server won't boot, port conflict on all candidates, browser binary crashes mid-run): surface stderr to the user, AskUserQuestion `skip and continue | halt`. Default skip on no answer. Always stop the dev server PID before exiting the step (cleanup is not optional).
+
+Full spec: [`references/SMOKE-TEST.md`](../references/SMOKE-TEST.md).
+
+---
+
+### Step 5f: Post-mortem explanation — sub-agent (always, fail-silent)
 
 Generates a plain-language post-mortem of what was built, with a metadata block, for the `/riff:dashboard` view. Failure NEVER blocks the pipeline.
 
@@ -572,12 +691,27 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch.
    b. **Finalize PROMPTS.md.** Open `.planning/phases/N-slug/PROMPTS.md`. For any section whose sub-agent did not fire this phase (typically `## Debugger (if invoked)` when no failure occurred, or `## Simplifier` if Step 5b skipped), replace the remaining `{{prompt verbatim}}` placeholder with `_(not invoked)_`. Every section must end up either with the actual prompt or with `_(not invoked)_`. The metadata script in (c) hard-fails if any `{{prompt verbatim}}` remains, blocking PR creation — by design, so stakeholders never see template tokens leaking into the body.
    c. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and capture stdout — this is the tracked Generation metadata section (models per step, real duration from git timestamps, gates, Codex usage, agents observed in commit trailers, **token usage per agent parsed from USAGE.md**, and **agent prompts in a collapsible block parsed from PROMPTS.md**)
    d. Concatenate: `<human summary>` + `<script stdout>`. The script output already starts with a horizontal rule `---` and an `## Generation metadata (RIFF)` heading, so no separator needed
-3. `gh pr create --title "<phase title>" --body "<composed body>"`
+3. `PR_URL=$(gh pr create --title "<phase title>" --body "<composed body>")`
+   Capture stdout (the URL) so every strategy can interpolate the real PR URL into the final report. Required for `auto_merge` (passed to `gh pr merge`); improves report accuracy for the other two.
 4. **Read `profile.yaml` `git.merge_strategy`** (resolved per `.riff/references/PROFILE-RESOLUTION.md`; default `github_button` if missing or file missing) and branch:
-   - **`github_button`:** print final report ending with `PR open at <url>. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
-   - **`local_no_ff`:** print final report ending with `PR open at <url>. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
-
-5. **Solo-reviewer reminder (inline, after the final report).** Read `user.work_mode` from `profile.yaml`. If `solo` or `solo_plus_clients` (or `client_work` / `mix`) AND the phase touched a sensitive surface (auth, payments, DB writes — derive from PLAN.md acceptance criteria or REVIEW.md categories), append one extra line to the report: `No teammate review configured. Consider waiting 24h or pairing on review before merging.` Skip for `team`. Skip for non-sensitive phases regardless of work_mode. Reminder is informational, never blocks the merge.
+   - **`github_button`:** print final report ending with `PR open at $PR_URL. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
+   - **`local_no_ff`:** print final report ending with `PR open at $PR_URL. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
+   - **`auto_merge`:** (AFK chaining path)
+     1. **Blocking-label check.** Read `git.auto_merge_blocking_labels` from resolved profile (default `["do-not-merge", "wip", "hold"]`). Then:
+        ```bash
+        labels=$(gh pr view "$PR_URL" --json labels --jq '[.labels[].name] | @csv' | tr -d '"')
+        ```
+        If any label in `labels` appears in the blocking list, append `LOOP_STOP[$LOOP_ID]: blocking label on PR <PR_URL> — human must resolve` to STATE.md, print the report, STOP.
+     2. **Re-verify gates (read-only, no agent re-spawn).** Both must pass:
+        - Security: `grep -Eq '^### \[(CRITICAL|HIGH)\]' .planning/phases/<id>-<slug>/SECURITY.md` → any match fails (security-reviewer writes SECURITY.md per `agents/security-reviewer.md` and `templates/SECURITY.md`; CRITICAL/HIGH headings use this exact format).
+        - Scope: `jq -e '.verdict == "MATCH"' .planning/phases/<id>-<slug>/SCOPE-CHECK.json` (exit 0 = pass; non-zero = fail). The file is the structured output produced by `agents/scope-checker.md`.
+        On either failure: append `LOOP_STOP[$LOOP_ID]: gate failure before auto-merge on PR <PR_URL> — <security|scope>` to STATE.md, print the report, STOP. The gates already ran at Steps 6-7; this is a fast assertion against their durable artifacts.
+     3. **Schedule merge:**
+        ```bash
+        gh pr merge "$PR_URL" --auto --squash --delete-branch
+        ```
+        Returns immediately; GitHub merges when all required checks pass. Exit code non-zero (e.g. branch protections, auto-merge disabled on the repo): append `LOOP_STOP[$LOOP_ID]: gh pr merge failed on PR <PR_URL>` and STOP.
+     4. Print final report ending with `PR open at $PR_URL. Auto-merge scheduled. Loop continues after CI completes; Step 0 of the next run reconciles ROADMAP/STATE.` STOP. Skip 8c (same as `github_button` — Step 0 stale-todo detection handles bookkeeping after the squash-merge lands).
 
 The metadata script lives in the framework at `.riff/scripts/riff-pr-metadata.sh` and reads only tracked artifacts (PLAN.md path, SUMMARY.md path, GATES.md, ROADMAP.yaml, `.planning/codex-usage.csv`, git commit timestamps and trailers). It never includes Claude estimates like the PLAN.md `Estimate:` field — duration comes from first/last commit timestamps.
 
@@ -801,6 +935,8 @@ Do NOT block. Just warn and proceed.
 
 Skip human interaction. Proceed on Confident/Likely. STOP on: Unclear, R3, FAIL, CRITICAL/HIGH security, all done.
 
+When the active phase is sandbox-HITL (`mode: HITL` AND `provider_mode: sandbox`), AFK mode does NOT pause for provider verification — it routes through the `browser-automation` skill with a headless driver. See Step 2 § Sandbox-HITL routing for the contract (driver choice, sandbox-only creds, evidence capture, fallback). If routing is impossible, write a `LOOP_STOP` line and pause; never silently skip the verification.
+
 ## Ground rules
 
 - Give paths, never paste file contents into prompts
@@ -808,3 +944,4 @@ Skip human interaction. Proceed on Confident/Likely. STOP on: Unclear, R3, FAIL,
 - Sub-agents need explicit `model:` on the Agent call — frontmatter inheritance is not enough
 - Auto-debug artifacts (DEBUG.md) are required input for the next cycle — don't skip triggers
 - One phase per `/riff:next` call
+- **Do not stop and ask "should I continue?" between steps.** The user invoked the pipeline; flow through every step until either (a) a gate fires (REVISE / DROPPED / fail / FAILED / executor crash), (b) an `AskUserQuestion` block in the step spec explicitly requires HITL input, or (c) the phase reaches Step 10 (final SUMMARY). Successful gate transitions (PROCEED, MATCH, pass, RESOLVED) are not checkpoints. Mid-pipeline "want me to continue?" prompts are a defect, not caution.

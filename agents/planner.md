@@ -74,13 +74,36 @@ When `/riff:next` re-invokes you because Step 4b returned `REVISE`, `.planning/p
 
 Mark `mode: HITL` ONLY when the phase requires manual human verification that no test can automate:
 
-- OAuth / SSO end-to-end flow needing a real browser redirect
-- Real payment flow (Stripe checkout, webhook signature verification in prod)
+- OAuth / SSO end-to-end flow needing a real browser redirect against a **production** identity provider
+- Real payment flow (live Stripe checkout, real card, webhook signature verification in prod)
+- MFA / hardware-token / phone-based steps
 - Public API breaking change requiring external communication
 - First production deploy, DNS switch, domain cutover
 - Irreversible destructive operations (mass migration, data deletion)
 
 **Code-only auth/security/payment work stays AFK** (password hashing, RBAC logic, JWT signing, rate limiters, Zod validation, CSRF tokens) — tests + security-reviewer + adversarial Codex cover it.
+
+### `provider_mode: sandbox | production` (optional, default `production`)
+
+Optional phase field that qualifies *which* provider environment the phase touches. Independent of `mode:` and `priority:`. Default when omitted → `production`.
+
+Set `provider_mode: sandbox` when ALL of the following hold:
+
+- The phase exercises an external provider (auth, payments, identity, storage, email, etc.) but only via **sandbox / test / dev** credentials.
+- No real-world side effect can fire (test Stripe card, Auth0 dev tenant, Clerk test mode, Supabase test project, ngrok-style OAuth callback to local dev, Mailtrap, Stripe test webhooks).
+- No real money moves, no production user data touched, no production DNS/domain involved.
+
+Set `provider_mode: production` (or omit) when the phase touches a live provider tenant, real card, real MFA, real DNS, or production user data.
+
+**Interaction with `mode:`**
+
+| `mode:` | `provider_mode:` | Loop behavior                                                                                                  |
+| ------- | ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| `AFK`   | any              | Runs AFK as today                                                                                              |
+| `HITL`  | `production`     | Pauses the AFK loop, waits for human verification (status quo)                                                 |
+| `HITL`  | `sandbox`        | Runs AFK **anyway**, routes the provider verification through the `browser-automation` skill (Lightpanda / agent-browser headless), captures screenshots + console transcript into SUMMARY.md. Falls back to HITL pause if `browser-automation` is unavailable. |
+
+In other words: `provider_mode: sandbox` is the explicit knob that says "this HITL surface is automatable with test credentials, let the loop keep going." Production provider flows, MFA, prod payment, DNS cutover, and irreversible migrations stay HITL regardless.
 
 ## Improver opt-in (when to set `improver: true`)
 

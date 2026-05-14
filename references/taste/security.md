@@ -70,3 +70,15 @@
 11. **Signed cookie ≠ authz credential. Re-check DB state at action time.** HMAC envelope (`${id}.${exp}.${HMAC}`) proves issuance + untampered, NOT current state. Multi-step flows: reload row by id, assert `status === "pending"` (strict whitelist) at action time. Defends pre-consume cookie replay.
 
     Cookie attrs: `Secure` mandatory, `Path` scoped to subtree (NOT `/`), `HttpOnly`, `SameSite=Lax`, `Max-Age` = envelope expiry.
+
+12. **SDK error logging: log `errorClass` only by default, never raw `error.message`.** OpenRouter, Anthropic, OpenAI, Apify, PitchBook, and most LLM/API SDKs can echo request bodies (prompts, user input, contact PII) inside `error.message` under failure modes you cannot enumerate from outside. Operator-visible logs (`logger.info` / `logger.warn`) are a different trust boundary than the action handler — assume aggregated and searchable.
+
+    ```ts
+    // BAD — error.message can echo prompt content / request body / model output
+    logger.info("provider_failed", { error: err instanceof Error ? err.message : String(err) });
+
+    // GOOD — class name only; add a fixed-width slice ONLY after auditing the SDK's error shape
+    logger.info("provider_failed", { errorClass: err instanceof Error ? err.constructor.name : typeof err });
+    ```
+
+    Applies to every new SDK integration. OWASP A09 prevention pattern.

@@ -28,6 +28,18 @@
 
 12. **Post-action upstream verification for irreversible external ops.** 3rd-party 200 OK does NOT prove desired upstream state (eventual consistency, silent partial fail, vendor edge cases). Post-mutation: re-read upstream, confirm expected state. Verify fail → `skipped[]` with reason, NEVER `created[]`. Local state mirrors "provable upstream now", not "API claimed".
 
+13. **Plan boundaries MUST list every artifact the task writes.** RIFF planner discipline: every AC that produces an artifact (`Write to X`, `Append to X`, `Update X`) → confirm `X` appears in the task's Boundaries list. Especially easy to miss for `SUMMARY.md`, `GATES.md`, `STATE.md` (always-written artifacts the planner takes for granted). Boundary contradictions block the executor or force ad-hoc deviations — both bad audit signal in adversarial review.
+
+14. **Atomic claim flow for concurrent resource creation.** Code path that (a) inserts a DB row, then (b) calls a third-party API (Stripe, DocuSign, Daily, Retell) to provision a resource, then (c) updates the row with provider IDs → race window between (a) and (c). Two concurrent callers can both pass a SELECT-then-INSERT check, both provision external resources, and produce orphaned providers. Use claim-first:
+
+    1. INSERT placeholder row with `status='created'` and `ON CONFLICT (<entity>) WHERE status IN ('created','processing') DO NOTHING RETURNING id`. The partial unique index serializes attempts at the DB layer.
+    2. Branch on returned rows: zero → return 409 with the existing entity id; one → continue.
+    3. Provision external resources (Daily room, Retell call, Stripe subscription, etc.).
+    4. UPDATE the placeholder with provider IDs and flip to `status='active'` (or equivalent).
+    5. On any provider-call failure inside the catch block, UPDATE `status='error'` to release the slot for retry. Never DELETE — keep the audit trail.
+
+    Why the partial unique index over a full unique index: lets terminal-state rows (`error`, `completed`) accumulate for the same entity without blocking new attempts. The predicate scopes uniqueness to "actively claimed" rows only. Pair with a CHECK constraint on any attribution invariant (e.g. `kind ↔ team_member_id`) so the DB rejects half-formed rows.
+
 ## Architecture Red Flags
 
 Watch in agent-generated code:

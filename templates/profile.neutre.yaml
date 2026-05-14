@@ -36,7 +36,12 @@ notifications:
   channel: none
 
 git:
+  # Valid values: github_button | local_no_ff | auto_merge
   merge_strategy: github_button
+  # auto_merge_blocking_labels: ["do-not-merge", "wip", "hold"]
+
+loop:
+  # merge_wait_timeout_min: 30    # Default 30. Only used when merge_strategy: auto_merge.
 
 dashboard:
   projects: []
