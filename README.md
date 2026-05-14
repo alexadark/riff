@@ -61,6 +61,11 @@ Open Claude Code and run:
 ```
 /riff:init         # installs RIFF, picks scope (production/scratch), and asks
                    # whether to keep the framework profile or customize one for this project
+```
+
+> **Restart Claude Code before continuing.** `/riff:init` installs new slash commands, skills, and agents into the project. Claude Code only discovers them at session start, so the just-installed commands (`/riff:start`, `/riff:next`, etc.) will not appear in your current window. Close the Claude Code window and open a fresh one in the same project directory before running the next command.
+
+```
 /riff:start        # greenfield discovery (5 stages: problem, users, MVP, research, roadmap)
                    # OR /riff:map for an existing codebase
 /riff:next         # the main loop: plan a phase, execute, review, open a PR
