@@ -38,3 +38,25 @@ Files changed:
 [RESOLVED / UNRESOLVED]
 
 <!-- If UNRESOLVED: explain exactly what is known, what was ruled out, and what the next investigator needs to know. -->
+
+## Visual evidence
+
+<!--
+Frontend failures only (see agents/debugger.md § Step 4b). Three forms:
+
+1. Captured — include all three subsections below.
+2. Skipped — replace this whole section with a single line: `Visual evidence: skipped — <reason>`.
+3. Not applicable (backend-only failure) — omit this section entirely.
+-->
+
+Screenshot: `.planning/phases/N-slug/debug-screenshots/<ISO-timestamp>.png`
+
+Console transcript:
+
+```
+[full console output, all levels, no truncation]
+```
+
+Network errors:
+
+- `<METHOD> <url> → <status>`
