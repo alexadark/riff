@@ -465,12 +465,18 @@ Before review, verify executor honored the plan. Run scope-checker sub-agent.
 1. Read `.planning/phases/N-slug/SCOPE-CHECK.json`.
 2. If file absent → treat as `MALFORMED` with reason `"file not written"`.
 3. If invalid JSON → treat as `MALFORMED` with reason `"invalid JSON"`.
-4. If `schema_version != 1` → surface mismatch to user, halt.
+4. If `schema_version` is neither `1` nor `2` → surface mismatch to user, halt. (`1` = legacy plans pre-Smoke contract, `2` = current.)
 5. Branch on the `verdict` field.
 
 **On `MATCH`:** proceed to Step 5d.
 
-**On `DROPPED`:** STOP. Iterate the `unmatched_tasks` array. For each task, AskUserQuestion: "completed (mark done in SUMMARY)" | "defer to new phase (will run /riff:add-phase)" | "rejected (write rationale)". Apply the choice for each, then re-run Step 5c (sub-agent overwrites SCOPE-CHECK.json). Loop until `verdict == MATCH`. **Max 3 cycles**, then STOP and escalate to user with both SCOPE-CHECK.json and PLAN.md, ask whether to skip the gate (record `Step 5c: override` to `GATES.md`) or halt for manual fix.
+**On `DROPPED`:** STOP. Triage in three buckets, in order:
+
+1. **Task drops (`unmatched_tasks` non-empty).** For each, AskUserQuestion: "completed (mark done in SUMMARY)" | "defer to new phase (will run /riff:add-phase)" | "rejected (write rationale)". Apply each choice, then re-run Step 5c.
+2. **Smoke section too thin or missing (`smoke_too_thin == true` OR `planned_smokes` empty on a non-legacy plan).** Surface to user with the modified files list. AskUserQuestion: "ask the planner to expand Smoke section (re-run Step 4 with this finding)" | "skip this gate (record override in GATES.md)". On expand → re-run Step 4 inline with the missing-smoke finding as input, then re-run Step 5c.
+3. **Smoke regressions or missing results (`failed_smokes` non-empty OR `unmatched_smokes` non-empty).** For each entry, surface command + observed output (for `failed_smokes`) or "no result row in SUMMARY.md" (for `unmatched_smokes`). AskUserQuestion: "auto-debug (treat as failure_type=smoke_fail, artifact=SCOPE-CHECK.json)" | "fix manually now, then re-run Step 5c" | "skip this gate (record override in GATES.md)". On auto-debug → trigger the auto-debug pattern, on RESOLVED re-run Step 5c.
+
+Loop until `verdict == MATCH`. **Max 3 cycles per bucket**, then STOP and escalate to user with both SCOPE-CHECK.json and PLAN.md, ask whether to skip the remaining gate (record `Step 5c: override` to `GATES.md`) or halt for manual fix.
 
 **On `MALFORMED`:** surface `malformed_reason` to user, ask whether to skip (acceptable for unstructured PLAN.md formats) or fix the format and retry.
 
