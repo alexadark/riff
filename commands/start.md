@@ -153,7 +153,9 @@ Prompt: project name (one line), instruction _"Run with `--model {{MODEL}} --eff
 
 **production scope:** Decompose v1 into phases. Each phase = **vertical slice** (not horizontal layer). Phase 1 = tracer bullet.
 
-**Mode:** default `mode: AFK`. Mark `mode: HITL` only when manual human verification is unavoidable: OAuth/SSO browser flow, real payment checkout, DNS/prod cutover, irreversible migrations. Code-only auth/payment/security work stays AFK — security-reviewer + adversarial Codex cover it.
+**Mode:** default `mode: AFK`. Mark `mode: HITL` only when manual human verification is unavoidable against a **production** surface: real OAuth/SSO against a prod IdP, real payment checkout, MFA, DNS/prod cutover, irreversible migrations. Code-only auth/payment/security work stays AFK — security-reviewer + adversarial Codex cover it.
+
+**Provider mode:** optional per-phase field `provider_mode: sandbox | production` (default `production`). Set `provider_mode: sandbox` on phases that exercise an external provider via sandbox/test credentials only (test Stripe card, Auth0 dev tenant, Clerk test mode, Supabase test project, Mailtrap, etc.). When combined with `mode: HITL`, the loop does NOT pause — the verification is routed through the user-level `browser-automation` skill (Lightpanda / agent-browser headless). Production provider work stays HITL. See `agents/planner.md` § `provider_mode` and `commands/loop.md` § HITL vs sandbox-HITL.
 
 Write `ROADMAP.yaml`. Required fields per phase: `id`, `slug` (kebab-case), `title` (human-readable), `status: todo`, `priority`, `mode`, `depends_on`. Never use a phase-level `name:` field. After writing, run `bash .riff/lib/validate-roadmap.sh ROADMAP.yaml` and fix any reported error before continuing. Self-critique: ordering, dependencies, gaps, sizing, vertical slices, first phase.
 

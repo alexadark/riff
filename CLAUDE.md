@@ -47,7 +47,7 @@ Discoverable via this section. Do not invent commands the user did not invoke.
 - Command catalog: `commands/INDEX.md`.
 - Planning: `agents/planner.md` (Confidence Gate, Assumptions Mode, Wave grouping, Logical Dependency Check).
 - Executing: `agents/executor.md` (Confidence Gate, Model Dispatch, Documentation Updates).
-- Security: `agents/security-reviewer.md` (auto-runs after every build phase). HITL reserved for phases requiring manual human verification (OAuth/SSO browser flow, real payment checkout, DNS/prod cutover, irreversible migrations); code-only auth/payment work runs AFK on security-reviewer + adversarial Codex.
+- Security: `agents/security-reviewer.md` (auto-runs after every build phase). HITL reserved for phases requiring manual human verification against a **production** surface (real OAuth/SSO against a prod IdP, real payment checkout, MFA / hardware token, DNS/prod cutover, irreversible migrations); code-only auth/payment work runs AFK on security-reviewer + adversarial Codex. **Sandbox provider flows** (`provider_mode: sandbox`) also run AFK — the loop routes the verification through the user-level `browser-automation` skill (Lightpanda / agent-browser headless) instead of pausing. See `agents/planner.md` § `provider_mode` and `commands/loop.md` § HITL vs sandbox-HITL.
 - Style rules: `taste.md` (`## Architecture` always + `## Stack: {{stack}}` on frontend/route tasks). Stack files live in `references/taste/stacks/`, injected at `/riff:start`.
 - Hooks: `hooks/README.md` § Buckets.
 - Budget and model resolution: `protocols/MODEL.md` § Budget and model resolution.

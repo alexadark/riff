@@ -191,13 +191,15 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 
 1. Filter `status: todo` phases where all `depends_on` are `done`
 2. Sort by `priority` (P0 first)
-3. AFK mode → filter to `mode: AFK` only
+3. AFK mode → filter to AFK-eligible phases only. **AFK-eligible** = `mode: AFK` OR (`mode: HITL` AND `provider_mode: sandbox`). Production-provider HITL phases (`mode: HITL` with `provider_mode: production` or unset) are skipped. See `commands/loop.md` § HITL vs sandbox-HITL and `agents/planner.md` § `provider_mode`.
 4. Last VERIFICATION.md has `FAIL` → don't pick new; create fix plan on existing branch
 
 **Seed check:** scan `.planning/seeds/`. For each seed whose `Trigger:` is met against the picked phase:
 - If the seed contains `Pre-approved: yes` near the top (typically `> Pre-approved: yes (approved by <user>, <date>)`) → auto-integrate the seed's `Proposed fix` (or `Idea`) into the current phase's task list as a new task. Do NOT surface to the user. Note the auto-merge in PLAN.md (`Source: seed-NNNN, auto-integrated per pre-approval flag`). The seed file stays in `.planning/seeds/` for traceability — delete it manually if you want a clean folder, or leave it as a record.
 - Otherwise → surface the seed to the user (current behavior).
 - AFK mode → log only, never block.
+
+**Sandbox-HITL routing:** when the picked phase is `mode: HITL` AND `provider_mode: sandbox`, any provider verification step inside the phase (OAuth callback, Stripe test checkout, magic-link click, email-confirmation flow, etc.) MUST be driven through the user-level `browser-automation` skill with a headless driver (Lightpanda or agent-browser). Capture screenshots + console transcript and append them under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`. Use sandbox / test credentials only — never production. If `browser-automation` is unavailable or cannot run headlessly in this environment, do NOT silently skip: write `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md and pause. AFK mode otherwise (Step 800 § AFK mode) still applies.
 
 ### Step 2b: Phase branch (inline)
 
@@ -922,6 +924,8 @@ Do NOT block. Just warn and proceed.
 ## AFK mode
 
 Skip human interaction. Proceed on Confident/Likely. STOP on: Unclear, R3, FAIL, CRITICAL/HIGH security, all done.
+
+When the active phase is sandbox-HITL (`mode: HITL` AND `provider_mode: sandbox`), AFK mode does NOT pause for provider verification — it routes through the `browser-automation` skill with a headless driver. See Step 2 § Sandbox-HITL routing for the contract (driver choice, sandbox-only creds, evidence capture, fallback). If routing is impossible, write a `LOOP_STOP` line and pause; never silently skip the verification.
 
 ## Ground rules
 
