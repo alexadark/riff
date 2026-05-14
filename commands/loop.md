@@ -50,12 +50,12 @@ A phase counts as **AFK-eligible** for the loop when EITHER:
 - `mode: AFK`, OR
 - `mode: HITL` AND `provider_mode: sandbox` (see `agents/planner.md` § `provider_mode`)
 
-For sandbox-HITL phases the loop does NOT pause. Instead, when the phase reaches a verification step that would normally require a human at a browser (OAuth callback, Stripe test checkout, magic-link click, etc.), it routes the verification through the user-level `browser-automation` skill:
+For sandbox-HITL phases the loop does NOT pause. Instead, when the phase reaches a verification step that would normally require a human at a browser (OAuth callback, Stripe test checkout, magic-link click, etc.), it routes the verification through the browser verification protocol (see `references/BROWSER-VERIFICATION.md`):
 
-- Preferred driver: **Lightpanda** (headless, fast) or **agent-browser** (headless, feature-rich). Never Claude in Chrome inside the loop — it requires a visible session.
+- Preferred driver: **Lightpanda** (headless, fast). chrome-devtools-mcp drives a visible browser and is treated as "no headless driver" inside the loop.
 - Credentials: sandbox / dev tenant only (Stripe test card, Auth0 dev tenant, Clerk test mode, Mailtrap, etc.). The phase plan is responsible for surfacing which sandbox creds it expects, sourced from `.env.local` or the user's secret manager — never from production.
-- Evidence: capture screenshots + console transcript and append them (or links to them) under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`.
-- Fallback: if the `browser-automation` skill is unavailable or returns no driver it can drive headlessly (e.g. Computer Use only), log `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md and stop the loop. Do NOT silently degrade to "skip verification."
+- Evidence: capture screenshots + console transcript using the `sandbox` context (paths defined in `references/BROWSER-VERIFICATION.md` § Output contract) and append them (or links to them) under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`.
+- Fallback: if no headless driver is available per the protocol's § Driver detection, log `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md and stop the loop. Do NOT silently degrade to "skip verification."
 
 Production-provider HITL phases (real OAuth, real payment, MFA, DNS cutover, irreversible migrations) keep the existing pause behavior — they never run inside the loop.
 

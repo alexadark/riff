@@ -199,17 +199,17 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 - Otherwise → surface the seed to the user (current behavior).
 - AFK mode → log only, never block.
 
-**Sandbox-HITL routing:** when the picked phase is `mode: HITL` AND `provider_mode: sandbox`, this contract applies whether `/riff:next` was invoked standalone or from `/riff:loop`. Any provider verification step inside the phase (OAuth callback, Stripe test checkout, magic-link click, email-confirmation flow, etc.) MUST be driven through the user-level `browser-automation` skill. Capture screenshots + console transcript and append them under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`. Use sandbox / test credentials only — never production.
+**Sandbox-HITL routing:** when the picked phase is `mode: HITL` AND `provider_mode: sandbox`, this contract applies whether `/riff:next` was invoked standalone or from `/riff:loop`. Any provider verification step inside the phase (OAuth callback, Stripe test checkout, magic-link click, email-confirmation flow, etc.) MUST be driven through the browser verification protocol — see `references/BROWSER-VERIFICATION.md` for driver detection, CLI shape, and output paths. Capture screenshots + console transcript using the `sandbox` context and append them under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`. Use sandbox / test credentials only — never production.
 
 Driver choice depends on invocation context:
 
-- **AFK mode (inside `/riff:loop`)** → headless driver only (Lightpanda or agent-browser). Visible browsers (Claude in Chrome) would block the loop.
-- **Interactive mode (standalone `/riff:next`)** → either headless or Claude in Chrome is acceptable. Default to Claude in Chrome so the user sees the verification happen; let them override.
+- **AFK mode (inside `/riff:loop`)** → headless driver only (Lightpanda). chrome-devtools-mcp is treated as "no headless driver" inside the loop because a visible browser would block.
+- **Interactive mode (standalone `/riff:next`)** → either Lightpanda or chrome-devtools-mcp is acceptable. Default to chrome-devtools-mcp when available so the user sees the verification happen; let them override.
 
-If `browser-automation` is unavailable or no compatible driver is installed, do NOT silently skip:
+If no driver from the protocol is available (per § Driver detection in `references/BROWSER-VERIFICATION.md`), do NOT silently skip:
 
 - In AFK mode → write `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md and pause.
-- In interactive mode → AskUserQuestion: `verify manually now (open the URL yourself) | install browser-automation and retry | halt`. Default `verify manually now` on no answer.
+- In interactive mode → AskUserQuestion: `verify manually now (open the URL yourself) | install lightpanda and retry | halt`. Default `verify manually now` on no answer.
 
 ### Step 2b: Phase branch (inline)
 
@@ -935,7 +935,7 @@ Do NOT block. Just warn and proceed.
 
 Skip human interaction. Proceed on Confident/Likely. STOP on: Unclear, R3, FAIL, CRITICAL/HIGH security, all done.
 
-When the active phase is sandbox-HITL (`mode: HITL` AND `provider_mode: sandbox`), AFK mode does NOT pause for provider verification — it routes through the `browser-automation` skill with a headless driver. See Step 2 § Sandbox-HITL routing for the contract (driver choice, sandbox-only creds, evidence capture, fallback). If routing is impossible, write a `LOOP_STOP` line and pause; never silently skip the verification.
+When the active phase is sandbox-HITL (`mode: HITL` AND `provider_mode: sandbox`), AFK mode does NOT pause for provider verification — it routes through the browser verification protocol (`references/BROWSER-VERIFICATION.md`) with a headless driver (Lightpanda). See Step 2 § Sandbox-HITL routing for the contract (driver choice, sandbox-only creds, evidence capture, fallback). If routing is impossible, write a `LOOP_STOP` line and pause; never silently skip the verification.
 
 ## Ground rules
 

@@ -128,8 +128,8 @@ If none of these match → skip this step. Proceed to Step 5.
 
 3. **Start the dev server** if not already running. Detect command from `package.json` (`scripts.dev` typically). Launch in the background, wait for the port to respond (default 5173 for Vite, 3000 for Next/RR). 30s timeout — if it doesn't come up, skip (see Skip conditions).
 
-4. **Open the browser** via the global `browser-automation` skill. Default tool selection:
-   - HITL mode → Claude in Chrome (visible)
+4. **Open the browser** via the browser verification protocol (`references/BROWSER-VERIFICATION.md`). Use the `debug` context for output paths. Default driver selection:
+   - HITL mode → chrome-devtools-mcp when available (visible), else Lightpanda
    - AFK mode → Lightpanda (headless)
 
 5. **Navigate** to the target route. If a vitest test failure is the trigger and the test simulates user actions (clicks, form input), **replay that action sequence** in the live browser.
@@ -150,7 +150,7 @@ Skip this step silently and add a single line to DEBUG.md (`Visual evidence: ski
 - No `package.json` at project root
 - Dev server fails to start within 30s
 - No route or component is inferable from the failure context
-- `browser-automation` skill is unavailable
+- No browser driver from the protocol is available (`references/BROWSER-VERIFICATION.md` § Driver detection)
 - Triggered on a backend-only file under a frontend path (e.g. a `*.server.ts` co-located in `/routes/`)
 
 Reasons are mechanical — do not editorialize. Examples:

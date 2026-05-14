@@ -101,7 +101,7 @@ Set `provider_mode: production` (or omit) when the phase touches a live provider
 | ------- | ---------------- | -------------------------------------------------------------------------------------------------------------- |
 | `AFK`   | any              | Runs AFK as today                                                                                              |
 | `HITL`  | `production`     | Pauses the AFK loop, waits for human verification (status quo)                                                 |
-| `HITL`  | `sandbox`        | Runs AFK **anyway**, routes the provider verification through the `browser-automation` skill (Lightpanda / agent-browser headless), captures screenshots + console transcript into SUMMARY.md. Falls back to HITL pause if `browser-automation` is unavailable. |
+| `HITL`  | `sandbox`        | Runs AFK **anyway**, routes the provider verification through the browser verification protocol (`references/BROWSER-VERIFICATION.md` — Lightpanda headless), captures screenshots + console transcript into SUMMARY.md. Falls back to HITL pause if no headless driver is available. |
 
 In other words: `provider_mode: sandbox` is the explicit knob that says "this HITL surface is automatable with test credentials, let the loop keep going." Production provider flows, MFA, prod payment, DNS cutover, and irreversible migrations stay HITL regardless.
 
