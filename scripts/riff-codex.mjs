@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { statSync } from 'node:fs';
 import {
   artifactPath,
   detectScope,
@@ -399,8 +400,18 @@ function gateArtifactForCommand(command, phase, capability) {
   return artifactPath(phase.dir, capability.artifact);
 }
 
-function updateDerivedGates(command, exitCode, phase, scope) {
-  if (exitCode !== 0 || command !== 'execute') return;
+function artifactUpdatedSince(relativePath, startedAtMs) {
+  if (!readIfExists(ROOT, relativePath).exists) return false;
+  try {
+    const artifactStat = statSync(path.resolve(ROOT, relativePath));
+    return artifactStat.mtimeMs >= startedAtMs - 1000;
+  } catch {
+    return false;
+  }
+}
+
+function updateDerivedGates(command, exitCode, phase, scope, artifactReady) {
+  if (exitCode !== 0 || !artifactReady || command !== 'execute') return;
   updateGate(ROOT, phase, scope, {
     gate: 'summary',
     status: 'pass',
@@ -435,6 +446,7 @@ function runCodex(args, contextPack, phase, scope) {
     reason: 'adapter command started',
   });
 
+  const startedAtMs = Date.now();
   const result = spawnSync(args.codexBin, ['exec', '-'], {
     cwd: ROOT,
     input: contextPack,
@@ -453,16 +465,23 @@ function runCodex(args, contextPack, phase, scope) {
   }
 
   const exitCode = result.status ?? 1;
+  const artifactReady = exitCode === 0 && artifactUpdatedSince(gateArtifact, startedAtMs);
+  const status = artifactReady ? 'pass' : 'fail';
+  const reason = exitCode !== 0
+    ? 'adapter command failed'
+    : artifactReady
+      ? 'adapter command completed'
+      : `adapter command completed without expected artifact: ${gateArtifact}`;
   updateGate(ROOT, phase, scope, {
     gate,
-    status: exitCode === 0 ? 'pass' : 'fail',
+    status,
     command: `codex exec ${capability.name}`,
     exitCode,
     artifact: gateArtifact,
-    reason: exitCode === 0 ? 'adapter command completed' : 'adapter command failed',
+    reason,
   });
-  updateDerivedGates(capability.name, exitCode, phase, scope);
-  process.exit(exitCode);
+  updateDerivedGates(capability.name, exitCode, phase, scope, artifactReady);
+  process.exit(status === 'pass' ? 0 : exitCode || 1);
 }
 
 const args = parseArgs(process.argv.slice(2));

@@ -49,8 +49,11 @@ function readRoadmapPhase(root, phaseId) {
   return match ? match[0].split('\n').slice(0, 8).join('\n') : undefined;
 }
 
-export function buildDashboardMetadata({ root, phase, scope }) {
+export function buildDashboardMetadata({ root, phase, scope, gateOverrides = [] }) {
   const gateEntries = readGateEntries(root, phase.dir, scope);
+  for (const entry of gateOverrides) {
+    gateEntries.set(entry.gate, entry);
+  }
   const config = readJsonIfExists(root, '.planning/config.json');
   const sourceArtifacts = SOURCE_FILES.map((file) => artifactStatus(root, phase.dir, file));
   const blockers = [...gateEntries.values()]
@@ -88,16 +91,37 @@ export function buildDashboardMetadata({ root, phase, scope }) {
 
 export function writeDashboardMetadata({ root, phase, scope }) {
   const outputPath = artifactPath(phase.dir, 'dashboard-metadata.json');
-  updateGate(root, phase, scope, {
+  const currentDashboardEntry = readGateEntries(root, phase.dir, scope).get('dashboard');
+  const dashboardEntry = {
     gate: 'dashboard',
     status: 'pass',
+    required: currentDashboardEntry?.required,
     command: 'dashboard-metadata',
     exitCode: 0,
     artifact: outputPath,
+    updatedAt: new Date().toISOString(),
     reason: 'dashboard metadata generated from artifacts',
+  };
+  const metadata = buildDashboardMetadata({
+    root,
+    phase,
+    scope,
+    gateOverrides: [dashboardEntry],
   });
-  const metadata = buildDashboardMetadata({ root, phase, scope });
-  writeJson(root, outputPath, metadata);
+  try {
+    writeJson(root, outputPath, metadata);
+  } catch (error) {
+    updateGate(root, phase, scope, {
+      gate: 'dashboard',
+      status: 'fail',
+      command: 'dashboard-metadata',
+      exitCode: 1,
+      artifact: outputPath,
+      reason: error.message,
+    });
+    throw error;
+  }
+  updateGate(root, phase, scope, dashboardEntry);
   return {
     outputPath,
     metadata,
