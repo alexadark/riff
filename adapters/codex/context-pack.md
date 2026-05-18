@@ -24,10 +24,14 @@ This follows `core/protocols/context-budget.md` without requiring every core fil
 | `plan` | focused |
 | `execute` | expanded |
 | `plan-review` | focused |
+| `scope-check` | focused |
 | `code-review` / `review` | focused |
 | `security-review` | expanded |
 | `docs-check` | focused |
+| `hooks` | minimal |
+| `dashboard-metadata` | minimal |
 | `dashboard-explain` | minimal |
+| `finalize` | focused |
 
 ## Source Artifacts
 
@@ -39,14 +43,16 @@ The generated context pack records whether these files exist:
 - `.planning/phases/<phase>/PLAN.md`
 - `.planning/phases/<phase>/PLAN-REVIEW.md`
 - `.planning/phases/<phase>/SUMMARY.md`
+- `.planning/phases/<phase>/SCOPE-CHECK.json`
 - `.planning/phases/<phase>/REVIEW.md`
 - `.planning/phases/<phase>/SECURITY.md`
 - `.planning/phases/<phase>/GATES.md`
 - `.planning/phases/<phase>/HANDOFF.md`
+- `.planning/phases/<phase>/dashboard-metadata.json`
+- `.planning/phases/<phase>/dashboard-explanation.json`
 
 When a file exists and is small enough, the script includes a compact excerpt. Large files are listed for the Codex run to inspect directly.
 
 ## Output Rule
 
 Each capability writes or updates only the artifact named by the selected prompt, plus files explicitly allowed by the plan or gate being run.
-

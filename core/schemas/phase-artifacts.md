@@ -226,18 +226,21 @@ Producer: gate runner, reviewers, finalizer, or human maintainer.
 
 Required sections:
 
-- gate entries
-- each entry names gate, status, evidence, and reason for skip or exception
+- status vocabulary: `pending`, `running`, `pass`, `warn`, `fail`, `skipped`
+- gate entries for `plan-review`, `execute`, `scope-check`, `code-review`, `security-review`, `docs-check`, `hooks`, `dashboard`, `summary`, and `state`
+- scratch-required entries for R1-R4, no-secrets, and smoke when heavy production gates are skipped
+- each entry names gate, status, required flag, command or adapter step, exit code when applicable, artifact path, timestamp, and reason for skip or exception
 
 Blocking semantics:
 
 - pending or failed required production gates block finalization
+- skipped required production gates block finalization unless there is a human accepted exception
 - accepted exceptions require a human decision reference
 
 Scratch vs production:
 
 - production requires gate ledger
-- scratch may use summary notes instead of a full ledger
+- scratch may skip heavy gates but must keep visible records for R1-R4, no-secrets, smoke, summary, and state
 
 ## `.planning/phases/<N-slug>/HANDOFF.md`
 
@@ -318,3 +321,36 @@ Scratch vs production:
 - production should expose gate and blocker status
 - scratch may expose only summary, smoke, no-secrets, and next action
 
+## Dashboard Metadata
+
+Purpose: deterministic dashboard data for rendering phase status.
+
+Producer: dashboard metadata builder.
+
+Required fields:
+
+- `phaseId`
+- `phaseDir`
+- `generatedAt`
+- `generator`
+- `scope`
+- `sourceArtifacts`
+- `gates`
+- `smokeStatus`
+- `reviewVerdict`
+- `securityVerdict`
+- `documentationStatus`
+- `blockingStatus`
+- `blockers`
+- `nextAction`
+
+Blocking semantics:
+
+- missing deterministic metadata blocks a required dashboard gate
+- optional explanation metadata does not block rendering when deterministic metadata exists
+- failed, pending, running, or skipped required gates must appear in `blockers`
+
+Scratch vs production:
+
+- production metadata exposes the full gate ledger
+- scratch metadata may show skipped heavy gates, but no-secrets, smoke, summary, and state remain visible

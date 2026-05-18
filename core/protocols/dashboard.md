@@ -21,6 +21,8 @@ The dashboard may read:
 
 Dashboard readers should tolerate missing optional artifacts and label them as pending, skipped, or unavailable based on gate state.
 
+Dashboard metadata generation is deterministic. It must be possible to build structured dashboard data from artifacts without an LLM, `claude --print`, provider-specific command output, or chat transcript state.
+
 ## Phase Status Contract
 
 For each phase, dashboard data should expose:
@@ -55,6 +57,30 @@ Explanation metadata should include:
 - confidence or freshness note when useful
 
 If no explanation generator is available, the dashboard still renders structured status.
+
+The deterministic metadata artifact should be written to:
+
+- `.planning/phases/<N-slug>/dashboard-metadata.json`
+
+Stable fields:
+
+- `phaseId`
+- `phaseDir`
+- `generatedAt`
+- `generator`
+- `scope`
+- `configStatus`
+- `sourceArtifacts`
+- `gates`
+- `smokeStatus`
+- `reviewVerdict`
+- `securityVerdict`
+- `documentationStatus`
+- `blockingStatus`
+- `blockers`
+- `nextAction`
+
+Optional explanation metadata may be written to `.planning/phases/<N-slug>/dashboard-explanation.json`. The explanation artifact can summarize or clarify the deterministic metadata, but it must not become the source of truth.
 
 ## Production Dashboard Requirements
 
@@ -95,4 +121,3 @@ The dashboard should be regenerated or refreshed after:
 - finalization
 
 If dashboard data is stale relative to artifacts, mark it stale rather than presenting it as current.
-

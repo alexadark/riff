@@ -7,6 +7,7 @@ Read:
 - `core/protocols/review.md`
 - `.planning/phases/<phase>/PLAN.md`
 - `.planning/phases/<phase>/SUMMARY.md`
+- `.planning/phases/<phase>/GATES.md` when present
 - security-relevant changed files and configuration
 - current diff
 
@@ -26,4 +27,3 @@ Check:
 Docs-only phases may return `SKIPPED` with a reason. Hardcoded secrets are blocking in every scope.
 
 End with verdict: `PASS`, `FAIL`, or `SKIPPED`.
-

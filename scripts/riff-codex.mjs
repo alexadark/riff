@@ -1,7 +1,18 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import {
+  artifactPath,
+  detectScope,
+  normalizePhase,
+  readIfExists,
+  readText,
+  toPosix,
+  writeText,
+} from './lib/artifacts.mjs';
+import { blockingGates, initializeGateLedger, readGateEntries, updateGate } from './lib/gates.mjs';
+import { runHooks } from './lib/hooks.mjs';
+import { writeDashboardMetadata } from './lib/dashboard.mjs';
 
 const ROOT = process.cwd();
 const MAX_EXCERPT_CHARS = 6000;
@@ -37,6 +48,16 @@ const CAPABILITIES = {
       'core/schemas/phase-artifacts.md',
     ],
   },
+  'scope-check': {
+    prompt: 'scope-check.md',
+    artifact: 'SCOPE-CHECK.json',
+    tier: 'focused',
+    core: [
+      'core/protocols/review.md',
+      'core/schemas/phase-artifacts.md',
+      'core/protocols/adapter-contract.md',
+    ],
+  },
   review: {
     aliasFor: 'code-review',
   },
@@ -70,6 +91,25 @@ const CAPABILITIES = {
       'core/schemas/phase-artifacts.md',
     ],
   },
+  hooks: {
+    deterministic: true,
+    artifact: 'GATES.md',
+    tier: 'minimal',
+    core: [
+      'core/protocols/hooks.md',
+      'core/schemas/phase-artifacts.md',
+    ],
+  },
+  'dashboard-metadata': {
+    deterministic: true,
+    artifact: 'dashboard-metadata.json',
+    tier: 'minimal',
+    core: [
+      'core/protocols/dashboard.md',
+      'core/protocols/state.md',
+      'core/schemas/phase-artifacts.md',
+    ],
+  },
   'dashboard-explain': {
     prompt: 'dashboard-explain.md',
     artifact: 'dashboard-explanation.json',
@@ -78,6 +118,16 @@ const CAPABILITIES = {
       'core/protocols/dashboard.md',
       'core/protocols/state.md',
       'core/schemas/phase-artifacts.md',
+    ],
+  },
+  finalize: {
+    prompt: 'finalize.md',
+    artifact: 'HANDOFF.md',
+    tier: 'focused',
+    core: [
+      'core/protocols/state.md',
+      'core/schemas/phase-artifacts.md',
+      'core/protocols/adapter-contract.md',
     ],
   },
 };
@@ -97,7 +147,7 @@ Options:
   --scope <production|scratch>
   --print                    Print generated context pack
   --context-out <path>       Write generated context pack to a file
-  --run                      Run one "codex exec" invocation
+  --run                      Run one Codex invocation or deterministic command
   --codex-bin <name>         Codex executable; defaults to CODEX_BIN or codex
   -h, --help                 Show help
 `;
@@ -197,67 +247,26 @@ function resolveCapability(command) {
   };
 }
 
-function normalizePhase(input) {
-  const normalized = input.replace(/\/$/, '');
-  if (normalized.includes('/')) {
-    return {
-      id: path.basename(normalized),
-      dir: normalized,
-    };
-  }
-  return {
-    id: normalized,
-    dir: path.join('.planning', 'phases', normalized),
-  };
-}
-
-function readText(relativePath) {
-  return readFileSync(path.join(ROOT, relativePath), 'utf8');
-}
-
-function readIfExists(relativePath) {
-  const absolutePath = path.join(ROOT, relativePath);
-  if (!existsSync(absolutePath)) {
-    return {
-      exists: false,
-      text: '',
-    };
-  }
-  return {
-    exists: true,
-    text: readFileSync(absolutePath, 'utf8'),
-  };
-}
-
-function detectScope(explicitScope) {
-  if (explicitScope) return explicitScope;
-  const config = readIfExists('.planning/config.json');
-  if (!config.exists) return 'production';
-  try {
-    const parsed = JSON.parse(config.text);
-    return parsed.scope === 'scratch' ? 'scratch' : 'production';
-  } catch {
-    return 'production';
-  }
-}
-
 function artifactSnapshot(phaseDir) {
   const files = [
     'ROADMAP.yaml',
     'STATE.md',
     '.planning/config.json',
-    path.join(phaseDir, 'PLAN.md'),
-    path.join(phaseDir, 'PLAN-REVIEW.md'),
-    path.join(phaseDir, 'SUMMARY.md'),
-    path.join(phaseDir, 'REVIEW.md'),
-    path.join(phaseDir, 'SECURITY.md'),
-    path.join(phaseDir, 'GATES.md'),
-    path.join(phaseDir, 'HANDOFF.md'),
+    artifactPath(phaseDir, 'PLAN.md'),
+    artifactPath(phaseDir, 'PLAN-REVIEW.md'),
+    artifactPath(phaseDir, 'SUMMARY.md'),
+    artifactPath(phaseDir, 'SCOPE-CHECK.json'),
+    artifactPath(phaseDir, 'REVIEW.md'),
+    artifactPath(phaseDir, 'SECURITY.md'),
+    artifactPath(phaseDir, 'GATES.md'),
+    artifactPath(phaseDir, 'dashboard-metadata.json'),
+    artifactPath(phaseDir, 'dashboard-explanation.json'),
+    artifactPath(phaseDir, 'HANDOFF.md'),
   ];
 
   return files.map((file) => {
-    const normalized = file.split(path.sep).join('/');
-    const artifact = readIfExists(normalized);
+    const normalized = toPosix(file);
+    const artifact = readIfExists(ROOT, normalized);
     if (!artifact.exists) {
       return `## ${normalized}\n\nStatus: missing\n`;
     }
@@ -271,9 +280,11 @@ function artifactSnapshot(phaseDir) {
 function renderContextPack(args) {
   const capability = resolveCapability(args.command);
   const phase = normalizePhase(args.phase);
-  const scope = detectScope(args.scope);
-  const prompt = readText(path.join('adapters', 'codex', 'prompts', capability.prompt));
-  const outputPath = path.join(phase.dir, capability.artifact).split(path.sep).join('/');
+  const scope = detectScope(ROOT, args.scope);
+  const prompt = capability.prompt
+    ? readText(ROOT, path.join('adapters', 'codex', 'prompts', capability.prompt))
+    : deterministicPrompt(capability.name);
+  const outputPath = artifactPath(phase.dir, capability.artifact);
   const coreRefs = capability.core.map((file) => `- \`${file}\``).join('\n');
 
   return `# RIFF Codex Context Pack
@@ -320,12 +331,116 @@ ${prompt}
 }
 
 function writeContext(filePath, text) {
-  const absolutePath = path.resolve(ROOT, filePath);
-  mkdirSync(path.dirname(absolutePath), { recursive: true });
-  writeFileSync(absolutePath, text, 'utf8');
+  writeText(ROOT, filePath, text);
+}
+
+function deterministicPrompt(command) {
+  if (command === 'hooks') {
+    return `# Deterministic Capability: Hooks
+
+Run configured shell hooks with documented RIFF_* environment variables.
+
+Output:
+
+- hook output files under the phase directory
+- gate status updates in GATES.md
+`;
+  }
+  if (command === 'dashboard-metadata') {
+    return `# Deterministic Capability: Dashboard Metadata
+
+Generate dashboard-metadata.json from durable RIFF artifacts.
+
+Output:
+
+- .planning/phases/<phase>/dashboard-metadata.json
+- dashboard gate status in GATES.md
+`;
+  }
+  return '# Deterministic Capability\n';
+}
+
+function runDeterministicCommand(args, phase, scope) {
+  initializeGateLedger(ROOT, phase, scope);
+  if (args.command === 'hooks') {
+    const result = runHooks({ root: ROOT, phase, scope });
+    process.stdout.write(`hooks ${result.status}\n`);
+    process.exit(result.status === 'fail' ? 1 : result.status === 'warn' ? 2 : 0);
+  }
+  if (args.command === 'dashboard-metadata') {
+    const result = writeDashboardMetadata({ root: ROOT, phase, scope });
+    process.stdout.write(`wrote ${result.outputPath}\n`);
+    process.exit(0);
+  }
+  fail(`No deterministic runner for ${args.command}`);
+}
+
+function assertCanFinalize(phase, scope) {
+  const entries = readGateEntries(ROOT, phase.dir, scope);
+  const blockers = blockingGates(entries, scope);
+  if (blockers.length === 0) return;
+  const details = blockers
+    .map((blocker) => `- ${blocker.gate}: ${blocker.status} (${blocker.reason})`)
+    .join('\n');
+  fail(`Cannot finalize; required gates are unresolved:\n${details}`);
+}
+
+function gateForCommand(command) {
+  const resolved = resolveCapability(command).name;
+  if (resolved === 'review') return 'code-review';
+  if (resolved === 'dashboard-metadata') return 'dashboard';
+  if (resolved === 'finalize') return 'state';
+  return resolved;
+}
+
+function runCodex(args, contextPack, phase, scope) {
+  const capability = resolveCapability(args.command);
+  if (capability.name === 'finalize') {
+    assertCanFinalize(phase, scope);
+  }
+
+  const gate = gateForCommand(args.command);
+  updateGate(ROOT, phase, scope, {
+    gate,
+    status: 'running',
+    command: `codex exec ${capability.name}`,
+    artifact: artifactPath(phase.dir, capability.artifact),
+    reason: 'adapter command started',
+  });
+
+  const result = spawnSync(args.codexBin, ['exec', '-'], {
+    cwd: ROOT,
+    input: contextPack,
+    stdio: ['pipe', 'inherit', 'inherit'],
+    env: process.env,
+  });
+  if (result.error) {
+    updateGate(ROOT, phase, scope, {
+      gate,
+      status: 'fail',
+      command: `codex exec ${capability.name}`,
+      artifact: artifactPath(phase.dir, capability.artifact),
+      reason: result.error.message,
+    });
+    fail(`Failed to run ${args.codexBin}: ${result.error.message}`);
+  }
+
+  const exitCode = result.status ?? 1;
+  updateGate(ROOT, phase, scope, {
+    gate,
+    status: exitCode === 0 ? 'pass' : 'fail',
+    command: `codex exec ${capability.name}`,
+    exitCode,
+    artifact: artifactPath(phase.dir, capability.artifact),
+    reason: exitCode === 0 ? 'adapter command completed' : 'adapter command failed',
+  });
+  process.exit(exitCode);
 }
 
 const args = parseArgs(process.argv.slice(2));
+const capability = resolveCapability(args.command);
+const phase = normalizePhase(args.phase);
+const scope = detectScope(ROOT, args.scope);
 const contextPack = renderContextPack(args);
 
 if (args.contextOut) {
@@ -338,14 +453,8 @@ if (args.print) {
 }
 
 if (args.run) {
-  const result = spawnSync(args.codexBin, ['exec', '-'], {
-    cwd: ROOT,
-    input: contextPack,
-    stdio: ['pipe', 'inherit', 'inherit'],
-    env: process.env,
-  });
-  if (result.error) {
-    fail(`Failed to run ${args.codexBin}: ${result.error.message}`);
+  if (capability.deterministic) {
+    runDeterministicCommand(args, phase, scope);
   }
-  process.exit(result.status ?? 1);
+  runCodex(args, contextPack, phase, scope);
 }

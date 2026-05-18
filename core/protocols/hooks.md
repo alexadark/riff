@@ -44,6 +44,35 @@ A hook runner must:
 
 Hooks should be shell-callable or script-callable. A hook must not require a chat session to interpret whether it passed.
 
+## Execution Contract
+
+Hook runners execute deterministic commands. They do not ask an AI provider to decide whether a hook passed.
+
+Documented hook environment:
+
+- `RIFF_REPO_ROOT`: absolute repository root
+- `RIFF_PHASE_DIR`: phase artifact directory such as `.planning/phases/<N-slug>`
+- `RIFF_SCOPE`: `production` or `scratch`
+- `RIFF_GATE`: gate currently running, usually `hooks`
+
+Exit code semantics:
+
+- `0`: pass
+- `1`: fail and block when the hook is required
+- `2`: warn or skipped; runner records the reason and continues unless the phase declares the hook blocking
+
+Timeout behavior:
+
+- runners must apply a finite timeout to every hook
+- timeout is recorded as `fail`
+- stdout and stderr should be written to deterministic files under the phase directory when the output is more than a concise line
+
+Result recording:
+
+- production hook results are summarized in `.planning/phases/<N-slug>/GATES.md`
+- the record includes hook id, command or script path, status, exit code, output artifact path, and reason
+- scratch hook results may be summarized in `SUMMARY.md`, but no-secrets and smoke outcomes must still be visible
+
 ## Blocking Semantics
 
 Production:
@@ -92,4 +121,3 @@ Hook outcomes are recorded with:
 - reason for skip or warning
 
 Production records belong in `GATES.md`. Scratch records may be summarized in `SUMMARY.md`.
-

@@ -22,6 +22,6 @@ Check:
 - production gates are preserved or skips are justified
 - sensitive surfaces have validation and review criteria
 - no core contract is replaced by adapter-specific behavior
+- gate status expectations are consistent with `GATES.md`
 
 Return findings first, ordered by severity, then verdict: `PASS`, `REVISE`, or `FAIL`.
-

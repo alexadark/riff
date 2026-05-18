@@ -13,7 +13,7 @@ Read:
 Write:
 
 - documentation updates when required by the phase
-- otherwise a docs gate result in `.planning/phases/<phase>/GATES.md` or `SUMMARY.md`
+- otherwise a docs gate result in `.planning/phases/<phase>/GATES.md`
 
 Check changes to:
 
@@ -27,3 +27,4 @@ Check changes to:
 
 In production, stale required docs are blocking. If no docs are needed, record the reason.
 
+Do not use provider-specific rendering or chat state to decide this gate. Base the result on durable files and the current diff.
