@@ -17,7 +17,7 @@ The adapter exposes one command per capability. Each invocation prepares or runs
 | `review` | `code-review` alias | `.planning/phases/<phase>/REVIEW.md` |
 | `code-review` | `code-review` | `.planning/phases/<phase>/REVIEW.md` |
 | `security-review` | `security-review` | `.planning/phases/<phase>/SECURITY.md` |
-| `docs-check` | `docs-check` | docs updates or a docs gate entry |
+| `docs-check` | `docs-check` | `.planning/phases/<phase>/DOCS-CHECK.md` and docs updates when needed |
 | `hooks` | `hooks` | hook output and `.planning/phases/<phase>/GATES.md` |
 | `dashboard-metadata` | `dashboard-metadata` | `.planning/phases/<phase>/dashboard-metadata.json` |
 | `dashboard-explain` | `dashboard-explain` | dashboard explanation metadata |

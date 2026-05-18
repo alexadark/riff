@@ -14,7 +14,7 @@ Scratch finalization is blocked by unresolved R1-R4, no-secrets, smoke, summary,
 | scope-check | pending | yes |  |  | SCOPE-CHECK.json |  |  |
 | code-review | pending | yes |  |  | REVIEW.md |  |  |
 | security-review | pending | yes |  |  | SECURITY.md |  |  |
-| docs-check | pending | yes |  |  | GATES.md |  |  |
+| docs-check | pending | yes |  |  | DOCS-CHECK.md |  |  |
 | hooks | pending | yes |  |  | GATES.md |  |  |
 | dashboard | pending | yes |  |  | dashboard-metadata.json |  |  |
 | dashboard-explain | skipped | no |  |  | dashboard-explanation.json |  | optional |

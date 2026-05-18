@@ -46,6 +46,7 @@ The generated context pack records whether these files exist:
 - `.planning/phases/<phase>/SCOPE-CHECK.json`
 - `.planning/phases/<phase>/REVIEW.md`
 - `.planning/phases/<phase>/SECURITY.md`
+- `.planning/phases/<phase>/DOCS-CHECK.md`
 - `.planning/phases/<phase>/GATES.md`
 - `.planning/phases/<phase>/HANDOFF.md`
 - `.planning/phases/<phase>/dashboard-metadata.json`

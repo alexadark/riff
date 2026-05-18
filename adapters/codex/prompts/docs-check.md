@@ -13,7 +13,7 @@ Read:
 Write:
 
 - documentation updates when required by the phase
-- otherwise a docs gate result in `.planning/phases/<phase>/GATES.md`
+- `.planning/phases/<phase>/DOCS-CHECK.md` with the docs gate result and rationale
 
 Check changes to:
 

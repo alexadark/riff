@@ -84,7 +84,7 @@ const CAPABILITIES = {
   },
   'docs-check': {
     prompt: 'docs-check.md',
-    artifact: 'GATES.md',
+    artifact: 'DOCS-CHECK.md',
     tier: 'focused',
     core: [
       'core/protocols/review.md',
@@ -123,7 +123,7 @@ const CAPABILITIES = {
   },
   finalize: {
     prompt: 'finalize.md',
-    artifact: 'HANDOFF.md',
+    artifact: 'STATE.md',
     tier: 'focused',
     core: [
       'core/protocols/state.md',
@@ -285,7 +285,7 @@ function renderContextPack(args) {
   const prompt = capability.prompt
     ? readText(ROOT, path.join('adapters', 'codex', 'prompts', capability.prompt))
     : deterministicPrompt(capability.name);
-  const outputPath = artifactPath(phase.dir, capability.artifact);
+  const outputPath = expectedOutputPath(capability.name, phase, capability);
   const coreRefs = capability.core.map((file) => `- \`${file}\``).join('\n');
 
   return `# RIFF Codex Context Pack
@@ -400,14 +400,40 @@ function gateArtifactForCommand(command, phase, capability) {
   return artifactPath(phase.dir, capability.artifact);
 }
 
-function artifactUpdatedSince(relativePath, startedAtMs) {
-  if (!readIfExists(ROOT, relativePath).exists) return false;
+function expectedOutputPath(command, phase, capability) {
+  if (command === 'finalize') return 'STATE.md';
+  return artifactPath(phase.dir, capability.artifact);
+}
+
+function artifactState(relativePath) {
+  if (!readIfExists(ROOT, relativePath).exists) {
+    return {
+      exists: false,
+      mtimeMs: undefined,
+      size: undefined,
+    };
+  }
   try {
     const artifactStat = statSync(path.resolve(ROOT, relativePath));
-    return artifactStat.mtimeMs >= startedAtMs - 1000;
+    return {
+      exists: true,
+      mtimeMs: artifactStat.mtimeMs,
+      size: artifactStat.size,
+    };
   } catch {
-    return false;
+    return {
+      exists: false,
+      mtimeMs: undefined,
+      size: undefined,
+    };
   }
+}
+
+function artifactChangedSince(before, relativePath) {
+  const after = artifactState(relativePath);
+  if (!after.exists) return false;
+  if (!before.exists) return true;
+  return after.mtimeMs > before.mtimeMs || after.size !== before.size;
 }
 
 function updateDerivedGates(command, exitCode, phase, scope, artifactReady) {
@@ -438,6 +464,7 @@ function runCodex(args, contextPack, phase, scope) {
 
   const gate = gateForCommand(args.command);
   const gateArtifact = gateArtifactForCommand(args.command, phase, capability);
+  const artifactBefore = artifactState(gateArtifact);
   updateGate(ROOT, phase, scope, {
     gate,
     status: 'running',
@@ -446,7 +473,6 @@ function runCodex(args, contextPack, phase, scope) {
     reason: 'adapter command started',
   });
 
-  const startedAtMs = Date.now();
   const result = spawnSync(args.codexBin, ['exec', '-'], {
     cwd: ROOT,
     input: contextPack,
@@ -465,7 +491,7 @@ function runCodex(args, contextPack, phase, scope) {
   }
 
   const exitCode = result.status ?? 1;
-  const artifactReady = exitCode === 0 && artifactUpdatedSince(gateArtifact, startedAtMs);
+  const artifactReady = exitCode === 0 && artifactChangedSince(artifactBefore, gateArtifact);
   const status = artifactReady ? 'pass' : 'fail';
   const reason = exitCode !== 0
     ? 'adapter command failed'

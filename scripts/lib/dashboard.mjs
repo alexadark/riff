@@ -11,6 +11,7 @@ const SOURCE_FILES = [
   'SCOPE-CHECK.json',
   'REVIEW.md',
   'SECURITY.md',
+  'DOCS-CHECK.md',
   'GATES.md',
   'HANDOFF.md',
 ];
