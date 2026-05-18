@@ -17,7 +17,9 @@ Full execution adapters should expose these capabilities:
 | `code-review` | `.planning/phases/<N-slug>/REVIEW.md` |
 | `security-review` | `.planning/phases/<N-slug>/SECURITY.md` |
 | `docs-check` | docs updates or documented docs gate result |
-| `dashboard-explain` | dashboard explanation metadata, or explicit `none` |
+| `hooks` | hook result entries in `.planning/phases/<N-slug>/GATES.md` |
+| `dashboard-metadata` | `.planning/phases/<N-slug>/dashboard-metadata.json` |
+| `dashboard-explain` | optional dashboard explanation metadata, or explicit `none` |
 | `finalize` | updated `STATE.md`, gate records, and final readiness status |
 | `escalation-prompt` | paste-ready prompt or handoff for a stronger/manual reviewer |
 
@@ -64,6 +66,18 @@ Adapters may name the escalation capability `opus-prompt` when the target workfl
 
 - decides whether docs changed or should change
 - updates docs or records a blocking/stale/skip result
+
+`hooks`:
+
+- executes configured provider-neutral hook scripts
+- records hook command, status, exit code, and output artifacts in `GATES.md`
+- blocks only according to the hook and scope contracts
+
+`dashboard-metadata`:
+
+- builds structured dashboard data from durable artifacts
+- does not require an LLM or provider renderer
+- records metadata freshness in `GATES.md`
 
 `dashboard-explain`:
 
@@ -112,4 +126,3 @@ The adapter must state:
 - output path
 
 This keeps work resumable across tools and reviewable by humans.
-

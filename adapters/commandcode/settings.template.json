@@ -1,0 +1,49 @@
+{
+  "_comment": "Template only. Replace hook commands with deterministic project-owned scripts that follow core/protocols/hooks.md.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .commandcode/hooks/destructive-guard.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "write|edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .commandcode/hooks/boundary-check.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "write|edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .commandcode/hooks/no-secrets.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash .commandcode/hooks/smoke.sh",
+            "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "bash .commandcode/hooks/docs-check.sh",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
