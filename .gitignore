@@ -16,6 +16,12 @@ research/
 # Dev session artifacts - never ship with the framework
 specs/handoffs/
 specs/plans/
+specs/designs/riff-v2-codex-native.md
+RIFF-EXPLAINER.md
+
+# Private paid-source references and local overlays - never ship with the framework
+.riff-private/
+private/
 
 # User-specific config (written by /riff:onboard)
 profile.yaml
