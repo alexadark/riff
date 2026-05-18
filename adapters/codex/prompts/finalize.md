@@ -22,7 +22,7 @@ Write:
 
 Rules:
 
-- Do not finalize if a required production gate is `pending`, `running`, `fail`, or `skipped`.
+- Do not finalize if a required production gate is `pending`, `running`, `fail`, or `skipped`, except the `state` gate that this command resolves.
 - Scratch finalization still requires R1-R4, no-secrets, smoke, summary, and state evidence.
 - Do not merge, push, start another phase, or run unattended loops.
 - Do not depend on Claude agents, provider transcripts, or dashboard explanation text as source of truth.

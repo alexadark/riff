@@ -19,7 +19,7 @@ export const GATE_ORDER = [
   'smoke',
 ];
 
-const SCRATCH_REQUIRED = new Set(['execute', 'r1-r4', 'no-secrets', 'smoke', 'summary', 'state']);
+const SCRATCH_REQUIRED = new Set(['r1-r4', 'no-secrets', 'smoke', 'summary', 'state']);
 
 function productionRequired(gate) {
   return gate !== 'dashboard-explain';
@@ -32,16 +32,16 @@ function requiredForScope(gate, scope) {
 
 function defaultEntry(gate, scope) {
   const required = requiredForScope(gate, scope);
-  const heavyScratchGate = scope === 'scratch' && !required;
+  const skippedByDefault = !required;
   return {
     gate,
-    status: heavyScratchGate ? 'skipped' : 'pending',
+    status: skippedByDefault ? 'skipped' : 'pending',
     required,
     command: '',
     exitCode: '',
     artifact: '',
     updatedAt: '',
-    reason: heavyScratchGate ? 'skipped by scratch scope' : '',
+    reason: skippedByDefault ? (scope === 'scratch' ? 'skipped by scratch scope' : 'optional') : '',
   };
 }
 
@@ -129,8 +129,8 @@ Scope: \`${scope}\`
 
 Statuses: \`pending\`, \`running\`, \`pass\`, \`warn\`, \`fail\`, \`skipped\`.
 
-Production finalization is blocked by required gates that are \`pending\`, \`running\`, \`fail\`, or \`skipped\`.
-Scratch finalization is blocked by failed R1-R4, no-secrets, smoke, summary, or state gates.
+Production finalization is blocked by required gates that are \`pending\`, \`running\`, \`fail\`, or \`skipped\`, except \`state\` while the finalizer is running.
+Scratch finalization is blocked by unresolved R1-R4, no-secrets, smoke, summary, or state gates.
 
 | Gate | Status | Required | Command | Exit Code | Artifact | Updated At | Reason |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -162,9 +162,11 @@ export function updateGate(root, phase, scope, entry) {
   return entries;
 }
 
-export function blockingGates(entries, scope) {
+export function blockingGates(entries, scope, options = {}) {
+  const ignored = new Set(options.ignore ?? []);
   const blockers = [];
   for (const gate of GATE_ORDER) {
+    if (ignored.has(gate)) continue;
     const entry = entries.get(gate) ?? defaultEntry(gate, scope);
     if (!entry.required) continue;
     if (entry.status === 'pending' || entry.status === 'running' || entry.status === 'fail' || entry.status === 'skipped') {

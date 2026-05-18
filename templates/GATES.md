@@ -4,8 +4,8 @@ Scope: `{{SCOPE}}`
 
 Statuses: `pending`, `running`, `pass`, `warn`, `fail`, `skipped`.
 
-Production finalization is blocked by required gates that are `pending`, `running`, `fail`, or `skipped`.
-Scratch finalization is blocked by failed R1-R4, no-secrets, smoke, summary, or state gates.
+Production finalization is blocked by required gates that are `pending`, `running`, `fail`, or `skipped`, except `state` while the finalizer is running.
+Scratch finalization is blocked by unresolved R1-R4, no-secrets, smoke, summary, or state gates.
 
 | Gate | Status | Required | Command | Exit Code | Artifact | Updated At | Reason |
 | --- | --- | --- | --- | --- | --- | --- | --- |

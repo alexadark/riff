@@ -71,6 +71,7 @@ Result recording:
 
 - production hook results are summarized in `.planning/phases/<N-slug>/GATES.md`
 - the record includes hook id, command or script path, status, exit code, output artifact path, and reason
+- hooks that implement named gates such as no-secrets, smoke, or docs-check update those gate rows as well as the aggregate hooks row
 - scratch hook results may be summarized in `SUMMARY.md`, but no-secrets and smoke outcomes must still be visible
 
 ## Blocking Semantics

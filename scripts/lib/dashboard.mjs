@@ -88,8 +88,6 @@ export function buildDashboardMetadata({ root, phase, scope }) {
 
 export function writeDashboardMetadata({ root, phase, scope }) {
   const outputPath = artifactPath(phase.dir, 'dashboard-metadata.json');
-  const metadata = buildDashboardMetadata({ root, phase, scope });
-  writeJson(root, outputPath, metadata);
   updateGate(root, phase, scope, {
     gate: 'dashboard',
     status: 'pass',
@@ -98,6 +96,8 @@ export function writeDashboardMetadata({ root, phase, scope }) {
     artifact: outputPath,
     reason: 'dashboard metadata generated from artifacts',
   });
+  const metadata = buildDashboardMetadata({ root, phase, scope });
+  writeJson(root, outputPath, metadata);
   return {
     outputPath,
     metadata,

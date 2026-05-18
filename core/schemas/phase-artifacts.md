@@ -235,12 +235,13 @@ Blocking semantics:
 
 - pending or failed required production gates block finalization
 - skipped required production gates block finalization unless there is a human accepted exception
+- the `state` gate is resolved by finalization, so it may be ignored only by the finalizer preflight check
 - accepted exceptions require a human decision reference
 
 Scratch vs production:
 
 - production requires gate ledger
-- scratch may skip heavy gates but must keep visible records for R1-R4, no-secrets, smoke, summary, and state
+- scratch may skip heavy gates but must keep resolved records for R1-R4, no-secrets, smoke, summary, and state
 
 ## `.planning/phases/<N-slug>/HANDOFF.md`
 

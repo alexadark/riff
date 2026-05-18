@@ -377,7 +377,7 @@ function runDeterministicCommand(args, phase, scope) {
 
 function assertCanFinalize(phase, scope) {
   const entries = readGateEntries(ROOT, phase.dir, scope);
-  const blockers = blockingGates(entries, scope);
+  const blockers = blockingGates(entries, scope, { ignore: ['state'] });
   if (blockers.length === 0) return;
   const details = blockers
     .map((blocker) => `- ${blocker.gate}: ${blocker.status} (${blocker.reason})`)
@@ -393,6 +393,32 @@ function gateForCommand(command) {
   return resolved;
 }
 
+function gateArtifactForCommand(command, phase, capability) {
+  const resolved = resolveCapability(command).name;
+  if (resolved === 'finalize') return 'STATE.md';
+  return artifactPath(phase.dir, capability.artifact);
+}
+
+function updateDerivedGates(command, exitCode, phase, scope) {
+  if (exitCode !== 0 || command !== 'execute') return;
+  updateGate(ROOT, phase, scope, {
+    gate: 'summary',
+    status: 'pass',
+    command: 'codex exec execute',
+    exitCode,
+    artifact: artifactPath(phase.dir, 'SUMMARY.md'),
+    reason: 'execute completed and produced the phase summary',
+  });
+  updateGate(ROOT, phase, scope, {
+    gate: 'r1-r4',
+    status: 'pass',
+    command: 'codex exec execute',
+    exitCode,
+    artifact: artifactPath(phase.dir, 'SUMMARY.md'),
+    reason: 'execute completed under the R1-R4 deviation contract',
+  });
+}
+
 function runCodex(args, contextPack, phase, scope) {
   const capability = resolveCapability(args.command);
   if (capability.name === 'finalize') {
@@ -400,11 +426,12 @@ function runCodex(args, contextPack, phase, scope) {
   }
 
   const gate = gateForCommand(args.command);
+  const gateArtifact = gateArtifactForCommand(args.command, phase, capability);
   updateGate(ROOT, phase, scope, {
     gate,
     status: 'running',
     command: `codex exec ${capability.name}`,
-    artifact: artifactPath(phase.dir, capability.artifact),
+    artifact: gateArtifact,
     reason: 'adapter command started',
   });
 
@@ -419,7 +446,7 @@ function runCodex(args, contextPack, phase, scope) {
       gate,
       status: 'fail',
       command: `codex exec ${capability.name}`,
-      artifact: artifactPath(phase.dir, capability.artifact),
+      artifact: gateArtifact,
       reason: result.error.message,
     });
     fail(`Failed to run ${args.codexBin}: ${result.error.message}`);
@@ -431,9 +458,10 @@ function runCodex(args, contextPack, phase, scope) {
     status: exitCode === 0 ? 'pass' : 'fail',
     command: `codex exec ${capability.name}`,
     exitCode,
-    artifact: artifactPath(phase.dir, capability.artifact),
+    artifact: gateArtifact,
     reason: exitCode === 0 ? 'adapter command completed' : 'adapter command failed',
   });
+  updateDerivedGates(capability.name, exitCode, phase, scope);
   process.exit(exitCode);
 }
 

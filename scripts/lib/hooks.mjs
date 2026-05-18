@@ -30,6 +30,14 @@ function commandForHook(hookPath) {
   return hookPath.endsWith('.sh') ? ['bash', hookPath] : [hookPath];
 }
 
+function gateForHook(hookPath) {
+  const baseName = path.basename(hookPath, path.extname(hookPath));
+  if (baseName === 'no-secrets') return 'no-secrets';
+  if (baseName === 'smoke') return 'smoke';
+  if (baseName === 'docs-check') return 'docs-check';
+  return undefined;
+}
+
 export function runHooks({ root, phase, scope, gate = 'hooks' }) {
   const hookPaths = configuredHooks(root);
   const outputDir = artifactPath(phase.dir, 'hook-output');
@@ -71,6 +79,7 @@ export function runHooks({ root, phase, scope, gate = 'hooks' }) {
     writeText(root, stderrPath, result.stderr ?? result.error?.message ?? '');
     return {
       hook: hookPath,
+      gate: gateForHook(hookPath),
       status: result.error ? 'fail' : statusFromExit(exitCode),
       exitCode,
       stdoutPath,
@@ -78,6 +87,18 @@ export function runHooks({ root, phase, scope, gate = 'hooks' }) {
       error: result.error?.message,
     };
   });
+
+  for (const result of results) {
+    if (!result.gate) continue;
+    updateGate(root, phase, scope, {
+      gate: result.gate,
+      status: result.status,
+      command: result.hook,
+      exitCode: result.exitCode,
+      artifact: result.stdoutPath,
+      reason: result.error || `${result.hook} completed with ${result.status}`,
+    });
+  }
 
   const status = results.some((result) => result.status === 'fail')
     ? 'fail'
