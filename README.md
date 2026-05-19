@@ -54,16 +54,26 @@ This walks you through 13 questions (or picks a preset) and writes `profile.yaml
 
 ```bash
 cd ~/my-project
+riff init --harness all
 ```
 
-Open Claude Code and run:
+`riff init` is the harness-neutral terminal installer. It symlinks this RIFF clone into the project as `.riff/` and installs the requested harness files:
+
+- `--harness claude`
+- `--harness codex`
+- `--harness commandcode`
+- `--harness all`
+
+`claude-code` and `codeable` are accepted aliases for the Claude harness.
+
+For Claude-only projects, you can also open Claude Code and run the wrapper:
 
 ```
 /riff:init         # installs RIFF, picks scope (production/scratch), and asks
                    # whether to keep the framework profile or customize one for this project
 ```
 
-> **Restart Claude Code before continuing.** `/riff:init` installs new slash commands, skills, and agents into the project. Claude Code only discovers them at session start, so the just-installed commands (`/riff:start`, `/riff:next`, etc.) will not appear in your current window. Close the Claude Code window and open a fresh one in the same project directory before running the next command.
+> **Restart Claude Code before continuing.** `/riff:init` installs new slash commands, agents, and hooks into the project. Claude Code only discovers them at session start, so the just-installed commands (`/riff:start`, `/riff:next`, etc.) will not appear in your current window. Close the Claude Code window and open a fresh one in the same project directory before running the next command.
 
 ```
 /riff:start        # greenfield discovery (5 stages: problem, users, MVP, research, roadmap)

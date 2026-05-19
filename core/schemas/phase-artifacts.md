@@ -4,6 +4,53 @@ This schema defines durable RIFF artifacts. Artifact names remain recognizable f
 
 Each artifact lists purpose, producer, required sections or fields, and blocking semantics.
 
+## `PROJECT.md`
+
+Purpose: project brief created during RIFF start. It captures the product or repository shape before phase planning begins.
+
+Producer: start workflow, human maintainer, or adapter-assisted discovery.
+
+Required sections:
+
+- project summary
+- current stage: greenfield, starter, or brownfield
+- users, goals, and non-goals when known
+- technical shape and important boundaries
+- security, data, deployment, or integration notes when relevant
+- assumptions and open questions
+
+Blocking semantics:
+
+- missing `PROJECT.md` does not block existing brownfield projects that already have an equivalent project brief, but the start workflow must state the equivalent source
+- missing security, data, or integration notes block production roadmap generation when those surfaces are in scope
+- provider-specific command requirements are invalid in this artifact
+
+Scratch vs production:
+
+- production briefs should include enough context to route gates and risks
+- scratch briefs may be short, but must still identify the goal, assumptions, and next action
+
+## `.planning/design/*`
+
+Purpose: start-time design notes for architecture, data, user journeys, integration boundaries, or other project decisions that should not be hidden in chat history.
+
+Producer: start workflow, roadmap planner, or human maintainer.
+
+Required content:
+
+- one or more markdown files under `.planning/design/` when architecture, data, user experience, security, or integration decisions are material to the roadmap
+- each design note names the decision, constraints, accepted assumptions, and follow-up risks
+
+Blocking semantics:
+
+- missing design docs block production roadmap generation when a roadmap depends on unstated architecture, data, security, or integration assumptions
+- design docs must not encode provider commands or provider-specific workflow requirements
+
+Scratch vs production:
+
+- production starts should create design docs for material architecture or risk decisions
+- scratch starts may omit design docs when `PROJECT.md`, `ROADMAP.yaml`, and `STATE.md` are sufficient
+
 ## `ROADMAP.yaml`
 
 Purpose: project-level phase queue and dependency map.

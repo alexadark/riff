@@ -26,7 +26,7 @@ Check:
 
 If the plan is architecture-heavy and needs manual Opus architecture review, generate:
 
-`node scripts/riff-opus-prompt.mjs architecture-review --phase <phase> --context-out .planning/phases/<phase>/OPUS-ARCHITECTURE-REVIEW-PROMPT.md`
+`node .riff/scripts/riff-opus-prompt.mjs architecture-review --phase <phase> --context-out .planning/phases/<phase>/OPUS-ARCHITECTURE-REVIEW-PROMPT.md`
 
 Then ask the human to choose manual paste or the Opus adapter programmatic path documented in `adapters/opus/README.md`. Do not run the programmatic path unless the human explicitly chooses it. Treat the Opus review as review input; it does not replace this `PLAN-REVIEW.md` verdict.
 
