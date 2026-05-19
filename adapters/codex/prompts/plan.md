@@ -33,7 +33,7 @@ Opus escalation triggers:
 When escalation is needed:
 
 1. Run:
-   `node scripts/riff-opus-prompt.mjs phase-plan --phase <phase> --context-out .planning/phases/<phase>/OPUS-PHASE-PLAN-PROMPT.md`
+   `node .riff/scripts/riff-opus-prompt.mjs phase-plan --phase <phase> --context-out .planning/phases/<phase>/OPUS-PHASE-PLAN-PROMPT.md`
 2. Ask the human to choose:
    - Manual: paste the prompt pack into Opus and return the response for integration.
    - Programmatic: use the Opus adapter programmatic path documented in `adapters/opus/README.md`.

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { statSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import {
+  absolutePath,
   artifactPath,
   detectScope,
   normalizePhase,
@@ -15,10 +17,66 @@ import { blockingGates, initializeGateLedger, readGateEntries, updateGate } from
 import { runHooks } from './lib/hooks.mjs';
 import { writeDashboardMetadata } from './lib/dashboard.mjs';
 
+const SCRIPT_DIR = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
+const FRAMEWORK_ROOT = path.resolve(SCRIPT_DIR, '..');
 const ROOT = process.cwd();
 const MAX_EXCERPT_CHARS = 6000;
+const MAX_PROJECT_FILE_LIST = 120;
+
+const START_ARTIFACTS = [
+  'PROJECT.md',
+  'ROADMAP.yaml',
+  'STATE.md',
+  '.planning/config.json',
+];
+
+const PROJECT_OVERVIEW_FILES = [
+  'README.md',
+  'package.json',
+  'pnpm-lock.yaml',
+  'yarn.lock',
+  'package-lock.json',
+  'pyproject.toml',
+  'requirements.txt',
+  'Cargo.toml',
+  'go.mod',
+  'Gemfile',
+  'composer.json',
+  'deno.json',
+  'bun.lockb',
+  'src',
+  'app',
+  'pages',
+  'routes',
+  'docs',
+];
+
+const PROJECT_LIST_EXCLUDES = new Set([
+  '.git',
+  'node_modules',
+  '.next',
+  'dist',
+  'build',
+  'coverage',
+  '.cache',
+  '.turbo',
+  'outputs',
+]);
 
 const CAPABILITIES = {
+  start: {
+    prompt: 'start.md',
+    artifact: 'STATE.md',
+    tier: 'focused',
+    phaseRequired: false,
+    core: [
+      'core/protocols/adapter-contract.md',
+      'core/protocols/context-budget.md',
+      'core/protocols/planning.md',
+      'core/protocols/state.md',
+      'core/schemas/phase-artifacts.md',
+    ],
+  },
   plan: {
     prompt: 'plan.md',
     artifact: 'PLAN.md',
@@ -138,14 +196,17 @@ function usage(exitCode = 0) {
   const text = `RIFF Codex adapter
 
 Usage:
-  node scripts/riff-codex.mjs <command> --phase <phase-id-or-path> [options]
+  node scripts/riff-codex.mjs <command> [--phase <phase-id-or-path>] [options]
 
 Commands:
   ${commands}
 
 Options:
-  --phase <id-or-path>       Phase id or .planning/phases/<id> path
+  --phase <id-or-path>       Phase id or .planning/phases/<id> path (required except for start)
+  --project-root <path>      Target project root for start; defaults to current directory
+  --brief <text>             Project-start brief to include in the start context pack
   --scope <production|scratch>
+  --refresh                  Allow start to update existing RIFF start artifacts
   --print                    Print generated context pack
   --context-out <path>       Write generated context pack to a file
   --run                      Run one Codex invocation or deterministic command
@@ -165,7 +226,12 @@ function parseArgs(argv) {
   const args = {
     command: undefined,
     phase: undefined,
+    projectRoot: ROOT,
+    projectRootProvided: false,
+    brief: '',
+    briefProvided: false,
     scope: undefined,
+    refresh: false,
     print: false,
     contextOut: undefined,
     run: false,
@@ -192,9 +258,25 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (token === '--project-root') {
+      args.projectRoot = path.resolve(readOptionValue(token, index));
+      args.projectRootProvided = true;
+      index += 1;
+      continue;
+    }
+    if (token === '--brief') {
+      args.brief = readOptionValue(token, index);
+      args.briefProvided = true;
+      index += 1;
+      continue;
+    }
     if (token === '--scope') {
       args.scope = readOptionValue(token, index);
       index += 1;
+      continue;
+    }
+    if (token === '--refresh') {
+      args.refresh = true;
       continue;
     }
     if (token === '--print') {
@@ -222,8 +304,26 @@ function parseArgs(argv) {
   if (!Object.prototype.hasOwnProperty.call(CAPABILITIES, args.command)) {
     fail(`Unknown command: ${args.command}`);
   }
-  if (!args.phase) {
+  const capability = resolveCapability(args.command);
+  if (capability.phaseRequired !== false && !args.phase) {
     fail('--phase is required');
+  }
+  if (capability.name !== 'start' && args.projectRootProvided) {
+    fail('--project-root is only supported for start');
+  }
+  if (capability.name !== 'start' && args.briefProvided) {
+    fail('--brief is only supported for start');
+  }
+  if (capability.name !== 'start' && args.refresh) {
+    fail('--refresh is only supported for start');
+  }
+  if (capability.name === 'start') {
+    if (!existsSync(args.projectRoot)) {
+      fail(`--project-root does not exist: ${args.projectRoot}`);
+    }
+    if (!statSync(args.projectRoot).isDirectory()) {
+      fail(`--project-root must be a directory: ${args.projectRoot}`);
+    }
   }
   if (args.scope && args.scope !== 'production' && args.scope !== 'scratch') {
     fail('--scope must be production or scratch');
@@ -248,6 +348,24 @@ function resolveCapability(command) {
   };
 }
 
+function displayFrameworkPath(file) {
+  if (existsSync(path.join(ROOT, file))) return file;
+  if (existsSync(path.join(ROOT, '.riff', file))) return toPosix(path.join('.riff', file));
+  return file;
+}
+
+function artifactExcerpt(root, relativePath, maxChars = MAX_EXCERPT_CHARS) {
+  const normalized = toPosix(relativePath);
+  const artifact = readIfExists(root, normalized);
+  if (!artifact.exists) {
+    return `## ${normalized}\n\nStatus: missing\n`;
+  }
+  const suffix = artifact.text.length > maxChars
+    ? '\n\n[excerpt truncated; read the file directly before acting]\n'
+    : '';
+  return `## ${normalized}\n\nStatus: present\n\n\`\`\`markdown\n${artifact.text.slice(0, maxChars)}${suffix}\`\`\`\n`;
+}
+
 function artifactSnapshot(phaseDir) {
   const files = [
     'ROADMAP.yaml',
@@ -265,28 +383,192 @@ function artifactSnapshot(phaseDir) {
     artifactPath(phaseDir, 'HANDOFF.md'),
   ];
 
+  return files.map((file) => artifactExcerpt(ROOT, file)).join('\n');
+}
+
+function projectArtifactSnapshot(projectRoot) {
+  const files = [
+    ...START_ARTIFACTS,
+    '.planning/design',
+  ];
+
   return files.map((file) => {
-    const normalized = toPosix(file);
-    const artifact = readIfExists(ROOT, normalized);
-    if (!artifact.exists) {
-      return `## ${normalized}\n\nStatus: missing\n`;
+    const absolute = absolutePath(projectRoot, file);
+    if (file === '.planning/design') {
+      const markdownFiles = listMarkdownFiles(projectRoot, file);
+      if (markdownFiles.length === 0) {
+        return `## ${file}\n\nStatus: missing or no markdown design docs\n`;
+      }
+      return `## ${file}\n\nStatus: present\n\nMarkdown files:\n${markdownFiles.map((entry) => `- \`${entry}\``).join('\n')}\n`;
     }
-    const suffix = artifact.text.length > MAX_EXCERPT_CHARS
-      ? '\n\n[excerpt truncated; read the file directly before acting]\n'
-      : '';
-    return `## ${normalized}\n\nStatus: present\n\n\`\`\`markdown\n${artifact.text.slice(0, MAX_EXCERPT_CHARS)}${suffix}\`\`\`\n`;
+    if (!existsSync(absolute)) {
+      return `## ${file}\n\nStatus: missing\n`;
+    }
+    return artifactExcerpt(projectRoot, file);
   }).join('\n');
+}
+
+function listMarkdownFiles(root, relativeDir) {
+  const absoluteDir = absolutePath(root, relativeDir);
+  if (!existsSync(absoluteDir)) return [];
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const absoluteEntry = path.join(dir, entry.name);
+      const relativeEntry = toPosix(path.relative(root, absoluteEntry));
+      if (entry.isDirectory()) {
+        walk(absoluteEntry);
+        continue;
+      }
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        files.push(relativeEntry);
+      }
+    }
+  };
+  walk(absoluteDir);
+  return files.sort();
+}
+
+function listProjectFiles(root) {
+  if (!existsSync(root)) return [];
+  const files = [];
+  const walk = (dir) => {
+    if (files.length >= MAX_PROJECT_FILE_LIST) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (files.length >= MAX_PROJECT_FILE_LIST) return;
+      if (PROJECT_LIST_EXCLUDES.has(entry.name)) continue;
+      const absoluteEntry = path.join(dir, entry.name);
+      const relativeEntry = toPosix(path.relative(root, absoluteEntry));
+      if (!relativeEntry) continue;
+      if (entry.isDirectory()) {
+        if (relativeEntry.split('/').length <= 2) {
+          files.push(`${relativeEntry}/`);
+          walk(absoluteEntry);
+        }
+        continue;
+      }
+      if (entry.isFile()) {
+        files.push(relativeEntry);
+      }
+    }
+  };
+  walk(root);
+  return files.sort();
+}
+
+function projectOverviewSnapshot(projectRoot) {
+  const overviewBlocks = PROJECT_OVERVIEW_FILES
+    .filter((file) => existsSync(absolutePath(projectRoot, file)))
+    .map((file) => {
+      const absolute = absolutePath(projectRoot, file);
+      const stat = statSync(absolute);
+      if (stat.isDirectory()) {
+        const entries = listProjectFiles(absolute)
+          .slice(0, 40)
+          .map((entry) => `- \`${toPosix(path.join(file, entry))}\``)
+          .join('\n');
+        return `## ${file}/\n\nStatus: directory\n\n${entries || 'No listed files.'}\n`;
+      }
+      return artifactExcerpt(projectRoot, file, 3000);
+    });
+
+  const fileList = listProjectFiles(projectRoot)
+    .slice(0, MAX_PROJECT_FILE_LIST)
+    .map((file) => `- \`${file}\``)
+    .join('\n');
+
+  return `${overviewBlocks.join('\n')}\n## Project File List\n\n${fileList || 'No files listed.'}\n`;
+}
+
+function contractSnapshot() {
+  return [
+    'core/protocols/adapter-contract.md',
+    'core/protocols/planning.md',
+    'core/protocols/state.md',
+    'core/schemas/phase-artifacts.md',
+  ].map((file) => artifactExcerpt(FRAMEWORK_ROOT, file, 8000)).join('\n');
+}
+
+function renderStartContextPack(args, capability) {
+  const projectRoot = args.projectRoot;
+  const scope = detectScope(projectRoot, args.scope);
+  const prompt = readText(FRAMEWORK_ROOT, path.join('adapters', 'codex', 'prompts', capability.prompt));
+  const coreRefs = capability.core.map((file) => `- \`${displayFrameworkPath(file)}\``).join('\n');
+  const refreshPolicy = args.refresh
+    ? 'Refresh mode: existing RIFF start artifacts may be updated when the update is necessary and the final report names what changed.'
+    : 'Default mode: do not overwrite existing RIFF start artifacts. If an artifact exists, preserve it and fill only clearly missing companion artifacts, or stop and ask for refresh/update approval.';
+  const opusCommand = existsSync(path.join(projectRoot, '.riff', 'scripts', 'riff-opus-prompt.mjs'))
+    ? 'node .riff/scripts/riff-opus-prompt.mjs start --context-out .planning/OPUS-START-PROMPT.md'
+    : `node "${toPosix(path.join(FRAMEWORK_ROOT, 'scripts', 'riff-opus-prompt.mjs'))}" start --project-root "${toPosix(projectRoot)}" --context-out .planning/OPUS-START-PROMPT.md`;
+
+  return `# RIFF Codex Context Pack
+
+Capability: \`start\`
+Requested command: \`${args.command}\`
+Project root: \`${projectRoot}\`
+Scope: \`${scope}\`
+Loading tier: \`${capability.tier}\`
+Expected output: \`PROJECT.md\`, \`.planning/design/*\` when needed, \`ROADMAP.yaml\`, \`.planning/config.json\`, and \`STATE.md\`
+
+## Mission
+
+Initialize this project into RIFF v2 artifacts. Do not run a phase, execute implementation work, or chain into another gate.
+
+Use the RIFF core contracts as the source of truth. Adapter prompts may explain how to operate in Codex, but durable outputs must be normal RIFF artifacts in the project root.
+
+## User Brief
+
+${args.brief ? args.brief : 'No explicit brief was provided. Infer only low-risk project facts from files, and ask for required product or risk decisions when needed.'}
+
+## Stop Conditions
+
+- Stop before writing files if required project, scope, security, data, public API, billing, migration, or phase-boundary context is missing.
+- Stop and request manual architecture escalation if the start requires high-risk architecture discovery before a safe roadmap can be written.
+- Stop if the requested command would require unattended looping, phase execution, or provider-specific durable artifacts.
+- ${refreshPolicy}
+
+## Core Contracts To Read
+
+${coreRefs}
+
+## Core Contract Excerpts
+
+${contractSnapshot()}
+
+## Existing Start Artifact Snapshot
+
+${projectArtifactSnapshot(projectRoot)}
+
+## Project Snapshot
+
+${projectOverviewSnapshot(projectRoot)}
+
+## Adapter Prompt
+
+${prompt}
+
+## Output Requirements
+
+- Write or preserve \`PROJECT.md\`, \`.planning/config.json\`, \`ROADMAP.yaml\`, and \`STATE.md\`.
+- Write one or more \`.planning/design/*.md\` files when architecture, data, user experience, security, or integration decisions materially affect the roadmap.
+- Keep durable artifacts provider-neutral; do not require Codex, Claude, CommandCode, Opus, slash commands, or provider transcripts.
+- If manual Opus escalation is required, generate a paste-ready start prompt with \`${opusCommand}\`, then stop and report the prompt path. Treat any Opus response as draft input only.
+- End with artifacts created or preserved, selected scope, first phase id and title, and the recommended next command.
+`;
 }
 
 function renderContextPack(args) {
   const capability = resolveCapability(args.command);
+  if (capability.name === 'start') {
+    return renderStartContextPack(args, capability);
+  }
   const phase = normalizePhase(args.phase);
   const scope = detectScope(ROOT, args.scope);
   const prompt = capability.prompt
-    ? readText(ROOT, path.join('adapters', 'codex', 'prompts', capability.prompt))
+    ? readText(FRAMEWORK_ROOT, path.join('adapters', 'codex', 'prompts', capability.prompt))
     : deterministicPrompt(capability.name);
   const outputPath = expectedOutputPath(capability.name, phase, capability);
-  const coreRefs = capability.core.map((file) => `- \`${file}\``).join('\n');
+  const coreRefs = capability.core.map((file) => `- \`${displayFrameworkPath(file)}\``).join('\n');
 
   return `# RIFF Codex Context Pack
 
@@ -331,8 +613,8 @@ ${prompt}
 `;
 }
 
-function writeContext(filePath, text) {
-  writeText(ROOT, filePath, text);
+function writeContext(root, filePath, text) {
+  writeText(root, filePath, text);
 }
 
 function deterministicPrompt(command) {
@@ -403,6 +685,14 @@ function gateArtifactForCommand(command, phase, capability) {
 function expectedOutputPath(command, phase, capability) {
   if (command === 'finalize') return 'STATE.md';
   return artifactPath(phase.dir, capability.artifact);
+}
+
+function startArtifactStatus(projectRoot) {
+  const missing = START_ARTIFACTS.filter((file) => !readIfExists(projectRoot, file).exists);
+  return {
+    ok: missing.length === 0,
+    missing,
+  };
 }
 
 function artifactState(relativePath) {
@@ -510,14 +800,39 @@ function runCodex(args, contextPack, phase, scope) {
   process.exit(status === 'pass' ? 0 : exitCode || 1);
 }
 
+function runStartCodex(args, contextPack) {
+  const result = spawnSync(args.codexBin, ['exec', '-'], {
+    cwd: args.projectRoot,
+    input: contextPack,
+    stdio: ['pipe', 'inherit', 'inherit'],
+    env: process.env,
+  });
+  if (result.error) {
+    fail(`Failed to run ${args.codexBin}: ${result.error.message}`);
+  }
+
+  const exitCode = result.status ?? 1;
+  if (exitCode !== 0) {
+    process.exit(exitCode);
+  }
+
+  const status = startArtifactStatus(args.projectRoot);
+  if (!status.ok) {
+    fail(`start completed without required artifact(s): ${status.missing.join(', ')}`);
+  }
+  process.stdout.write('start artifacts ready\n');
+  process.exit(0);
+}
+
 const args = parseArgs(process.argv.slice(2));
 const capability = resolveCapability(args.command);
-const phase = normalizePhase(args.phase);
-const scope = detectScope(ROOT, args.scope);
+const phase = capability.phaseRequired === false ? undefined : normalizePhase(args.phase);
+const scope = capability.name === 'start' ? detectScope(args.projectRoot, args.scope) : detectScope(ROOT, args.scope);
 const contextPack = renderContextPack(args);
 
 if (args.contextOut) {
-  writeContext(args.contextOut, contextPack);
+  const contextRoot = capability.name === 'start' ? args.projectRoot : ROOT;
+  writeContext(contextRoot, args.contextOut, contextPack);
   process.stdout.write(`Wrote ${args.contextOut}\n`);
 }
 
@@ -526,6 +841,9 @@ if (args.print) {
 }
 
 if (args.run) {
+  if (capability.name === 'start') {
+    runStartCodex(args, contextPack);
+  }
   if (capability.deterministic) {
     runDeterministicCommand(args, phase, scope);
   }

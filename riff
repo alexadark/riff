@@ -1,0 +1,37 @@
+#!/usr/bin/env node
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
+
+const frameworkRoot = dirname(realpathSync(resolve(fileURLToPath(import.meta.url))));
+
+const command = process.argv[2];
+
+if (!command || command === '-h' || command === '--help') {
+  process.stdout.write(`RIFF CLI
+
+Usage:
+  riff init [options]
+
+Commands:
+  init    Install RIFF into the current project
+
+Options for init:
+  --harness <claude|codex|commandcode|all>
+           aliases: claude-code, codeable, command
+           default: all
+  --scope <production|scratch>
+  --project-root <path>
+  --profile <preset|custom|skip>
+  --no-onboard
+  --force
+`);
+  process.exit(command ? 0 : 1);
+}
+
+if (command !== 'init') {
+  process.stderr.write(`Unknown command: ${command}\n`);
+  process.exit(1);
+}
+
+await import(resolve(frameworkRoot, 'scripts', 'riff-init.mjs'));

@@ -6,10 +6,13 @@ Adapters must not fork the core rules. If a provider cannot support a full gate 
 
 ## Required Capabilities
 
+Project initialization adapters may expose `start` to create the initial RIFF project artifacts before phase execution begins.
+
 Full execution adapters should expose these capabilities:
 
 | Capability | Required output |
 | --- | --- |
+| `start` | `PROJECT.md`, `.planning/design/*` when needed, `ROADMAP.yaml`, `.planning/config.json`, and `STATE.md` |
 | `plan` | `.planning/phases/<N-slug>/PLAN.md` |
 | `plan-review` | `.planning/phases/<N-slug>/PLAN-REVIEW.md` |
 | `execute` | implementation changes and `.planning/phases/<N-slug>/SUMMARY.md` |
@@ -26,6 +29,14 @@ Full execution adapters should expose these capabilities:
 Adapters may name the escalation capability `opus-prompt` when the target workflow is specifically an Opus prompt pack. Core treats it as an escalation prompt, not as a required executor.
 
 ## Capability Semantics
+
+`start`:
+
+- discovers or accepts the project brief and scope
+- writes provider-neutral start artifacts that satisfy `core/schemas/phase-artifacts.md`
+- creates a roadmap with independently plannable phases
+- creates state that names the first safe next action
+- may request an escalation prompt for high-risk architecture discovery, but does not require any provider-specific workflow in durable artifacts
 
 `plan`:
 

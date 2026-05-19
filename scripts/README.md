@@ -71,3 +71,71 @@ timestamp,phase,step,model,effort,outcome,duration_sec
 | `effort` | `low` / `medium` / `high` / `xhigh` |
 | `outcome` | `proceed` / `revise` / `error` |
 | `duration_sec` | integer seconds |
+
+---
+
+## riff-codex.mjs
+
+**Usage:** `node scripts/riff-codex.mjs <command> [options]`
+
+Generates compact Codex context packs and, with `--run`, runs one Codex capability. It is step-oriented and does not run unattended loops.
+
+Start a project:
+
+```bash
+node scripts/riff-codex.mjs start --project-root /path/to/project --brief "Production SaaS for..." --print
+```
+
+`start` writes or preserves:
+
+- `PROJECT.md`
+- `.planning/config.json`
+- `.planning/design/*.md` when design decisions materially affect the roadmap
+- `ROADMAP.yaml`
+- `STATE.md`
+
+Phase capabilities still require `--phase`:
+
+```bash
+node scripts/riff-codex.mjs plan --phase 2-codex-adapter --print
+```
+
+`--project-root`, `--brief`, and `--refresh` apply only to `start`. Existing start artifacts are preserved unless `--refresh` is supplied. Manual Opus escalation may create `.planning/OPUS-START-PROMPT.md`, but Opus output is draft input only and does not bypass normal RIFF gates.
+
+---
+
+## riff-init.mjs
+
+**Usage:** `riff init [options]` or `node scripts/riff-init.mjs [options]`
+
+Installs RIFF into a project from the terminal. This is the harness-neutral setup path used before `start`.
+
+```bash
+riff init
+riff init --harness all
+riff init codex
+riff init --harness codex --scope scratch
+riff init command --project-root /path/to/project
+riff init --profile alex
+```
+
+`riff init` creates or preserves:
+
+- `.riff` symlink to the RIFF framework repo
+- `.planning/` skeleton and `.planning/config.json`
+- harness files for `claude`, `codex`, `commandcode`, or `all`
+
+Harness install behavior:
+
+- Omitting `--harness` installs all harnesses.
+- Positional shortcuts are accepted: `codex`, `claude`, `command`.
+- `claude` wires `.claude/commands/riff`, `.claude/agents/riff`, `.claude/hooks/riff`, and git hooks.
+- `claude-code` and `codeable` are accepted aliases for `claude`.
+- `codex` wires `.codex/riff` docs and uses `.riff/scripts/riff-codex.mjs` for commands.
+- `commandcode` wires `.commandcode/commands/riff`, `.commandcode/hooks`, and `.commandcode/settings.json`.
+
+When the terminal is interactive, `riff init` continues into profile onboarding and writes `.planning/profile.yaml`. Use `--profile <expert|neutre|apprentissage|alex>`, `--profile custom`, or `--no-onboard` to control this explicitly.
+
+Installed harness files are symlinked through the project-local `.riff/` link so the RIFF framework clone remains the source of truth.
+
+`riff init` does not create `PROJECT.md`, `.planning/design/*`, `ROADMAP.yaml`, or `STATE.md`; those are `start` artifacts.

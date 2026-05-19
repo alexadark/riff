@@ -48,11 +48,13 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
    ```bash
    mkdir -p ~/.claude/commands/riff
    ln -sf "<detected root>/commands/init.md" ~/.claude/commands/riff/init.md
+   mkdir -p ~/.local/bin
+   ln -sf "<detected root>/riff" ~/.local/bin/riff
    ```
 
-   If the symlink already points to the right target, skip silently. Report: `global /riff:init wired → ~/.claude/commands/riff/init.md`.
+   If the symlinks already point to the right target, skip silently. Report: `global /riff:init wired → ~/.claude/commands/riff/init.md` and `global riff CLI wired → ~/.local/bin/riff`.
 
-   When `NO_REGISTER=true`, skip both the registry write and the symlink, and report: `registry untouched (--no-register), still pointing at <existing framework_path or "unset">`. Global init command not wired.
+   When `NO_REGISTER=true`, skip the registry write and both symlinks, and report: `registry untouched (--no-register), still pointing at <existing framework_path or "unset">`. Global init commands not wired.
 
 2. **Check existing profile.** If the target file exists, AskUserQuestion: `replace` / `keep and exit` / `abort`. On `replace`, copy current to `<target>.bak` first.
 

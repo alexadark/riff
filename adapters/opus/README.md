@@ -17,25 +17,25 @@ Use this adapter when a phase is unusually consequential: greenfield product arc
 Generate a project-start prompt:
 
 ```bash
-node scripts/riff-opus-prompt.mjs start --print
+node .riff/scripts/riff-opus-prompt.mjs start --print
 ```
 
 Generate a prompt for one critical phase:
 
 ```bash
-node scripts/riff-opus-prompt.mjs phase-plan --phase 6-opus-planning-prompts --print
+node .riff/scripts/riff-opus-prompt.mjs phase-plan --phase 6-opus-planning-prompts --print
 ```
 
 Write a prompt pack to a file for manual paste:
 
 ```bash
-node scripts/riff-opus-prompt.mjs architecture-review --phase 6-opus-planning-prompts --context-out .planning/phases/6-opus-planning-prompts/OPUS-ARCHITECTURE-PROMPT.md
+node .riff/scripts/riff-opus-prompt.mjs architecture-review --phase 6-opus-planning-prompts --context-out .planning/phases/6-opus-planning-prompts/OPUS-ARCHITECTURE-PROMPT.md
 ```
 
 Generate and run through local Claude Code Opus:
 
 ```bash
-node scripts/riff-opus-prompt.mjs phase-plan --phase 6-opus-planning-prompts --context-out .planning/phases/6-opus-planning-prompts/OPUS-PHASE-PLAN-PROMPT.md --run-claude --yes --response-out .planning/phases/6-opus-planning-prompts/OPUS-PHASE-PLAN-RESPONSE.md
+node .riff/scripts/riff-opus-prompt.mjs phase-plan --phase 6-opus-planning-prompts --context-out .planning/phases/6-opus-planning-prompts/OPUS-PHASE-PLAN-PROMPT.md --run-claude --yes --response-out .planning/phases/6-opus-planning-prompts/OPUS-PHASE-PLAN-RESPONSE.md
 ```
 
 ## Workflow
@@ -48,7 +48,7 @@ node scripts/riff-opus-prompt.mjs phase-plan --phase 6-opus-planning-prompts --c
 
 Generated prompt and response files may be kept as phase evidence when useful, but they are not durable source-of-truth artifacts unless the phase plan explicitly lists them.
 
-`scripts/riff-opus-prompt.mjs` stays at the repo-level `scripts/` path for now because Codex and future adapters need a stable prompt-pack entrypoint. The Opus adapter owns the provider-specific programmatic path and documents it here.
+`scripts/riff-opus-prompt.mjs` stays at the repo-level `scripts/` path and is normally reached from installed projects through `.riff/scripts/riff-opus-prompt.mjs`. It reads RIFF core contracts from the framework root and reads/writes project artifacts from the project root. Use `--project-root <path>` when invoking it from outside the target project. The Opus adapter owns the provider-specific programmatic path and documents it here.
 
 The programmatic path requires explicit confirmation with `--yes` or `RIFF_OPUS_ALLOW_PROGRAMMATIC=1`.
 

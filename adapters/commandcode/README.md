@@ -13,15 +13,30 @@ The templates are intentionally short and step-oriented. Local models should rec
 
 ## Install Into A Project
 
-From the RIFF repository root:
+From the target project root, prefer the harness-neutral RIFF installer:
 
 ```bash
-mkdir -p /path/to/project/.commandcode/commands/riff
-cp adapters/commandcode/commands/riff/*.md /path/to/project/.commandcode/commands/riff/
-cp adapters/commandcode/settings.template.json /path/to/project/.commandcode/settings.json
+riff init --harness commandcode
 ```
 
-Then edit the target project's `.commandcode/settings.json` so hook command paths match scripts that exist in that project.
+This creates `.riff` as the source-of-truth symlink and wires `.commandcode/commands/riff/*`, `.commandcode/hooks/*`, and `.commandcode/settings.json` through project-local symlinks.
+
+Manual fallback from the target project root after `.riff` exists:
+
+```bash
+mkdir -p .commandcode/commands/riff .commandcode/hooks
+for file in .riff/adapters/commandcode/commands/riff/*.md; do
+  ln -s "../../../.riff/adapters/commandcode/commands/riff/$(basename "$file")" ".commandcode/commands/riff/$(basename "$file")"
+done
+ln -s "../.riff/adapters/commandcode/settings.template.json" .commandcode/settings.json
+ln -s "../../.riff/hooks/destructive-guard.sh" .commandcode/hooks/destructive-guard.sh
+ln -s "../../.riff/hooks/boundary-check.sh" .commandcode/hooks/boundary-check.sh
+ln -s "../../.riff/hooks/examples/no-secrets.sh" .commandcode/hooks/no-secrets.sh
+ln -s "../../.riff/hooks/examples/smoke.sh" .commandcode/hooks/smoke.sh
+ln -s "../../.riff/hooks/examples/docs-check.sh" .commandcode/hooks/docs-check.sh
+```
+
+Then link or provide `.commandcode/hooks/*` scripts that match `.commandcode/settings.json`.
 
 Recommended target layout:
 
@@ -42,7 +57,7 @@ Recommended target layout:
   settings.json
 ```
 
-The hook scripts are project-owned deterministic scripts. They should implement the environment and exit-code contract in `core/protocols/hooks.md`.
+The installed hook scripts are deterministic RIFF scripts or examples linked through `.riff/`. A project may replace those links with project-owned scripts when it needs custom behavior; they should still implement the environment and exit-code contract in `core/protocols/hooks.md`.
 
 ## Command Mapping
 
@@ -50,7 +65,7 @@ The hook scripts are project-owned deterministic scripts. They should implement 
 | --- | --- | --- |
 | `riff/status` | Inspect current state and gate health | minimal context, dashboard/status evidence |
 | `riff/quick` | Small bounded task | execute, smoke, no-secrets, summary note |
-| `riff/start` | Initialize a project into RIFF artifacts | plan/start artifacts, state |
+| `riff/start` | Initialize a project into RIFF artifacts | start artifacts, roadmap, state |
 | `riff/next` | Run one phase through explicit gates | plan, plan-review, execute, scope-check, review gates, finalize |
 
 `status` and `quick` are expected to be reliable before `next`. `next` should be run one gate at a time when the model is weak, the phase is production scoped, or the touched surface is security-sensitive.
@@ -60,6 +75,8 @@ The hook scripts are project-owned deterministic scripts. They should implement 
 The adapter writes the same durable files as the Codex adapter:
 
 - `.planning/config.json`
+- `PROJECT.md`
+- `.planning/design/*.md` when design decisions materially affect the roadmap
 - `ROADMAP.yaml`
 - `STATE.md`
 - `.planning/phases/<N-slug>/PLAN.md`

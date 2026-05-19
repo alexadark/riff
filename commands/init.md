@@ -11,6 +11,14 @@ Install RIFF into the current project via symlink to the local framework repo.
 
 `.riff/` is a symlink to your local RIFF clone (single source of truth). Commands, agents, and hooks in `.claude/` are symlinks to `.riff/`. Update the framework once, every project sees the change instantly.
 
+The harness-neutral terminal entrypoint is:
+
+```bash
+riff init --harness claude
+```
+
+`/riff:init` is the Claude Code wrapper for the same install model. Prefer the terminal CLI when running from Codex, CommandCode, shell scripts, or any environment that can execute project setup directly.
+
 The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`), written by `/riff:onboard` on first run. If the registry is missing, falls back to `~/DEV/frameworks/riff` for backwards compat.
 
 ```
@@ -26,6 +34,14 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 1. **Prerequisites:** if no git repo exists in the current directory (`! -d .git`), run `git init -q` and proceed without asking — a git repo is a non-negotiable RIFF requirement, no need to confirm. If `.riff/` or `.planning/` already exist, ask before overwriting.
 
 2. **Resolve framework path and link RIFF:**
+
+   If the global `riff` CLI is available, run:
+
+   ```bash
+   riff init --harness claude
+   ```
+
+   Then verify `.riff/commands/` exists and skip the rest of the mechanical install steps below. The remaining steps are the fallback/reference implementation for environments where the CLI is not on `PATH`.
 
    ```bash
    if [ -f ~/.config/riff/config.yaml ]; then
@@ -92,11 +108,11 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
    chmod +x .riff/riff-loop.sh
    ```
 
-5. **Local copies** (project-specific, NOT symlinked):
-   - `.claude/agents/riff/CLAUDE.md` — copy from `.riff/CLAUDE.md`
-   - `.claude/hooks/riff/banner.sh` — copy from `.riff/templates/banner.sh`, chmod +x
+5. **Framework-owned special links** (still symlinked through `.riff/`):
+   - `.claude/agents/riff/CLAUDE.md` → `../../../.riff/CLAUDE.md`
+   - `.claude/hooks/riff/banner.sh` → `../../../.riff/templates/banner.sh`
 
-6. **Git hooks:** copy `security-scan.sh` → `.git/hooks/pre-commit`, `commit-msg.sh` → `.git/hooks/commit-msg`. chmod +x. If hooks exist, append.
+6. **Git hooks:** symlink `.git/hooks/pre-commit` → `.riff/hooks/security-scan.sh` and `.git/hooks/commit-msg` → `.riff/hooks/commit-msg.sh`. If hooks already exist and are not RIFF symlinks, stop unless the user explicitly asks to replace them.
 
 7. **Claude Code hooks:** pick the hook bucket from `profile.yaml`, then merge into `.claude/settings.json` (or copy if missing).
 
@@ -114,7 +130,7 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
    If profile changes later (edit `profile.yaml` directly, or ask Claude to update it), re-run this step manually or re-run `/riff:init` to rewire.
 
-8. **Project files:** create `STATE.md` from template, replace `{{PROJECT_NAME}}` with dir name.
+8. **Project files:** do not create `PROJECT.md`, `ROADMAP.yaml`, `STATE.md`, `CONTEXT.md`, or `taste.md` during init. Those are start/map artifacts.
 
 9. **Gitignore:** add `.riff/` and `.planning/debug/`.
 
@@ -181,4 +197,4 @@ RIFF installed. Next:
 - Updating RIFF: no action needed — `.riff/` is a symlink to your local repo.
 - Do NOT create PROJECT.md, ROADMAP.yaml, CONTEXT.md, taste.md — those come from `/riff:start`.
 - `.riff/` is gitignored (local symlink, not portable). Symlinks in `.claude/` ARE committed (relative paths).
-- `.claude/agents/riff/CLAUDE.md` is a COPY — project-specific, may diverge.
+- RIFF-owned installed files are symlinks through `.riff/`. Project-specific overrides belong in project artifacts, not in copied framework files.

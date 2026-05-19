@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import {
   artifactPath,
   detectScope,
@@ -19,7 +20,9 @@ process.stdout.on('error', (error) => {
   throw error;
 });
 
-const ROOT = process.cwd();
+const SCRIPT_DIR = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
+const FRAMEWORK_ROOT = path.resolve(SCRIPT_DIR, '..');
+let PROJECT_ROOT = process.cwd();
 const MAX_ARTIFACT_CHARS = 4000;
 const MAX_CONTRACT_CHARS = 7000;
 const MAX_CHANGED_FILE_CHARS = 20000;
@@ -65,6 +68,7 @@ Commands:
 
 Options:
   --phase <id-or-path>       Required for phase-plan and architecture-review
+  --project-root <path>      Target project root; defaults to current directory
   --scope <production|scratch>
   --print                    Print generated prompt pack
   --context-out <path>       Write generated prompt pack to a file
@@ -90,6 +94,7 @@ function parseArgs(argv) {
   const args = {
     command: undefined,
     phase: undefined,
+    projectRoot: process.cwd(),
     scope: undefined,
     print: false,
     contextOut: undefined,
@@ -117,6 +122,11 @@ function parseArgs(argv) {
     }
     if (token === '--phase') {
       args.phase = readOptionValue(token, index);
+      index += 1;
+      continue;
+    }
+    if (token === '--project-root') {
+      args.projectRoot = path.resolve(readOptionValue(token, index));
       index += 1;
       continue;
     }
@@ -170,6 +180,12 @@ function parseArgs(argv) {
   if (CAPABILITIES[args.command].phaseRequired && !args.phase) {
     fail(`--phase is required for ${args.command}`);
   }
+  if (!existsSync(args.projectRoot)) {
+    fail(`--project-root does not exist: ${args.projectRoot}`);
+  }
+  if (!statSync(args.projectRoot).isDirectory()) {
+    fail(`--project-root must be a directory: ${args.projectRoot}`);
+  }
   if (args.responseOut && !args.runClaude) {
     fail('--response-out requires --run-claude');
   }
@@ -189,7 +205,7 @@ function truncateText(text, maxChars) {
 
 function artifactBlock(relativePath, maxChars = MAX_ARTIFACT_CHARS) {
   const normalized = toPosix(relativePath);
-  const artifact = readIfExists(ROOT, normalized);
+  const artifact = readIfExists(PROJECT_ROOT, normalized);
   if (!artifact.exists) {
     return `## ${normalized}\n\nStatus: missing\n`;
   }
@@ -198,7 +214,7 @@ function artifactBlock(relativePath, maxChars = MAX_ARTIFACT_CHARS) {
 
 function commandOutput(command, args) {
   const result = spawnSync(command, args, {
-    cwd: ROOT,
+    cwd: PROJECT_ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -216,7 +232,7 @@ function commandOutput(command, args) {
 }
 
 function listFilesUnder(relativePath) {
-  const absolutePath = path.resolve(ROOT, relativePath);
+  const absolutePath = path.resolve(PROJECT_ROOT, relativePath);
   if (!existsSync(absolutePath)) return [];
   const stat = statSync(absolutePath);
   if (stat.isFile()) return [toPosix(relativePath)];
@@ -226,7 +242,7 @@ function listFilesUnder(relativePath) {
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const absoluteEntry = path.join(dir, entry.name);
-      const relativeEntry = toPosix(path.relative(ROOT, absoluteEntry));
+      const relativeEntry = toPosix(path.relative(PROJECT_ROOT, absoluteEntry));
       if (entry.isDirectory()) {
         walk(absoluteEntry);
         continue;
@@ -335,7 +351,7 @@ function gitDiffForStatus(statusText, stat = false) {
 }
 
 function readContract(relativePath, maxChars = MAX_CONTRACT_CHARS) {
-  return `## ${relativePath}\n\n\`\`\`markdown\n${truncateText(readText(ROOT, relativePath), maxChars)}\n\`\`\`\n`;
+  return `## ${relativePath}\n\n\`\`\`markdown\n${truncateText(readText(FRAMEWORK_ROOT, relativePath), maxChars)}\n\`\`\`\n`;
 }
 
 function renderTemplate(text, phase) {
@@ -353,12 +369,20 @@ function extractSection(text, heading) {
 }
 
 function phaseArtifactContract(command) {
-  const text = readText(ROOT, 'core/schemas/phase-artifacts.md');
-  const sections = [
-    extractSection(text, '## `ROADMAP.yaml`'),
-    extractSection(text, '## `.planning/config.json`'),
-    extractSection(text, '## `.planning/phases/<N-slug>/PLAN.md`'),
-  ];
+  const text = readText(FRAMEWORK_ROOT, 'core/schemas/phase-artifacts.md');
+  const sections = command === 'start'
+    ? [
+        extractSection(text, '## `PROJECT.md`'),
+        extractSection(text, '## `.planning/design/*`'),
+        extractSection(text, '## `ROADMAP.yaml`'),
+        extractSection(text, '## `.planning/config.json`'),
+        extractSection(text, '## `.planning/phases/<N-slug>/PLAN.md`'),
+      ]
+    : [
+        extractSection(text, '## `ROADMAP.yaml`'),
+        extractSection(text, '## `.planning/config.json`'),
+        extractSection(text, '## `.planning/phases/<N-slug>/PLAN.md`'),
+      ];
   if (command === 'architecture-review') {
     sections.push(extractSection(text, '## `.planning/phases/<N-slug>/PLAN-REVIEW.md`'));
   }
@@ -366,7 +390,7 @@ function phaseArtifactContract(command) {
 }
 
 function adapterEscalationContract() {
-  const text = readText(ROOT, 'core/protocols/adapter-contract.md');
+  const text = readText(FRAMEWORK_ROOT, 'core/protocols/adapter-contract.md');
   const excerpt = [
     'Adapters may name the escalation capability `opus-prompt` when the target workflow is specifically an Opus prompt pack. Core treats it as an escalation prompt, not as a required executor.',
     extractSection(text, '`escalation-prompt`:'),
@@ -378,7 +402,7 @@ function adapterEscalationContract() {
 }
 
 function listMarkdownFiles(relativeDir) {
-  const absoluteDir = path.resolve(ROOT, relativeDir);
+  const absoluteDir = path.resolve(PROJECT_ROOT, relativeDir);
   if (!existsSync(absoluteDir)) return [];
 
   const files = [];
@@ -390,7 +414,7 @@ function listMarkdownFiles(relativeDir) {
         continue;
       }
       if (entry.isFile() && entry.name.endsWith('.md')) {
-        files.push(toPosix(path.relative(ROOT, absoluteEntry)));
+        files.push(toPosix(path.relative(PROJECT_ROOT, absoluteEntry)));
       }
     }
   };
@@ -399,7 +423,7 @@ function listMarkdownFiles(relativeDir) {
 }
 
 function roadmapBlock(phase) {
-  const artifact = readIfExists(ROOT, 'ROADMAP.yaml');
+  const artifact = readIfExists(PROJECT_ROOT, 'ROADMAP.yaml');
   if (!artifact.exists || !phase) {
     return artifactBlock('ROADMAP.yaml');
   }
@@ -437,14 +461,14 @@ function phaseArtifactBlocks(phase) {
 }
 
 function gitBranchHint() {
-  const gitHeadPath = path.resolve(ROOT, '.git', 'HEAD');
+  const gitHeadPath = path.resolve(PROJECT_ROOT, '.git', 'HEAD');
   if (!existsSync(gitHeadPath)) return 'unknown';
-  const head = readText(ROOT, '.git/HEAD').trim();
+  const head = readText(PROJECT_ROOT, '.git/HEAD').trim();
   return head.startsWith('ref: refs/heads/') ? head.replace('ref: refs/heads/', '') : head;
 }
 
 function fileSizeHint(relativePath) {
-  const absolutePath = path.resolve(ROOT, relativePath);
+  const absolutePath = path.resolve(PROJECT_ROOT, relativePath);
   if (!existsSync(absolutePath)) return 'missing';
   try {
     return `${statSync(absolutePath).size} bytes`;
@@ -510,9 +534,9 @@ ${changedFileBlocks(statusText)}
 function renderContextPack(args) {
   const capability = CAPABILITIES[args.command];
   const phase = args.phase ? normalizePhase(args.phase) : undefined;
-  const scope = detectScope(ROOT, args.scope);
+  const scope = detectScope(PROJECT_ROOT, args.scope);
   const prompt = renderTemplate(
-    readText(ROOT, path.join('adapters', 'opus', 'prompts', capability.prompt)),
+    readText(FRAMEWORK_ROOT, path.join('adapters', 'opus', 'prompts', capability.prompt)),
     phase,
   );
   const expectedOutput = phase
@@ -526,6 +550,8 @@ function renderContextPack(args) {
 
 Capability: \`${args.command}\`
 ${phaseLine}
+Project root: \`${PROJECT_ROOT}\`
+Framework root: \`${FRAMEWORK_ROOT}\`
 Scope: \`${scope}\`
 Loading tier: \`${capability.tier}\`
 Expected output: ${expectedOutput}
@@ -583,7 +609,7 @@ function runClaude(args, contextPack) {
   }
 
   const result = spawnSync(args.claudeBin, ['-p', '--model', args.model], {
-    cwd: ROOT,
+    cwd: PROJECT_ROOT,
     input: contextPack,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -604,7 +630,7 @@ function runClaude(args, contextPack) {
 
   const output = result.stdout ?? '';
   if (args.responseOut) {
-    writeText(ROOT, args.responseOut, output);
+    writeText(PROJECT_ROOT, args.responseOut, output);
     process.stdout.write(`Wrote ${args.responseOut}\n`);
     return;
   }
@@ -612,10 +638,11 @@ function runClaude(args, contextPack) {
 }
 
 const args = parseArgs(process.argv.slice(2));
+PROJECT_ROOT = args.projectRoot;
 const contextPack = renderContextPack(args);
 
 if (args.contextOut) {
-  writeText(ROOT, args.contextOut, contextPack);
+  writeText(PROJECT_ROOT, args.contextOut, contextPack);
   process.stdout.write(`Wrote ${args.contextOut}\n`);
 }
 
