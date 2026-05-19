@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Add Phase"
+  short_description: "Add one or more phases to the RIFF roadmap"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:add-phase."
+policy:
+  allow_implicit_invocation: false

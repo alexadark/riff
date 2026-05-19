@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Plan"
+  short_description: "Write a RIFF PLAN.md for one phase"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:plan <phase-id>."
+policy:
+  allow_implicit_invocation: false

@@ -78,7 +78,7 @@ timestamp,phase,step,model,effort,outcome,duration_sec
 
 **Usage:** `node scripts/riff-codex.mjs <command> [options]`
 
-Generates compact Codex context packs and, with `--run`, runs one Codex capability. It is step-oriented and does not run unattended loops.
+Generates compact Codex context packs and, with `--run`, runs one Codex capability through `codex exec --full-auto`. It is step-oriented and does not run unattended loops.
 
 Start a project:
 
@@ -100,7 +100,14 @@ Phase capabilities still require `--phase`:
 node scripts/riff-codex.mjs plan --phase 2-codex-adapter --print
 ```
 
-`--project-root`, `--brief`, and `--refresh` apply only to `start`. Existing start artifacts are preserved unless `--refresh` is supplied. Manual Opus escalation may create `.planning/OPUS-START-PROMPT.md`, but Opus output is draft input only and does not bypass normal RIFF gates.
+Project-level commands:
+
+```bash
+node scripts/riff-codex.mjs status --run
+node scripts/riff-codex.mjs add-phase --input "Add billing setup phase" --run
+```
+
+`--project-root`, `--brief`, and `--refresh` apply only to `start`. `--input` applies to project-level commands such as `add-phase`. Existing start artifacts are preserved unless `--refresh` is supplied. Manual Opus escalation may create `.planning/OPUS-START-PROMPT.md`, but Opus output is draft input only and does not bypass normal RIFF gates.
 
 ---
 
@@ -131,7 +138,7 @@ Harness install behavior:
 - Positional shortcuts are accepted: `codex`, `claude`, `command`.
 - `claude` wires `.claude/commands/riff`, `.claude/agents/riff`, `.claude/hooks/riff`, and git hooks.
 - `claude-code` and `codeable` are accepted aliases for `claude`.
-- `codex` wires `.codex/riff` docs and uses `.riff/scripts/riff-codex.mjs` for commands.
+- `codex` wires `.codex/riff` docs and `.agents/skills/riff-*` repo-local skills (the documented Codex CWD discovery scope). After restart, invoke with `$riff:start` or via `/skills`.
 - `commandcode` wires `.commandcode/commands/riff`, `.commandcode/hooks`, and `.commandcode/settings.json`.
 
 When the terminal is interactive, `riff init` continues into profile onboarding and writes `.planning/profile.yaml`. Use `--profile <expert|neutre|apprentissage|alex>`, `--profile custom`, or `--no-onboard` to control this explicitly.

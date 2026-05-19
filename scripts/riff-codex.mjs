@@ -189,6 +189,29 @@ const CAPABILITIES = {
       'core/protocols/adapter-contract.md',
     ],
   },
+  status: {
+    deterministic: true,
+    phaseRequired: false,
+    artifact: undefined,
+    tier: 'minimal',
+    core: [
+      'core/protocols/state.md',
+      'core/schemas/phase-artifacts.md',
+      'core/protocols/adapter-contract.md',
+    ],
+  },
+  'add-phase': {
+    prompt: 'add-phase.md',
+    artifact: 'ROADMAP.yaml',
+    phaseRequired: false,
+    acceptsInput: true,
+    tier: 'focused',
+    core: [
+      'core/protocols/planning.md',
+      'core/protocols/state.md',
+      'core/schemas/phase-artifacts.md',
+    ],
+  },
 };
 
 function usage(exitCode = 0) {
@@ -205,6 +228,7 @@ Options:
   --phase <id-or-path>       Phase id or .planning/phases/<id> path (required except for start)
   --project-root <path>      Target project root for start; defaults to current directory
   --brief <text>             Project-start brief to include in the start context pack
+  --input <text>             Free-form command input for project-level commands
   --scope <production|scratch>
   --refresh                  Allow start to update existing RIFF start artifacts
   --print                    Print generated context pack
@@ -230,6 +254,8 @@ function parseArgs(argv) {
     projectRootProvided: false,
     brief: '',
     briefProvided: false,
+    input: '',
+    inputProvided: false,
     scope: undefined,
     refresh: false,
     print: false,
@@ -241,6 +267,14 @@ function parseArgs(argv) {
   function readOptionValue(option, index) {
     const value = argv[index + 1];
     if (!value || value.startsWith('-')) {
+      fail(`${option} requires a value`);
+    }
+    return value;
+  }
+
+  function readFreeformOptionValue(option, index) {
+    const value = argv[index + 1];
+    if (value === undefined) {
       fail(`${option} requires a value`);
     }
     return value;
@@ -265,8 +299,14 @@ function parseArgs(argv) {
       continue;
     }
     if (token === '--brief') {
-      args.brief = readOptionValue(token, index);
+      args.brief = readFreeformOptionValue(token, index);
       args.briefProvided = true;
+      index += 1;
+      continue;
+    }
+    if (token === '--input') {
+      args.input = readFreeformOptionValue(token, index);
+      args.inputProvided = true;
       index += 1;
       continue;
     }
@@ -313,6 +353,9 @@ function parseArgs(argv) {
   }
   if (capability.name !== 'start' && args.briefProvided) {
     fail('--brief is only supported for start');
+  }
+  if (!capability.acceptsInput && args.inputProvided) {
+    fail('--input is only supported for commands that accept free-form input');
   }
   if (capability.name !== 'start' && args.refresh) {
     fail('--refresh is only supported for start');
@@ -557,10 +600,83 @@ ${prompt}
 `;
 }
 
+function projectPhaseList() {
+  const phaseRoot = path.join(ROOT, '.planning', 'phases');
+  if (!existsSync(phaseRoot)) return 'No `.planning/phases` directory found.';
+  const entries = readdirSync(phaseRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => `- \`.planning/phases/${entry.name}/\``)
+    .sort()
+    .join('\n');
+  return entries || 'No phase directories found.';
+}
+
+function renderProjectCommandContextPack(args, capability) {
+  const prompt = capability.prompt
+    ? readText(FRAMEWORK_ROOT, path.join('adapters', 'codex', 'prompts', capability.prompt))
+    : deterministicPrompt(capability.name);
+  const coreRefs = capability.core.map((file) => `- \`${displayFrameworkPath(file)}\``).join('\n');
+  const expectedOutput = capability.artifact || 'read-only status output';
+
+  return `# RIFF Codex Context Pack
+
+Capability: \`${capability.name}\`
+Requested command: \`${args.command}\`
+Project root: \`${ROOT}\`
+Scope: \`${detectScope(ROOT, args.scope)}\`
+Loading tier: \`${capability.tier}\`
+Expected output: \`${expectedOutput}\`
+
+## Mission
+
+Run exactly this project-level RIFF capability. Do not run a phase gate, execute implementation work, or chain into another command.
+
+## User Input
+
+${args.input ? args.input : 'No explicit input was provided.'}
+
+## Stop Conditions
+
+- Stop before changing files if required roadmap, state, dependency, or phase-boundary context is missing.
+- Stop if the requested command would require unattended looping or provider-specific durable artifacts.
+- For add-phase, never execute or plan the new phase in the same command.
+
+## Core Contracts To Read
+
+${coreRefs}
+
+## Existing Project Artifact Snapshot
+
+${artifactExcerpt(ROOT, 'ROADMAP.yaml')}
+
+${artifactExcerpt(ROOT, 'STATE.md')}
+
+${artifactExcerpt(ROOT, '.planning/config.json')}
+
+## Phase Directories
+
+${projectPhaseList()}
+
+## Adapter Prompt
+
+${prompt}
+
+## Output Requirements
+
+- Keep durable artifacts provider-neutral.
+- State which files you read before acting.
+- Record command evidence with exit codes when checks are run.
+- End with the next safest RIFF command.
+`;
+}
+
 function renderContextPack(args) {
   const capability = resolveCapability(args.command);
   if (capability.name === 'start') {
     return renderStartContextPack(args, capability);
+  }
+  if (capability.phaseRequired === false) {
+    return renderProjectCommandContextPack(args, capability);
   }
   const phase = normalizePhase(args.phase);
   const scope = detectScope(ROOT, args.scope);
@@ -643,7 +759,96 @@ Output:
   return '# Deterministic Capability\n';
 }
 
+function parseRoadmapPhases(text) {
+  const phases = [];
+  let current;
+  for (const line of text.split('\n')) {
+    const idMatch = line.match(/^\s*-\s+id:\s*(.+?)\s*$/);
+    if (idMatch) {
+      if (current) phases.push(current);
+      current = { id: idMatch[1].replace(/^["']|["']$/g, ''), title: '', slug: '', status: '', priority: '', mode: '' };
+      continue;
+    }
+    if (!current) continue;
+    const fieldMatch = line.match(/^\s+(slug|title|status|priority|mode):\s*(.+?)\s*$/);
+    if (fieldMatch) {
+      current[fieldMatch[1]] = fieldMatch[2].replace(/^["']|["']$/g, '');
+    }
+  }
+  if (current) phases.push(current);
+  return phases;
+}
+
+function nextPhaseCommand(phase) {
+  if (!phase) return '/riff:add-phase';
+  const phaseRef = phase.slug ? `${phase.id}-${phase.slug}` : phase.id;
+  const phaseDir = normalizePhase(phaseRef).dir;
+  const checks = [
+    ['PLAN.md', 'plan'],
+    ['PLAN-REVIEW.md', 'plan-review'],
+    ['SUMMARY.md', 'execute'],
+    ['SCOPE-CHECK.json', 'scope-check'],
+    ['REVIEW.md', 'code-review'],
+    ['SECURITY.md', 'security-review'],
+    ['DOCS-CHECK.md', 'docs-check'],
+    ['GATES.md', 'hooks'],
+    ['dashboard-metadata.json', 'dashboard-metadata'],
+  ];
+  for (const [artifact, command] of checks) {
+    if (!existsSync(path.join(ROOT, phaseDir, artifact))) {
+      return `/riff:${command} ${phaseRef}`;
+    }
+  }
+  return `/riff:finalize ${phaseRef}`;
+}
+
+function runStatusCommand() {
+  const missingStartArtifacts = START_ARTIFACTS.filter((file) => !existsSync(path.join(ROOT, file)));
+  if (missingStartArtifacts.length > 0) {
+    process.stdout.write(`# RIFF Status
+
+Missing start artifacts:
+${missingStartArtifacts.map((file) => `- ${file}`).join('\n')}
+
+Next safe command: /riff:start
+`);
+    process.exit(0);
+  }
+
+  const roadmap = readIfExists(ROOT, 'ROADMAP.yaml');
+  const state = readIfExists(ROOT, 'STATE.md');
+  const phases = roadmap.exists ? parseRoadmapPhases(roadmap.text) : [];
+  const done = phases.filter((phase) => phase.status === 'done').length;
+  const skipped = phases.filter((phase) => phase.status === 'skipped').length;
+  const active = phases.find((phase) => phase.status && phase.status !== 'done' && phase.status !== 'skipped') || phases[0];
+  const next = nextPhaseCommand(active);
+  const activeRef = active ? `${active.id}${active.slug ? `-${active.slug}` : ''}` : 'none';
+  const rows = phases
+    .map((phase) => `| ${phase.id} | ${phase.title || phase.slug || '-'} | ${phase.status || '-'} | ${phase.priority || '-'} | ${phase.mode || '-'} |`)
+    .join('\n');
+
+  process.stdout.write(`# RIFF Status
+
+Project root: ${ROOT}
+Progress: ${done}/${phases.length} done${skipped ? `, ${skipped} skipped` : ''}
+Active phase: ${activeRef}
+
+| Phase | Title | Status | Priority | Mode |
+| --- | --- | --- | --- | --- |
+${rows || '| - | No phases found | - | - | - |'}
+
+STATE.md: ${state.exists ? 'present' : 'missing'}
+ROADMAP.yaml: ${roadmap.exists ? 'present' : 'missing'}
+
+Next safe command: ${next}
+`);
+  process.exit(0);
+}
+
 function runDeterministicCommand(args, phase, scope) {
+  if (args.command === 'status') {
+    runStatusCommand();
+  }
   initializeGateLedger(ROOT, phase, scope);
   if (args.command === 'hooks') {
     const result = runHooks({ root: ROOT, phase, scope });
@@ -763,7 +968,7 @@ function runCodex(args, contextPack, phase, scope) {
     reason: 'adapter command started',
   });
 
-  const result = spawnSync(args.codexBin, ['exec', '-'], {
+  const result = spawnSync(args.codexBin, ['exec', '--full-auto', '-'], {
     cwd: ROOT,
     input: contextPack,
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -801,7 +1006,7 @@ function runCodex(args, contextPack, phase, scope) {
 }
 
 function runStartCodex(args, contextPack) {
-  const result = spawnSync(args.codexBin, ['exec', '-'], {
+  const result = spawnSync(args.codexBin, ['exec', '--full-auto', '-'], {
     cwd: args.projectRoot,
     input: contextPack,
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -821,6 +1026,32 @@ function runStartCodex(args, contextPack) {
     fail(`start completed without required artifact(s): ${status.missing.join(', ')}`);
   }
   process.stdout.write('start artifacts ready\n');
+  process.exit(0);
+}
+
+function runProjectCodex(args, contextPack) {
+  const capability = resolveCapability(args.command);
+  const result = spawnSync(args.codexBin, ['exec', '--full-auto', '-'], {
+    cwd: ROOT,
+    input: contextPack,
+    stdio: ['pipe', 'inherit', 'inherit'],
+    env: process.env,
+  });
+  if (result.error) {
+    fail(`Failed to run ${args.codexBin}: ${result.error.message}`);
+  }
+  const exitCode = result.status ?? 1;
+  if (exitCode !== 0) {
+    process.exit(exitCode);
+  }
+  if (capability.name === 'add-phase' && existsSync(path.join(ROOT, '.riff', 'lib', 'validate-roadmap.sh'))) {
+    const validation = spawnSync('bash', ['.riff/lib/validate-roadmap.sh', 'ROADMAP.yaml'], {
+      cwd: ROOT,
+      stdio: ['ignore', 'inherit', 'inherit'],
+      env: process.env,
+    });
+    process.exit(validation.status ?? 1);
+  }
   process.exit(0);
 }
 
@@ -846,6 +1077,9 @@ if (args.run) {
   }
   if (capability.deterministic) {
     runDeterministicCommand(args, phase, scope);
+  }
+  if (capability.phaseRequired === false) {
+    runProjectCodex(args, contextPack);
   }
   runCodex(args, contextPack, phase, scope);
 }

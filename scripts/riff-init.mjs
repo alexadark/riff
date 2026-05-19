@@ -23,6 +23,7 @@ const VALID_HARNESSES = new Set(['claude', 'codex', 'commandcode', 'all']);
 const CLAUDE_ALIASES = new Set(['claude-code', 'codeable']);
 const COMMANDCODE_ALIASES = new Set(['command', 'command-code']);
 const PRESET_NAMES = new Set(['expert', 'neutre', 'apprentissage', 'alex']);
+const CODEX_SKILLS_SOURCE_PATH = 'adapters/codex/skills';
 
 const PRESETS = {
   expert: {
@@ -380,12 +381,24 @@ function installCommandCodeHarness() {
   }
 }
 
+function installCodexRepoSkills() {
+  const sourceRoot = path.join(FRAMEWORK_ROOT, CODEX_SKILLS_SOURCE_PATH);
+  ensureDir('.agents/skills');
+  for (const name of readdirSync(sourceRoot)) {
+    const source = path.join(sourceRoot, name);
+    if (!lstatSync(source).isDirectory()) continue;
+    if (!existsSync(path.join(source, 'SKILL.md'))) continue;
+    symlinkRelative(source, path.join('.agents/skills', `riff-${name}`), { viaRiff: true });
+  }
+}
+
 function installCodexHarness() {
   ensureDir('.codex/riff');
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'adapters/codex/README.md'), '.codex/riff/README.md', { viaRiff: true });
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'adapters/codex/context-pack.md'), '.codex/riff/context-pack.md', {
     viaRiff: true,
   });
+  installCodexRepoSkills();
 }
 
 function yamlScalar(value) {
@@ -557,7 +570,7 @@ function selectedHarnesses(harness) {
 function nextStepsFor(harnesses) {
   const steps = [];
   if (harnesses.includes('codex')) {
-    steps.push('  Codex: node .riff/scripts/riff-codex.mjs start --brief "..." --run');
+    steps.push('  Codex: restart Codex, then type $riff:start in the composer (or /skills then pick riff:start)');
   }
   if (harnesses.includes('claude')) {
     steps.push('  Claude: restart Claude Code, then /riff:start');

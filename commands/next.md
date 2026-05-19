@@ -277,6 +277,7 @@ When entering a phase, ensure `.planning/phases/N-slug/PROMPTS.md` exists. If mi
 ```bash
 mkdir -p .planning/phases/N-slug
 [[ ! -f .planning/phases/N-slug/PROMPTS.md ]] && cp .riff/templates/PROMPTS.md .planning/phases/N-slug/PROMPTS.md
+[[ ! -f .planning/phases/N-slug/GATES.md ]] && node scripts/gates-update.mjs --init .planning/phases/N-slug
 ```
 
 This file captures the **substantive** prompts sent to each sub-agent in Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. The `riff-pr-metadata.sh` script reads it at Step 8 and injects it into the PR body in a collapsible `<details>` block for stakeholder review.
@@ -323,15 +324,15 @@ Runs before execution so the planner can revise BEFORE code is written. Plan-sta
 
 **Gate:** `plan_adversarial:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
 
-- `false` → skip (log to `.planning/phases/N-slug/GATES.md`: `Step 4b: skipped — gate=false`)
+- `false` → skip (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate plan-review --status skipped --reason "gate=false"`)
 - `true` → run (skip overrides do NOT apply when gate is explicit `true`)
 - `auto` → see [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto)
 
-**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto). If any fires, append a one-line entry to `.planning/phases/N-slug/GATES.md` (`Step 4b: skipped — <reason>`) and continue to Step 5 without spawning Codex.
+**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto). If any fires, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate plan-review --status skipped --reason "<reason>"` and continue to Step 5 without spawning Codex.
 
 **Pre-spawn usage check:** see § Codex usage tracking. Soft-cap warning fires if last 5h has >5 Codex calls.
 
-**If running:** Agent tool → skill `codex:codex-rescue`. Append `Step 4b: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=4b`, `outcome=proceed|revise|error`, `duration_sec=<measured>`.
+**If running:** Agent tool → skill `codex:codex-rescue`. Run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate plan-review --status pass --reason "model={{MODEL}} effort={{EFFORT}}"` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=4b`, `outcome=proceed|revise|error`, `duration_sec=<measured>`.
 
 **Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Default for Step 4b: `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
@@ -473,10 +474,10 @@ Before review, verify executor honored the plan. Run scope-checker sub-agent.
 **On `DROPPED`:** STOP. Triage in three buckets, in order:
 
 1. **Task drops (`unmatched_tasks` non-empty).** For each, AskUserQuestion: "completed (mark done in SUMMARY)" | "defer to new phase (will run /riff:add-phase)" | "rejected (write rationale)". Apply each choice, then re-run Step 5c.
-2. **Smoke section too thin or missing (`smoke_too_thin == true` OR `planned_smokes` empty on a non-legacy plan).** Surface to user with the modified files list. AskUserQuestion: "ask the planner to expand Smoke section (re-run Step 4 with this finding)" | "skip this gate (record override in GATES.md)". On expand → re-run Step 4 inline with the missing-smoke finding as input, then re-run Step 5c.
-3. **Smoke regressions or missing results (`failed_smokes` non-empty OR `unmatched_smokes` non-empty).** For each entry, surface command + observed output (for `failed_smokes`) or "no result row in SUMMARY.md" (for `unmatched_smokes`). AskUserQuestion: "auto-debug (treat as failure_type=smoke_fail, artifact=SCOPE-CHECK.json)" | "fix manually now, then re-run Step 5c" | "skip this gate (record override in GATES.md)". On auto-debug → trigger the auto-debug pattern, on RESOLVED re-run Step 5c.
+2. **Smoke section too thin or missing (`smoke_too_thin == true` OR `planned_smokes` empty on a non-legacy plan).** Surface to user with the modified files list. AskUserQuestion: "ask the planner to expand Smoke section (re-run Step 4 with this finding)" | "skip this gate (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`)". On expand → re-run Step 4 inline with the missing-smoke finding as input, then re-run Step 5c.
+3. **Smoke regressions or missing results (`failed_smokes` non-empty OR `unmatched_smokes` non-empty).** For each entry, surface command + observed output (for `failed_smokes`) or "no result row in SUMMARY.md" (for `unmatched_smokes`). AskUserQuestion: "auto-debug (treat as failure_type=smoke_fail, artifact=SCOPE-CHECK.json)" | "fix manually now, then re-run Step 5c" | "skip this gate (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`)". On auto-debug → trigger the auto-debug pattern, on RESOLVED re-run Step 5c.
 
-Loop until `verdict == MATCH`. **Max 3 cycles per bucket**, then STOP and escalate to user with both SCOPE-CHECK.json and PLAN.md, ask whether to skip the remaining gate (record `Step 5c: override` to `GATES.md`) or halt for manual fix.
+Loop until `verdict == MATCH`. **Max 3 cycles per bucket**, then STOP and escalate to user with both SCOPE-CHECK.json and PLAN.md, ask whether to skip the remaining gate (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`) or halt for manual fix.
 
 **On `MALFORMED`:** surface `malformed_reason` to user, ask whether to skip (acceptable for unstructured PLAN.md formats) or fix the format and retry.
 
@@ -486,7 +487,7 @@ Loop until `verdict == MATCH`. **Max 3 cycles per bucket**, then STOP and escala
 
 **Skip if `scope: scratch`.** Personal/local code doesn't need a codebase-intelligence pass.
 
-**Skip if not a TS/JS project.** Detection: `package.json` exists at project root. If absent, log `Step 5d: skipped — not TS/JS` to `GATES.md` and continue to Step 5e.
+**Skip if not a TS/JS project.** Detection: `package.json` exists at project root. If absent, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status skipped --reason "not TS/JS"` and continue to Step 5e.
 
 Mechanical codebase intelligence on the phase diff via [`fallow`](https://github.com/fallow-rs/fallow): dead code, duplication, complexity, boundary violations. Sub-second, deterministic, no LLM. Replaces what the simplifier used to check mechanically.
 
@@ -498,14 +499,14 @@ Mechanical codebase intelligence on the phase diff via [`fallow`](https://github
 
 **Behavior (initial integration — fail-on-fail only, warn does not block):**
 
-- `pass` → log `Step 5d: pass` to GATES.md. Continue.
-- `warn` → log `Step 5d: warn — <count> findings` to GATES.md. Continue. Include the count in Step 10 report.
+- `pass` → run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status pass`. Continue.
+- `warn` → run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status warn --reason "<count> findings"`. Continue. Include the count in Step 10 report.
 - `fail` → STOP. Surface the findings to the user via AskUserQuestion:
   - **Fix in place** — re-run the executor with FALLOW.json as additional input, then re-run Step 5d. Max 2 cycles, then escalate.
-  - **Mark as accepted exception** — write a one-line rationale to GATES.md (`Step 5d: accepted-exception — <reason>`) and continue.
-  - **Skip this gate** — one-time override, log `Step 5d: override` to GATES.md and continue.
+  - **Mark as accepted exception** — run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status pass --reason "accepted-exception: <reason>"` and continue.
+  - **Skip this gate** — one-time override, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status skipped --reason "override"` and continue.
 
-**On `command not found` (fallow not installed):** log `Step 5d: skipped — fallow not installed` to GATES.md and continue. Don't block. Projects predating this integration won't have fallow as a devDep; `/riff:start` adds it for new TS/JS production projects.
+**On `command not found` (fallow not installed):** run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status skipped --reason "fallow not installed"` and continue. Don't block. Projects predating this integration won't have fallow as a devDep; `/riff:start` adds it for new TS/JS production projects.
 
 **On other non-zero exit (runtime error):** surface stderr to the user, AskUserQuestion `skip and continue | halt`. Default skip on no answer.
 
@@ -515,17 +516,17 @@ Mechanical codebase intelligence on the phase diff via [`fallow`](https://github
 
 **Skip if `scope: scratch`.** Personal/local code doesn't need a runtime browser check.
 
-**Skip if not a TS/JS project.** Detection: `package.json` exists at project root. If absent, log `Step 5e: skipped — not TS/JS` to `GATES.md` and continue to Step 5f.
+**Skip if not a TS/JS project.** Detection: `package.json` exists at project root. If absent, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate smoke --status skipped --reason "not TS/JS"` and continue to Step 5f.
 
-**Skip if `smoke_test: true` is not set on the phase entry in ROADMAP.yaml.** Default OFF — the gate is opt-in. Log `Step 5e: skipped — smoke_test not enabled` to `GATES.md` and continue.
+**Skip if `smoke_test: true` is not set on the phase entry in ROADMAP.yaml.** Default OFF — the gate is opt-in. Run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate smoke --status skipped --reason "smoke_test not enabled"` and continue.
 
-**Skip if no Lightpanda binary is present.** Detection: `command -v lightpanda` returns non-zero AND no fallback `chrome-devtools-mcp` binary is on PATH. Log `Step 5e: skipped — lightpanda not installed` to `GATES.md` and continue. Don't block. Full installation guidance lives in [`references/SMOKE-TEST.md`](../references/SMOKE-TEST.md) § Installation.
+**Skip if no Lightpanda binary is present.** Detection: `command -v lightpanda` returns non-zero AND no fallback `chrome-devtools-mcp` binary is on PATH. Run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate smoke --status skipped --reason "lightpanda not installed"` and continue. Don't block. Full installation guidance lives in [`references/SMOKE-TEST.md`](../references/SMOKE-TEST.md) § Installation.
 
 Runtime smoke test on the phase diff: boot the project's dev server, load every route touched by the diff in a headless browser, capture console errors and HTTP status codes. Catches "compiles green but blows up at boot" regressions — type-clean code with a busted import path, a hydration error, a 500 on a route handler, a missing env var the bundler doesn't catch.
 
 **Run (inline — orchestrator drives a shell pipeline, no sub-agent needed):**
 
-1. **Detect dev server command.** Read `package.json` `scripts`. Prefer `scripts.dev`, fallback to `scripts.start`. If neither exists, log `Step 5e: skipped — no dev/start script` to `GATES.md` and continue.
+1. **Detect dev server command.** Read `package.json` `scripts`. Prefer `scripts.dev`, fallback to `scripts.start`. If neither exists, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate smoke --status skipped --reason "no dev/start script"` and continue.
 
 2. **Detect package manager runner** (same logic as Step 5d): `pnpm-lock.yaml` → `pnpm`, `bun.lock` → `bun`, `yarn.lock` → `yarn`, otherwise `npm`.
 
@@ -537,7 +538,7 @@ Runtime smoke test on the phase diff: boot the project's dev server, load every 
    - `pages/blog/[slug].tsx` → `/blog/<sample-slug>`
    - `app/posts/[id]/page.tsx` → `/posts/<sample-id>`
 
-   Dynamic segments use a stub value (`sample-id`, `sample-slug`, `1`). If derivation is ambiguous, default to `/` plus the cleanest derivation; skip routes that can't be derived and note them in `SMOKE.json`. If zero routes derived, log `Step 5e: skipped — no routes in diff` to `GATES.md`, stop the dev server, continue.
+   Dynamic segments use a stub value (`sample-id`, `sample-slug`, `1`). If derivation is ambiguous, default to `/` plus the cleanest derivation; skip routes that can't be derived and note them in `SMOKE.json`. If zero routes derived, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate smoke --status skipped --reason "no routes in diff"`, stop the dev server, continue.
 
 5. **Load each touched route in Lightpanda** (or `chrome-devtools-mcp` if Lightpanda absent — same shell contract). For each URL:
    - Capture HTTP status code.
@@ -572,12 +573,12 @@ Runtime smoke test on the phase diff: boot the project's dev server, load every 
 
 **Behavior (initial integration — fail-on-fail only, warn does not block):**
 
-- `pass` → log `Step 5e: pass` to GATES.md. Continue.
-- `warn` → log `Step 5e: warn — <count> findings` to GATES.md. Continue. Include the count in Step 10 report.
+- `pass` → run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate smoke --status pass`. Continue.
+- `warn` → run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate smoke --status warn --reason "<count> findings"`. Continue. Include the count in Step 10 report.
 - `fail` → STOP. Surface the failing routes (URL, status, first console error) to the user via AskUserQuestion:
   - **Fix in place** — re-run the executor with SMOKE.json as additional input, then re-run Step 5e. Max 2 cycles, then escalate.
-  - **Mark as accepted exception** — write a one-line rationale to GATES.md (`Step 5e: accepted-exception — <reason>`) and continue.
-  - **Skip this gate** — one-time override, log `Step 5e: override` to GATES.md and continue.
+  - **Mark as accepted exception** — run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate smoke --status pass --reason "accepted-exception: <reason>"` and continue.
+  - **Skip this gate** — one-time override, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate smoke --status skipped --reason "override"` and continue.
 
 **On runtime error** (dev server won't boot, port conflict on all candidates, browser binary crashes mid-run): surface stderr to the user, AskUserQuestion `skip and continue | halt`. Default skip on no answer. Always stop the dev server PID before exiting the step (cleanup is not optional).
 
@@ -596,7 +597,7 @@ Generates a plain-language post-mortem of what was built, with a metadata block,
 **Compute metadata before spawning:**
 - `DURATION` = SUMMARY.md `{{DURATION}}` field (or wall-clock from first/last commit timestamps if missing)
 - `FILES_STAT` = output of `git diff --stat main...HEAD | tail -1` (e.g., `12 files changed, 234 insertions(+), 56 deletions(-)`)
-- `GATES_SUMMARY` = read `.planning/phases/N-slug/GATES.md` if it exists; one line per step
+- `GATES_SUMMARY` = run `node scripts/gates-update.mjs --summarize .planning/phases/N-slug`; capture stdout (empty string if file does not exist)
 
 Agent tool, `model: "haiku"`. Prompt:
 
@@ -638,11 +639,11 @@ Launch BOTH in a single message.
 
 **Gate:** `adversarial:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
 
-- `false` → skip (log to `.planning/phases/N-slug/GATES.md`: `Step 6: skipped — gate=false`)
+- `false` → skip (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "gate=false"`)
 - `true` → run (skip overrides do NOT apply when gate is explicit `true`)
 - `auto` → see [`AUTO-TRIGGERS.md#adversarial-auto`](../protocols/AUTO-TRIGGERS.md#adversarial-auto)
 
-**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#adversarial-auto`](../protocols/AUTO-TRIGGERS.md#adversarial-auto). If any fires, append a one-line entry to `.planning/phases/N-slug/GATES.md` (`Step 6: skipped — <reason>`) and continue without spawning Codex (security review still runs in parallel).
+**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#adversarial-auto`](../protocols/AUTO-TRIGGERS.md#adversarial-auto). If any fires, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "<reason>"` and continue without spawning Codex (security review still runs in parallel).
 
 **Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Defaults by `budget_quality`: `frugal` → `gpt-5.4-mini minimal`; `balanced` → `gpt-5.4 medium`; `max` → `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
@@ -650,7 +651,7 @@ Launch BOTH in a single message.
 
 **Pre-spawn usage check:** see § Codex usage tracking. Soft-cap warning fires if last 5h has >5 Codex calls.
 
-**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/adversarial-reviewer.md` for the review contract (severity scale, what to skip, output format). Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict per the agent spec."_ If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_ Append `Step 6: ran — model={{MODEL}} effort={{EFFORT}}` to `GATES.md` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=6`, `outcome=pass|fail|error`, `duration_sec=<measured>`.
+**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/adversarial-reviewer.md` for the review contract (severity scale, what to skip, output format). Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict per the agent spec."_ If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_ Run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status pass --reason "model={{MODEL}} effort={{EFFORT}}"` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=6`, `outcome=pass|fail|error`, `duration_sec=<measured>`.
 
 **Prompt capture:** After launching the adversarial-reviewer (Codex) sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Adversarial reviewer (Codex)` section heading.
 

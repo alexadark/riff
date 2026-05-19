@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Security Review"
+  short_description: "Run the RIFF security review gate for one phase"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:security-review <phase-id>."
+policy:
+  allow_implicit_invocation: false
