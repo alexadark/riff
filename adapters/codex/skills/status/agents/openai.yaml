@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Status"
+  short_description: "Show RIFF project status and the next safe command"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:status."
+policy:
+  allow_implicit_invocation: false

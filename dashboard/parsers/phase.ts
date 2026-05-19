@@ -3,9 +3,14 @@ import { join } from "node:path";
 import { phaseDir, type RoadmapPhase } from "./roadmap.ts";
 
 export interface GateEntry {
-  step: string;
+  gate: string;
   status: string;
-  detail: string;
+  required: boolean;
+  command: string;
+  exitCode: string;
+  artifact: string;
+  updatedAt: string;
+  reason: string;
 }
 
 export interface PhaseFiles {
@@ -19,25 +24,30 @@ export interface PhaseFiles {
   explain_post: string | null;
 }
 
-const STEP_LINE_REGEX = /^Step\s+([\w.-]+)\s*:\s*(\S+)(?:\s*[—-]\s*(.*))?$/;
 const DURATION_REGEX = /(?:\*\*Duration\*\*|Duration)\s*:\s*(.+)$/im;
 
-/**
- * Parse a GATES.md file content into a list of gate entries.
- * Recognised line shape: `Step <id>: <status> — <detail>`.
- * Lines that do not match are ignored.
- */
 export function parseGatesContent(content: string): GateEntry[] {
   const entries: GateEntry[] = [];
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
-    if (!line) continue;
-    const match = STEP_LINE_REGEX.exec(line);
-    if (!match) continue;
+    if (!line.startsWith('|')) continue;
+    if (line.includes('---') || line.includes('Gate |')) continue;
+    const cells = line
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split(/(?<!\\)\|/)
+      .map((cell) => cell.replaceAll('\\|', '|').trim());
+    const [gate, status, required, command, exitCode, artifact, updatedAt, reason] = cells;
+    if (!gate || !status) continue;
     entries.push({
-      step: match[1] ?? "",
-      status: match[2] ?? "",
-      detail: (match[3] ?? "").trim(),
+      gate: gate,
+      status: status,
+      required: required === 'yes',
+      command: command ?? '',
+      exitCode: exitCode ?? '',
+      artifact: artifact ?? '',
+      updatedAt: updatedAt ?? '',
+      reason: reason ?? '',
     });
   }
   return entries;

@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Plan Review"
+  short_description: "Review a RIFF phase plan before execution"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:plan-review <phase-id>."
+policy:
+  allow_implicit_invocation: false

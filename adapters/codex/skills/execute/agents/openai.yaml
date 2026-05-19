@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Execute"
+  short_description: "Execute one planned RIFF phase"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:execute <phase-id>."
+policy:
+  allow_implicit_invocation: false

@@ -9,6 +9,7 @@ export const GATE_ORDER = [
   'code-review',
   'security-review',
   'docs-check',
+  'fallow',
   'hooks',
   'dashboard',
   'dashboard-explain',

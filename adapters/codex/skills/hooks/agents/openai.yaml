@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Hooks"
+  short_description: "Run deterministic RIFF hooks for one phase"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:hooks <phase-id>."
+policy:
+  allow_implicit_invocation: false

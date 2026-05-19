@@ -33,3 +33,12 @@ profile.yaml.bak
 
 # Per-project artifacts (here as safety, framework root shouldn't have these)
 .planning/
+/ROADMAP.yaml
+/PROJECT.md
+/STATE.md
+/CONTEXT.md
+/taste.md
+/HANDOFF.md
+
+# Meta-RIFF dogfood plans (handoff briefs for separate execution windows)
+.dogfood-plans/
