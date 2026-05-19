@@ -64,6 +64,8 @@ riff init --harness all
 - `--harness commandcode`
 - `--harness all`
 
+If `--harness` is omitted, terminal init installs the Codex harness only. Use `--harness all` only when the project should be wired for Claude, Codex, and CommandCode.
+
 `claude-code` and `codeable` are accepted aliases for the Claude harness.
 
 For Claude-only projects, you can also open Claude Code and run the wrapper:

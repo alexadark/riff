@@ -1,5 +1,6 @@
 .DS_Store
 node_modules/
+outputs/
 
 # RIFF Framework - build artifacts (not part of the public framework)
 BUILDING-RIFF.md

@@ -124,6 +124,7 @@ riff init --harness commandcode --project-root /path/to/project
 
 Harness install behavior:
 
+- Omitting `--harness` installs `codex` only.
 - `claude` wires `.claude/commands/riff`, `.claude/agents/riff`, `.claude/hooks/riff`, and git hooks.
 - `claude-code` and `codeable` are accepted aliases for `claude`.
 - `codex` wires `.codex/riff` docs and uses `.riff/scripts/riff-codex.mjs` for commands.

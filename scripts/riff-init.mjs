@@ -33,7 +33,7 @@ Usage:
   node scripts/riff-init.mjs [options]
 
 Options:
-  --harness <claude|codex|commandcode|all>   Harness files to install; default all
+  --harness <claude|codex|commandcode|all>   Harness files to install; default codex
                                              aliases: claude-code, codeable
   --scope <production|scratch>               Project scope; preserves existing config when present
   --project-root <path>                      Target project root; default current directory
@@ -45,7 +45,7 @@ Options:
 
 function parseArgs(argv) {
   const args = {
-    harness: 'all',
+    harness: 'codex',
     projectRoot: process.cwd(),
     scope: undefined,
     force: false,
@@ -79,6 +79,10 @@ function parseArgs(argv) {
     }
     if (token === '--force') {
       args.force = true;
+      continue;
+    }
+    if (VALID_HARNESSES.has(token) || CLAUDE_ALIASES.has(token)) {
+      args.harness = token;
       continue;
     }
     fail(`Unknown argument: ${token}`);
@@ -267,6 +271,20 @@ function selectedHarnesses(harness) {
   return [harness];
 }
 
+function nextStepsFor(harnesses) {
+  const steps = [
+    '  Profile: keep the framework profile, or run /riff:onboard in Claude Code for the profile interview',
+    '  Start artifacts: node .riff/scripts/riff-codex.mjs start --brief "..." --run',
+  ];
+  if (harnesses.includes('claude')) {
+    steps.push('  Claude: restart Claude Code, then /riff:start');
+  }
+  if (harnesses.includes('commandcode')) {
+    steps.push('  CommandCode: run riff/start');
+  }
+  return steps.join('\n');
+}
+
 const args = parseArgs(process.argv.slice(process.argv[1]?.endsWith('riff') ? 3 : 2));
 const gitInitialized = ensureGitRepo();
 const riffLinked = installRiffSymlink();
@@ -288,7 +306,5 @@ git initialized: ${gitInitialized ? 'yes' : 'no'}
 config: ${configWritten ? 'created' : 'preserved'}
 
 Next:
-  Start artifacts: node .riff/scripts/riff-codex.mjs start --brief "..." --run
-  Claude: restart Claude Code, then /riff:start
-  CommandCode: run riff/start
+${nextStepsFor(harnesses)}
 `);
