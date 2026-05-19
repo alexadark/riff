@@ -63,6 +63,7 @@ Required fields:
 - ordered `phases`
 - each phase has `id`, `title` or `slug`, `goal`, `status`, and `dependencies`
 - optional `priority`, `tags`, `mode`, `scope`, gate overrides, and risk metadata
+- optional `planner_model: codex | opus` — selects which model plans this phase at Step 4 of `/riff:next`. Default when missing = `opus`. `codex` is honored only when `codex` is present in `executors.available` (otherwise falls back to `opus` with a warning).
 
 Blocking semantics:
 

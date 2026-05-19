@@ -305,6 +305,11 @@ See `protocols/EXECUTION.md` § Confidence Gate. Any dimension < 0.7 → STOP.
 
 Parent has already read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent.
 
+0. **Resolve planner_model.** Read the ROADMAP.yaml entry for phase N, extract `planner_model:`, default to `opus` if missing. Canonical rule: `protocols/MODEL.md` § planner_model resolution.
+   - `opus` (or missing) → continue inline (steps 1–4 below).
+   - `codex` AND `codex` in `executors.available` → print `Run from Codex: $riff:plan {{N}}`, mark loop paused, exit Step 4 without writing PLAN.md.
+   - `codex` requested but `codex` NOT in `executors.available` → log one-line warning, fall back to inline Opus.
+
 Inject thinking keyword per MODEL.md § Planner selection.
 
 1. Re-read if not in context: `agents/planner.md` (canonical planning policy: goal-backward, AC rules, HITL/AFK, TDD mode, anti-patterns), `taste.md`, `.planning/expertise/planner.md` (project lessons), previous phase SUMMARY.md. If `.planning/phases/N-slug/PLAN-REVIEW.md` exists (revision cycle from Step 4b), read it and address every `BLOCKER` finding before rewriting PLAN.md.

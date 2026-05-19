@@ -60,6 +60,16 @@ End PLAN.md with `## Model Recommendation`:
 
 If `executors.available` is missing or does not contain `codex`, never recommend `codex`.
 
+### Planner-model recommendation
+
+When adding a new phase to ROADMAP.yaml, also set a `planner_model:` for that phase:
+
+- `planner_model: codex` — Simple phases: CRUD on a typed schema, copy fix, refactor under 5 files, UI tweak.
+- `planner_model: opus` — Risky phases: auth, payments, architecture, migration, public API, novel module.
+- Default to `planner_model: opus` when unsure.
+
+Never emit `planner_model: codex` if `executors.available` does not contain `codex` — log a one-line note in the chat reply instead. The canonical heuristic and resolution rules live in `protocols/MODEL.md` § planner_model resolution.
+
 ## Security awareness (every plan)
 
 Security-aware ACs are mandatory on EVERY plan that touches the relevant surface — independent of HITL/AFK:

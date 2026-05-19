@@ -75,6 +75,13 @@ Inject at the start of the agent's prompt.
 - P1 standard → `think hard`
 - P2 or tag `simple` / `mechanical` → none
 
+### planner_model resolution
+
+1. Phase's `planner_model:` in ROADMAP.yaml if present.
+2. Default: `opus`.
+
+If `planner_model: codex` but `codex` is not in `executors.available`, fall back to `opus` and log a one-line warning. Per-phase override beats the default.
+
 ### Security (Step 7) selection
 
 - Phase touches auth / payment / public API / secrets, or tag `security_critical` → `think harder`
@@ -130,6 +137,7 @@ phases:
     security_critical: true     # force `think harder` in security review
     auto_debug: false           # disable auto-debug triggers for this phase
     debug_model: sonnet         # use Sonnet instead of Opus for the debugger
+    planner_model: codex        # codex | opus — which model plans this phase (default: opus)
     simplify: true              # force simplifier on (or false to skip)
     plan_adversarial: true      # force plan adversarial on (or false to skip)
     adversarial: true           # force adversarial on (or false to skip)

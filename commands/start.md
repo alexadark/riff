@@ -1,6 +1,7 @@
 ---
 description: Discovery pipeline - define the product before building it
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, AskUserQuestion, Agent
+model: opus
 ---
 
 # /riff:start
@@ -189,6 +190,14 @@ Prompt: project name (one line), instruction _"Run with `--model {{MODEL}} --eff
 Write `ROADMAP.yaml`. Required fields per phase: `id`, `slug` (kebab-case), `title` (human-readable), `status: todo`, `priority`, `mode`, `depends_on`. Never use a phase-level `name:` field. After writing, run `bash .riff/lib/validate-roadmap.sh ROADMAP.yaml` and fix any reported error before continuing. Self-critique: ordering, dependencies, gaps, sizing, vertical slices, first phase.
 
 **scratch scope:** Decompose features into simple sequential phases (no waves, no `depends_on` graph, no `parallel:` markers). Each phase still ships a usable slice. All phases default `mode: AFK`. No tracer-bullet requirement — first phase can be whatever lands fastest. Write `ROADMAP.yaml` with minimal fields per phase: `id`, `slug` (kebab-case), `title`, `priority`, `status: todo`, `mode: AFK`. Skip `complex_execution`, `adversarial`, `plan_adversarial`, `simplify` flags (the gates are off for scratch anyway). After writing, run `bash .riff/lib/validate-roadmap.sh ROADMAP.yaml` and fix any reported error before continuing.
+
+**Planner-model annotation:** After each phase entry is drafted, append a `planner_model:` field:
+
+- Simple phases (CRUD, copy fix, refactor under 5 files, UI tweak) → `planner_model: codex`
+- Risky phases (auth, payments, architecture, migration, public API, novel module) → `planner_model: opus`
+- Unsure → `planner_model: opus`
+
+If `executors.available` does not include `codex`, omit the field entirely (runtime defaults to `opus`). Canonical heuristic: `agents/planner.md` § Planner-model recommendation.
 
 ---
 
