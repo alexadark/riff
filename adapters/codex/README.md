@@ -27,6 +27,23 @@ Production path order: `plan-review`, `execute`, `scope-check`, `code-review`, `
 
 Scratch path keeps R1-R4, no-secrets, smoke, summary, and state evidence while allowing heavy review gates to be marked `skipped` by scope in `GATES.md`.
 
+## Opus Escalation
+
+During `plan`, Codex may stop before writing `PLAN.md` when the phase is architecture-heavy or sensitive. In that case it should generate an Opus prompt pack with:
+
+```bash
+node scripts/riff-opus-prompt.mjs phase-plan --phase <phase> --context-out .planning/phases/<phase>/OPUS-PHASE-PLAN-PROMPT.md
+```
+
+Then Codex asks the human to choose a path:
+
+- Manual: paste the generated file into Opus and return the response for `PLAN.md` integration.
+- Programmatic: use the Opus adapter programmatic path documented in `adapters/opus/README.md`.
+
+The programmatic path is opt-in for that escalation. The response is draft planning input; it must be integrated into `PLAN.md` and reviewed through the normal plan-review gate before execution.
+
+The Opus adapter enforces explicit confirmation for programmatic runs.
+
 ## Usage
 
 Generate a prompt/context pack without running Codex:
