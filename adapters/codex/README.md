@@ -4,6 +4,8 @@ This adapter maps RIFF core contracts to separate Codex-driven commands. It is i
 
 The adapter does not provide an unattended loop or provider-neutral core changes.
 
+For real-project dogfood, use the operator checklist in [`docs/OPERATOR.md`](../../docs/OPERATOR.md).
+
 ## Capabilities
 
 The adapter exposes one command per capability. Each invocation prepares or runs exactly one step; it does not chain gates into an unattended loop.

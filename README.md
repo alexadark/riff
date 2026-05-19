@@ -172,6 +172,7 @@ Inspect before adopting. Delete when redundant. Your framework is yours.
 
 ## Docs
 
+- [`docs/OPERATOR.md`](./docs/OPERATOR.md): dogfood and operator guide for RIFF v2 bootstrap with Codex
 - [`HOW-IT-WORKS.md`](./HOW-IT-WORKS.md): full mechanics — pipeline, agents, key concepts, model selection
 - [`CLAUDE.md`](./CLAUDE.md): rules, always loaded
 - [`commands/INDEX.md`](./commands/INDEX.md): command catalog
