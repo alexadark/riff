@@ -30,6 +30,10 @@ The adapter exposes one command per capability. Each invocation prepares or runs
 | `improver` | `improver` | `.planning/expertise/.pending/*.md` proposal files + sentinel |
 | `debug` | `debug` | `.planning/debug/<dated-slug>.md` (or `.planning/phases/<N-slug>/DEBUG.md` with phase context) |
 | `learn-stack` | `learn-stack` | `references/taste/stacks/<stack>.md` |
+| `dashboard` | `dashboard` | none (side-effect: browser opens at project kanban) |
+| `quick` | `quick` | `.planning/quick/quick-NNNN.md` |
+| `map` | `map` | `.planning/architecture.md`, `taste.md`, `.planning/risks.md`, `.planning/specs/*.md` |
+| `loop` | `loop` | none (side-effect: runs N AFK phases autonomously via `riff-loop-codex.sh`) |
 
 Project start happens before phase gates. Production phase path order remains `plan-review`, `execute`, `scope-check`, `code-review`, `security-review`, `docs-check`, `hooks`, `dashboard-metadata`, `dashboard-explain` when desired, then `finalize`.
 
@@ -101,6 +105,10 @@ riff:finalize          <phase-id>
 riff:improver          [N | --all]
 riff:debug             <bug description>
 riff:learn-stack       <stack> [focus]
+riff:dashboard         [--stop]
+riff:quick             <task description>
+riff:map               [directory] [--focus=area] [--quick]
+riff:loop              [N]
 ```
 
 ### Opus Escalation — improver

@@ -247,6 +247,50 @@ const CAPABILITIES = {
       'core/schemas/phase-artifacts.md',
     ],
   },
+  dashboard: {
+    deterministic: true,
+    phaseRequired: false,
+    artifact: undefined,
+    tier: 'minimal',
+    core: [
+      'core/protocols/dashboard.md',
+      'core/protocols/state.md',
+    ],
+  },
+  quick: {
+    prompt: 'quick.md',
+    artifact: '.planning/quick/quick-NNNN.md',
+    phaseRequired: false,
+    acceptsInput: true,
+    tier: 'focused',
+    core: [
+      'core/protocols/execution.md',
+      'core/protocols/state.md',
+      'core/schemas/phase-artifacts.md',
+    ],
+  },
+  map: {
+    prompt: 'map.md',
+    artifact: '.planning/architecture.md',
+    phaseRequired: false,
+    acceptsInput: true,
+    tier: 'expanded',
+    core: [
+      'core/protocols/planning.md',
+      'core/protocols/state.md',
+      'core/schemas/phase-artifacts.md',
+    ],
+  },
+  loop: {
+    deterministic: true,
+    phaseRequired: false,
+    acceptsInput: true,
+    artifact: undefined,
+    tier: 'minimal',
+    core: [
+      'core/protocols/state.md',
+    ],
+  },
 };
 
 function usage(exitCode = 0) {
@@ -880,9 +924,113 @@ Next safe command: ${next}
   process.exit(0);
 }
 
+function resolveFrameworkRoot() {
+  const riffLink = path.join(ROOT, '.riff');
+  if (existsSync(riffLink)) {
+    try {
+      return realpathSync(riffLink);
+    } catch {
+      // fall through
+    }
+  }
+  const configFile = path.join(process.env.HOME || '', '.config', 'riff', 'config.yaml');
+  if (existsSync(configFile)) {
+    const configText = readIfExists(path.join(process.env.HOME || '', '.config', 'riff'), 'config.yaml').text;
+    const match = configText.match(/^framework_path:\s*["']?(.+?)["']?\s*$/m);
+    if (match && match[1]) return match[1];
+  }
+  return FRAMEWORK_ROOT;
+}
+
 function runDeterministicCommand(args, phase, scope) {
   if (args.command === 'status') {
     runStatusCommand();
+  }
+  if (args.command === 'dashboard') {
+    const frameworkRoot = resolveFrameworkRoot();
+    const stopFlag = args.input && args.input.trim() === '--stop';
+    const dashScript = path.join(frameworkRoot, 'commands', 'dashboard.md');
+    if (!existsSync(dashScript)) {
+      fail(`Dashboard command not found at ${dashScript}. Framework not properly installed.`);
+    }
+    const lifecycleBlock = stopFlag
+      ? `PID_FILE="$HOME/.riff/dashboard.pid"
+if [ ! -f "$PID_FILE" ]; then
+  PORT_PID=$(lsof -tiTCP:4000 -sTCP:LISTEN 2>/dev/null || true)
+  if [ -n "$PORT_PID" ]; then kill "$PORT_PID" 2>/dev/null || true; echo "Dashboard stopped (port-level)."; else echo "Dashboard not running."; fi
+  exit 0
+fi
+PID=$(cat "$PID_FILE" 2>/dev/null || true)
+if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+  kill "$PID" 2>/dev/null || true
+  for _ in 1 2 3; do sleep 1; kill -0 "$PID" 2>/dev/null || break; done
+  kill -0 "$PID" 2>/dev/null && kill -9 "$PID" 2>/dev/null || true
+  echo "Dashboard stopped (PID $PID)."
+else echo "Dashboard not running (stale PID file removed)."; fi
+rm -f "$PID_FILE"`
+      : `RIFF_ROOT=""
+if [ -L .riff ] || [ -d .riff ]; then RIFF_ROOT=$(cd .riff 2>/dev/null && pwd -P); fi
+if [ -z "$RIFF_ROOT" ] && [ -f "$HOME/.config/riff/config.yaml" ]; then
+  RIFF_ROOT=$(awk '/^framework_path:/ { sub(/^framework_path:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit }' "$HOME/.config/riff/config.yaml")
+fi
+if [ -z "$RIFF_ROOT" ] || [ ! -d "$RIFF_ROOT/dashboard" ]; then RIFF_ROOT="${frameworkRoot}"; fi
+DASHBOARD_DIR="$RIFF_ROOT/dashboard"
+if [ ! -d "$DASHBOARD_DIR" ]; then echo "Dashboard directory not found at $DASHBOARD_DIR."; exit 1; fi
+STATE_DIR="$HOME/.riff"; PID_FILE="$STATE_DIR/dashboard.pid"; LOG_FILE="$DASHBOARD_DIR/.last-run.log"; URL="http://localhost:4000"; PROJECT_PATH="$(pwd)"
+mkdir -p "$STATE_DIR"
+if [ ! -d "$DASHBOARD_DIR/node_modules" ]; then echo "First run: installing dashboard dependencies..."; (cd "$DASHBOARD_DIR" && bun install) || { echo "bun install failed"; exit 1; }; fi
+server_up() { curl -fsS "$URL/api/projects" >/dev/null 2>&1; }
+pid_alive() { [ -n "$1" ] && kill -0 "$1" 2>/dev/null; }
+RUNNING=0
+if server_up; then RUNNING=1
+elif [ -f "$PID_FILE" ]; then
+  STALE_PID=$(cat "$PID_FILE" 2>/dev/null || true)
+  if pid_alive "$STALE_PID"; then for _ in 1 2 3; do sleep 1; if server_up; then RUNNING=1; break; fi; done; fi
+  [ "$RUNNING" -eq 1 ] || rm -f "$PID_FILE"
+fi
+if [ "$RUNNING" -eq 0 ]; then
+  (cd "$DASHBOARD_DIR"; nohup bun run start > "$LOG_FILE" 2>&1 & echo $! > "$PID_FILE"; disown)
+  for _ in 1 2 3 4 5; do if server_up; then RUNNING=1; break; fi; sleep 1; done
+  if [ "$RUNNING" -eq 0 ]; then echo "Dashboard failed to come up within 5s. Logs: $LOG_FILE"; exit 1; fi
+fi
+REGISTRY_JSON=$(curl -fsS -X POST "$URL/api/projects" -H "Content-Type: application/json" --data "{\\"path\\":\\"$PROJECT_PATH\\"}" 2>/dev/null || true)
+SLUG=$(printf '%s' "$REGISTRY_JSON" | python3 -c "
+import json,sys,os
+try: data=json.load(sys.stdin)
+except Exception: sys.exit(0)
+target=os.path.realpath('$PROJECT_PATH')
+for entry in data.get('registry',[]):
+    if os.path.realpath(entry.get('root',''))==target: print(entry.get('slug','')); break
+" 2>/dev/null || true)
+if [ -z "$SLUG" ]; then SLUG=$(basename "$PROJECT_PATH" | tr '[:upper:]' '[:lower:]'); fi
+PROJECT_URL="$URL/#/projects/$SLUG"
+open "$PROJECT_URL" 2>/dev/null || xdg-open "$PROJECT_URL" 2>/dev/null || echo "Open $PROJECT_URL in your browser."
+echo "Dashboard running at $URL (project: $SLUG)"
+echo "Stop: node .riff/scripts/riff-codex.mjs dashboard --run --input '--stop'"`;
+    const result = spawnSync('bash', ['-c', lifecycleBlock], {
+      cwd: ROOT,
+      stdio: 'inherit',
+      env: process.env,
+    });
+    process.exit(result.status ?? 1);
+  }
+  if (args.command === 'loop') {
+    const frameworkRoot = resolveFrameworkRoot();
+    const iterations = args.input ? args.input.trim() : '';
+    const n = iterations && /^\d+$/.test(iterations) ? iterations : '20';
+    const loopScript = [
+      path.join(ROOT, '.riff', 'riff-loop-codex.sh'),
+      path.join(frameworkRoot, 'riff-loop-codex.sh'),
+    ].find(existsSync);
+    if (!loopScript) {
+      fail('riff-loop-codex.sh not found. Framework not properly installed.');
+    }
+    const result = spawnSync('bash', [loopScript, '-n', n], {
+      cwd: ROOT,
+      stdio: 'inherit',
+      env: process.env,
+    });
+    process.exit(result.status ?? 1);
   }
   initializeGateLedger(ROOT, phase, scope);
   if (args.command === 'hooks') {
