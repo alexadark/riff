@@ -15,7 +15,7 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
 ## How it works
 
-- Two paths: **preset** (0 extra questions) or **custom** (15 questions, ~5 min).
+- Two paths: **preset** (0 extra questions) or **custom** (16 questions, ~5 min).
 - Re-running `/riff:onboard` backs up the previous profile to `<file>.bak` before overwriting.
 - Flag `--no-register`: in framework context, skip writing `~/.config/riff/config.yaml`. Use this for workshop demos or testing on a throwaway clone, so the global registry keeps pointing at your real RIFF.
 
@@ -60,7 +60,7 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
 3. **Entry choice.** AskUserQuestion:
    - `preset` — quick start, 0 extra questions
-   - `custom` — 15 questions, ~5 min
+   - `custom` — 16 questions, ~5 min
 
 4. **Preset path.** AskUserQuestion with the 4 presets (descriptions in the "Presets" section below). Pick one, grab its full answer map, jump to step 6.
 
@@ -152,6 +152,12 @@ Maps to: `user.conversational_language`. Default `en` if the user skips the ques
 Maps to: `user.artifact_language`. Default `en` if the user skips the question.
 
 > Nuance: non-commit personal notes default to `conversational_language`. Rule: "if it's going in a commit → `artifact_language`; for personal use → `conversational_language`".
+
+**Q5b. Which executors do you have installed?**
+- `claude only` — Claude Code only (default)
+- `claude + codex` — Claude Code + OpenAI Codex CLI
+
+Maps to: `executors.available` (top-level array). `claude only` → `[claude]`, `claude + codex` → `[claude, codex]`.
 
 ### Section 2 — Risk appetite
 
@@ -272,6 +278,9 @@ user:
   artifact_language: <en | fr | ISO 639-1 code>                                  # default: en
   narrative_language: <en | fr | other>                                          # default: falls back to conversational_language
 
+executors:
+  available: [<claude> | <claude, codex>]  # default [claude] when missing
+
 risk:
   sensitive_task_preference: <cautious | balanced | fast>
 
@@ -314,6 +323,8 @@ user:
   conversational_language: en
   artifact_language: en
   narrative_language: en
+executors:
+  available: [claude]
 risk:
   sensitive_task_preference: fast
 style:
@@ -343,6 +354,8 @@ user:
   conversational_language: en
   artifact_language: en
   narrative_language: en
+executors:
+  available: [claude]
 risk:
   sensitive_task_preference: balanced
 style:
@@ -372,6 +385,8 @@ user:
   conversational_language: fr
   artifact_language: en
   narrative_language: fr
+executors:
+  available: [claude]
 risk:
   sensitive_task_preference: cautious
 style:
@@ -401,6 +416,8 @@ user:
   conversational_language: fr
   artifact_language: en
   narrative_language: fr
+executors:
+  available: [claude, codex]
 risk:
   sensitive_task_preference: cautious
 style:

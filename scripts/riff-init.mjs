@@ -37,6 +37,7 @@ const PRESETS = {
       artifact_language: 'en',
       narrative_language: 'en',
     },
+    executors: { available: ['claude'] },
     risk: { sensitive_task_preference: 'fast' },
     style: {
       length: 'terse',
@@ -60,6 +61,7 @@ const PRESETS = {
       artifact_language: 'en',
       narrative_language: 'en',
     },
+    executors: { available: ['claude'] },
     risk: { sensitive_task_preference: 'balanced' },
     style: {
       length: 'standard',
@@ -83,6 +85,7 @@ const PRESETS = {
       artifact_language: 'en',
       narrative_language: 'fr',
     },
+    executors: { available: ['claude'] },
     risk: { sensitive_task_preference: 'cautious' },
     style: {
       length: 'detailed',
@@ -106,6 +109,7 @@ const PRESETS = {
       artifact_language: 'en',
       narrative_language: 'fr',
     },
+    executors: { available: ['claude', 'codex'] },
     risk: { sensitive_task_preference: 'cautious' },
     style: {
       length: 'terse',
@@ -479,6 +483,7 @@ async function customProfile(rl) {
   const conversationalLanguage = await askChoice(rl, 'Conversational language', ['en', 'fr', 'mix', 'other'], 'fr');
   const artifactLanguage = await askChoice(rl, 'Artifact language for commits/docs/code', ['en', 'fr', 'other'], 'en');
   const narrativeLanguage = await askChoice(rl, 'Dashboard narrative language', ['en', 'fr', 'other'], conversationalLanguage === 'fr' ? 'fr' : 'en');
+  const executorsChoice = await askChoice(rl, 'Which executors do you have installed?', ['claude', 'claude+codex'], 'claude');
   const notificationsChannel = await askChoice(rl, 'AFK notifications', ['none', 'telegram', 'email'], 'none');
   const notifications = { channel: notificationsChannel };
   if (notificationsChannel === 'telegram') {
@@ -490,6 +495,7 @@ async function customProfile(rl) {
   }
 
   return {
+    executors: { available: executorsChoice === 'claude+codex' ? ['claude', 'codex'] : ['claude'] },
     user: {
       programming_level: await askChoice(rl, 'Programming level', ['novice', 'learner', 'intermediate', 'experienced', 'expert'], 'intermediate'),
       ai_agents_experience: await askChoice(rl, 'AI coding agents experience', ['none', 'tried', 'regular', 'advanced'], 'regular'),

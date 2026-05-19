@@ -39,6 +39,12 @@ user:
                                      # Drives the dashboard narrative content (EXPLAIN.*.md, EXPLAIN-POST.*.md).
                                      # Lets you keep public artifacts in EN while reading dashboard summaries in your native language.
 
+executors:
+  available: [claude]              # which executors the planner may recommend
+                                   # missing → [claude] (backward compatible, existing profiles keep working)
+                                   # allowed: [claude] | [claude, codex]
+                                   # the alex preset uses [claude, codex] — enable only if Codex CLI is installed
+
 risk:
   sensitive_task_preference: balanced  # cautious | balanced | fast
 

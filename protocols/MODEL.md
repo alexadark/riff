@@ -82,6 +82,15 @@ Inject at the start of the agent's prompt.
 
 ## Budget and model resolution
 
+### executors.available
+
+Gates which executor models the planner may recommend.
+
+- **Allowed values:** `[claude]` (default) | `[claude, codex]`
+- **Default when missing:** treated as `[claude]` — existing profiles without the field keep working unchanged.
+- **Effect:** if `codex` is not present in the list, the planner must never emit `executor_model: codex` in PLAN.md's Model Recommendation, regardless of phase type.
+- **Cross-reference:** see `commands/onboard.md` § Questions for setup guidance; `scripts/riff-init.mjs` presets for per-preset defaults.
+
 Every decision (model choice, whether to run optional pipeline steps) resolves through this chain. Highest wins:
 
 1. **Per-phase override** in ROADMAP.yaml (`executor_model:`, `simplify:`, `adversarial:`, `auto_debug:`, `debug_model:`, etc.)

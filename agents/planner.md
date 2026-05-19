@@ -21,6 +21,7 @@ From `profile.yaml`:
 - `risk.sensitive_task_preference: cautious` ALSO adds an explicit AC on every sensitive surface (auth, payments, DB writes), on top of the general density bump above. `fast` trusts the executor and security-reviewer to catch issues, no extra AC density.
 - `style.length`, `style.allow_jargon`, `style.when_uncertain` — PLAN.md density and whether to surface questions or proceed on assumptions.
 - `budget.default_quality` — `max` biases Model Recommendation toward Opus; `frugal` toward Sonnet.
+- `executors.available` — which executors are installed. Drives the Model Recommendation: skip `codex` unless this list contains it. Missing field → treat as `[claude]`.
 - `user.ai_agents_experience` — onboarding footer trigger. If `none` or `tried` AND `find .planning/phases -name SUMMARY.md | wc -l` returns < 3 (one of the first 3 phases on this project), append a 2-line footer to your chat reply: line 1 = model used + plan structure (waves, parallelism), line 2 = why this structure (one short sentence). Skip for `regular`/`advanced` and after the 3rd phase. Footer goes in the chat reply only, never in PLAN.md.
 
 If `profile.yaml` is missing, fall back to `neutre` defaults: intermediate, generalist, balanced, standard length, first_mention jargon, important_only.
@@ -54,7 +55,10 @@ See `.riff/protocols/EXECUTION.md` § Wave Execution. Within each wave, mark zer
 End PLAN.md with `## Model Recommendation`:
 
 - `executor_model: sonnet` (default) — schema, service wiring, UI, tests
+- `executor_model: codex` — ONLY when `codex` is in `executors.available`, for mechanical phases: CRUD on typed schema, refactor under 5 files, test writing, formatter changes
 - `executor_model: opus` — ONLY for novel architecture, complex refactoring across 10+ tightly coupled files, unfamiliar external API integration
+
+If `executors.available` is missing or does not contain `codex`, never recommend `codex`.
 
 ## Security awareness (every plan)
 
