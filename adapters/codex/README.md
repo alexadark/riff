@@ -25,6 +25,8 @@ The adapter exposes one command per capability. Each invocation prepares or runs
 | `dashboard-metadata` | `dashboard-metadata` | `.planning/phases/<phase>/dashboard-metadata.json` |
 | `dashboard-explain` | `dashboard-explain` | dashboard explanation metadata |
 | `finalize` | `finalize` | `STATE.md`, `HANDOFF.md` when needed, and final gate records |
+| `status` | `status` | read-only project status and next command |
+| `add-phase` | `add-phase` | `ROADMAP.yaml`, `STATE.md` when needed, and a phase directory |
 
 Project start happens before phase gates. Production phase path order remains `plan-review`, `execute`, `scope-check`, `code-review`, `security-review`, `docs-check`, `hooks`, `dashboard-metadata`, `dashboard-explain` when desired, then `finalize`.
 
@@ -62,6 +64,39 @@ cd /path/to/project
 riff init --harness codex
 ```
 
+`riff init --harness codex` installs:
+
+- `.codex/riff/README.md` and `.codex/riff/context-pack.md`
+- `.agents/skills/riff-*` repo-local skills with names such as `riff:start`
+
+Skills are discovered by Codex via the documented CWD scope (`.agents/skills`). Restart Codex after init so the active session reloads them.
+
+The supported Codex invocation paths (from the OpenAI Agent Skills spec) are:
+
+- Type `$riff:start` in the composer (dollar mention)
+- Run `/skills` and pick `riff:start` from the picker
+
+Codex does not document a `/<plugin>:<command>` slash syntax for user-defined plugins, so RIFF does not promise one.
+
+Available RIFF capabilities (skill names):
+
+```text
+riff:start             <project brief>
+riff:status
+riff:add-phase         <phase title and goal>
+riff:plan              <phase-id>
+riff:plan-review       <phase-id>
+riff:execute           <phase-id>
+riff:scope-check       <phase-id>
+riff:code-review       <phase-id>
+riff:security-review   <phase-id>
+riff:docs-check        <phase-id>
+riff:hooks             <phase-id>
+riff:dashboard-metadata <phase-id>
+riff:dashboard-explain <phase-id>
+riff:finalize          <phase-id>
+```
+
 Generate a prompt/context pack without running Codex:
 
 ```bash
@@ -82,7 +117,7 @@ Run one Codex command:
 node .riff/scripts/riff-codex.mjs review --phase 2-codex-adapter --run
 ```
 
-`--run` executes exactly one `codex exec` call for the selected capability. It does not chain into the next gate.
+`--run` executes exactly one `codex exec --full-auto` call for the selected capability. It uses Codex workspace-write sandboxing so generated artifacts can be written, and it does not chain into the next gate.
 
 Run deterministic hooks:
 
@@ -103,6 +138,7 @@ node .riff/scripts/riff-codex.mjs dashboard-metadata --phase 2-codex-adapter --r
 | `--phase <id-or-path>` | Required except for `start`. Accepts `2-codex-adapter` or `.planning/phases/2-codex-adapter`. |
 | `--project-root <path>` | Target project root for `start`. Defaults to the current directory. |
 | `--brief <text>` | Short project-start brief included in the generated `start` context pack. |
+| `--input <text>` | Free-form input for project-level commands such as `add-phase`. |
 | `--scope <production|scratch>` | Overrides detected scope. Defaults to `.planning/config.json`, then `production`. |
 | `--refresh` | Allows `start` to update existing start artifacts. Without this, existing artifacts are preserved by default. |
 | `--print` | Print the generated context pack. This is the default when neither `--run` nor `--context-out` is set. |

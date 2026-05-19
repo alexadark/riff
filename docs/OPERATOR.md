@@ -4,18 +4,18 @@ This guide is for dogfooding the current RIFF v2 bootstrap and Codex adapter bef
 
 ## Current Status
 
-Use the Phase 7 branch for real-project testing:
+Use the Phase 8 branch for real-project testing:
 
 ```bash
 cd /Users/webstantly/DEV/frameworks/riff
-git switch codex/riff-v2-phase-7-start-v2
+git switch codex/riff-v2-phase-8-codex-commands
 ```
 
 The branch is usable for:
 
 - installing RIFF into a project with the terminal `riff init` command
 - starting a scratch or production project with Codex
-- generating or running one Codex capability at a time
+- running RIFF from Codex slash commands or one Codex capability at a time
 - validating docs, hooks, dashboard metadata, and finalization artifacts manually
 
 The branch is not the right target for:
@@ -37,13 +37,39 @@ Plain `riff init` installs all harnesses. Use `riff init codex` or `--harness co
 
 Terminal init continues into profile onboarding when the terminal is interactive. Use `--profile alex`, `--profile custom`, or `--no-onboard` for scripted runs.
 
+Codex init installs repo-local RIFF skills under the documented Codex discovery path:
+
+- `.agents/skills/riff-*` skills with names such as `riff:start`
+
+Restart Codex after init so the active session reloads the skills. Invoke them via the documented Codex paths (the OpenAI Agent Skills spec does not define a `/<plugin>:<command>` syntax, so RIFF does not use one):
+
+- Type `$riff:start` in the composer to mention the skill
+- Or run `/skills` and pick `riff:start` from the picker
+
+```text
+$riff:start            <project brief>
+$riff:status
+$riff:plan             <phase-id>
+$riff:plan-review      <phase-id>
+$riff:execute          <phase-id>
+$riff:scope-check      <phase-id>
+$riff:code-review      <phase-id>
+$riff:security-review  <phase-id>
+$riff:docs-check       <phase-id>
+$riff:hooks            <phase-id>
+$riff:dashboard-metadata <phase-id>
+$riff:dashboard-explain <phase-id>
+$riff:finalize         <phase-id>
+$riff:add-phase        <phase title and goal>
+```
+
 For a disposable prototype:
 
 ```bash
 /Users/webstantly/DEV/frameworks/riff/riff init --harness codex --scope scratch
 ```
 
-After init, use the installed `.riff/` symlink from the target project:
+After init, the slash command wrapper is preferred. The underlying terminal path remains available for debugging:
 
 ```bash
 node .riff/scripts/riff-codex.mjs start --run --brief "Describe the project goal, users, stack, and constraints."
@@ -90,6 +116,8 @@ node .riff/scripts/riff-codex.mjs dashboard-metadata --phase <phase-id> --run
 node .riff/scripts/riff-codex.mjs finalize --phase <phase-id> --run
 ```
 
+In Codex, prefer the equivalent `riff:<command>` skill through `/riff:<command> <phase-id>` when available, or `/skills` / `$riff:<command>` when direct custom slash entries are not exposed by the installed Codex build.
+
 Do not run these as a blind script during dogfood. The point of Phase 8 is to find where the manual Codex path is unclear, brittle, or missing documentation.
 
 ## What To Record During Dogfood
@@ -114,6 +142,7 @@ Phase 8 should be a dogfood and documentation stabilization phase, not loop impl
 Recommended Phase 8 work:
 
 - run `riff init --harness codex` and `start --run` on at least one scratch project and one production-style project
+- verify `riff:start` and the phase wrappers appear in Codex after restart, either as `/riff:*` slash entries or through `/skills` / `$riff:*`
 - tighten this operator guide based on real failures
 - improve quickstart docs when commands are unclear
 - add troubleshooting for common init, symlink, Codex binary, scope, and artifact validation failures

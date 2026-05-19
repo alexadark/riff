@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Dashboard Metadata"
+  short_description: "Generate deterministic RIFF dashboard metadata for one phase"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:dashboard-metadata <phase-id>."
+policy:
+  allow_implicit_invocation: false

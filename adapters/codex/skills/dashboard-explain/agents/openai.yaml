@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Dashboard Explain"
+  short_description: "Generate optional RIFF dashboard explanation metadata"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:dashboard-explain <phase-id>."
+policy:
+  allow_implicit_invocation: false

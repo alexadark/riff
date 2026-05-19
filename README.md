@@ -70,6 +70,8 @@ After installing files, terminal init starts profile onboarding when the termina
 
 `claude-code` and `codeable` are accepted aliases for the Claude harness.
 
+For Codex projects, restart Codex after `riff init --harness codex`. Init installs repo-local RIFF skills in `.agents/skills/riff-*` with names like `riff:start`, `riff:status`, `riff:plan`, and `riff:execute`. Invoke them via the documented Codex paths: type `$riff:start` in the composer (dollar mention), or run `/skills` and pick `riff:start`. Codex does not document a `/<plugin>:<command>` slash syntax, so RIFF does not promise one.
+
 For Claude-only projects, you can also open Claude Code and run the wrapper:
 
 ```
