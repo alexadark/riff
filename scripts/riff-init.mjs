@@ -14,11 +14,111 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createInterface } from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 
 const SCRIPT_DIR = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
 const FRAMEWORK_ROOT = path.resolve(SCRIPT_DIR, '..');
 const VALID_HARNESSES = new Set(['claude', 'codex', 'commandcode', 'all']);
 const CLAUDE_ALIASES = new Set(['claude-code', 'codeable']);
+const COMMANDCODE_ALIASES = new Set(['command', 'command-code']);
+const PRESET_NAMES = new Set(['expert', 'neutre', 'apprentissage', 'alex']);
+
+const PRESETS = {
+  expert: {
+    user: {
+      programming_level: 'expert',
+      ai_agents_experience: 'regular',
+      domains: ['backend'],
+      work_mode: 'team',
+      side_activities: ['none'],
+      conversational_language: 'en',
+      artifact_language: 'en',
+      narrative_language: 'en',
+    },
+    risk: { sensitive_task_preference: 'fast' },
+    style: {
+      length: 'terse',
+      allow_jargon: 'free',
+      when_uncertain: 'initiative',
+      explanation_level: 'technical',
+    },
+    budget: { default_quality: 'balanced' },
+    notifications: { channel: 'none' },
+    git: { merge_strategy: 'github_button' },
+    dashboard: { language: 'en' },
+  },
+  neutre: {
+    user: {
+      programming_level: 'intermediate',
+      ai_agents_experience: 'tried',
+      domains: ['generalist'],
+      work_mode: 'solo',
+      side_activities: ['none'],
+      conversational_language: 'en',
+      artifact_language: 'en',
+      narrative_language: 'en',
+    },
+    risk: { sensitive_task_preference: 'balanced' },
+    style: {
+      length: 'standard',
+      allow_jargon: 'first_mention',
+      when_uncertain: 'important_only',
+      explanation_level: 'simple',
+    },
+    budget: { default_quality: 'balanced' },
+    notifications: { channel: 'none' },
+    git: { merge_strategy: 'github_button' },
+    dashboard: { language: 'en' },
+  },
+  apprentissage: {
+    user: {
+      programming_level: 'learner',
+      ai_agents_experience: 'none',
+      domains: ['generalist'],
+      work_mode: 'solo',
+      side_activities: ['none'],
+      conversational_language: 'fr',
+      artifact_language: 'en',
+      narrative_language: 'fr',
+    },
+    risk: { sensitive_task_preference: 'cautious' },
+    style: {
+      length: 'detailed',
+      allow_jargon: 'never',
+      when_uncertain: 'always_ask',
+      explanation_level: 'eli5',
+    },
+    budget: { default_quality: 'balanced' },
+    notifications: { channel: 'none' },
+    git: { merge_strategy: 'github_button' },
+    dashboard: { language: 'fr' },
+  },
+  alex: {
+    user: {
+      programming_level: 'intermediate',
+      ai_agents_experience: 'advanced',
+      domains: ['frontend', 'fullstack'],
+      work_mode: 'solo_plus_clients',
+      side_activities: ['content', 'business'],
+      conversational_language: 'fr',
+      artifact_language: 'en',
+      narrative_language: 'fr',
+    },
+    risk: { sensitive_task_preference: 'cautious' },
+    style: {
+      length: 'terse',
+      allow_jargon: 'never',
+      when_uncertain: 'important_only',
+      explanation_level: 'simple',
+      terminal_explanation_level: 'technical',
+    },
+    budget: { default_quality: 'max' },
+    notifications: { channel: 'telegram' },
+    git: { merge_strategy: 'local_no_ff' },
+    dashboard: { language: 'fr' },
+  },
+};
 
 function fail(message) {
   process.stderr.write(`${message}\n`);
@@ -33,22 +133,33 @@ Usage:
   node scripts/riff-init.mjs [options]
 
 Options:
-  --harness <claude|codex|commandcode|all>   Harness files to install; default codex
-                                             aliases: claude-code, codeable
+  --harness <claude|codex|commandcode|all>   Harness files to install; default all
+                                             aliases: claude-code, codeable, command
   --scope <production|scratch>               Project scope; preserves existing config when present
   --project-root <path>                      Target project root; default current directory
   --force                                    Replace existing RIFF symlinks that point elsewhere
+  --profile <preset|custom|skip>             Run terminal onboarding; presets: expert, neutre, apprentissage, alex
+  --no-onboard                               Skip terminal profile onboarding
   -h, --help                                 Show help
 `);
   process.exit(exitCode);
 }
 
+function normalizeHarness(value) {
+  if (CLAUDE_ALIASES.has(value)) return 'claude';
+  if (COMMANDCODE_ALIASES.has(value)) return 'commandcode';
+  if (VALID_HARNESSES.has(value)) return value;
+  return undefined;
+}
+
 function parseArgs(argv) {
   const args = {
-    harness: 'codex',
+    harness: 'all',
     projectRoot: process.cwd(),
     scope: undefined,
     force: false,
+    profile: undefined,
+    onboard: true,
   };
 
   function readOptionValue(option, index) {
@@ -63,7 +174,7 @@ function parseArgs(argv) {
     const token = argv[index];
     if (token === '-h' || token === '--help') usage(0);
     if (token === '--harness') {
-      args.harness = readOptionValue(token, index);
+      args.harness = normalizeHarness(readOptionValue(token, index));
       index += 1;
       continue;
     }
@@ -81,18 +192,29 @@ function parseArgs(argv) {
       args.force = true;
       continue;
     }
-    if (VALID_HARNESSES.has(token) || CLAUDE_ALIASES.has(token)) {
-      args.harness = token;
+    if (token === '--profile') {
+      args.profile = readOptionValue(token, index);
+      index += 1;
+      continue;
+    }
+    if (token === '--no-onboard') {
+      args.onboard = false;
+      args.profile = 'skip';
+      continue;
+    }
+    const positionalHarness = normalizeHarness(token);
+    if (positionalHarness) {
+      args.harness = positionalHarness;
       continue;
     }
     fail(`Unknown argument: ${token}`);
   }
 
-  if (CLAUDE_ALIASES.has(args.harness)) {
-    args.harness = 'claude';
-  }
   if (!VALID_HARNESSES.has(args.harness)) {
-    fail('--harness must be claude, codex, commandcode, all, claude-code, or codeable');
+    fail('--harness must be claude, codex, commandcode, all, claude-code, codeable, or command');
+  }
+  if (args.profile && args.profile !== 'skip' && args.profile !== 'custom' && !PRESET_NAMES.has(args.profile)) {
+    fail('--profile must be custom, skip, expert, neutre, apprentissage, or alex');
   }
   if (args.scope && args.scope !== 'production' && args.scope !== 'scratch') {
     fail('--scope must be production or scratch');
@@ -266,22 +388,184 @@ function installCodexHarness() {
   });
 }
 
+function yamlScalar(value) {
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (value === null || value === undefined) return 'null';
+  if (/^[a-zA-Z0-9_-]+$/.test(value)) return value;
+  return JSON.stringify(value);
+}
+
+function isPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function yamlValue(value, indent = 0) {
+  const spaces = ' '.repeat(indent);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]';
+    return `[${value.map((entry) => yamlScalar(entry)).join(', ')}]`;
+  }
+  if (isPlainObject(value)) {
+    return `\n${Object.entries(value)
+      .map(([key, child]) => isPlainObject(child)
+        ? `${spaces}  ${key}:${yamlValue(child, indent + 2)}`
+        : `${spaces}  ${key}: ${yamlValue(child, indent + 2)}`)
+      .join('\n')}`;
+  }
+  return yamlScalar(value);
+}
+
+function profileYaml(profile) {
+  return `${Object.entries(profile)
+    .map(([key, value]) => isPlainObject(value) ? `${key}:${yamlValue(value, 0)}` : `${key}: ${yamlValue(value, 0)}`)
+    .join('\n')}\n`;
+}
+
+function writeProfile(relativePath, profile) {
+  const absolute = path.join(args.projectRoot, relativePath);
+  mkdirSync(path.dirname(absolute), { recursive: true });
+  if (existsSync(absolute)) {
+    writeFileSync(`${absolute}.bak`, readFileSync(absolute, 'utf8'), 'utf8');
+  }
+  writeFileSync(absolute, profileYaml(profile), 'utf8');
+}
+
+async function askChoice(rl, question, choices, defaultValue) {
+  const renderedChoices = choices
+    .map((choice) => choice === defaultValue ? `${choice}*` : choice)
+    .join('/');
+  while (true) {
+    const answer = (await rl.question(`${question} (${renderedChoices}): `)).trim();
+    const value = answer || defaultValue;
+    if (choices.includes(value)) return value;
+    output.write(`Choose one of: ${choices.join(', ')}\n`);
+  }
+}
+
+async function askList(rl, question, choices, defaultValues) {
+  const defaultText = defaultValues.join(',');
+  while (true) {
+    const answer = (await rl.question(`${question} (${choices.join(', ')}) [${defaultText}]: `)).trim();
+    const values = (answer || defaultText)
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const invalid = values.filter((value) => !choices.includes(value));
+    if (invalid.length === 0 && values.length > 0) return values;
+    output.write(`Use comma-separated values from: ${choices.join(', ')}\n`);
+  }
+}
+
+async function askText(rl, question, defaultValue) {
+  const answer = (await rl.question(`${question}${defaultValue ? ` [${defaultValue}]` : ''}: `)).trim();
+  return answer || defaultValue;
+}
+
+async function customProfile(rl) {
+  const conversationalLanguage = await askChoice(rl, 'Conversational language', ['en', 'fr', 'mix', 'other'], 'fr');
+  const artifactLanguage = await askChoice(rl, 'Artifact language for commits/docs/code', ['en', 'fr', 'other'], 'en');
+  const narrativeLanguage = await askChoice(rl, 'Dashboard narrative language', ['en', 'fr', 'other'], conversationalLanguage === 'fr' ? 'fr' : 'en');
+  const notificationsChannel = await askChoice(rl, 'AFK notifications', ['none', 'telegram', 'email'], 'none');
+  const notifications = { channel: notificationsChannel };
+  if (notificationsChannel === 'telegram') {
+    notifications.telegram_bot_token = await askText(rl, 'Telegram bot token', '');
+    notifications.telegram_chat_id = await askText(rl, 'Telegram chat id', '');
+  }
+  if (notificationsChannel === 'email') {
+    notifications.email_to = await askText(rl, 'Notification email', '');
+  }
+
+  return {
+    user: {
+      programming_level: await askChoice(rl, 'Programming level', ['novice', 'learner', 'intermediate', 'experienced', 'expert'], 'intermediate'),
+      ai_agents_experience: await askChoice(rl, 'AI coding agents experience', ['none', 'tried', 'regular', 'advanced'], 'regular'),
+      domains: await askList(rl, 'Primary domains', ['frontend', 'backend', 'fullstack', 'data_ml', 'systems', 'mobile', 'generalist'], ['fullstack']),
+      work_mode: await askChoice(rl, 'Work mode', ['solo', 'team', 'solo_plus_clients', 'client_work', 'mix'], 'solo_plus_clients'),
+      side_activities: await askList(rl, 'Side activities', ['none', 'content', 'business', 'design', 'ops', 'other'], ['content', 'business']),
+      conversational_language: conversationalLanguage === 'other' ? await askText(rl, 'Conversational language code', 'en') : conversationalLanguage,
+      artifact_language: artifactLanguage === 'other' ? await askText(rl, 'Artifact language code', 'en') : artifactLanguage,
+      narrative_language: narrativeLanguage,
+    },
+    risk: {
+      sensitive_task_preference: await askChoice(rl, 'Sensitive task preference', ['cautious', 'balanced', 'fast'], 'cautious'),
+    },
+    style: {
+      length: await askChoice(rl, 'Message length', ['terse', 'standard', 'detailed'], 'terse'),
+      allow_jargon: await askChoice(rl, 'Jargon policy', ['free', 'first_mention', 'never'], 'never'),
+      when_uncertain: await askChoice(rl, 'When uncertain', ['always_ask', 'important_only', 'initiative'], 'important_only'),
+      explanation_level: await askChoice(rl, 'Explanation level', ['technical', 'simple', 'eli5'], 'simple'),
+      terminal_explanation_level: await askChoice(rl, 'Terminal explanation level', ['technical', 'simple', 'eli5'], 'technical'),
+    },
+    budget: {
+      default_quality: await askChoice(rl, 'Budget and quality', ['frugal', 'balanced', 'max'], 'max'),
+    },
+    notifications,
+    git: {
+      merge_strategy: await askChoice(rl, 'Merge strategy', ['github_button', 'local_no_ff'], 'github_button'),
+    },
+    dashboard: {
+      language: narrativeLanguage,
+    },
+  };
+}
+
+async function runProfileOnboarding(profileMode) {
+  const profilePath = '.planning/profile.yaml';
+  if (profileMode === 'skip' || args.onboard === false) return 'skipped';
+
+  if (!input.isTTY || !output.isTTY) {
+    if (PRESET_NAMES.has(profileMode)) {
+      writeProfile(profilePath, PRESETS[profileMode]);
+      return `wrote ${profilePath} from ${profileMode} preset`;
+    }
+    return 'skipped (non-interactive terminal)';
+  }
+
+  const existingProfile = existsSync(path.join(args.projectRoot, profilePath));
+  const rl = createInterface({ input, output });
+  try {
+    if (existingProfile && !profileMode) {
+      const replace = await askChoice(rl, `${profilePath} already exists. Replace it?`, ['no', 'yes'], 'no');
+      if (replace === 'no') return 'preserved';
+    }
+
+    let mode = profileMode;
+    if (!mode) {
+      mode = await askChoice(rl, 'Profile setup', ['preset', 'custom', 'skip'], 'preset');
+    }
+    if (mode === 'skip') return 'skipped';
+    if (mode === 'custom') {
+      writeProfile(profilePath, await customProfile(rl));
+      return `wrote ${profilePath} from custom answers`;
+    }
+    if (mode === 'preset') {
+      mode = await askChoice(rl, 'Choose a preset', [...PRESET_NAMES], 'alex');
+    }
+    writeProfile(profilePath, PRESETS[mode]);
+    return `wrote ${profilePath} from ${mode} preset`;
+  } finally {
+    rl.close();
+  }
+}
+
 function selectedHarnesses(harness) {
   if (harness === 'all') return ['claude', 'codex', 'commandcode'];
   return [harness];
 }
 
 function nextStepsFor(harnesses) {
-  const steps = [
-    '  Profile: keep the framework profile, or run /riff:onboard in Claude Code for the profile interview',
-    '  Start artifacts: node .riff/scripts/riff-codex.mjs start --brief "..." --run',
-  ];
+  const steps = [];
+  if (harnesses.includes('codex')) {
+    steps.push('  Codex: node .riff/scripts/riff-codex.mjs start --brief "..." --run');
+  }
   if (harnesses.includes('claude')) {
     steps.push('  Claude: restart Claude Code, then /riff:start');
   }
   if (harnesses.includes('commandcode')) {
     steps.push('  CommandCode: run riff/start');
   }
+  if (steps.length === 0) return '  No harness selected';
   return steps.join('\n');
 }
 
@@ -297,6 +581,8 @@ for (const harness of harnesses) {
   if (harness === 'commandcode') installCommandCodeHarness();
 }
 
+const profileStatus = await runProfileOnboarding(args.profile);
+
 process.stdout.write(`RIFF installed
 project: ${args.projectRoot}
 framework: ${FRAMEWORK_ROOT}
@@ -304,6 +590,7 @@ harnesses: ${harnesses.join(', ')}
 git initialized: ${gitInitialized ? 'yes' : 'no'}
 .riff linked: ${riffLinked ? 'yes' : 'already correct'}
 config: ${configWritten ? 'created' : 'preserved'}
+profile: ${profileStatus}
 
 Next:
 ${nextStepsFor(harnesses)}

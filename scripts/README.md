@@ -111,9 +111,12 @@ node scripts/riff-codex.mjs plan --phase 2-codex-adapter --print
 Installs RIFF into a project from the terminal. This is the harness-neutral setup path used before `start`.
 
 ```bash
+riff init
 riff init --harness all
+riff init codex
 riff init --harness codex --scope scratch
-riff init --harness commandcode --project-root /path/to/project
+riff init command --project-root /path/to/project
+riff init --profile alex
 ```
 
 `riff init` creates or preserves:
@@ -124,11 +127,14 @@ riff init --harness commandcode --project-root /path/to/project
 
 Harness install behavior:
 
-- Omitting `--harness` installs `codex` only.
+- Omitting `--harness` installs all harnesses.
+- Positional shortcuts are accepted: `codex`, `claude`, `command`.
 - `claude` wires `.claude/commands/riff`, `.claude/agents/riff`, `.claude/hooks/riff`, and git hooks.
 - `claude-code` and `codeable` are accepted aliases for `claude`.
 - `codex` wires `.codex/riff` docs and uses `.riff/scripts/riff-codex.mjs` for commands.
 - `commandcode` wires `.commandcode/commands/riff`, `.commandcode/hooks`, and `.commandcode/settings.json`.
+
+When the terminal is interactive, `riff init` continues into profile onboarding and writes `.planning/profile.yaml`. Use `--profile <expert|neutre|apprentissage|alex>`, `--profile custom`, or `--no-onboard` to control this explicitly.
 
 Installed harness files are symlinked through the project-local `.riff/` link so the RIFF framework clone remains the source of truth.
 

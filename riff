@@ -18,10 +18,12 @@ Commands:
 
 Options for init:
   --harness <claude|codex|commandcode|all>
-           aliases: claude-code, codeable
-           default: codex
+           aliases: claude-code, codeable, command
+           default: all
   --scope <production|scratch>
   --project-root <path>
+  --profile <preset|custom|skip>
+  --no-onboard
   --force
 `);
   process.exit(command ? 0 : 1);

@@ -64,7 +64,9 @@ riff init --harness all
 - `--harness commandcode`
 - `--harness all`
 
-If `--harness` is omitted, terminal init installs the Codex harness only. Use `--harness all` only when the project should be wired for Claude, Codex, and CommandCode.
+If `--harness` is omitted, terminal init installs all harnesses. You can also use positional shortcuts: `riff init codex`, `riff init claude`, or `riff init command`.
+
+After installing files, terminal init starts profile onboarding when the terminal is interactive. Use `--profile alex`, `--profile custom`, or `--no-onboard` for scripted runs.
 
 `claude-code` and `codeable` are accepted aliases for the Claude harness.
 

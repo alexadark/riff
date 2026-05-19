@@ -33,9 +33,9 @@ cd /path/to/project
 /Users/webstantly/DEV/frameworks/riff/riff init --harness codex --scope production
 ```
 
-`--harness codex` is also the default for terminal init. It should create `.codex/riff` but should not create `.claude` commands or agents. Use `--harness all` only when you intentionally want Claude, Codex, and CommandCode files in the same project.
+Plain `riff init` installs all harnesses. Use `riff init codex` or `--harness codex` when you only want `.codex/riff` and do not want `.claude` commands or agents.
 
-Terminal init does not run the full profile interview yet. For now, keep the framework-level `profile.yaml`, or run `/riff:onboard` in Claude Code when you need to create or change the profile interactively.
+Terminal init continues into profile onboarding when the terminal is interactive. Use `--profile alex`, `--profile custom`, or `--no-onboard` for scripted runs.
 
 For a disposable prototype:
 
