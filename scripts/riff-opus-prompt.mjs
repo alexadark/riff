@@ -54,6 +54,12 @@ const CAPABILITIES = {
     phaseRequired: true,
     expectedOutput: '.planning/phases/<phase>/ARCHITECTURE-REVIEW.md manual review content and PLAN.md-compatible revision guidance',
   },
+  improver: {
+    prompt: 'improver.md',
+    tier: 'focused',
+    phaseRequired: false,
+    expectedOutput: '.planning/expertise/.pending/<agent>-<phase>.md proposal pack synthesized by Opus',
+  },
 };
 
 function usage(exitCode = 0) {
@@ -490,6 +496,10 @@ function sourceArtifactSnapshot(command, phase) {
       ...shared,
       designDocBlocks(),
     ].join('\n');
+  }
+
+  if (!phase) {
+    return shared.join('\n');
   }
 
   return [

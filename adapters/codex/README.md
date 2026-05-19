@@ -27,6 +27,9 @@ The adapter exposes one command per capability. Each invocation prepares or runs
 | `finalize` | `finalize` | `STATE.md`, `HANDOFF.md` when needed, and final gate records |
 | `status` | `status` | read-only project status and next command |
 | `add-phase` | `add-phase` | `ROADMAP.yaml`, `STATE.md` when needed, and a phase directory |
+| `improver` | `improver` | `.planning/expertise/.pending/*.md` proposal files + sentinel |
+| `debug` | `debug` | `.planning/debug/<dated-slug>.md` (or `.planning/phases/<N-slug>/DEBUG.md` with phase context) |
+| `learn-stack` | `learn-stack` | `references/taste/stacks/<stack>.md` |
 
 Project start happens before phase gates. Production phase path order remains `plan-review`, `execute`, `scope-check`, `code-review`, `security-review`, `docs-check`, `hooks`, `dashboard-metadata`, `dashboard-explain` when desired, then `finalize`.
 
@@ -95,7 +98,20 @@ riff:hooks             <phase-id>
 riff:dashboard-metadata <phase-id>
 riff:dashboard-explain <phase-id>
 riff:finalize          <phase-id>
+riff:improver          [N | --all]
+riff:debug             <bug description>
+riff:learn-stack       <stack> [focus]
 ```
+
+### Opus Escalation — improver
+
+The improver supports a cross-model adversarial pass via Opus. When Codex finishes the standard improver run, it may generate an Opus prompt pack for deeper synthesis:
+
+```bash
+node .riff/scripts/riff-opus-prompt.mjs improver --context-out .planning/expertise/.pending/OPUS-IMPROVER-PROMPT.md
+```
+
+Paste the generated file into Opus. The Opus response uses the same proposal format and lands in `.planning/expertise/.pending/` for human review.
 
 Generate a prompt/context pack without running Codex:
 

@@ -1,0 +1,7 @@
+interface:
+  display_name: "RIFF Debug"
+  short_description: "Diagnose a failure or bug, write DEBUG.md with evidence-based root cause"
+  brand_color: "#10A37F"
+  default_prompt: "Use $riff:debug."
+policy:
+  allow_implicit_invocation: false

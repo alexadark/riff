@@ -212,6 +212,41 @@ const CAPABILITIES = {
       'core/schemas/phase-artifacts.md',
     ],
   },
+  improver: {
+    prompt: 'improver.md',
+    artifact: '.planning/expertise/.pending/.improver-<phase>.done',
+    tier: 'focused',
+    phaseRequired: false,
+    acceptsInput: true,
+    core: [
+      'core/protocols/review.md',
+      'core/protocols/state.md',
+      'core/schemas/phase-artifacts.md',
+    ],
+  },
+  debug: {
+    prompt: 'debug.md',
+    artifact: '.planning/debug/<dated-slug>.md',
+    tier: 'expanded',
+    phaseRequired: false,
+    acceptsInput: true,
+    core: [
+      'core/protocols/execution.md',
+      'core/protocols/review.md',
+      'core/schemas/phase-artifacts.md',
+    ],
+  },
+  'learn-stack': {
+    prompt: 'learn-stack.md',
+    artifact: 'references/taste/stacks/<stack>.md',
+    tier: 'expanded',
+    phaseRequired: false,
+    acceptsInput: true,
+    core: [
+      'core/protocols/planning.md',
+      'core/schemas/phase-artifacts.md',
+    ],
+  },
 };
 
 function usage(exitCode = 0) {
