@@ -20,6 +20,7 @@ import {
   readGates,
   resolvePhaseFiles,
   safeRead,
+  type GateEntry,
 } from "./parsers/phase.ts";
 import { parseProjectState } from "./parsers/state.ts";
 import {
@@ -445,7 +446,7 @@ app.get("/api/projects/:slug/phase/:id", async (c) => {
   let metadata: {
     duration: string | null;
     files_stat: string | null;
-    gates: { step: string; status: string; detail: string }[];
+    gates: GateEntry[];
   } | null = null;
 
   if (phase.status === "done") {

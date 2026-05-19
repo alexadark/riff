@@ -222,7 +222,7 @@ export async function generateExplanation(opts: GenerateOptions): Promise<string
     const gatesSummary =
       gates.length === 0
         ? "(no gates run)"
-        : gates.map((g) => `Step ${g.step}: ${g.status}${g.detail ? ` — ${g.detail}` : ""}`).join("\n");
+        : gates.map((g) => `${g.gate}: ${g.status}${g.reason ? ` — ${g.reason}` : ""}`).join("\n");
 
     prompt = buildPostPrompt({
       id: opts.phase.id,
