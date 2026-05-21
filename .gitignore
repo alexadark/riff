@@ -2,12 +2,7 @@
 node_modules/
 outputs/
 
-# RIFF Framework - build artifacts (not part of the public framework)
-BUILDING-RIFF.md
-
-# Local-only notes (not part of the public framework)
-REVIEW.md
-DECISIONS.md
+# Local-only legacy notes superseded by HOW-IT-WORKS.md (kept in .riff-private/legacy/)
 LEGACY-README.md
 IMPROVEMENTS.md
 
