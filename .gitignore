@@ -35,5 +35,5 @@ profile.yaml.bak
 /taste.md
 /HANDOFF.md
 
-# Meta-RIFF dogfood plans (handoff briefs for separate execution windows)
-.dogfood-plans/
+# Local-only plan files (handoff briefs for separate execution windows)
+plans/
