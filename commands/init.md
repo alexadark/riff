@@ -33,6 +33,34 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
 1. **Prerequisites:** if no git repo exists in the current directory (`! -d .git`), run `git init -q` and proceed without asking — a git repo is a non-negotiable RIFF requirement, no need to confirm. If `.riff/` or `.planning/` already exist, ask before overwriting.
 
+1b. **Git remote setup.** Check for an existing remote with `git remote get-url origin 2>/dev/null`. If none, AskUserQuestion:
+
+   > 🌐 **Where to host this project?**
+   >
+   > - 🟢 **GitHub public** — public repo on GitHub. PRs visible online. Best for OSS or workshop demos. (Recommended)
+   > - 🔵 **GitHub private** — private repo on GitHub. PRs visible online, restricted access. Best for client work.
+   > - 🟡 **Local only** — no remote. Stays on your machine. PRs render in `local_no_ff` merge mode only.
+
+   On `GitHub public` or `GitHub private`:
+
+   ```bash
+   gh auth status >/dev/null 2>&1 || {
+     echo "ERROR: gh is not authenticated. Run 'gh auth login' first." >&2
+     exit 1
+   }
+   name=$(basename "$PWD")
+   visibility=public   # or private depending on the answer
+   gh repo create "$name" --"$visibility" --source=. --remote=origin
+   ```
+
+   On `Local only`: skip remote creation. The project will still work; `/riff:next` Step 8 falls back to `local_no_ff`.
+
+   Echo confirmation (ANSI-styled):
+
+   ```bash
+   printf '\033[32m●\033[0m Remote: %s\n' "$(git remote get-url origin 2>/dev/null || echo 'local only')"
+   ```
+
 2. **Resolve framework path and link RIFF:**
 
    If the global `riff` CLI is available, run:
@@ -68,9 +96,10 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
 3b. **Project scope.** If `.planning/config.json` already has `scope`, skip this prompt (re-running init keeps the existing scope). Otherwise AskUserQuestion:
 
-   > **Project scope?**
-   > - **production** — others will use it, deployed, has auth/payments/PII, or is destined to. Full RIFF discipline. (Recommended)
-   > - **scratch** — personal/local, no auth, no public exposure. Light discovery, no security gates.
+   > 📦 **Project scope?**
+   >
+   > - 🟢 **production** — others will use it, deployed, has auth/payments/PII, or is destined to. Full RIFF discipline. (Recommended)
+   > - 🟡 **scratch** — personal/local, no auth, no public exposure. Light discovery, no security gates.
 
    Write to `.planning/config.json` (create or merge):
 
@@ -82,9 +111,10 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
 3c. **Profile choice.** AskUserQuestion:
 
-   > **Profile for this project?**
-   > - **use my default profile (recommended)** — agents read the framework `profile.yaml`. Same persona, strictness, and language as your other projects.
-   > - **customize for this project** — write a project-local profile at `.planning/profile.yaml`. Useful for stricter client work, a different language, or a workshop demo. Replaces the global default in this project only (full override, no merge).
+   > 👤 **Profile for this project?**
+   >
+   > - 🟢 **use my default profile** — agents read the framework `profile.yaml`. Same persona, strictness, and language as your other projects. (Recommended)
+   > - 🔵 **customize for this project** — write a project-local profile at `.planning/profile.yaml`. Useful for stricter client work, a different language, or a workshop demo. Replaces the global default in this project only (full override, no merge).
 
    On `customize`: invoke `/riff:onboard` inline. It detects the project context (because `.planning/` now exists) and writes `.planning/profile.yaml`. The user runs through the standard preset/custom flow.
 
@@ -183,7 +213,20 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
     fi
     ```
 
-12. **Show banner:** `bash .riff/templates/banner.sh`
+12. **Initial commit + push.** Establish the `main` branch so `/riff:start` and `/riff:next` can branch cleanly. Without this step, the first `/riff:next` run hits a "no commits on main" error and stalls.
+
+    ```bash
+    if [ -z "$(git log --oneline 2>/dev/null)" ]; then
+      git add -A
+      git -c commit.gpgsign=false commit -m "chore: riff init scaffold" >/dev/null
+      printf '\033[32m●\033[0m Initial commit created on main\n'
+      if git remote get-url origin >/dev/null 2>&1; then
+        git push -u origin main && printf '\033[32m●\033[0m Pushed to %s\n' "$(git remote get-url origin)"
+      fi
+    fi
+    ```
+
+13. **Show banner:** `bash .riff/templates/banner.sh`
 
 ```
 RIFF installed. Next:
