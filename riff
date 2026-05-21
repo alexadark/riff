@@ -19,7 +19,7 @@ Commands:
 Options for init:
   --harness <claude|codex|commandcode|all>
            aliases: claude-code, codeable, command
-           default: all
+           default: claude
   --scope <production|scratch>
   --project-root <path>
   --profile <preset|custom|skip>

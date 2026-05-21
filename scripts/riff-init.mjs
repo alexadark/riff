@@ -25,6 +25,43 @@ const COMMANDCODE_ALIASES = new Set(['command', 'command-code']);
 const PRESET_NAMES = new Set(['expert', 'neutre', 'apprentissage', 'alex']);
 const CODEX_SKILLS_SOURCE_PATH = 'adapters/codex/skills';
 
+const USE_COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
+const ANSI = USE_COLOR
+  ? {
+      reset: '\x1b[0m',
+      dim: '\x1b[2m',
+      bold: '\x1b[1m',
+      green: '\x1b[38;2;120;220;160m',
+      cyan: '\x1b[38;2;90;190;185m',
+      yellow: '\x1b[38;2;240;200;90m',
+      red: '\x1b[38;2;235;110;110m',
+      teal1: '\x1b[38;2;0;130;130m',
+      teal2: '\x1b[38;2;0;160;155m',
+      teal3: '\x1b[38;2;0;190;180m',
+      teal4: '\x1b[38;2;0;215;205m',
+      teal5: '\x1b[38;2;0;240;230m',
+    }
+  : new Proxy({}, { get: () => '' });
+
+function color(name, text) {
+  return `${ANSI[name] || ''}${text}${ANSI.reset || ''}`;
+}
+
+function printBanner() {
+  const lines = [
+    `${ANSI.teal1} ____  ___ _____ _____ ${ANSI.reset}`,
+    `${ANSI.teal2}|  _ \\|_ _|  ___|  ___|${ANSI.reset}`,
+    `${ANSI.teal3}| |_) || || |_  | |_   ${ANSI.reset}`,
+    `${ANSI.teal4}|  _ < | ||  _| |  _|  ${ANSI.reset}`,
+    `${ANSI.teal5}|_| \\_\\___|_|   |_|    ${ANSI.reset}`,
+    '',
+    `${ANSI.cyan}Build like a band of six. Ship like one.${ANSI.reset}`,
+    `${ANSI.dim}Solo dev framework for Claude Code${ANSI.reset}`,
+    '',
+  ];
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
 const PRESETS = {
   expert: {
     user: {
@@ -131,14 +168,14 @@ function fail(message) {
 }
 
 function usage(exitCode = 0) {
-  process.stdout.write(`RIFF init
+  process.stdout.write(`${color('bold', 'RIFF init')}
 
-Usage:
+${color('cyan', 'Usage:')}
   riff init [options]
   node scripts/riff-init.mjs [options]
 
-Options:
-  --harness <claude|codex|commandcode|all>   Harness files to install; default all
+${color('cyan', 'Options:')}
+  --harness <claude|codex|commandcode|all>   Harness files to install; default claude
                                              aliases: claude-code, codeable, command
   --scope <production|scratch>               Project scope; preserves existing config when present
   --project-root <path>                      Target project root; default current directory
@@ -159,7 +196,7 @@ function normalizeHarness(value) {
 
 function parseArgs(argv) {
   const args = {
-    harness: 'all',
+    harness: 'claude',
     projectRoot: process.cwd(),
     scope: undefined,
     force: false,
@@ -575,20 +612,23 @@ function selectedHarnesses(harness) {
 
 function nextStepsFor(harnesses) {
   const steps = [];
-  if (harnesses.includes('codex')) {
-    steps.push('  Codex: restart Codex, then type $riff:start in the composer (or /skills then pick riff:start)');
-  }
   if (harnesses.includes('claude')) {
-    steps.push('  Claude: restart Claude Code, then /riff:start');
+    steps.push(`  ${color('cyan', 'Claude:')} restart Claude Code, then ${color('green', '/riff:start')}`);
+  }
+  if (harnesses.includes('codex')) {
+    steps.push(`  ${color('cyan', 'Codex:')} restart Codex, then type ${color('green', '$riff:start')} in the composer (or ${color('green', '/skills')} then pick riff:start)`);
   }
   if (harnesses.includes('commandcode')) {
-    steps.push('  CommandCode: run riff/start');
+    steps.push(`  ${color('cyan', 'CommandCode:')} run ${color('green', 'riff/start')}`);
   }
-  if (steps.length === 0) return '  No harness selected';
+  if (steps.length === 0) return `  ${color('yellow', 'No harness selected')}`;
   return steps.join('\n');
 }
 
 const args = parseArgs(process.argv.slice(process.argv[1]?.endsWith('riff') ? 3 : 2));
+
+if (USE_COLOR) printBanner();
+
 const gitInitialized = ensureGitRepo();
 const riffLinked = installRiffSymlink();
 const configWritten = ensurePlanning(args.scope);
@@ -602,15 +642,20 @@ for (const harness of harnesses) {
 
 const profileStatus = await runProfileOnboarding(args.profile);
 
-process.stdout.write(`RIFF installed
-project: ${args.projectRoot}
-framework: ${FRAMEWORK_ROOT}
-harnesses: ${harnesses.join(', ')}
-git initialized: ${gitInitialized ? 'yes' : 'no'}
-.riff linked: ${riffLinked ? 'yes' : 'already correct'}
-config: ${configWritten ? 'created' : 'preserved'}
-profile: ${profileStatus}
+function statusValue(flagText, condition) {
+  return condition ? color('green', flagText) : color('dim', flagText);
+}
 
-Next:
+process.stdout.write(`
+${color('bold', 'RIFF installed')}
+${color('cyan', 'project:')}         ${args.projectRoot}
+${color('cyan', 'framework:')}       ${FRAMEWORK_ROOT}
+${color('cyan', 'harnesses:')}       ${color('green', harnesses.join(', '))}
+${color('cyan', 'git initialized:')} ${statusValue(gitInitialized ? 'yes' : 'no', gitInitialized)}
+${color('cyan', '.riff linked:')}    ${statusValue(riffLinked ? 'yes' : 'already correct', riffLinked)}
+${color('cyan', 'config:')}          ${statusValue(configWritten ? 'created' : 'preserved', configWritten)}
+${color('cyan', 'profile:')}         ${profileStatus}
+
+${color('bold', 'Next:')}
 ${nextStepsFor(harnesses)}
 `);
