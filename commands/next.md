@@ -60,17 +60,7 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 - Otherwise → surface the seed to the user (current behavior).
 - AFK mode → log only, never block.
 
-**Sandbox-HITL routing:** when the picked phase is `mode: HITL` AND `provider_mode: sandbox`, this contract applies whether `/riff:next` was invoked standalone or from `/riff:loop`. Any provider verification step inside the phase (OAuth callback, Stripe test checkout, magic-link click, email-confirmation flow, etc.) MUST be driven through the browser verification protocol — see `references/BROWSER-VERIFICATION.md` for driver detection, CLI shape, and output paths. Capture screenshots + console transcript using the `sandbox` context and append them under a `## Sandbox verification` block in `.planning/phases/N-slug/SUMMARY.md`. Use sandbox / test credentials only — never production.
-
-Driver choice depends on invocation context:
-
-- **AFK mode (inside `/riff:loop`)** → headless driver only (Lightpanda). chrome-devtools-mcp is treated as "no headless driver" inside the loop because a visible browser would block.
-- **Interactive mode (standalone `/riff:next`)** → either Lightpanda or chrome-devtools-mcp is acceptable. Default to chrome-devtools-mcp when available so the user sees the verification happen; let them override.
-
-If no driver from the protocol is available (per § Driver detection in `references/BROWSER-VERIFICATION.md`), do NOT silently skip:
-
-- In AFK mode → write `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md and pause.
-- In interactive mode → AskUserQuestion: `verify manually now (open the URL yourself) | install lightpanda and retry | halt`. Default `verify manually now` on no answer.
+**Sandbox-HITL routing:** when picked phase is `mode: HITL` AND `provider_mode: sandbox`, provider verification (OAuth callback, Stripe test checkout, magic-link, email confirmation) routes through [`references/BROWSER-VERIFICATION.md`](../references/BROWSER-VERIFICATION.md). Sandbox / test creds only — never production. Capture screenshots + console transcript under a `## Sandbox verification` block in SUMMARY.md. Driver: headless (Lightpanda) in AFK / `/riff:loop`, chrome-devtools-mcp acceptable in interactive mode. No driver available → AFK pauses with `LOOP_STOP`, interactive prompts `verify manually | install lightpanda | halt` (default verify manually).
 
 ### Step 2b: Phase branch (inline)
 
@@ -457,16 +447,7 @@ Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected,
 
 ### Milestone deep audit prompt (inline)
 
-After Step 10's report, check the just-completed phase's ROADMAP.yaml entry for a `milestone:` tag. If absent → no-op, `/riff:next` is done.
-
-If `milestone:` is set, AskUserQuestion:
-
-> Phase N closes milestone `{{name}}`. Run a Codex deep audit across all phases sharing this milestone now, or defer?
->
-> - **Run now** — read `protocols/DEEP-AUDIT.md` and execute the flow inline (resolves scope, spawns deep-auditor via `codex:codex-rescue`, surfaces verdict).
-> - **Defer** — print `Deferred. Run conversationally with "deep audit" anytime.`
-
-Skip silently if the `codex:codex-rescue` skill is not configured (log one-line warning, no prompt).
+After Step 10, if the just-completed phase has a `milestone:` tag in ROADMAP.yaml, prompt **Run now** (load [`protocols/DEEP-AUDIT.md`](../protocols/DEEP-AUDIT.md) and execute inline, spawns deep-auditor via `codex:codex-rescue`) / **Defer** (run conversationally with "deep audit" anytime). Skip silently if `codex:codex-rescue` skill is not configured.
 
 ---
 
