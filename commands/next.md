@@ -224,36 +224,11 @@ Agent prompt (give paths — do NOT paste file contents):
 
 **Prompt capture:** After launching the executor sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Executor` section heading.
 
-**After the executor sub-agent returns, check for crash residue:**
+**After the executor sub-agent returns, check for crash residue.** Full procedure (CRASH.json schema + 3 AskUserQuestion sub-cases): [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Executor crash residue.
 
-1. **If `.planning/phases/N-slug/SUMMARY.md` is absent**, the executor crashed silently (internal error, context exhaustion, killed sub-agent). Write a crash marker to `.planning/phases/N-slug/CRASH.json`:
-
-   ```json
-   {
-     "schema_version": 1,
-     "phase": "N-slug",
-     "crashed_at": "<ISO-8601 timestamp>",
-     "crash_type": "executor_silent_exit",
-     "last_step": 5,
-     "summary_written": false,
-     "verdict": "pending",
-     "notes": ""
-   }
-   ```
-
-   Then AskUserQuestion:
-   > Executor returned but did not write SUMMARY.md. Likely an internal crash or context exhaustion.
-   > A) Trigger auto-debug (failure_type: `executor_silent_exit`, artifact: `CRASH.json`)
-   > B) Resume manually (keep the branch, re-run /riff:next when ready, Step 0 detects partial state)
-   > C) Abort, mark phase as crashed (verdict: abandoned)
-
-   On A: run auto-debug. On RESOLVED, re-run Step 5. On UNRESOLVED, halt with DEBUG.md surfaced.
-   On B: update STATE.md Resume Command to `continue /riff:next at Step 5 for phase N-slug. Read STATE.md.` Halt.
-   On C: set CRASH.json `verdict: abandoned`. Update STATE.md `## Active Phase` Step to `CRASHED`. Halt.
-
-2. **If SUMMARY.md exists**, scan it for `FAILED` / `ERROR` / `unresolved` / incomplete tasks. Found → run auto-debug pattern (below) with `failure_type: executor_fail`, `artifact: SUMMARY.md`.
-
-3. **On successful Step 5 completion** (including after auto-debug RESOLVED), `rm -f .planning/phases/N-slug/CRASH.json` to clear any prior crash marker.
+1. **SUMMARY.md absent** → silent crash. Write `CRASH.json` (`crash_type: executor_silent_exit`, `verdict: pending`). Prompt **Trigger auto-debug** (`failure_type: executor_silent_exit`, `artifact: CRASH.json`) / **Resume manually** (halt, Step 0 detects partial state on next run) / **Abort** (set `verdict: abandoned`, STATE.md `## Active Phase` Step → `CRASHED`).
+2. **SUMMARY.md exists with `FAILED` / `ERROR` / `unresolved`** → auto-debug with `failure_type: executor_fail`, `artifact: SUMMARY.md`.
+3. **Successful completion** (incl. after auto-debug RESOLVED) → `rm -f .planning/phases/N-slug/CRASH.json`.
 
 ---
 
@@ -452,22 +427,7 @@ Write `.planning/phases/N-slug/USAGE.md` using **`templates/usage.md`**.
 
 `PROMPTS.md` is a sibling phase artifact (alongside USAGE.md, PLAN.md, SUMMARY.md, GATES.md) — it was seeded at Step 2c and appended to throughout Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. Both USAGE.md and PROMPTS.md are read by `riff-pr-metadata.sh` at Step 8 to enrich the PR body with token usage and substantive sub-agent prompts.
 
-Append to `.planning/usage-log.csv` via the standalone helper at `.riff/scripts/csv-append.sh` (flock-protected, falls back to bare `>>` if flock is not installed). Invoke as a child bash process so the shebang applies (caller shell may be zsh, which does not parse the fd-redirect syntax).
-
-**Two-step append (orchestrator owns the header):** the helper does ONLY a row append; it never writes a header. Before the first append, the orchestrator must create the file with the header line if it does not already exist:
-
-```bash
-if [ ! -f .planning/usage-log.csv ]; then
-  echo "phase,title,date,total_tokens,duration_min,tool_calls,planner_tokens,executor_tokens,adversarial_tokens,security_tokens,debugger_tokens" > .planning/usage-log.csv
-fi
-bash .riff/scripts/csv-append.sh .planning/usage-log.csv "$row"
-```
-
-Header (written once on file creation by the block above):
-
-```csv
-phase,title,date,total_tokens,duration_min,tool_calls,planner_tokens,executor_tokens,adversarial_tokens,security_tokens,debugger_tokens
-```
+Append a row to `.planning/usage-log.csv` via `.riff/scripts/csv-append.sh` (flock-protected, child-bash invocation). Orchestrator owns the header on first append. Full schema + invocation: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Usage CSV logging.
 
 Print:
 

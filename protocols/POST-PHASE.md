@@ -106,3 +106,61 @@ Do NOT block. Just warn and proceed.
 **Outcome values:** `pass`, `fail`, `revise`, `proceed`, `error` (skill failure / setup missing).
 
 **Step is one of:** `4b`, `6`.
+
+---
+
+## Executor crash residue (Step 5 post-return)
+
+After the executor sub-agent returns, the orchestrator checks for crash residue:
+
+1. **If `.planning/phases/N-slug/SUMMARY.md` is absent**, the executor crashed silently (internal error, context exhaustion, killed sub-agent). Write a crash marker to `.planning/phases/N-slug/CRASH.json`:
+
+   ```json
+   {
+     "schema_version": 1,
+     "phase": "N-slug",
+     "crashed_at": "<ISO-8601 timestamp>",
+     "crash_type": "executor_silent_exit",
+     "last_step": 5,
+     "summary_written": false,
+     "verdict": "pending",
+     "notes": ""
+   }
+   ```
+
+   Then AskUserQuestion:
+   > Executor returned but did not write SUMMARY.md. Likely an internal crash or context exhaustion.
+   > A) Trigger auto-debug (failure_type: `executor_silent_exit`, artifact: `CRASH.json`)
+   > B) Resume manually (keep the branch, re-run /riff:next when ready, Step 0 detects partial state)
+   > C) Abort, mark phase as crashed (verdict: abandoned)
+
+   On A: run auto-debug. On RESOLVED, re-run Step 5. On UNRESOLVED, halt with DEBUG.md surfaced.
+   On B: update STATE.md Resume Command to `continue /riff:next at Step 5 for phase N-slug. Read STATE.md.` Halt.
+   On C: set CRASH.json `verdict: abandoned`. Update STATE.md `## Active Phase` Step to `CRASHED`. Halt.
+
+2. **If SUMMARY.md exists**, scan it for `FAILED` / `ERROR` / `unresolved` / incomplete tasks. Found → run auto-debug pattern with `failure_type: executor_fail`, `artifact: SUMMARY.md`.
+
+3. **On successful Step 5 completion** (including after auto-debug RESOLVED), `rm -f .planning/phases/N-slug/CRASH.json` to clear any prior crash marker.
+
+Cross-reference: Step 0 and Step 2b in [`RECONCILE.md`](./RECONCILE.md) read the CRASH.json and partial SUMMARY.md state written here to decide resume/restart on the next run.
+
+---
+
+## Usage CSV logging (Step 10)
+
+Append to `.planning/usage-log.csv` via the standalone helper at `.riff/scripts/csv-append.sh` (flock-protected, falls back to bare `>>` if flock is not installed). Invoke as a child bash process so the shebang applies (caller shell may be zsh, which does not parse the fd-redirect syntax).
+
+**Two-step append (orchestrator owns the header):** the helper does ONLY a row append; it never writes a header. Before the first append, the orchestrator must create the file with the header line if it does not already exist:
+
+```bash
+if [ ! -f .planning/usage-log.csv ]; then
+  echo "phase,title,date,total_tokens,duration_min,tool_calls,planner_tokens,executor_tokens,adversarial_tokens,security_tokens,debugger_tokens" > .planning/usage-log.csv
+fi
+bash .riff/scripts/csv-append.sh .planning/usage-log.csv "$row"
+```
+
+Header (written once on file creation by the block above):
+
+```csv
+phase,title,date,total_tokens,duration_min,tool_calls,planner_tokens,executor_tokens,adversarial_tokens,security_tokens,debugger_tokens
+```
