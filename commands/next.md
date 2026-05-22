@@ -9,13 +9,13 @@ model: opus
 
 Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR.
 
-**Models:** see [`protocols/MODEL.md`](../protocols/MODEL.md). Parent is forced to Opus via frontmatter. Sub-agents MUST pass `model:` explicitly on the Agent tool call.
+**Models:** [`protocols/MODEL.md`](../protocols/MODEL.md). Parent is forced to Opus via frontmatter. Sub-agents MUST pass `model:` explicitly on the Agent call.
 
-**Inline vs sub-agent:** Steps 1–4, 5c, 5d, 5e, 8, 9, 10 run inline. Steps 4b, 4c, 5, 5b, 5f, 6, 7, 7b, 8a spawn sub-agents.
+**Auto-gate heuristics:** [`protocols/AUTO-TRIGGERS.md`](../protocols/AUTO-TRIGGERS.md). Design rationale: [`DECISIONS.md`](../DECISIONS.md) (D25–D27).
 
-**Auto-gate heuristics:** see [`protocols/AUTO-TRIGGERS.md`](../protocols/AUTO-TRIGGERS.md). Design rationale: see [`DECISIONS.md`](../DECISIONS.md) (D25–D27).
+**Interactive questions:** every `AskUserQuestion` follows the resolved `explanation_level` (`simple`/`eli5` → plain words, user-flow framing, drop framework jargon). See [`references/EXPLANATION-LEVEL.md`](../references/EXPLANATION-LEVEL.md) § Interactive questions.
 
-**Interactive question phrasing:** every `AskUserQuestion` in this command (Step 3 confidence gate, Step 4b plan-review REVISE escalation, Step 5c DROPPED triage, Step 5d fallow-fail triage, Step 5d runtime-error skip/halt, Step 7 security/adversarial findings, Step 8 unpushed-main prompt, Pending expertise review, Milestone deep audit prompt) follows the resolved `explanation_level`. `simple`/`eli5` → plain words, user-flow framing, drop framework jargon. See [`references/EXPLANATION-LEVEL.md`](../references/EXPLANATION-LEVEL.md) § Interactive questions.
+**Scope gating:** all references to "skip if `scope: scratch`" below mean: personal/local scripts skip adversarial/security/simplifier/fallow/smoke gates entirely. Scope resolved in Step 1.
 
 ## Arguments
 
@@ -92,11 +92,11 @@ Update STATE.md `## Active Phase`:
 - **Step**: 5 (pending)
 ```
 
-The sidecar is read by `hooks/boundary-check.sh` to identify the active PLAN.md deterministically. STATE.md is the human-readable mirror used by HANDOFF bootstrap. Both are reset to default by Step 0 of the next run AND by Step 8c on `local_no_ff` merge.
+Sidecar read by `hooks/boundary-check.sh` to identify the active PLAN.md. STATE.md is the human-readable mirror used by HANDOFF bootstrap. Both reset by Step 0 of next run AND by Step 8c on `local_no_ff` merge.
 
 ### Step 2c: Ensure PROMPTS.md exists (inline)
 
-When entering a phase, ensure `.planning/phases/N-slug/PROMPTS.md` exists. If missing, copy from the framework template:
+Seed `.planning/phases/N-slug/PROMPTS.md` from `.riff/templates/PROMPTS.md` if missing, init `GATES.md` via `node scripts/gates-update.mjs --init` if missing:
 
 ```bash
 mkdir -p .planning/phases/N-slug
@@ -104,20 +104,7 @@ mkdir -p .planning/phases/N-slug
 [[ ! -f .planning/phases/N-slug/GATES.md ]] && node scripts/gates-update.mjs --init .planning/phases/N-slug
 ```
 
-This file captures the **substantive** prompts sent to each sub-agent in Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. The `riff-pr-metadata.sh` script reads it at Step 8 and injects it into the PR body in a collapsible `<details>` block for stakeholder review.
-
-**Prompt-capture convention.** "Substantive" means: capture only what tells the reader what the agent was asked to DO. Drop the boilerplate that controls how its output gets formatted. The PR reader is a stakeholder, not the agent — they want signal, not the agent's mechanical instructions.
-
-| Keep | Drop |
-|------|------|
-| Mission / role / agent identity | "Output requirements" / format rules / one-sentence-per-line / line-break rules |
-| Phase context (number, slug, branch, working dir) | "Where to save" / file paths to write artifacts to (`SUMMARY.md`, `REVIEW.md`, …) |
-| Files to read | "What to return" / "Reporting back" sections aimed at the orchestrator |
-| Hard rules, contracts, invariants | Output template scaffolding (markdown headers, table headers, frontmatter shape) |
-| Verification criteria, severity grades, gate thresholds | Persistence/idempotency hints ("overwrite if exists", "fail-silent on error") |
-| Locked decisions referenced by ID (D1, B-05, etc.) | Repeated stylistic rules already in `taste.md` / `profile.yaml` |
-
-When in doubt: would removing this line change the reader's understanding of WHAT the agent did? If no, drop it.
+PROMPTS.md captures substantive sub-agent prompts (Steps 4, 4b, 5, 5b, 6, 7, auto-debug). Read by `riff-pr-metadata.sh` at Step 8 → injected into PR body as a collapsible block. Convention (what to keep vs drop, finalize-on-PR rules): [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Prompt capture convention.
 
 ### Step 3: Confidence gate (inline)
 
@@ -127,58 +114,40 @@ See `protocols/EXECUTION.md` § Confidence Gate. Any dimension < 0.7 → STOP.
 
 ### Step 4: Plan — INLINE
 
-Parent has already read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent.
+Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. Inject thinking keyword per MODEL.md § Planner selection.
 
-0. **Resolve planner_model.** Read the ROADMAP.yaml entry for phase N, extract `planner_model:`, default to `opus` if missing. Canonical rule: `protocols/MODEL.md` § planner_model resolution.
-   - `opus` (or missing) → continue inline (steps 1–4 below).
-   - `codex` AND `codex` in `executors.available` → print `Run from Codex: $riff:plan {{N}}`, mark loop paused, exit Step 4 without writing PLAN.md.
-   - `codex` requested but `codex` NOT in `executors.available` → log one-line warning, fall back to inline Opus.
+0. **Resolve planner_model** from ROADMAP entry (`opus` default).
+   - `opus` or missing → continue inline.
+   - `codex` AND `codex` in `executors.available` → print `Run from Codex: $riff:plan {{N}}`, mark loop paused, exit without writing PLAN.md.
+   - `codex` requested but absent from `executors.available` → log warning, fall back to inline Opus.
+1. Re-read if not in context: `agents/planner.md` (goal-backward, AC rules, HITL/AFK, TDD mode, anti-patterns), `taste.md`, `.planning/expertise/planner.md`, previous SUMMARY.md. If PLAN-REVIEW.md exists (revision cycle), read it and address every `BLOCKER` before rewriting PLAN.md.
+2. [KEYWORD] Draft the plan. Break into waves. Mark independent tasks `parallel: [task-A, task-B]` (independent = zero shared files).
+3. Write PLAN.md. Do NOT update STATE.md or ROADMAP.yaml.
+4. Include `## Model Recommendation`: default `executor_model: sonnet`. Recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs.
 
-Inject thinking keyword per MODEL.md § Planner selection.
-
-1. Re-read if not in context: `agents/planner.md` (canonical planning policy: goal-backward, AC rules, HITL/AFK, TDD mode, anti-patterns), `taste.md`, `.planning/expertise/planner.md` (project lessons), previous phase SUMMARY.md. If `.planning/phases/N-slug/PLAN-REVIEW.md` exists (revision cycle from Step 4b), read it and address every `BLOCKER` finding before rewriting PLAN.md.
-2. [KEYWORD] Draft the plan. Break into waves. Mark independent tasks with `parallel: [task-A, task-B]` (independent = zero shared files)
-3. Write to `.planning/phases/N-slug/PLAN.md`. Do NOT update STATE.md or ROADMAP.yaml
-4. Include `## Model Recommendation`: default `executor_model: sonnet`. Recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs
-
-**Prompt capture:** Step 4 is inline (no sub-agent invoked), so the "prompt" is the orchestrator's self-instruction. Append a short note describing the inputs read and the planning brief into `.planning/phases/N-slug/PROMPTS.md` under the `## Planner` section heading.
+**Prompt capture:** one-line note of inputs + brief → PROMPTS.md § Planner (inline — no sub-agent).
 
 ---
 
 ### Step 4b: Plan adversarial review — sub-agent (gated)
 
-**Skip if `scope: scratch`.** Personal/local apps don't need adversarial plan review.
+**Skip if `scope: scratch`.** Runs before execution so the planner can revise before code is written (plan-stage fixes cost ~10x less than code-stage).
 
-Runs before execution so the planner can revise BEFORE code is written. Plan-stage fixes cost ~10x less than code-stage fixes.
+**Gate:** `plan_adversarial:` from the phase's ROADMAP.yaml entry. `false` → skip. `true` → always run (skip overrides ignored). `auto` (default) → check [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto) skip overrides; if any fires, log `gates-update.mjs --gate plan-review --status skipped --reason "<reason>"` and continue.
 
-**Gate:** `plan_adversarial:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
+**Model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Default Step 4b: `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
-- `false` → skip (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate plan-review --status skipped --reason "gate=false"`)
-- `true` → run (skip overrides do NOT apply when gate is explicit `true`)
-- `auto` → see [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto)
+**`risk_focus`** from phase ROADMAP entry (optional free text, e.g. `"concurrency, idempotency"`). When set, append to prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_
 
-**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#plan-adversarial-auto`](../protocols/AUTO-TRIGGERS.md#plan-adversarial-auto). If any fires, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate plan-review --status skipped --reason "<reason>"` and continue to Step 5 without spawning Codex.
+**Pre-spawn:** soft-cap warning (see § Codex usage tracking) if >5 Codex calls in last 5h.
 
-**Pre-spawn usage check:** see § Codex usage tracking. Soft-cap warning fires if last 5h has >5 Codex calls.
+**If running:** Agent tool → skill `codex:codex-rescue`. Prompt: phase goal (one line), branch, _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/plan-adversarial-reviewer.md`. Read PLAN.md, PROJECT.md, ROADMAP entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write PLAN-REVIEW.md with PROCEED or REVISE verdict."_
 
-**If running:** Agent tool → skill `codex:codex-rescue`. Run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate plan-review --status pass --reason "model={{MODEL}} effort={{EFFORT}}"` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=4b`, `outcome=proceed|revise|error`, `duration_sec=<measured>`.
+**Post-completion:** `gates-update.mjs --gate plan-review --status pass --reason "model={{MODEL}} effort={{EFFORT}}"`. Append row to `.planning/codex-usage.csv` (step=4b, outcome=proceed|revise|error, duration_sec).
 
-**Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Default for Step 4b: `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
+**Prompt capture:** PROMPTS.md § Plan adversarial reviewer (Codex). Keep distinct from § Adversarial reviewer (Codex) if both Steps 4b and 6 ran.
 
-**Resolve `risk_focus`** from the phase's ROADMAP.yaml entry (optional, free text, e.g. `"concurrency, idempotency"`). When set, append the targeted clause to the prompt below.
-
-Prompt: phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/plan-adversarial-reviewer.md`. Read `.planning/phases/N-slug/PLAN.md`, PROJECT.md, the ROADMAP.yaml entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write `.planning/phases/N-slug/PLAN-REVIEW.md` with PROCEED or REVISE verdict."_
-
-If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_
-
-**Prompt capture:** After launching the plan-adversarial-reviewer sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Adversarial reviewer (Codex)` section heading (or a new `## Plan adversarial reviewer (Codex)` subsection if both Step 4b and Step 6 ran in the same phase — keep them distinct).
-
-**On REVISE:**
-
-1. Surface PLAN-REVIEW.md to user (paste the Findings section).
-2. Re-run Step 4 (planner, inline) with PLAN-REVIEW.md as additional input. Planner addresses each `BLOCKER`, optionally addresses `WARNING`/`NOTE`, rewrites PLAN.md in place.
-3. Re-run Step 4b. Loop until PROCEED.
-4. Max 2 revision cycles, then STOP and escalate to user with both PLAN.md and PLAN-REVIEW.md.
+**On REVISE:** surface Findings section to user. Re-run Step 4 inline with PLAN-REVIEW.md input — planner addresses each `BLOCKER`, optionally `WARNING`/`NOTE`, rewrites PLAN.md in place. Re-run Step 4b. Loop until PROCEED. Max 2 cycles, then STOP and escalate.
 
 **On PROCEED:** continue.
 
@@ -186,33 +155,26 @@ If `risk_focus` is set, append to the prompt: _"Pressure-test these specific ris
 
 ### Step 4c: Pre-exec explanation — sub-agent (always, fail-silent)
 
-Generates a plain-language description of the phase plan for the `/riff:dashboard` view. Audience level + language come from `profile.yaml`. Failure here NEVER blocks the pipeline. Full prompt + level/language resolution: [`protocols/DASHBOARD-EXPLAIN.md`](../protocols/DASHBOARD-EXPLAIN.md) § Step 4c.
+Plain-language description of the plan for `/riff:dashboard`. Level + language from `profile.yaml`. Never blocks the pipeline. Full prompt + resolution: [`protocols/DASHBOARD-EXPLAIN.md`](../protocols/DASHBOARD-EXPLAIN.md) § Step 4c.
 
-**Skip if neither `style.explanation_level` nor `dashboard.level` is set in profile.yaml.**
+**Skip if** neither `style.explanation_level` nor `dashboard.level` is set in profile.yaml.
 
-Agent tool, `model: "haiku"`. Reads PLAN.md + ROADMAP entry, writes `.planning/phases/N-slug/EXPLAIN.{{LEVEL}}.md`.
+Agent tool, `model: "haiku"`. Reads PLAN.md + ROADMAP entry, writes `EXPLAIN.{{LEVEL}}.md`. On error: log a one-line warning, continue.
 
-On error: log a one-line warning and continue.
-
-If `--plan-only` was passed: STOP here. The PLAN.md, PLAN-REVIEW.md, and EXPLAIN.{{LEVEL}}.md are the deliverables.
+If `--plan-only`: STOP here. PLAN.md, PLAN-REVIEW.md, EXPLAIN.{{LEVEL}}.md are the deliverables.
 
 ---
 
 ### Step 5: Execute — sub-agent
 
-**Model:** `sonnet` default. ROADMAP.yaml `executor_model:` wins over PLAN.md's recommendation.
+**Model:** `sonnet` default (ROADMAP `executor_model:` wins over PLAN.md recommendation). **Thinking:** none by default, `think hard` if `complex_execution: true`. **Parallel tasks** marked `parallel:` MUST launch as separate sub-agents in a single message; sequential tasks stay inline within the executor.
 
-**Thinking:** none by default. `think hard` if `complex_execution: true`.
-
-**Parallel tasks:** tasks marked `parallel:` MUST launch as separate sub-agents in a single message. Sequential tasks stay inline within the executor.
-
-Agent prompt (give paths — do NOT paste file contents):
-
+Agent prompt (give paths, do NOT paste file contents):
 - Branch: `riff/phase-N-slug`
-- Read: `.planning/phases/N-slug/PLAN.md`, `taste.md`, `.planning/expertise/executor.md`, `CLAUDE.md`
-- Instruction: _"FIRST: verify you are on branch `riff/phase-N-slug`. Read PLAN.md and execute all tasks. For tasks marked `parallel:`, launch them as separate sub-agents in a single message. Commit after each task (conventional format, stage explicitly). Write `.planning/phases/N-slug/SUMMARY.md`."_
+- Read: PLAN.md, `taste.md`, `.planning/expertise/executor.md`, `CLAUDE.md`
+- Instruction: _"FIRST: verify branch `riff/phase-N-slug`. Read PLAN.md and execute all tasks. For `parallel:` tasks, launch separate sub-agents in a single message. Commit after each task (conventional format, stage explicitly). Write SUMMARY.md."_
 
-**Prompt capture:** After launching the executor sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Executor` section heading.
+**Prompt capture:** PROMPTS.md § Executor.
 
 **After the executor sub-agent returns, check for crash residue.** Full procedure (CRASH.json schema + 3 AskUserQuestion sub-cases): [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Executor crash residue.
 
@@ -224,21 +186,13 @@ Agent prompt (give paths — do NOT paste file contents):
 
 ### Step 5b: Simplify — sub-agent (gated)
 
-**Skip if `scope: scratch`.** Personal/local code doesn't need a simplifier pass.
+**Skip if `scope: scratch`.** Runs before review so reviewers audit simplified code.
 
-Runs before review so reviewers audit simplified code.
+**Gate:** `simplify:` from phase ROADMAP entry. `false` → skip. `true` → always run. `auto` (default) → [`AUTO-TRIGGERS.md#simplifier-auto`](../protocols/AUTO-TRIGGERS.md#simplifier-auto).
 
-**Gate:** `simplify:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
+**If running:** Agent tool, `model: "haiku"`. Prompt: branch, phase N-slug, _"Read `agents/simplifier.md`. Scope: diff of `riff/phase-N-slug` against main only. Apply the protocol. Write REFACTOR.md. Commit simplifications as separate `refactor(phase-N): ...` commits, staging explicitly."_
 
-- `false` → skip
-- `true` → always run
-- `auto` → see [`AUTO-TRIGGERS.md#simplifier-auto`](../protocols/AUTO-TRIGGERS.md#simplifier-auto)
-
-**If running:** Agent tool, `model: "haiku"`.
-
-Prompt: branch name, phase N-slug, instruction _"Read `agents/simplifier.md`. Scope: diff of branch `riff/phase-N-slug` against main only. Apply the protocol. Write `.planning/phases/N-slug/REFACTOR.md`. Commit simplifications as separate `refactor(phase-N): ...` commits, staging explicitly."_
-
-**Prompt capture:** After launching the simplifier sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under a `## Simplifier` section heading (append the section if not already present in the template).
+**Prompt capture:** PROMPTS.md § Simplifier (append the section if absent in template).
 
 ---
 
@@ -272,30 +226,24 @@ Loop until `verdict == MATCH`. **Max 3 cycles per bucket**, then STOP and escala
 
 ### Step 5d: Fallow audit — inline (gated)
 
-**Skip if `scope: scratch`.** Personal/local code doesn't need a codebase-intelligence pass.
+Mechanical codebase intelligence on the phase diff via [`fallow`](https://github.com/fallow-rs/fallow): dead code, duplication, complexity, boundary violations. Sub-second, deterministic, no LLM.
 
-**Skip if not a TS/JS project.** Detection: `package.json` exists at project root. If absent, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status skipped --reason "not TS/JS"` and continue to Step 5e.
+**Skip conditions** (all log via `gates-update.mjs --gate fallow --status skipped --reason "<reason>"`):
+- `scope: scratch`
+- No `package.json` at project root → reason `not TS/JS`
+- `command -v fallow` fails → reason `fallow not installed` (`/riff:start` adds it as devDep for new TS/JS production projects)
 
-Mechanical codebase intelligence on the phase diff via [`fallow`](https://github.com/fallow-rs/fallow): dead code, duplication, complexity, boundary violations. Sub-second, deterministic, no LLM. Replaces what the simplifier used to check mechanically.
+**Run inline:**
+1. Detect runner: `pnpm-lock.yaml` → `pnpm exec`, `bun.lock` → `bunx`, `yarn.lock` → `yarn`, otherwise `npx`.
+2. `<runner> fallow audit --changed-since main --format json > .planning/phases/N-slug/FALLOW.json`
+3. Parse `verdict`: `pass` | `warn` | `fail`.
 
-**Run (inline — fallow is itself the analyzer, no sub-agent needed):**
+**Verdict behavior** (fail-on-fail only, warn does not block):
+- `pass` → gate `pass`, continue.
+- `warn` → gate `warn` with count, continue, surfaced in Step 10 report.
+- `fail` → STOP. Prompt **Fix in place** (re-run executor with FALLOW.json input, max 2 cycles) / **Accepted exception** (`status: pass --reason "accepted-exception: <reason>"`) / **One-time override** (`status: skipped --reason "override"`).
 
-1. Detect package manager runner: `pnpm-lock.yaml` → `pnpm exec`, `bun.lock` → `bunx`, `yarn.lock` → `yarn`, otherwise `npx`.
-2. Run: `<runner> fallow audit --changed-since main --format json > .planning/phases/N-slug/FALLOW.json`
-3. Parse the `verdict` field: `pass` | `warn` | `fail`.
-
-**Behavior (initial integration — fail-on-fail only, warn does not block):**
-
-- `pass` → run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status pass`. Continue.
-- `warn` → run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status warn --reason "<count> findings"`. Continue. Include the count in Step 10 report.
-- `fail` → STOP. Surface the findings to the user via AskUserQuestion:
-  - **Fix in place** — re-run the executor with FALLOW.json as additional input, then re-run Step 5d. Max 2 cycles, then escalate.
-  - **Mark as accepted exception** — run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status pass --reason "accepted-exception: <reason>"` and continue.
-  - **Skip this gate** — one-time override, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status skipped --reason "override"` and continue.
-
-**On `command not found` (fallow not installed):** run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate fallow --status skipped --reason "fallow not installed"` and continue. Don't block. Projects predating this integration won't have fallow as a devDep; `/riff:start` adds it for new TS/JS production projects.
-
-**On other non-zero exit (runtime error):** surface stderr to the user, AskUserQuestion `skip and continue | halt`. Default skip on no answer.
+**Runtime error** (non-zero exit other than `command not found`): surface stderr, AskUserQuestion `skip and continue | halt`. Default skip on no answer.
 
 ---
 
@@ -325,26 +273,22 @@ Boot the dev server, load every route touched by the phase diff in a headless br
 
 ### Step 5f: Post-mortem explanation — sub-agent (always, fail-silent)
 
-Generates a plain-language post-mortem of what was built, with a metadata block, for the `/riff:dashboard` view. Failure NEVER blocks the pipeline. Full prompt + style rules: [`protocols/DASHBOARD-EXPLAIN.md`](../protocols/DASHBOARD-EXPLAIN.md) § Step 5f.
+Plain-language post-mortem of what was built + metadata block, for `/riff:dashboard`. Never blocks the pipeline. Full prompt + style rules: [`protocols/DASHBOARD-EXPLAIN.md`](../protocols/DASHBOARD-EXPLAIN.md) § Step 5f.
 
-**Skip if `dashboard:` section is missing from profile.yaml.**
+**Skip if** `dashboard:` is missing from profile.yaml.
 
 **Compute metadata before spawning:**
-- `DURATION` = SUMMARY.md `{{DURATION}}` field (or wall-clock from first/last commit timestamps if missing)
+- `DURATION` = SUMMARY.md `{{DURATION}}` (or wall-clock from first/last commit timestamps if missing)
 - `FILES_STAT` = `git diff --stat main...HEAD | tail -1`
-- `GATES_SUMMARY` = `node scripts/gates-update.mjs --summarize .planning/phases/N-slug` (empty string if file does not exist)
+- `GATES_SUMMARY` = `node scripts/gates-update.mjs --summarize .planning/phases/N-slug` (empty string if file missing)
 
-Agent tool, `model: "haiku"`. Reads SUMMARY.md + optional PLAN-REVIEW/REFACTOR/VERIFICATION, writes `.planning/phases/N-slug/EXPLAIN-POST.{{LEVEL}}.md` (prose + verbatim metadata block).
-
-On error: log a one-line warning and continue.
+Agent tool, `model: "haiku"`. Reads SUMMARY.md + optional PLAN-REVIEW/REFACTOR/VERIFICATION, writes `EXPLAIN-POST.{{LEVEL}}.md` (prose + verbatim metadata block). On error: log warning, continue.
 
 ---
 
 ### Steps 6 + 7: Adversarial + Security — IN PARALLEL
 
-**Skip BOTH if `scope: scratch`.** Personal/local apps don't run adversarial review or security-reviewer. Jump to Step 8 (PR creation). Belt-and-suspenders: security-reviewer.md also self-skips when scope=scratch in case it's invoked manually.
-
-Launch BOTH in a single message.
+**Skip BOTH if `scope: scratch`** — jump to Step 8. Launch both in a single message.
 
 **Step 6 (Adversarial — Codex):** Agent tool → skill `codex:codex-rescue`.
 
@@ -358,38 +302,33 @@ Launch BOTH in a single message.
 
 **Resolve model + effort** per [`protocols/MODEL.md`](../protocols/MODEL.md) § Codex model + effort. Defaults by `budget_quality`: `frugal` → `gpt-5.4-mini minimal`; `balanced` → `gpt-5.4 medium`; `max` → `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
-**Resolve `risk_focus`** from the phase's ROADMAP.yaml entry (optional, free text, e.g. `"concurrency, idempotency"`). When set, append the targeted clause to the prompt below.
+**`risk_focus`** from phase ROADMAP entry (optional). When set, append to prompt: _"Pressure-test these risks first: {{RISK_FOCUS}}. Other material findings still report, but lead with these."_
 
-**Pre-spawn usage check:** see § Codex usage tracking. Soft-cap warning fires if last 5h has >5 Codex calls.
+**Pre-spawn:** soft-cap warning (see § Codex usage tracking) if >5 Codex calls in last 5h.
 
-**If running:** prompt includes phase goal (one line), branch, instruction _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/adversarial-reviewer.md` for the review contract (severity scale, what to skip, output format). Run `git diff main...HEAD`. Run `npx vitest run` and `npx tsc --noEmit`. Review the diff for: logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Write `.planning/phases/N-slug/REVIEW.md` with PASS/FAIL verdict per the agent spec."_ If `risk_focus` is set, append to the prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_ Run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status pass --reason "model={{MODEL}} effort={{EFFORT}}"` after completion. Append a row to `.planning/codex-usage.csv` (see § Codex usage tracking) with `step=6`, `outcome=pass|fail|error`, `duration_sec=<measured>`.
+**If running:** prompt includes phase goal, branch, _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/adversarial-reviewer.md`. Run `git diff main...HEAD`, `npx vitest run`, `npx tsc --noEmit`. Review for logic bugs, race conditions, edge cases, missing error handling, off-by-one, wrong assumptions. Write REVIEW.md with PASS/FAIL verdict per agent spec."_
 
-**Prompt capture:** After launching the adversarial-reviewer (Codex) sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Adversarial reviewer (Codex)` section heading.
+**Post-completion:** `gates-update.mjs --gate code-review --status pass --reason "model={{MODEL}} effort={{EFFORT}}"`. Append codex-usage row (step=6, outcome=pass|fail|error).
 
-- Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
+**Prompt capture:** PROMPTS.md § Adversarial reviewer (Codex).
 
-**Step 7 (Security — Sonnet):** Agent tool, `model: "sonnet"`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, instruction _"Read `agents/security-reviewer.md`. Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on all changed files. Write `.planning/phases/N-slug/SECURITY.md` per the File Output section of the agent spec (frontmatter `verdict: PASS | PASS-WITH-WARNINGS | BLOCKED`). CRITICAL/HIGH → `BLOCKED`."_
+Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 
-**Prompt capture:** After launching the security-reviewer sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Security reviewer` section heading.
+**Step 7 (Security — Sonnet):** Agent tool, `model: "sonnet"`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, _"Read `agents/security-reviewer.md`. Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on changed files. Write SECURITY.md per agent spec (frontmatter `verdict: PASS | PASS-WITH-WARNINGS | BLOCKED`). CRITICAL/HIGH → `BLOCKED`."_
 
-**Reading the verdict back:**
+**Prompt capture:** PROMPTS.md § Security reviewer.
 
-1. Read `.planning/phases/N-slug/SECURITY.md`.
-2. Parse the `verdict` field from the frontmatter.
-3. If `verdict: BLOCKED`, also confirm via grep: `grep -E '^### \[(CRITICAL|HIGH)\]' SECURITY.md` returns a non-empty match. If frontmatter and grep disagree, treat as BLOCKED (defensive).
-4. If SECURITY.md is absent after the sub-agent returns: treat as `failure_type: security_silent_exit`, `artifact: "SECURITY.md not written"`. Trigger auto-debug.
+**Reading verdict back:** parse `verdict` from SECURITY.md frontmatter. On `BLOCKED`, double-check `grep -E '^### \[(CRITICAL|HIGH)\]' SECURITY.md` returns a match (if frontmatter and grep disagree, treat as BLOCKED defensively). On SECURITY.md absent: trigger auto-debug with `failure_type: security_silent_exit`.
 
-- Auto-debug on `verdict: BLOCKED` → `failure_type: security_fail`, `artifact: SECURITY.md`. On RESOLVED, re-run Step 7 (security-reviewer overwrites SECURITY.md, populating the `## Resolved Findings` table per its idempotency contract).
+Auto-debug on `BLOCKED` → `failure_type: security_fail`, `artifact: SECURITY.md`. On RESOLVED, re-run Step 7 (security-reviewer overwrites SECURITY.md, populating `## Resolved Findings` per idempotency contract).
 
-**Wait for BOTH.** If security CRITICAL/HIGH or adversarial FAIL → do NOT create PR.
+**Wait for BOTH.** Security CRITICAL/HIGH or adversarial FAIL → do NOT create PR.
 
 ### Step 7b: Improver — sub-agent (background, gated)
 
-**Gate:** skip by default. See [`AUTO-TRIGGERS.md#improver-heuristic`](../protocols/AUTO-TRIGGERS.md#improver-heuristic) for run conditions.
+**Gate:** skip by default. Run conditions: [`AUTO-TRIGGERS.md#improver-heuristic`](../protocols/AUTO-TRIGGERS.md#improver-heuristic).
 
-**If running:** Agent tool, `model: "haiku"`, `run_in_background: true`.
-
-Prompt: _"Read `agents/improver.md`. Read `.planning/phases/N-slug/SUMMARY.md` and `.planning/expertise/` files. Write learnings to `.planning/expertise/.pending/` if any. Do not auto-merge. Use Context7 or Ref MCP for recent libs. As your final act before returning, write the completion sentinel `.planning/expertise/.pending/.improver-N-slug.done` per the agent spec — this lets Step 10 distinguish 'completed with no findings' from 'killed mid-write'."_
+**If running:** Agent tool, `model: "haiku"`, `run_in_background: true`. Prompt: _"Read `agents/improver.md`. Read SUMMARY.md and `.planning/expertise/` files. Write learnings to `.planning/expertise/.pending/`. Do not auto-merge. Use Context7 or Ref MCP for recent libs. As final act, write completion sentinel `.planning/expertise/.pending/.improver-N-slug.done` (lets Step 10 distinguish 'completed with no findings' from 'killed mid-write')."_
 
 ---
 
@@ -411,13 +350,9 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch. Full procedure: [`
 
 ### Step 10: Report + usage (inline)
 
-Collect `total_tokens`, `tool_uses`, `duration_ms` from each Agent result.
+Collect `total_tokens`, `tool_uses`, `duration_ms` from each Agent result. Write `.planning/phases/N-slug/USAGE.md` using `templates/usage.md`. USAGE.md + PROMPTS.md are read by `riff-pr-metadata.sh` at Step 8 to enrich the PR body.
 
-Write `.planning/phases/N-slug/USAGE.md` using **`templates/usage.md`**.
-
-`PROMPTS.md` is a sibling phase artifact (alongside USAGE.md, PLAN.md, SUMMARY.md, GATES.md) — it was seeded at Step 2c and appended to throughout Steps 4, 4b, 5, 5b, 6, 7, and the auto-debug pattern. Both USAGE.md and PROMPTS.md are read by `riff-pr-metadata.sh` at Step 8 to enrich the PR body with token usage and substantive sub-agent prompts.
-
-Append a row to `.planning/usage-log.csv` via `.riff/scripts/csv-append.sh` (flock-protected, child-bash invocation). Orchestrator owns the header on first append. Full schema + invocation: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Usage CSV logging.
+Append a row to `.planning/usage-log.csv` via `.riff/scripts/csv-append.sh` (flock-protected, child-bash invocation). Full schema: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Usage CSV logging.
 
 Print:
 
@@ -431,17 +366,7 @@ Next: Phase {{N+1}}: {{NEXT_TITLE}}
 
 ### Pending expertise review (inline)
 
-If `.planning/expertise/.pending/*.md` is non-empty, prompt **Review now / Defer to next phase / Reject all**. Full procedure: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Pending expertise review.
-
-**Review now** walks each pattern and classifies it into one of three tiers, then prompts Accept / Reject / Edit / Re-tier per pattern:
-
-- **Stack** → framework `references/taste/stacks/<stack>.md` (Drizzle, Zod, RR7, etc. — any project using the stack benefits).
-- **Architecture** → framework `references/taste/{architecture,security,backend,testing}.md` (multi-tenant rules, design principles, security patterns).
-- **Project** → `.planning/expertise/<agent>.md` or project `taste.md` (paths, provider quirks, domain-specific).
-
-Default to **Project** tier when unsure. Over-promotion bloats framework references for all users.
-
-**Improver completion check (only if Step 7b ran):** look for sentinel `.planning/expertise/.pending/.improver-N-slug.done`. If absent, warn once. Remove the sentinel when the review loop completes.
+If `.planning/expertise/.pending/*.md` is non-empty, prompt **Review now** (walk patterns, classify Stack / Architecture / Project per-pattern with Accept / Reject / Edit / Re-tier; default to Project tier when unsure) / **Defer** / **Reject all**. Full tier destinations + improver-sentinel handling: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Pending expertise review.
 
 Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected, E edited, D deferred.`
 
@@ -453,7 +378,7 @@ After Step 10, if the just-completed phase has a `milestone:` tag in ROADMAP.yam
 
 ## Session checkpoints
 
-10 steps / parent session → past 200k fast for non-trivial phases. Sub-agent returns + inline reads + status updates accumulate. Past 200k = hallucination risk up. See `CLAUDE.md` § Context budget + [`protocols/HANDOFF.md`](../protocols/HANDOFF.md).
+Non-trivial phases blow past 200k fast (sub-agent returns + inline reads + status updates accumulate, hallucination risk up). See `CLAUDE.md` § Context budget + [`protocols/HANDOFF.md`](../protocols/HANDOFF.md).
 
 3 break points (parent flush via `/clear`, resume from disk):
 
@@ -463,15 +388,9 @@ After Step 10, if the just-completed phase has a `milestone:` tag in ROADMAP.yam
 | **next-B** Code shipped | Step 5 SUMMARY.md, tests green | SUMMARY.md, `git diff main...HEAD`, PLAN.md |
 | **next-C** Review passed | Step 7 PASS / RESOLVED via debugger | SUMMARY.md, REVIEW.md, SECURITY.md, DEBUG.md if any, AUTHORIZATION-MATRIX.md if any |
 
-Close of checkpoint → eval heuristic in [`protocols/HANDOFF.md`](../protocols/HANDOFF.md) § Trigger. 2+ fire →
+End of checkpoint → eval heuristic in [`protocols/HANDOFF.md`](../protocols/HANDOFF.md) § Trigger. 2+ fire → finish current step + write artifact, update STATE.md per HANDOFF § STATE.md contract, surface `Context at NNNk, M heuristics fired. /clear + reopen at checkpoint X with: continue /riff:next at Step Y for phase N-slug. Read STATE.md.`
 
-1. Finish step. Write artifact.
-2. Update STATE.md per HANDOFF.md § STATE.md contract — Active Decisions, Open Buckets, Files to bootstrap, Resume Command.
-3. Surface: `Context at NNNk, M heuristics fired. /clear + reopen at checkpoint X with: continue /riff:next at Step Y for phase N-slug. Read STATE.md.`
-
-Mid-step checkpoint = no. Sub-agent lands artifact before parent flush.
-
-Phases < 25 files / 4 sub-agent passes = single-session default. Checkpoint for 50+ file phases.
+No mid-step checkpoints. Single-session default for phases <25 files / 4 sub-agent passes; checkpoint for 50+ file phases.
 
 ---
 
@@ -492,31 +411,21 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`. Full procedure: [`protocol
 
 ## Codex usage tracking
 
-Every Codex call (Step 4b, Step 6) appends a row to `.planning/codex-usage.csv` (Plus-quota awareness counter, not billing). Full schema + helper invocation: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Codex usage tracking.
+Every Codex call (Steps 4b, 6) appends a row to `.planning/codex-usage.csv` (Plus-quota awareness, not billing). Full schema + helper: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Codex usage tracking. Header: `timestamp,phase,step,model,effort,outcome,duration_sec`. Outcomes: `pass | fail | revise | proceed | error`.
 
-CSV header (orchestrator owns it on first append, helper does row-only appends thereafter):
-
-```csv
-timestamp,phase,step,model,effort,outcome,duration_sec
-```
-
-**Soft cap warning (pre-spawn at Step 4b / Step 6):** if last 5h has >5 Codex calls, print `Codex: 5+ calls in last 5h. Consider switching budget_quality: frugal for the rest of the session, or take a break.` Do NOT block.
-
-**Outcome values:** `pass`, `fail`, `revise`, `proceed`, `error`. **Step:** `4b` or `6`.
+**Soft cap (pre-spawn 4b / 6):** if >5 Codex calls in last 5h, print `Codex: 5+ calls in last 5h. Consider switching budget_quality: frugal for the rest of the session, or take a break.` Do NOT block.
 
 ---
 
 ## AFK mode
 
-Skip human interaction. Proceed on Confident/Likely. STOP on: Unclear, R3, FAIL, CRITICAL/HIGH security, all done.
-
-When the active phase is sandbox-HITL (`mode: HITL` AND `provider_mode: sandbox`), AFK mode does NOT pause for provider verification — it routes through the browser verification protocol (`references/BROWSER-VERIFICATION.md`) with a headless driver (Lightpanda). See Step 2 § Sandbox-HITL routing for the contract (driver choice, sandbox-only creds, evidence capture, fallback). If routing is impossible, write a `LOOP_STOP` line and pause; never silently skip the verification.
+Skip human interaction. Proceed on Confident/Likely. STOP on Unclear / R3 / FAIL / CRITICAL/HIGH security / all done. Sandbox-HITL phases route through `references/BROWSER-VERIFICATION.md` (see Step 2 § Sandbox-HITL routing). If routing impossible: write `LOOP_STOP` and pause, never silently skip.
 
 ## Ground rules
 
-- Give paths, never paste file contents into prompts
-- Step 4 is inline — never a sub-agent (~7x token waste)
-- Sub-agents need explicit `model:` on the Agent call — frontmatter inheritance is not enough
-- Auto-debug artifacts (DEBUG.md) are required input for the next cycle — don't skip triggers
-- One phase per `/riff:next` call
-- **Do not stop and ask "should I continue?" between steps.** The user invoked the pipeline; flow through every step until either (a) a gate fires (REVISE / DROPPED / fail / FAILED / executor crash), (b) an `AskUserQuestion` block in the step spec explicitly requires HITL input, or (c) the phase reaches Step 10 (final SUMMARY). Successful gate transitions (PROCEED, MATCH, pass, RESOLVED) are not checkpoints. Mid-pipeline "want me to continue?" prompts are a defect, not caution.
+- Give paths, never paste file contents into prompts.
+- Step 4 is inline — never a sub-agent (~7x token waste).
+- Sub-agents need explicit `model:` on the Agent call (frontmatter inheritance is not enough).
+- Auto-debug artifacts (DEBUG.md) are required input for the next cycle.
+- One phase per `/riff:next` call.
+- **Never ask "should I continue?" between steps.** Flow through until: a gate fires (REVISE / DROPPED / fail / FAILED / crash), an `AskUserQuestion` block in the step spec requires HITL input, or Step 10 lands. Successful transitions (PROCEED, MATCH, pass, RESOLVED) are NOT checkpoints.

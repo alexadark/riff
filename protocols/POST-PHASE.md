@@ -2,9 +2,31 @@
 
 Procedures used by `/riff:next` outside the main step sequence:
 
+- **Prompt capture convention** — used by every step that spawns a sub-agent (4, 4b, 5, 5b, 6, 7, auto-debug).
 - **Pending expertise review** — runs after Step 10's report.
 - **Auto-debug pattern** — invoked from Steps 5, 6, 7 on failure.
 - **Codex usage tracking** — invoked from Steps 4b and 6 around each Codex call.
+- **Executor crash residue** — Step 5 post-return check.
+- **Usage CSV logging** — Step 10.
+
+---
+
+## Prompt capture convention
+
+After launching each sub-agent, append the substantive prompt to `.planning/phases/N-slug/PROMPTS.md` under the section heading named in each step (e.g. `## Planner`, `## Executor`, `## Adversarial reviewer (Codex)`, `## Simplifier`, `## Security reviewer`, `## Debugger (if invoked)`). PROMPTS.md was seeded at Step 2c from `.riff/templates/PROMPTS.md` and is finalized at Step 8b (any leftover `{{prompt verbatim}}` placeholder for a sub-agent that did not fire becomes `_(not invoked)_`, or `riff-pr-metadata.sh` hard-fails).
+
+**Substantive** means: capture only what tells the reader what the agent was asked to DO. Drop the boilerplate that controls how its output gets formatted. The PR reader is a stakeholder, not the agent — they want signal, not the agent's mechanical instructions.
+
+| Keep | Drop |
+|------|------|
+| Mission / role / agent identity | "Output requirements" / format rules / one-sentence-per-line / line-break rules |
+| Phase context (number, slug, branch, working dir) | "Where to save" / file paths to write artifacts to (`SUMMARY.md`, `REVIEW.md`, …) |
+| Files to read | "What to return" / "Reporting back" sections aimed at the orchestrator |
+| Hard rules, contracts, invariants | Output template scaffolding (markdown headers, table headers, frontmatter shape) |
+| Verification criteria, severity grades, gate thresholds | Persistence/idempotency hints ("overwrite if exists", "fail-silent on error") |
+| Locked decisions referenced by ID (D1, B-05, etc.) | Repeated stylistic rules already in `taste.md` / `profile.yaml` |
+
+When in doubt: would removing this line change the reader's understanding of WHAT the agent did? If no, drop it.
 
 ---
 
