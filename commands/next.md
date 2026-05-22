@@ -38,9 +38,8 @@ Sequence:
 1. **Session sidecar reset** — clear `.planning/active-phase.txt` and any stale `CRASH.json` files with `verdict: abandoned`.
 2. **Active Phase section bootstrap** — ensure STATE.md has one; reset all four fields to `-`.
 3. **Switch to main + check divergence (do NOT blindly pull)** — `git fetch`, branch on `ahead`/`behind` state (in-sync / behind-only `pull --ff-only` / ahead-only prompt push-or-skip / diverged STOP and surface).
-4. **Merge-wait** (`auto_merge` strategy only — skip for `github_button` and `local_no_ff`).
-5. **Stale-todo detection** — for each `status: todo` phase, check whether it shipped: Tier 1 SHA ancestry (`> Merge commit:` line + `git merge-base --is-ancestor`), Tier 2 `gh pr view` (back-fills the SHA), Tier 3 commit-subject grep (legacy). On match: set `status: done`, update STATE.md, commit + push.
-6. **Dirty-tree preflight** — `.planning/`-only auto-skips. Anything else prompts `stash and continue | abort`.
+4. **Stale-todo detection** — for each `status: todo` phase, check whether it shipped: Tier 1 SHA ancestry (`> Merge commit:` line + `git merge-base --is-ancestor`), Tier 2 `gh pr view` (back-fills the SHA), Tier 3 commit-subject grep (legacy). On match: set `status: done`, update STATE.md, commit + push.
+5. **Dirty-tree preflight** — `.planning/`-only auto-skips. Anything else prompts `stash and continue | abort`.
 
 ### Step 1: Read state (inline)
 
@@ -50,17 +49,13 @@ Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFIC
 
 ### Step 2: Pick next phase (inline)
 
-1. Filter `status: todo` phases where all `depends_on` are `done`
-2. Sort by `priority` (P0 first)
-3. AFK mode → filter to AFK-eligible phases only. **AFK-eligible** = `mode: AFK` OR (`mode: HITL` AND `provider_mode: sandbox`). Production-provider HITL phases (`mode: HITL` with `provider_mode: production` or unset) are skipped. See `commands/loop.md` § HITL vs sandbox-HITL and `agents/planner.md` § `provider_mode`.
-4. Last VERIFICATION.md has `FAIL` → don't pick new; create fix plan on existing branch
+1. Filter `status: todo` phases where all `depends_on` are `done`.
+2. Sort by `priority` (P0 first).
+3. Last VERIFICATION.md has `FAIL` → don't pick new; create fix plan on existing branch.
 
 **Seed check:** scan `.planning/seeds/`. For each seed whose `Trigger:` is met against the picked phase:
-- If the seed contains `Pre-approved: yes` near the top (typically `> Pre-approved: yes (approved by <user>, <date>)`) → auto-integrate the seed's `Proposed fix` (or `Idea`) into the current phase's task list as a new task. Do NOT surface to the user. Note the auto-merge in PLAN.md (`Source: seed-NNNN, auto-integrated per pre-approval flag`). The seed file stays in `.planning/seeds/` for traceability — delete it manually if you want a clean folder, or leave it as a record.
-- Otherwise → surface the seed to the user (current behavior).
-- AFK mode → log only, never block.
-
-**Sandbox-HITL routing:** when picked phase is `mode: HITL` AND `provider_mode: sandbox`, provider verification (OAuth callback, Stripe test checkout, magic-link, email confirmation) routes through [`references/BROWSER-VERIFICATION.md`](../references/BROWSER-VERIFICATION.md). Sandbox / test creds only — never production. Capture screenshots + console transcript under a `## Sandbox verification` block in SUMMARY.md. Driver: headless (Lightpanda) in AFK / `/riff:loop`, chrome-devtools-mcp acceptable in interactive mode. No driver available → AFK pauses with `LOOP_STOP`, interactive prompts `verify manually | install lightpanda | halt` (default verify manually).
+- If the seed contains `Pre-approved: yes` near the top (typically `> Pre-approved: yes (approved by <user>, <date>)`) → auto-integrate the seed's `Proposed fix` (or `Idea`) into the current phase's task list as a new task. Do NOT surface to the user. Note the auto-merge in PLAN.md (`Source: seed-NNNN, auto-integrated per pre-approval flag`). The seed file stays in `.planning/seeds/` for traceability.
+- Otherwise → surface the seed to the user.
 
 ### Step 2b: Phase branch (inline)
 
@@ -340,7 +335,6 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch. Full procedure: [`
 - **8b Push + PR.** `git push -u`, compose PR body (human summary + `riff-pr-metadata.sh <phase-id>` stdout), finalize PROMPTS.md (replace any leftover `{{prompt verbatim}}` placeholders with `_(not invoked)_`, else metadata script hard-fails), `PR_URL=$(gh pr create ...)`. Then branch on `profile.yaml` `git.merge_strategy` (default `github_button`):
   - **`github_button`** → print report ending `PR open at $PR_URL. Click Merge on GitHub when ready.` STOP, skip 8c. Step 0 of next run reconciles.
   - **`local_no_ff`** → print report ending `Review on GitHub, then tell me 'merge'.` Stay alive, run 8c on user's "merge" cue.
-  - **`auto_merge`** (AFK) → blocking-label check, re-verify gates (read-only grep on SECURITY.md + jq on SCOPE-CHECK.json), `gh pr merge "$PR_URL" --auto --squash --delete-branch`, STOP, skip 8c.
 - **8c Update state after merge.** Only fires on `local_no_ff`. Checkout main, `pull --ff-only`, `merge --no-ff`, capture merge SHA into `SUMMARY.md` `> Merge commit:` line, clear sidecars (`.planning/active-phase.txt` + STATE.md `## Active Phase`), update ROADMAP.yaml + STATE.md, commit + push, delete branches.
 
 ### Step 9: Learn (inline)
@@ -416,10 +410,6 @@ Every Codex call (Steps 4b, 6) appends a row to `.planning/codex-usage.csv` (Plu
 **Soft cap (pre-spawn 4b / 6):** if >5 Codex calls in last 5h, print `Codex: 5+ calls in last 5h. Consider switching budget_quality: frugal for the rest of the session, or take a break.` Do NOT block.
 
 ---
-
-## AFK mode
-
-Skip human interaction. Proceed on Confident/Likely. STOP on Unclear / R3 / FAIL / CRITICAL/HIGH security / all done. Sandbox-HITL phases route through `references/BROWSER-VERIFICATION.md` (see Step 2 § Sandbox-HITL routing). If routing impossible: write `LOOP_STOP` and pause, never silently skip.
 
 ## Ground rules
 
