@@ -31,155 +31,16 @@ Sync main → Reconcile stale bookkeeping → Read state → Pick next → Confi
 
 ### Step 0: Sync main + reconcile stale bookkeeping (inline)
 
-Step 8c of the previous run only fires if the same Claude session is alive when the user clicks Merge (and the user is on `merge_strategy: github_button`). If the session was cleared/closed between PR creation and merge, the previous phase is shipped on main but still `status: todo` in ROADMAP.yaml. Step 0 catches that drift before picking the next phase, and also guarantees Step 2b branches from a clean main.
+Catches drift when a prior phase shipped between sessions, and guarantees Step 2b branches from a clean main. Full procedure: [`protocols/RECONCILE.md`](../protocols/RECONCILE.md) § Step 0.
 
-**Session sidecar reset (do FIRST).** Before any git operation, clear runtime sidecars left over from any prior `/riff:next` run:
+Sequence:
 
-```bash
-# Cleared by every Step 0 start. Rewritten by Step 2b once a new phase is picked.
-rm -f .planning/active-phase.txt
-
-# Wipe stale CRASH.json files from any phase the user previously aborted
-# (verdict: abandoned). The fresh run gets a clean slate; if Step 5 crashes
-# again, it writes a fresh CRASH.json with the current timestamp.
-find .planning/phases -name CRASH.json -exec grep -l '"verdict": *"abandoned"' {} \; 2>/dev/null | xargs rm -f 2>/dev/null || true
-```
-
-If `STATE.md` does not yet have an `## Active Phase` section (legacy projects from before this contract), insert one. Detection: `grep -q '^## Active Phase' STATE.md`.
-
-Insertion anchors, in priority order:
-
-1. Insert between `## Current Position` and `## Active Decisions` (canonical position).
-2. If `## Active Decisions` is not found, insert immediately after the `## Current Position` block.
-3. If `## Current Position` is also not found, prepend the section after the first level-1 heading (top of file).
-
-```markdown
-## Active Phase
-
-- **Id**: -
-- **Slug**: -
-- **Branch**: -
-- **Step**: -
-```
-
-If the section already exists, reset all four field values to `-`.
-
-1. **Switch to main + check divergence (do NOT blindly pull).**
-
-   ```bash
-   git checkout main
-   git fetch origin main
-   ahead=$(git rev-list --count origin/main..main)
-   behind=$(git rev-list --count main..origin/main)
-   ```
-
-   Branch on the result:
-
-   - **In sync (`ahead=0` AND `behind=0`):** continue.
-   - **Behind only (`ahead=0`, `behind>0`):** `git pull --ff-only origin main`.
-   - **Ahead only (`ahead>0`, `behind=0`):** local has unpushed commits on main. Surface to the user: `Local main has <ahead> unpushed commits. Push now? (yes / skip)`. On `yes`: `git push origin main`. On `skip`: continue without pushing.
-   - **Diverged (`ahead>0` AND `behind>0`):** **STOP and surface — do not auto-fix.** Common cause: a recent PR was squash-merged on GitHub and the squash bundled local-only commits that existed on the phase branch (e.g. unpushed personal commits Alex had on local main when the phase branch was cut). Print:
-
-     ```
-     Local main has <ahead> unpushed commits AND <behind> commits on origin.
-     Likely a squash-merge bundling local-only commits on the phase branch.
-
-     1. List the local-only commits and the origin-only commits to compare:
-          git log origin/main..main --oneline
-          git log main..origin/main --oneline
-     2. If the content of every local-only commit is already represented on origin
-        (typical when PR was squash-merged): `git reset --hard origin/main`
-        aligns local main. Destructive — drops local SHAs, content preserved on origin.
-     3. If there is real local work not on origin: rebase or cherry-pick onto
-        origin/main, then push.
-
-     Resolve manually before re-running /riff:next.
-     ```
-
-     Ask the user how they want to proceed. Do not run any destructive command without explicit confirmation.
-
-2. **Merge-wait (`auto_merge` strategy only).** Skip this sub-step entirely unless `git.merge_strategy` resolves to `auto_merge`. For `github_button` and `local_no_ff`, the stale-todo detection below already handles all reconciliation needed (the loop's outer cooldown also waits in `auto_merge`, but this inner check guards the case where the agent restarts before the prior PR merges).
-
-   Read `git.merge_wait_timeout_min` from the resolved profile (default `30`). Compute `deadline = now + timeout_min * 60`.
-
-   Enumerate open RIFF PRs by branch prefix:
-
-   ```bash
-   gh pr list --author @me --state open \
-     --json number,headRefName,title \
-     --jq '[.[] | select(.headRefName | startswith("riff/phase-"))]'
-   ```
-
-   If the result is empty, continue to sub-step 3 (stale-todo detection). Otherwise, poll each PR every 30 seconds:
-
-   ```bash
-   gh pr view <number> \
-     --json state,mergeStateStatus,labels \
-     --jq '{state: .state, mergeStateStatus: .mergeStateStatus, labels: [.labels[].name]}'
-   ```
-
-   For each poll result, branch:
-
-   - `state == "MERGED"`: mark this PR done in the poll list. When all polled PRs are MERGED, continue to sub-step 3 (stale-todo detection will formalize the ROADMAP/STATE update via Tier 2 lookup).
-   - `state == "CLOSED"`: append `LOOP_STOP[$LOOP_ID]: PR #<number> closed without merge — CI failure or manual close` to STATE.md and STOP.
-   - Any label in the resolved `git.auto_merge_blocking_labels` list appears (default `["do-not-merge", "wip", "hold"]`): append `LOOP_STOP[$LOOP_ID]: blocking label on PR #<number> — human must resolve` to STATE.md and STOP.
-   - `now >= deadline`: append `LOOP_STOP[$LOOP_ID]: merge timeout on PR #<number> after <timeout_min> min` to STATE.md and STOP.
-   - Otherwise (`state == "OPEN"`, mergeStateStatus `BLOCKED` / `CLEAN` / `UNSTABLE` / `UNKNOWN`): sleep 30s and poll again.
-
-   The 30s sleep runs inside the agent's synchronous invocation; the loop wrapper's outer cooldown (see `riff-loop.sh`) provides a second layer of coverage if the agent exits cleanly after scheduling auto-merge but before the PR lands.
-
-3. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
-
-   **Tier 1 — SHA ancestry (canonical).** Read `.planning/phases/<id>-<slug>/SUMMARY.md`. Look for a line matching `^> Merge commit: ([0-9a-f]{7,40})$`. If found, run:
-
-   ```bash
-   git merge-base --is-ancestor <sha> main
-   ```
-
-   Exit 0 → phase is merged. Exit 1 → not merged yet (continue to next phase). PR titles can be free-form; this check ignores them entirely.
-
-   **Tier 2 — `gh pr view` lookup.** SHA absent from SUMMARY.md but a PR number is recorded (look for `PR #<num>` or `(#<num>)` near the top of SUMMARY.md). Try:
-
-   ```bash
-   gh pr view <PR-number> --json mergeCommit,state -q '.state + " " + (.mergeCommit.oid // "")'
-   ```
-
-   If state is `MERGED` and a SHA comes back, write the line `> Merge commit: <sha>` into SUMMARY.md: replace the `{{MERGE_COMMIT}}` placeholder if the line exists, otherwise insert a new `> Merge commit: <sha>` line into the blockquote header block (right after `> Duration:`) so legacy SUMMARY.md files written before this line was templated still get the SHA. Then re-run the Tier 1 ancestry check to confirm.
-
-   **Tier 3 — commit-subject grep (legacy fallback).** Only if Tiers 1 and 2 give nothing. Pre-Phase-4 phases have no `> Merge commit:` line and may not have a PR number recorded:
-
-   ```bash
-   git log --oneline --grep="Phase <id>:" main | head -1
-   ```
-
-   A match means the PR was merged with the canonical RIFF subject. If none of the three tiers detect a merge, the phase is genuinely still todo.
-
-4. **If a stale-todo phase is found:**
-   - Read `.planning/phases/<id>-<slug>/SUMMARY.md` to get the shipped scope, file/test counts, and PR number.
-   - Set `status: done` for that phase in ROADMAP.yaml.
-   - Update STATE.md: rewrite the `## Current Phase` prose to describe the shipped phase, append a row to the `## Phases Completed` table, refresh `## Next Action` to drop the now-shipped phase from "eligible".
-   - Commit:
-     ```bash
-     git add ROADMAP.yaml STATE.md .planning/phases/<id>-<slug>/SUMMARY.md
-     git commit -m "docs(phase-<N>): mark done in roadmap and state after merge"
-     git push origin main
-     ```
-
-   The SUMMARY.md is included in the commit when Tier 2 just back-filled the merge SHA, so the durable artifact catches up to reality.
-
-5. **No stale phase found:** continue to the dirty-tree preflight (below).
-
-6. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
-
-   - **All dirty files are inside `.planning/` only:** auto-skip. These are RIFF artifact residue (interrupted hook writes, etc.) safe to leave; Step 5's executor will overwrite them. Print a one-line notice and continue.
-   - **Any dirty file is outside `.planning/`:** AskUserQuestion:
-     > Working tree has uncommitted changes outside .planning/:
-     > <git status --porcelain output, max 10 lines>
-     > A) Stash and continue (recovered after PR)
-     > B) Abort, commit or discard manually then re-run /riff:next
-
-     On A: `git stash push -m "riff-preflight-stash-<timestamp>"`. Record the stash ref in STATE.md `## Open Buckets` (`Stashed before phase <N>: <stash-ref>`). Continue.
-     On B: halt.
+1. **Session sidecar reset** — clear `.planning/active-phase.txt` and any stale `CRASH.json` files with `verdict: abandoned`.
+2. **Active Phase section bootstrap** — ensure STATE.md has one; reset all four fields to `-`.
+3. **Switch to main + check divergence (do NOT blindly pull)** — `git fetch`, branch on `ahead`/`behind` state (in-sync / behind-only `pull --ff-only` / ahead-only prompt push-or-skip / diverged STOP and surface).
+4. **Merge-wait** (`auto_merge` strategy only — skip for `github_button` and `local_no_ff`).
+5. **Stale-todo detection** — for each `status: todo` phase, check whether it shipped: Tier 1 SHA ancestry (`> Merge commit:` line + `git merge-base --is-ancestor`), Tier 2 `gh pr view` (back-fills the SHA), Tier 3 commit-subject grep (legacy). On match: set `status: done`, update STATE.md, commit + push.
+6. **Dirty-tree preflight** — `.planning/`-only auto-skips. Anything else prompts `stash and continue | abort`.
 
 ### Step 1: Read state (inline)
 
@@ -213,39 +74,12 @@ If no driver from the protocol is available (per § Driver detection in `referen
 
 ### Step 2b: Phase branch (inline)
 
-Before creating the branch, run two preflight checks against the picked phase to detect crash residue from a prior run.
+Before creating the branch, run two preflight checks to detect crash residue from a prior run. Full procedure: [`protocols/RECONCILE.md`](../protocols/RECONCILE.md) § Step 2b.
 
-**Check 2b-i (existing branch):** if `git branch --list "riff/phase-N-slug"` returns non-empty, the branch was created in a prior run.
+- **Check 2b-i (existing branch).** If `riff/phase-N-slug` already exists and SUMMARY.md does NOT, prompt delete-or-abort. If SUMMARY.md exists, jump to 2b-ii.
+- **Check 2b-ii (partial SUMMARY.md).** If SUMMARY.md exists on a `status: todo` phase without a `> Merge commit:` SHA (or `{{MERGE_COMMIT}}` placeholder), this is a Step 5 crash. If no PLAN.md exists either, delete SUMMARY.md and continue from Step 4. Otherwise prompt Resume / Restart / Abort.
 
-- If `.planning/phases/N-slug/SUMMARY.md` exists, jump to Check 2b-ii (partial SUMMARY.md drives the decision).
-- If SUMMARY.md does NOT exist, the branch was created but execution never started. AskUserQuestion:
-  > Branch riff/phase-N-slug exists but no SUMMARY.md found. Likely a crashed run before execution started.
-  > A) Delete branch and start fresh (recommended)
-  > B) Abort, inspect manually
-
-  On A: `git branch -D riff/phase-N-slug && git push origin :riff/phase-N-slug 2>/dev/null || true`. Continue.
-  On B: halt.
-
-**Check 2b-ii (partial SUMMARY.md):** if `.planning/phases/N-slug/SUMMARY.md` exists AND the phase is `status: todo` in ROADMAP.yaml AND the file does NOT contain a `> Merge commit: <40-char-sha>` line (i.e. the line is absent or still reads `{{MERGE_COMMIT}}`), this is a crashed Step 5 from a prior run.
-
-- If `.planning/phases/N-slug/PLAN.md` does NOT exist (very early crash, before plan was written), delete SUMMARY.md and continue from Step 4 normally.
-- Otherwise AskUserQuestion:
-  > Phase N-slug has a partial execution log (SUMMARY.md exists, executor appears to have crashed before completing).
-  > A) Resume — checkout the existing branch, re-run from Step 5 (executor re-reads PLAN.md and continues; may produce duplicate commits for already-done tasks)
-  > B) Restart — delete SUMMARY.md and re-plan from scratch
-  > C) Abort, inspect manually
-
-  On A:
-    - `git checkout riff/phase-N-slug` (if branch missing, fall back to B with a warning).
-    - Update STATE.md `## Open Buckets` with one line: `Resuming crashed phase N-slug from Step 5 — SUMMARY.md was partial`.
-    - Skip Steps 2c (PROMPTS.md already exists), 3, 4, 4b, 4c. Jump to the active-phase sidecar write below, then to Step 5.
-  On B:
-    - `rm .planning/phases/N-slug/SUMMARY.md` (keep PLAN.md, planner reuses it).
-    - `rm -f .planning/phases/N-slug/CRASH.json` (clean previous crash marker if any).
-    - `git branch -D riff/phase-N-slug 2>/dev/null || true`.
-    - `git push origin :riff/phase-N-slug 2>/dev/null || true`.
-    - Continue (branch is recreated below).
-  On C: halt.
+**Resume path (2b-ii A) — control-flow impact on this command:** checkout the existing branch, append a one-line marker to STATE.md `## Open Buckets`, **skip Steps 2c, 3, 4, 4b, 4c**, jump to the active-phase sidecar write below then directly to Step 5.
 
 **Branch creation (skip if Check 2b-ii Resume picked the existing branch):**
 
