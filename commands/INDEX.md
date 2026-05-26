@@ -80,6 +80,12 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - `protocols/WAVE-BUNDLE.md` — assembled by `/riff:wave` Step 3 to package N phases for Codex Apex execution. Defines the single contract Codex reads (goal, per-phase plans, acceptance criteria, RESULT.md shape).
 - `protocols/CODEX-DELEGATION.md` — read by `/riff:wave` Steps 4-5 for the in-process vs out-of-process routing and the three prompt templates (wave, solo, solo-strict).
 - `protocols/BROWSER-CHECK.md` — read by `/riff:wave` Step 3 (auto-enable rules) and by Codex during execution. The "prove the feature actually works" contract adapted from Apex `-v verify`.
+- `protocols/DISCOVERY-DETECTION.md` — read by `/riff:start` Stage 0 to branch greenfield / starter / brownfield and route the brownfield audit-codebase prompt.
+- `protocols/STACK-SOURCE-GATE.md` — read by `/riff:start` Stage 1 to capture how the stack decision is made (`starter-local | starter-clone | known | discussed`) so Stage 5 knows whether to run the starter clone.
+- `protocols/ADVERSARIAL-REVIEW.md` — shared protocol for `/riff:start` Stages 2.5 (architecture) and 4.5 (roadmap). Codex invocation, REVISE/PROCEED loop, 2-cycle cap, skip-safely fallback. Each stage supplies its 5 parameters.
+- `protocols/STARTER-CLONE.md` — read by `/riff:start` Stage 5 only when `stack_source: starter-clone`. Registry match heuristic, clone flow, install verification.
+- `protocols/BOOTSTRAP-FILES.md` — read by `/riff:start` Stage 5 to create persistent artifacts. Two paths: scratch (light) and production (full taste / CONTEXT / INCIDENTS / README), plus the stack-detection slug table.
+- `protocols/DASHBOARD-REGISTER.md` — read by `/riff:start` Stage 5 final step. Best-effort ping so the new project shows up in a running `/riff:dashboard` immediately.
 
 ## Agents referenced by commands and protocols
 
