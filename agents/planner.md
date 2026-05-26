@@ -70,6 +70,16 @@ When adding a new phase to ROADMAP.yaml, also set a `planner_model:` for that ph
 
 Never emit `planner_model: codex` if `executors.available` does not contain `codex` — log a one-line note in the chat reply instead. The canonical heuristic and resolution rules live in `protocols/MODEL.md` § planner_model resolution.
 
+### Wave annotations
+
+When ROADMAP.yaml will feed `/riff:wave`, the planner sets two optional flags per phase. Both default to "auto-decide at wave-time", explicit override only when needed.
+
+- `wave_eligible: true | false` — force include or exclude from waves. Default omitted (computed at wave-time per `/riff:wave` Step 1 eligibility rules). Set `false` on phases that need Claude execution even though they look wave-eligible (e.g. a phase you want to babysit).
+- `browser_check: true | false` — force enable or disable the browser-check contract on this phase. Default omitted (auto-computed per `protocols/BROWSER-CHECK.md` § Auto-enable). Set `true` on a non-UI phase that still has an observable end-to-end outcome worth verifying. Set `false` on a UI phase that genuinely has no user journey (a hidden admin route, a webhook receiver).
+- `codex_effort: medium | high | xhigh` — already documented in `protocols/MODEL.md` § Per-phase override fields. For wave execution: default `high`, bump to `xhigh` on auth/payments/migrations/architecture, drop to `medium` on trivial refactor or pure UI tweaks.
+
+The full wave-eligibility rule is owned by `/riff:wave` Step 1; the planner does not re-implement it here, only sets the per-phase opt-out / opt-in.
+
 ## Security awareness (every plan)
 
 Security-aware ACs are mandatory on EVERY plan that touches the relevant surface — independent of HITL/AFK:

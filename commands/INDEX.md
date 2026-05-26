@@ -1,6 +1,6 @@
 # RIFF Commands — Index
 
-14 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
+15 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
 
 ## Framework (global to the framework install)
 
@@ -25,6 +25,7 @@
 | ---------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `/riff:next`     | The main command. Plans + executes + reviews + opens PR for the next phase.                        | `PLAN.md`, `SUMMARY.md`, `REVIEW.md`, security report, USAGE.md, PR |
 | `/riff:loop [N]` | Run `/riff:next` N times unattended (AFK). Stops on confidence gate, FAIL, CRITICAL/HIGH security. | Multiple phase artifacts + PRs                                      |
+| `/riff:wave [W{N}\|--solo P\|--resume W{N}]` | Bundle N parallel-eligible phases (or 1 solo) and delegate to Codex Apex AXV. Opus plans, Codex executes, browser-check proves it works. | `.planning/waves/W{N}.bundle.md`, `.RESULT.md`, `.SUMMARY.md` |
 | `/riff:status`   | "Where am I?" — shows current phase, next phase, blocked phases, pending expertise.                | Console output                                                      |
 
 ## Off-loop work (when you need to act outside the roadmap)
@@ -60,6 +61,8 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - **Onboard RIFF onto an existing codebase** → `/riff:init` then `/riff:map`
 - **Build the next thing on the roadmap** → `/riff:next`
 - **Walk away and let it run** → `/riff:loop 5` (or whatever N)
+- **Group N parallel phases into one Codex Apex run** → `/riff:wave` (and `--resume W{N}` when Codex finishes)
+- **Delegate one risky/slow phase to Codex** → `/riff:wave --solo P{N}`
 - **Check where I left off** → `/riff:status`
 - **Add work the planner didn't think of** → `/riff:add-phase`
 - **Fix a tiny thing that doesn't need a phase** → `/riff:quick`
@@ -75,6 +78,9 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 ## Protocols referenced by commands
 
 - `protocols/HANDOFF.md` — session checkpoint contract for `/riff:start`, `/riff:next`, `/riff:loop`. Session bloats past safe context → propose `/clear`, reopen with STATE.md. Read at Stage / Step boundaries when 2+ heuristics fire (sub-agents, revisions, tool calls, files written).
+- `protocols/WAVE-BUNDLE.md` — assembled by `/riff:wave` Step 3 to package N phases for Codex Apex execution. Defines the single contract Codex reads (goal, per-phase plans, acceptance criteria, RESULT.md shape).
+- `protocols/CODEX-DELEGATION.md` — read by `/riff:wave` Steps 4-5 for the in-process vs out-of-process routing and the three prompt templates (wave, solo, solo-strict).
+- `protocols/BROWSER-CHECK.md` — read by `/riff:wave` Step 3 (auto-enable rules) and by Codex during execution. The "prove the feature actually works" contract adapted from Apex `-v verify`.
 
 ## Agents referenced by commands and protocols
 
