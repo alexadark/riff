@@ -22,12 +22,12 @@ Three flavors. The bundle file is the same in all three — only the wrapper pro
 
 ### Template A: Wave (N parallel phases)
 
-The "goal style" Alex referenced. Codex receives a clear outcome contract and is free to orchestrate.
+The `/goal` framing convention (per nowstack-saas / Melvynx pattern). First line is the high-level outcome, body is the detailed contract. Codex CLI accepts `/goal <text>` directly in the REPL.
 
 ```text
-Your goal: deliver the wave described in .planning/waves/W{N}.bundle.md.
+/goal Deliver Wave W{N}: {{one-line outcome statement, user-facing}}.
 
-Read the bundle first. It contains {{N}} independent phases, all wave-eligible (no depends_on between them, all AFK, no production providers).
+Read .planning/waves/W{N}.bundle.md first. It contains {{N}} independent phases, all wave-eligible (no depends_on between them, all AFK, no production providers).
 
 Invoke the apex skill with these flags:
   /apex -a -x -v -m -bundle .planning/waves/W{N}.bundle.md
@@ -59,7 +59,7 @@ Stop conditions:
 For phases that are not wave-eligible (depends_on chain) but you still want Codex to execute.
 
 ```text
-Your goal: ship phase P{X} ({{slug}}).
+/goal Ship phase P{X} ({{slug}}): {{one-line outcome statement}}.
 
 Read .planning/phases/{id}-{slug}/PLAN.md. It is the source of truth.
 
@@ -78,7 +78,7 @@ Effort: --model gpt-5.4 --effort {{phase.codex_effort | default high}}.
 For risky phases where Opus wrote the plan and Codex must execute STRICTLY without deviation.
 
 ```text
-Your goal: execute phase P{X} ({{slug}}) EXACTLY as planned. The plan was written by Opus for a reason. Do not improvise.
+/goal Execute phase P{X} ({{slug}}) EXACTLY as planned. The plan was written by Opus for a reason. Do not improvise.
 
 Read .planning/phases/{id}-{slug}/PLAN.md. Treat every file path, every function signature, every test case as a contract.
 
@@ -113,20 +113,22 @@ The skill returns when Codex exits. Claude reads the RESULT.md (or CODEX-RESULT.
 
 ## Out-of-process invocation
 
-When the route is out-of-process, Claude prints the command and stops. The user copies it into a fresh Codex CLI terminal.
+When the route is out-of-process, Claude prints the command and stops. The user copies it into a fresh Codex CLI terminal. The prompt is already prefixed with `/goal` per the templates above, so no manual prefixing needed.
 
 ```
 ─────────────────────────────────────────────────────────────
 WAVE W{N} READY — paste this in a new Codex terminal:
 
 cd {{project_root}}
-codex --model gpt-5.4
+codex --dangerously-bypass-approvals-and-sandbox -c model_reasoning_effort="high"
 
-Then in Codex, paste this prompt:
+Then paste this prompt (already /goal-prefixed):
 
 {{Template A/B/C above, fully rendered with {{N}} and bundle path resolved}}
 ─────────────────────────────────────────────────────────────
 ```
+
+The Codex CLI launch flag `--dangerously-bypass-approvals-and-sandbox` is the Melvynx / nowstack-saas convention for AFK wave execution. It avoids per-action approval prompts that would defeat the autonomous run. The `model_reasoning_effort` override is the wave default; per-phase overrides in the bundle take precedence.
 
 STATE.md gets `wave_pending: W{N}` until the user runs `/riff:wave --resume W{N}`.
 

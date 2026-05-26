@@ -70,14 +70,19 @@ Spawn Agent → skill `codex:codex-rescue` with the bundle. Wait for return. Rea
 
 ## Step 5b: Out-of-process route
 
-Print the exact command to paste in Codex. Format:
+Print the exact two-step sequence to paste in Codex. Format:
 
 ```
 ─────────────────────────────────────────────────────────────
-WAVE W{N} READY — paste this in a new Codex terminal:
+WAVE W{N} READY — open a new Codex terminal and run:
 
-cd {{project_root}}
-/apex -a -x -v -bundle .planning/waves/W{N}.bundle.md
+  cd {{project_root}}
+  codex --dangerously-bypass-approvals-and-sandbox -c model_reasoning_effort="high"
+
+Then paste this /goal-prefixed prompt (rendered from CODEX-DELEGATION
+Template A):
+
+{{full rendered prompt}}
 
 Effort: high (override per phase via codex_effort in ROADMAP)
 Expected duration: ~{{eta}}
