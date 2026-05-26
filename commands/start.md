@@ -21,46 +21,7 @@ model: opus
 
 ## Stage 0: Brownfield / Starter / Greenfield Detection
 
-Distinguish three states based on existing code + git history:
-
-- **Greenfield**: no substantial code. Skip to Stage 1.
-- **Starter**: existing code present but fresh git history (≤2 commits). A template or scaffold was dropped here. Ask the user before assuming.
-- **Brownfield**: existing code with meaningful git history (≥3 commits). True adoption. Offer the audit-codebase baseline.
-
-**Detection:** run a quick heuristic via Bash:
-
-```bash
-COMMITS=$(git log --oneline 2>/dev/null | wc -l | tr -d ' ')
-SRC_FILES=$(find src app lib 2>/dev/null -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.py" -o -name "*.go" -o -name "*.rs" \) 2>/dev/null | wc -l | tr -d ' ')
-if [ "$SRC_FILES" -gt 5 ]; then
-  if [ "$COMMITS" -ge 3 ]; then echo "brownfield"; else echo "starter"; fi
-else
-  echo "greenfield"
-fi
-```
-
-**Greenfield (no substantial code):** skip Stage 0, jump to Stage 1.
-
-**Starter (code present, fresh git history):** AskUserQuestion:
-
-> "I see existing code here (~N source files) but git history is fresh. Is this a starter template you want to use as the project base?"
->
-> - **Yes, use as starter (recommended)** — record `stack_source: starter-local` in `.planning/config.json`. Stage 1 will infer the stack from `package.json` / `pyproject.toml` / `Cargo.toml` / `go.mod` and confirm with you instead of asking from scratch.
-> - **No, start fresh** — flag that pre-existing files may need cleanup. Continue to Stage 1 as greenfield, ignore the existing code for discovery purposes.
-
-**Skip if scope is clearly `scratch`** (e.g., pre-existing `.planning/config.json` with `scope: scratch`, or user explicitly declares this is a personal/local script). Brownfield audit on scratch rarely repays the time.
-
-**Brownfield (existing code, production-bound):** AskUserQuestion:
-
-> "Existing codebase detected (~N source files, M commits). Run `audit-codebase` for a baseline (AI-readiness + bug score) before discovery? Free, ~5-15 min, gives a measurable starting point to track improvement as RIFF phases ship."
->
-> - **Run now (recommended)** — invoke skill `audit-codebase` mode `full`, surface results
-> - **Defer** — note in PROJECT.md that baseline audit is pending, continue to Stage 1
-> - **Skip** — continue to Stage 1 without baseline
-
-If **Run now**: invoke skill `audit-codebase` mode `full`. After completion, surface AI-readiness score + Assay TLDR. Findings feed Stage 1 questioning: known critical bugs become constraints to address, weak module boundaries inform architecture design, low-coverage domains highlight what `taste.md` should harden.
-
-Then continue to Stage 1.
+Follow [`protocols/DISCOVERY-DETECTION.md`](../protocols/DISCOVERY-DETECTION.md). It runs the bash heuristic, branches on greenfield/starter/brownfield, asks the user before assuming a starter, and offers `audit-codebase` mode `full` on brownfield production projects. On `scope: scratch`, the brownfield audit prompt is skipped. Always continue to Stage 1 afterward.
 
 ---
 
@@ -74,17 +35,7 @@ Open with: **"What do you want to build?"** Then follow the thread.
 
 ### Stack source gate (early in the conversation)
 
-Stack is one of the 9 axes but it has a unique property: the user may already know it, may have a starter to clone, or genuinely want to decide it from requirements. After the user's initial answer to "what do you want to build?" and before going deep on features, ask explicitly via AskUserQuestion:
-
-> **"Do you already know what stack you'll use?"**
->
-> - **I have a starter** — local files already present, or a repo URL to clone. We infer stack from the starter, no debate.
-> - **I know my stack** — you state it (TS + Vite + Drizzle, Python + FastAPI + SQLite, bash + sqlite3, etc.), we use it.
-> - **Let's discuss together** — stack emerges from requirements (default for greenfield with no preference).
-
-**Skip this gate** if Stage 0 set `stack_source: starter-local` (the starter answered it). In that case, surface the inferred stack in the next message ("Stack from your starter: <X>. Sound right?") and let the user correct conversationally.
-
-Record the choice in `.planning/config.json` under `stack_source` (`starter-local | starter-clone | known | discussed`). Stage 4 starter clone (via `templates/registry.yaml`) only runs if `stack_source: starter-clone` — the user explicitly opted into cloning a starter. All other modes (`starter-local`, `known`, `discussed`) skip Stage 4's auto-suggest entirely. No surprise clones based on stack-name matching.
+Follow [`protocols/STACK-SOURCE-GATE.md`](../protocols/STACK-SOURCE-GATE.md). It asks "Do you already know your stack?" with three options (have a starter, know my stack, let's discuss), records the choice in `.planning/config.json` under `stack_source` (`starter-local | starter-clone | known | discussed`), and skips itself if Stage 0 already set `starter-local`. Stage 5 starter clone only runs when `stack_source: starter-clone`.
 
 ### Scope gate (mandatory)
 
