@@ -234,111 +234,13 @@ Prompt: project name (one line), instruction _"Run with `--model {{MODEL}} --eff
 
 ## Stage 5: Bootstrap Files
 
-### scratch scope (light)
+1. **(production only) Starter clone.** If `stack_source: starter-clone` in `.planning/config.json`, follow [`protocols/STARTER-CLONE.md`](../protocols/STARTER-CLONE.md). Skip on `starter-local`, `known`, `discussed`, brownfield, and scratch scope. Continue to bootstrap whether or not a clone happened.
 
-Only create what's needed to start building:
+2. **Bootstrap files.** Follow [`protocols/BOOTSTRAP-FILES.md`](../protocols/BOOTSTRAP-FILES.md). Two paths gated on `scope`: scratch creates a minimal set (STATE, stub README, `.planning/{phases,sessions}`), production creates the full set (CONTEXT, taste index + topic files, STATE, INCIDENTS, project README, `.planning/{phases,sessions,design}`). The protocol also covers stack detection and the slug mapping for new stack files.
 
-- `STATE.md` — phase 1, status: Initialized
-- `README.md` — short stub: project name + "WIP, not for production" + a one-line dev command. If a starter clone shipped its own README, overwrite — its content is about the starter, not your project.
-- `mkdir -p .planning/{phases,sessions}` (no `design/` — no design modules ran)
+3. **(TS/JS production only) Mechanical-quality tooling.** Install `fallow` as a devDep via the detected package manager (pnpm/bun/yarn/npm). Powers `/riff:next` Step 5d. See [`references/FALLOW.md`](../references/FALLOW.md) for behavior, gate logic, and skip rules. Skip silently if `package.json` is absent or in scratch scope. Install failure → warn + continue.
 
-**No** `CONTEXT.md`, **no** `taste.md`, **no** `taste/` files, **no** `INCIDENTS.md`, **no** stack-specific configs. The executor runs language-agnostic in scratch mode and only enforces R1-R4 + "no hardcoded secrets" (see `agents/executor.md` § Scratch scope).
-
-Skip the "Stack detection" subsection below entirely.
-
-Jump to Output.
-
-### production scope (full)
-
-#### Starter clone (opt-in only, before bootstrap)
-
-**Gate:** skip this entire subsection unless `stack_source: starter-clone` in `.planning/config.json`. The Stack source gate in Stage 1 makes starter cloning explicit opt-in. For `starter-local` (user dropped a starter manually), `known` (user stated their stack), or `discussed` (stack emerged from requirements), jump straight to **Bootstrap files** below. No auto-suggest based on stack-name matching.
-
-If the gate passes and the project is greenfield (Stage 0 reported `greenfield`), check `templates/registry.yaml` for a starter that matches the stack captured in Stage 1.
-
-```bash
-REGISTRY="$(readlink -f .riff)/templates/registry.yaml"
-[ -f "$REGISTRY" ] || REGISTRY="$HOME/DEV/frameworks/riff/templates/registry.yaml"
-```
-
-Match heuristic: read PROJECT.md Stack section + Constraints, intersect tokens with each starter's `triggers:` list, pick the entry with the highest overlap. Ties → ask which one. Zero matches → skip clone, proceed to bootstrap on empty greenfield.
-
-If a starter matches:
-
-1. AskUserQuestion: "Clone {{starter.name}} as the project base? It ships {{starter.description}}. Files will land in the current directory; the starter's git history will be dropped and a fresh `git init` runs."
-2. **If yes:**
-   - Verify cwd is empty enough to clone into (only `.git`, `README.md`, or hidden files allowed). Refuse if user files would be overwritten.
-   - `TMP=$(mktemp -d) && git clone --depth 1 {{starter.repo}} "$TMP" && rm -rf "$TMP/.git" && cp -R "$TMP/." . && rm -rf "$TMP"`
-   - `rm -rf .git && git init && git add -A && git commit -m "chore: initial commit from {{starter.name}}"`
-   - Verify the cloned starter's `package.json` install runs: `npm install` (or detected pkg manager). On install failure, surface the error and let the user fix it before continuing.
-3. **If no or no match:** continue to bootstrap on the existing tree.
-
-Skip this step entirely on brownfield (existing code present) and on scratch scope (light bootstrap doesn't need a starter).
-
-#### Bootstrap files
-
-- `CONTEXT.md` — locked decisions from discovery
-- `taste.md` (index + always-apply) and `taste/` topic files — start from `templates/taste.md`. The template is an index with an "always-apply architecture" section inline and a "Load on-demand" table pointing to `taste/*.md`. Create the topic files:
-  - `taste/frontend.md` — seeded from `references/taste/stacks/{slug}.md` (framework conventions) + project-specific UI patterns surfaced in discovery.
-  - `taste/backend.md` — seeded from `references/taste/backend.md` + project-specific service/provider patterns.
-  - `taste/security.md` — seeded from `references/taste/security.md` + project-specific auth/tenant rules.
-  - `taste/testing.md` — seeded from `references/taste/testing.md`.
-  - Populate the main `taste.md` "always-apply architecture" section from `references/taste/architecture.md` + project-specific architectural decisions (hexagonal, JSONB-first, etc.).
-  - If no reference exists for the stack, seed `taste/frontend.md` as an empty stub marked "to fill after tracer bullet."
-  - Keep each topic file under ~50 lines. Split further if it grows (e.g. `taste/database.md` spun out of backend).
-  - Verify version-specific rules via `ref_search_documentation` or Context7 MCP before writing.
-- `STATE.md` — phase 1, status: Initialized
-- `INCIDENTS.md` — copy from `templates/INCIDENTS.md` (regression ledger, append-only)
-- `README.md` — write a project-specific README seeded from PROJECT.md. Sections: project name + one-paragraph context (what it does, who for), Stack (bullet list from PROJECT.md), Local dev (prerequisites + the actual `pnpm install` / `pnpm dev` / test commands the bootstrap settled on), Workflow (one-liner pointing to RIFF + `.riff/commands/INDEX.md`), Repo layout (a few key dirs), Status (one line about phase 1). Keep it to ~50-100 lines. If a starter clone shipped its own README (saas-starter, web-starter, etc.), OVERWRITE it — that content describes the template, not your project. Cross-check that the dev commands match `package.json` `scripts:` so you don't ship a README that lies about how to run the app.
-- `mkdir -p .planning/{phases,sessions,design}`
-
-### Stack detection
-
-Stack is captured in Stage 1 (Constraints axis). Map to slug:
-
-| Stack mention in PROJECT.md         | Slug                                 |
-| ----------------------------------- | ------------------------------------ |
-| React Router 7, RR7, framework mode | `react-router-7`                     |
-| Next.js (app router, pages router)  | `nextjs` (add when first used)       |
-| Astro                               | `astro` (add when first used)        |
-| Python / FastAPI / Django           | `python-{framework}` (add when used) |
-| Go                                  | `go` (add when used)                 |
-
-When a new stack is used for the first time, create `references/taste/stacks/{slug}.md` in RIFF itself (not just the project). Pattern after `react-router-7.md`: Core Rules → Component conventions → Framework-specific topics → UX & Accessibility → Anti-Pattern Checklist.
-
-### Mechanical-quality tooling (TS/JS only, best-effort)
-
-If the project is TS/JS (heuristic: `package.json` exists at root), add [`fallow`](https://github.com/fallow-rs/fallow) as a devDep. Fallow powers the Step 5d gate in `/riff:next` (dead code, duplication, complexity, boundary violations on the phase diff). Sub-second, deterministic, no LLM.
-
-Detect the package manager runner and install:
-
-```bash
-if [ -f package.json ]; then
-  if [ -f pnpm-lock.yaml ]; then pnpm add -D fallow
-  elif [ -f bun.lock ]; then bun add -d fallow
-  elif [ -f yarn.lock ]; then yarn add -D fallow
-  else npm install --save-dev fallow
-  fi
-fi
-```
-
-**Skip silently** if `package.json` is absent (Python/Rust/Go/bash projects, or greenfield TS/JS where the stack is not yet scaffolded). Step 5d of `/riff:next` self-skips when fallow is not installed, so the absence does not break the loop. For greenfield TS/JS projects, install fallow when the executor first scaffolds `package.json`.
-
-**On install failure** (network down, registry unreachable), log a one-line warning and continue. Bootstrap is not blocked. The user can run `<pm> add -D fallow` manually later.
-
-### Register with running dashboard (best-effort)
-
-After bootstrap files exist, ping the dashboard so the new project shows up immediately. No-op if the dashboard is not running, no prompt, errors swallowed.
-
-```bash
-if curl -fsS http://localhost:4000/api/projects >/dev/null 2>&1; then
-  curl -fsS -X POST http://localhost:4000/api/projects \
-    -H "Content-Type: application/json" \
-    --data "{\"path\":\"$(pwd)\"}" >/dev/null 2>&1 || true
-fi
-```
-
-If the dashboard is started later from inside this project, `/riff:dashboard` will auto-register it then.
+4. **Register with the running dashboard (best-effort).** Follow [`protocols/DASHBOARD-REGISTER.md`](../protocols/DASHBOARD-REGISTER.md). No-op if the dashboard is not running.
 
 ## Output
 
