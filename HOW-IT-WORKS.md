@@ -16,7 +16,7 @@ Build like a band of six. Ship like one.
 
 RIFF turns "I want to build X" into a repeatable loop: **plan, build, verify, commit**, one phase at a time. Each phase runs in a fresh Claude Code context with full state on disk, so you can stay in the loop and correct as you go, or leave it running unattended.
 
-RIFF works on any project, new or existing. It ships **13 specialized agents**, **14 slash commands**, **19 hooks** in 3 buckets, a local web dashboard, and a small `profile.yaml` that tunes everything to you.
+RIFF works on any project, new or existing. It ships **13 specialized agents**, **14 slash commands**, **18 hooks** in 3 buckets, a local web dashboard, and a small `profile.yaml` that tunes everything to you.
 
 **Who it's for:** solo developers using Claude Code who want structure, quality, and the ability to walk away from the keyboard without the project falling apart.
 
@@ -377,7 +377,7 @@ Full spec: `protocols/MODEL.md` § Budget and model resolution.
 
 ## Hooks: the 3 buckets
 
-19 hooks in `hooks/`, grouped into 3 buckets. Your profile picks which ones wire.
+18 hooks in `hooks/`, grouped into 3 buckets. Your profile picks which ones wire.
 
 ### Bucket A, always wired (universal discipline)
 
@@ -485,7 +485,7 @@ Pending expertise patches are reviewed at the end of the next `/riff:next` Step 
 ├── riff                         # node CLI shim (riff init ...)
 ├── agents/                      # 13 agents (single markdown each)
 ├── commands/                    # 14 slash commands + INDEX.md
-├── hooks/                       # 19 hooks + README.md
+├── hooks/                       # 18 hooks + README.md
 ├── protocols/                   # EXECUTION, MODEL, QUALITY, INCIDENT, PROMOTE, etc.
 ├── references/                  # PROFILE-RESOLUTION, BROWSER-VERIFICATION, taste/, etc.
 ├── templates/                   # PROJECT.md, ROADMAP.yaml, settings JSONs, banner.sh, etc.
