@@ -1,5 +1,0 @@
-display_name: "RIFF Quick"
-description: "Ad-hoc task execution without phase overhead. For small 1-3 file changes with no architectural decisions."
-brand_color: "#10A37F"
-default_prompt: "Use $riff:quick."
-allow_implicit_invocation: false

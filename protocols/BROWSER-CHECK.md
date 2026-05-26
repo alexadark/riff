@@ -81,8 +81,7 @@ The same Lightpanda binary used by `references/BROWSER-VERIFICATION.md`. Headles
 |---|---|---|
 | Interactive `/riff:wave` (user is at the machine) | Built-in (Option 1) | User wants to see what's happening, debug visually |
 | Out-of-process Codex session (AFK, user not watching) | Built-in (Option 1) | Codex runs in its own terminal, can open a browser; user comes back later |
-| In `/riff:loop` AFK mode | Lightpanda (Option 2) | No visible session, must be headless |
-| Sandbox-HITL provider flow | Lightpanda (Option 2, via BROWSER-VERIFICATION.md) | Existing protocol, do not duplicate |
+| Sandbox-HITL provider flow inside `/riff:next` | Lightpanda (Option 2, via BROWSER-VERIFICATION.md) | Existing protocol, do not duplicate |
 
 When Lightpanda is required but absent, fall back to the existing `references/BROWSER-VERIFICATION.md` § Skip behavior — never silently skip.
 

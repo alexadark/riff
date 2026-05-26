@@ -1,5 +1,0 @@
-display_name: "RIFF Loop"
-description: "Run multiple phases autonomously (Ralph loop) using Codex per-iteration. Stops on verification failure, R3 deviation, security issue, or when all AFK phases are done."
-brand_color: "#10A37F"
-default_prompt: "Use $riff:loop."
-allow_implicit_invocation: false

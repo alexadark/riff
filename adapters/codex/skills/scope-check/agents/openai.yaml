@@ -1,7 +1,0 @@
-interface:
-  display_name: "RIFF Scope Check"
-  short_description: "Check phase implementation against the approved RIFF plan"
-  brand_color: "#10A37F"
-  default_prompt: "Use $riff:scope-check <phase-id>."
-policy:
-  allow_implicit_invocation: false

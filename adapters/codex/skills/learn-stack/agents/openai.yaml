@@ -1,7 +1,0 @@
-interface:
-  display_name: "RIFF Learn Stack"
-  short_description: "Research a stack's best practices, synthesize a references/taste/stacks/<stack>.md file"
-  brand_color: "#10A37F"
-  default_prompt: "Use $riff:learn-stack."
-policy:
-  allow_implicit_invocation: false

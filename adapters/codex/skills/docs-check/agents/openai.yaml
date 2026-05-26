@@ -1,7 +1,0 @@
-interface:
-  display_name: "RIFF Docs Check"
-  short_description: "Check or update docs for one RIFF phase"
-  brand_color: "#10A37F"
-  default_prompt: "Use $riff:docs-check <phase-id>."
-policy:
-  allow_implicit_invocation: false

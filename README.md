@@ -23,11 +23,11 @@ When Claude Code ships a native feature that replaces one of your hooks or comma
 ## What you get
 
 - **13 agents** (~60KB total): planner, executor, security-reviewer, adversarial-reviewer (post-build, runs on the Codex CLI as a different model family), plan / architecture / roadmap / incident adversarial reviewers (pre-artifact passes), scope-checker, debugger, simplifier, improver, deep-auditor. Each has a clear single job.
-- **14 slash commands**: framework (onboard, learn-stack, dashboard), project lifecycle (init, start, map, resync), daily loop (next, loop, status), off-loop (add-phase, quick, debug, improver). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
+- **14 slash commands**: framework (onboard, learn-stack, dashboard), project lifecycle (init, start, map, resync), daily loop (next, wave, status), off-loop (add-phase, quick, debug, improver). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
 - **19 hooks** in 3 buckets: A (universal discipline), B (security-adaptable), C (stack-specific). Your profile picks which ones wire.
 - **4 protocols**: EXECUTION (confidence gates, R1-R4 deviations, waves), MODEL (dispatch and budget resolution), QUALITY (post-build checks), plus a MODEL-rationale companion.
 - **Mechanical-quality gate** via [`fallow`](https://github.com/fallow-rs/fallow) on every TS/JS phase: dead code, duplication, complexity, and boundary violations on the diff. Sub-second, deterministic, no LLM. Auto-installed as a devDep at `/riff:start`.
-- **Browser-based verification** for TS/JS: opt-in smoke test gate (`smoke_test: true`) boots the dev server and loads changed routes in a headless browser; sandbox provider flows (`provider_mode: sandbox`) run AFK via the framework-native browser verification protocol (`references/BROWSER-VERIFICATION.md` — Lightpanda + chrome-devtools-mcp) instead of pausing for human OAuth or test-checkout; the `debugger` agent opens the failing route and attaches screenshots to `DEBUG.md` for frontend failures.
+- **Browser-based verification** for TS/JS: opt-in smoke test gate (`smoke_test: true`) boots the dev server and loads changed routes in a headless browser; sandbox provider flows (`provider_mode: sandbox`) verify autonomously via the framework-native browser verification protocol (`references/BROWSER-VERIFICATION.md` — Lightpanda + chrome-devtools-mcp) instead of pausing for human OAuth or test-checkout; the `debugger` agent opens the failing route and attaches screenshots to `DEBUG.md` for frontend failures.
 - **Local web dashboard** (`/riff:dashboard`): kanban view of phases, plain-language pre/post explanations at the level your `profile.yaml` declares, generation metadata (models, durations, gates) per phase. Read-only — driving still happens in the terminal.
 - **Taste references** for architecture, backend, security, testing, plus stack files for Drizzle, Node ESM, React Router 7, Vitest, Zod. Add your own with `/riff:learn-stack`.
 
@@ -77,7 +77,7 @@ Or, from inside Claude Code in the project directory, run the wrapper:
 
 > Most projects keep the framework profile. The per-project override is for genuinely divergent setups (stricter client work, different artifact language, workshop demo). Resolution order and edge cases: [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
 
-Run `/riff:status` anytime to see where you are. Run `/riff:loop 5` to let it build 5 phases unattended. Run `/riff:dashboard` to watch progress in a browser.
+Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let Codex Apex execute them while you're away. Run `/riff:dashboard` to watch progress in a browser.
 
 ## Key concepts
 
@@ -91,7 +91,7 @@ Fields (full schema in `commands/onboard.md` § Profile schema):
 - `risk.sensitive_task_preference`: `cautious` / `balanced` / `fast`
 - `style.*`: length, jargon policy, when to ask vs take initiative
 - `budget.default_quality`: `frugal` / `balanced` / `max`
-- `notifications.channel`: where AFK mode pings you
+- `notifications.channel`: where unattended runs ping you
 
 Edit by hand anytime, or ask Claude conversationally to update specific fields (e.g. "set my notification channel to slack").
 
@@ -140,7 +140,7 @@ All 14 slash commands listed in [`commands/INDEX.md`](./commands/INDEX.md), grou
 
 - **Framework (global):** onboard, learn-stack, dashboard
 - **Setup (project lifecycle):** init, start, map, resync
-- **Core loop:** next, loop, status
+- **Core loop:** next, wave, status
 - **Off-loop:** add-phase, quick, debug, improver
 
 Plus conversational triggers for rare lifecycle actions (incident logging, quarterly review, scratch→production promotion, re-audits, profile edits) — see INDEX.md § Conversational triggers.

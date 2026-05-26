@@ -57,4 +57,3 @@ Delete `.planning/profile.yaml`. The next agent run falls through to the framewo
 - Project scope (independent of profile): `references/PROJECT-SCOPE.md`
 - Onboard flow: `commands/onboard.md`
 - Init flow: `commands/init.md`
-- AFK safety model (per-strategy threat coverage): `references/AFK-SAFETY.md`

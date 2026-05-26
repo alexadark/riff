@@ -1,5 +1,0 @@
-display_name: "RIFF Map"
-description: "Brownfield codebase exploration and RIFF onboarding. Walks an existing project and produces architecture.md, taste.md, risks.md, and per-module specs."
-brand_color: "#10A37F"
-default_prompt: "Use $riff:map."
-allow_implicit_invocation: false

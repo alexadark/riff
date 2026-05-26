@@ -1,6 +1,6 @@
 # Browser Verification Protocol
 
-Programmatic browser-driven verification used by three callers: the Step 5e smoke gate, sandbox-HITL routing in the AFK loop, and the debugger agent's frontend reproduction step. Not an agent and not an external skill — a CLI contract the orchestrator and agents follow inline.
+Programmatic browser-driven verification used by three callers: the Step 5e smoke gate, sandbox-HITL routing in `/riff:next`, and the debugger agent's frontend reproduction step. Not an agent and not an external skill — a CLI contract the orchestrator and agents follow inline.
 
 Framework-native by design: every RIFF user gets the same behavior out of the box from a Lightpanda CLI + chrome-devtools-mcp pair, with no dependency on any user's personal Claude Code skills.
 
@@ -13,7 +13,7 @@ Three call sites share the same driver-detection logic and the same evidence-cap
 | Caller                                  | Purpose                                                                                              |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | **Step 5e smoke test** (`commands/next.md`) | Load every route touched by the diff, capture HTTP status + console errors. Hot-path gate, fast.     |
-| **Sandbox-HITL routing** (`commands/loop.md`, `commands/next.md`) | Drive a sandbox provider flow (test Stripe checkout, dev-tenant OAuth callback, magic-link click, etc.) so the AFK loop does not pause for a human. |
+| **Sandbox-HITL routing** (`commands/next.md`) | Drive a sandbox provider flow (test Stripe checkout, dev-tenant OAuth callback, magic-link click, etc.) so `/riff:next` does not pause for a human. |
 | **Debugger frontend reproduction** (`agents/debugger.md`) | Open the failing route, replay user interactions, capture console + network + screenshot to feed DEBUG.md. |
 
 Each caller decides which subset of the protocol it needs (navigate-and-capture for smoke; full interactive script for sandbox-HITL and debugger). Driver detection, output paths, and skip behavior are shared.
@@ -24,11 +24,11 @@ Each caller decides which subset of the protocol it needs (navigate-and-capture 
 
 Order of preference, evaluated at call time:
 
-1. **`lightpanda` binary on PATH** — fast Zig-based headless browser, sub-100ms cold start, AFK-compatible (no visible session required). Preferred for every caller. Install: see https://lightpanda.io.
+1. **`lightpanda` binary on PATH** — fast Zig-based headless browser, sub-100ms cold start, no visible session required. Preferred for every caller. Install: see https://lightpanda.io.
 2. **`chrome-devtools-mcp` registered in the Claude Code MCP config** — visible Chromium driven via the Chrome DevTools Protocol. Slower cold start, richer devtools surface, good for HITL interactive sessions where the user wants to watch.
 3. **Neither available** → caller follows § Skip behavior below.
 
-The smoke gate (Step 5e) is the only caller that is OK with chrome-devtools-mcp as a strict fallback for AFK runs; sandbox-HITL routing inside `/riff:loop` REQUIRES a headless driver (Lightpanda) because a visible browser would block the loop. If only chrome-devtools-mcp is available inside the loop, treat it as "no headless driver" and follow the AFK skip behavior.
+The smoke gate (Step 5e) accepts chrome-devtools-mcp as a fallback. Sandbox-HITL routing prefers Lightpanda for speed but accepts chrome-devtools-mcp when the user is at the machine.
 
 ---
 
@@ -99,8 +99,7 @@ When driver detection returns "neither available," each caller has its own degra
 | Caller                                            | Skip behavior                                                                                                                            |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | **Step 5e smoke test**                            | Log `Step 5e: skipped — no browser driver` to GATES.md, continue the pipeline.                                                          |
-| **Sandbox-HITL routing in `/riff:loop` (AFK)**    | Write `LOOP_STOP[<id>]: sandbox verification unavailable — falling back to HITL` to STATE.md, pause the loop.                            |
-| **Sandbox-HITL routing in interactive `/riff:next`** | `AskUserQuestion`: `verify manually now (open the URL yourself) | install lightpanda and retry | halt`. Default `verify manually now` on no answer. |
+| **Sandbox-HITL routing in `/riff:next`**          | `AskUserQuestion`: `verify manually now (open the URL yourself) | install lightpanda and retry | halt`. Default `verify manually now` on no answer. |
 | **Debugger frontend reproduction**                | Append `Visual evidence: skipped — no browser driver` to DEBUG.md. The debugger proceeds without screenshots/console capture.            |
 
 A driver that's installed but crashes mid-run is a runtime error, not a skip — surface stderr, AskUserQuestion `skip and continue | halt`, default skip on no answer. The dev server PID (when the caller booted one) is always killed before exit.

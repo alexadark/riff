@@ -1,7 +1,0 @@
-interface:
-  display_name: "RIFF Start"
-  short_description: "Start RIFF discovery and write initial project artifacts"
-  brand_color: "#10A37F"
-  default_prompt: "Use $riff:start."
-policy:
-  allow_implicit_invocation: false

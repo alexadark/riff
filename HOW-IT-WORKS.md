@@ -33,7 +33,7 @@ RIFF works on any project, new or existing. It ships **13 specialized agents**, 
 - [Wave parallelization](#wave-parallelization)
 - [Profile and budget](#profile-and-budget)
 - [Hooks: the 3 buckets](#hooks-the-3-buckets)
-- [AFK mode: /riff:loop](#afk-mode-riffloop)
+- [Unattended runs: /riff:wave](#unattended-runs-riffwave)
 - [Dashboard](#dashboard)
 - [Debug and improver](#debug-and-improver)
 - [File structure](#file-structure)
@@ -110,7 +110,7 @@ After `/riff:init`:
 /riff:dashboard    # open the local web dashboard (kanban + plain-language explanations)
 ```
 
-Run `/riff:status` anytime to see where you are. Run `/riff:loop 5` to let it build 5 phases unattended.
+Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let Codex Apex execute them while you're away.
 
 ---
 
@@ -169,7 +169,7 @@ All grouped in [`commands/INDEX.md`](./commands/INDEX.md). Summary:
 | Command          | When to run                                                                                              |
 | ---------------- | -------------------------------------------------------------------------------------------------------- |
 | `/riff:next`     | The main command. Plans, executes, reviews, opens PR for the next phase.                                 |
-| `/riff:loop [N]` | Run `/riff:next` N times unattended (AFK). Stops on confidence gate, FAIL, security BLOCKED.              |
+| `/riff:wave`     | Bundle N parallel-eligible phases (tagged `mode: AFK`) and delegate execution to Codex Apex AXV. Opus plans, Codex executes, browser-check proves it works. |
 | `/riff:status`   | "Where am I?" — current phase, next phase, blocked phases, pending expertise patches.                    |
 
 ### Off-loop
@@ -240,7 +240,7 @@ When the executor hits something outside the plan, it picks one of four behavior
 - **R3** — architecture change: STOP, ask the user.
 - **R4** — out of scope: seed a new phase, don't build it now.
 
-R1/R2 keep the loop moving without bothering you. R3/R4 protect you from drift.
+R1/R2 keep things moving without bothering you. R3/R4 protect you from drift.
 
 ### Atomic commits
 
@@ -250,7 +250,7 @@ One commit per task in the plan. Conventional commit prefixes (`feat:`, `fix:`, 
 
 If any step fails (executor crash, scope-check FAIL, adversarial FAIL, security BLOCKED, smoke test fail), the pipeline routes to the `debugger` agent. The debugger reads the failing artifact, opens the failing route in a browser if relevant, attaches screenshots, writes `.planning/phases/N-slug/DEBUG.md`, and proposes a fix. On RESOLVED, the failed step re-runs.
 
-Limit: the loop accepts 2 debug attempts per phase. After that, it pauses for you.
+Limit: 2 debug attempts per phase. After that, the pipeline pauses for you.
 
 ### Production vs scratch
 
@@ -402,11 +402,6 @@ Wired all-on for `cautious`, partial for `balanced`, off for `fast`.
 - `migration-gate.sh` — block commits that change a migration without running it.
 - `notify-human.sh` — ping the user via the configured `notifications.channel`.
 
-### AFK-specific (wired only by `/riff:loop`)
-
-- `dangerous-command-guard.sh` — PreToolUse Bash guard, strict superset of destructive-guard.
-- `dangerous-command-guard.auto-merge.sh` — same guard, auto-merge variant.
-
 ### Shared infrastructure
 
 - `commit-msg.sh` — enforce conventional commit format.
@@ -419,30 +414,24 @@ Details: `hooks/README.md` § Buckets.
 
 ---
 
-## AFK mode: /riff:loop
+## Unattended runs: /riff:wave
 
-`/riff:loop N` runs `/riff:next` N times unattended. It stops on:
+`/riff:wave` bundles N parallel-eligible phases and delegates execution to Codex Apex AXV. Opus plans, Codex executes, browser-check proves it works.
 
-- Confidence gate below the threshold (planner not confident enough).
-- FAIL from any pipeline step.
-- Security verdict BLOCKED (CRITICAL/HIGH finding).
-- R3 architecture deviation (architecture change requires human).
-- Completion of all queued phases.
-- HITL phase reached (phases tagged `mode: HITL` in `ROADMAP.yaml` are skipped, see below).
+Eligibility: phase has `status: todo`, `mode: AFK`, `provider_mode != production`, all upstream `depends_on` are completed.
 
-When it stops, it notifies you via the channel in `profile.yaml` (none, telegram, email).
+Two routes (decided per Step 4 of `commands/wave.md`):
+
+- **In-process** — ≤1 phase under 30 min: spawned via the `codex:codex-rescue` skill, blocks Claude until done.
+- **Out-of-process** — ≥2 phases or over 30 min: Claude prints the exact `codex --dangerously-bypass-approvals-and-sandbox` command, the user runs it in a separate Codex terminal. Come back with `/riff:wave --resume W{N}`.
+
+It stops on: FAIL on any phase, security BLOCKED, browser-check FAIL after 3 fix-retest cycles, or scope drift. Phases marked `mode: HITL` never enter a wave.
 
 ### HITL vs AFK phases
 
-- **AFK** (default) — runs unattended. Code-only auth/payment/security work qualifies (security-reviewer + adversarial-reviewer are the safety net).
+- **AFK** (default) — autonomous. Code-only auth/payment/security work qualifies (security-reviewer + adversarial-reviewer are the safety net).
 - **HITL** — requires you present. Reserved for: real OAuth/SSO against a prod IdP, real payment checkout, MFA / hardware token, DNS / prod cutover, irreversible migrations.
-- **Sandbox HITL** — provider flows in sandbox mode (`provider_mode: sandbox`). Runs AFK via the browser verification protocol (`references/BROWSER-VERIFICATION.md`, Lightpanda + chrome-devtools-mcp) instead of pausing for human OAuth or test-checkout.
-
-When only HITL phases remain, the loop stops and notifies you.
-
-### Safety
-
-`/riff:loop` runs with `--dangerously-skip-permissions` plus a stricter PreToolUse guard (`dangerous-command-guard.sh`). The loop is safe on code you wrote yourself or audited. For unknown third-party code, run it interactively first.
+- **Sandbox HITL** — provider flows in sandbox mode (`provider_mode: sandbox`). `/riff:next` does NOT pause — routed through the browser verification protocol (`references/BROWSER-VERIFICATION.md`, Lightpanda + chrome-devtools-mcp) instead of pausing for human OAuth or test-checkout.
 
 ---
 
@@ -466,7 +455,7 @@ Details: `dashboard/README.md`.
 
 Runs automatically on FAIL across the pipeline. Reads the failing artifact, opens the failing route in a headless browser when relevant (Lightpanda + chrome-devtools-mcp), attaches screenshots to `DEBUG.md`, proposes and applies a fix. On RESOLVED, the failed step re-runs.
 
-Limit: 2 attempts per phase. After that, the loop pauses for you. Re-run with `/riff:debug <bug>` for a manual third attempt.
+Limit: 2 attempts per phase. After that, the pipeline pauses for you. Re-run with `/riff:debug <bug>` for a manual third attempt.
 
 ### Manual debug
 
@@ -500,10 +489,9 @@ Pending expertise patches are reviewed at the end of the next `/riff:next` Step 
 ├── protocols/                   # EXECUTION, MODEL, QUALITY, INCIDENT, PROMOTE, etc.
 ├── references/                  # PROFILE-RESOLUTION, BROWSER-VERIFICATION, taste/, etc.
 ├── templates/                   # PROJECT.md, ROADMAP.yaml, settings JSONs, banner.sh, etc.
-├── scripts/                     # riff-init.mjs, riff-loop.sh, gates-update.mjs, etc.
+├── scripts/                     # riff-init.mjs, riff-codex.mjs, gates-update.mjs, etc.
 ├── dashboard/                   # local web dashboard (Bun + React)
-├── core/                        # core schemas (phase artifacts)
-└── adapters/                    # alternate harnesses (not installed by default)
+└── core/                        # core schemas (phase artifacts)
 ```
 
 Project side (after `/riff:init`):

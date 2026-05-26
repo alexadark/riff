@@ -1,5 +1,0 @@
-display_name: "RIFF Dashboard"
-description: "Start (or stop) the local RIFF web dashboard and open the project kanban in the browser."
-brand_color: "#10A37F"
-default_prompt: "Use $riff:dashboard."
-allow_implicit_invocation: false

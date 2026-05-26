@@ -88,7 +88,7 @@ If the section already exists, reset all four field values to `-`.
 
      Ask the user how they want to proceed. Do not run any destructive command without explicit confirmation.
 
-2. **Merge-wait (`auto_merge` strategy only).** Skip this sub-step entirely unless `git.merge_strategy` resolves to `auto_merge`. For `github_button` and `local_no_ff`, the stale-todo detection below already handles all reconciliation needed (the loop's outer cooldown also waits in `auto_merge`, but this inner check guards the case where the agent restarts before the prior PR merges).
+2. **Merge-wait (`auto_merge` strategy only).** Skip this sub-step entirely unless `git.merge_strategy` resolves to `auto_merge`. For `github_button` and `local_no_ff`, the stale-todo detection below already handles all reconciliation needed. This inner check guards the case where `/riff:next` is re-invoked before the prior PR merges.
 
    Read `git.merge_wait_timeout_min` from the resolved profile (default `30`). Compute `deadline = now + timeout_min * 60`.
 
@@ -116,7 +116,7 @@ If the section already exists, reset all four field values to `-`.
    - `now >= deadline`: append `LOOP_STOP[$LOOP_ID]: merge timeout on PR #<number> after <timeout_min> min` to STATE.md and STOP.
    - Otherwise (`state == "OPEN"`, mergeStateStatus `BLOCKED` / `CLEAN` / `UNSTABLE` / `UNKNOWN`): sleep 30s and poll again.
 
-   The 30s sleep runs inside the agent's synchronous invocation; the loop wrapper's outer cooldown (see `riff-loop.sh`) provides a second layer of coverage if the agent exits cleanly after scheduling auto-merge but before the PR lands.
+   The 30s sleep runs inside the agent's synchronous invocation.
 
 3. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
 

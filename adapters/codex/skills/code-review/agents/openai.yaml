@@ -1,7 +1,0 @@
-interface:
-  display_name: "RIFF Code Review"
-  short_description: "Review the implementation diff for one RIFF phase"
-  brand_color: "#10A37F"
-  default_prompt: "Use $riff:code-review <phase-id>."
-policy:
-  allow_implicit_invocation: false

@@ -1,7 +1,0 @@
-interface:
-  display_name: "RIFF Finalize"
-  short_description: "Finalize RIFF state after required gates pass"
-  brand_color: "#10A37F"
-  default_prompt: "Use $riff:finalize <phase-id>."
-policy:
-  allow_implicit_invocation: false

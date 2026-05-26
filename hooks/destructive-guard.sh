@@ -4,8 +4,7 @@
 # Exits 2 to block. Configured in templates/settings*.json.
 #
 # Advisory guard for interactive sessions: blocks the most dangerous patterns
-# but the user can re-prompt to override. For unattended runs the loop uses
-# the stricter dangerous-command-guard.sh via templates/settings.afk.json.
+# but the user can re-prompt to override.
 
 INPUT="$(cat)"
 if command -v jq >/dev/null 2>&1; then

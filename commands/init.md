@@ -134,8 +134,6 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
      [ "$name" = "security-scan.sh" ] || [ "$name" = "commit-msg.sh" ] && continue
      ln -sf "../../../.riff/hooks/$name" ".claude/hooks/riff/$name"
    done
-   # riff-loop.sh stays inside .riff/ — run with .riff/riff-loop.sh
-   chmod +x .riff/riff-loop.sh
    ```
 
 5. **Framework-owned special links** (still symlinked through `.riff/`):
@@ -156,7 +154,6 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
    **Bucket A** (universal): destructive-guard, boundary-check, typecheck-gate, lint-gate, test-gate.
    **Bucket B** (security-adaptable): route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard.
-   **AFK path** (separate): `riff-loop.sh` launches Claude Code with `--settings .riff/templates/settings.afk.json`, which wires `dangerous-command-guard.sh` (PreToolUse Bash, strict superset of destructive-guard) plus the standard PostToolUse hooks. The hook is symlinked into `.claude/hooks/riff/` by the loop in step 4 alongside the others. The AFK settings file is not project-customizable; see `references/AFK-SAFETY.md`.
 
    If profile changes later (edit `profile.yaml` directly, or ask Claude to update it), re-run this step manually or re-run `/riff:init` to rewire.
 

@@ -1,8 +1,8 @@
 # HANDOFF — Session checkpoints for long RIFF commands
 
-`/riff:start` `/riff:next` `/riff:loop` past ~200k tokens → hallucination risk up. Stop, `/clear`, reopen with STATE.md.
+`/riff:start` `/riff:next` `/riff:wave` past ~200k tokens → hallucination risk up. Stop, `/clear`, reopen with STATE.md.
 
-Referenced from `commands/{start,next,loop,INDEX}.md`. Budget colors: `references/CONTEXT-BUDGET.md`.
+Referenced from `commands/{start,next,wave,INDEX}.md`. Budget colors: `references/CONTEXT-BUDGET.md`.
 
 ## Trigger
 
@@ -47,7 +47,7 @@ Contradiction on resume (re-asked question, new answer ≠ STATE.md) → STOP, s
 | **next-B** Code shipped | Step 5 SUMMARY.md, tests green | SUMMARY.md, `git diff main...HEAD`, PLAN.md |
 | **next-C** Review passed | Step 7 PASS / RESOLVED | SUMMARY.md, REVIEW.md, SECURITY.md, DEBUG.md if any |
 
-**`/riff:loop`** — between iterations automatic (fresh context / phase via `riff-loop.sh`). Inside iteration: `/riff:next` checkpoints apply.
+**`/riff:wave`** — 2 checkpoints / wave: after Step 3 (bundle written, before Codex launch), after Step 6 (reconcile complete). Codex execution itself runs in its own session, not subject to Claude's context budget.
 
 ## Don'ts
 

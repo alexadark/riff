@@ -1,7 +1,0 @@
-interface:
-  display_name: "RIFF Improver"
-  short_description: "Extract phase learnings into expertise proposals (pending review)"
-  brand_color: "#10A37F"
-  default_prompt: "Use $riff:improver."
-policy:
-  allow_implicit_invocation: false

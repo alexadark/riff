@@ -121,13 +121,13 @@ Set `provider_mode: production` (or omit) when the phase touches a live provider
 
 **Interaction with `mode:`**
 
-| `mode:` | `provider_mode:` | Loop behavior                                                                                                  |
+| `mode:` | `provider_mode:` | Behavior                                                                                                       |
 | ------- | ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| `AFK`   | any              | Runs AFK as today                                                                                              |
-| `HITL`  | `production`     | Pauses the AFK loop, waits for human verification (status quo)                                                 |
-| `HITL`  | `sandbox`        | Runs AFK **anyway**, routes the provider verification through the browser verification protocol (`references/BROWSER-VERIFICATION.md` — Lightpanda headless), captures screenshots + console transcript into SUMMARY.md. Falls back to HITL pause if no headless driver is available. |
+| `AFK`   | any              | Runs autonomously (single `/riff:next` or bundled into a `/riff:wave` if eligible)                             |
+| `HITL`  | `production`     | Pauses `/riff:next` at the verification step, waits for human verification                                     |
+| `HITL`  | `sandbox`        | `/riff:next` does NOT pause — routes the provider verification through the browser verification protocol (`references/BROWSER-VERIFICATION.md` — Lightpanda headless), captures screenshots + console transcript into SUMMARY.md. Falls back to HITL pause if no headless driver is available. |
 
-In other words: `provider_mode: sandbox` is the explicit knob that says "this HITL surface is automatable with test credentials, let the loop keep going." Production provider flows, MFA, prod payment, DNS cutover, and irreversible migrations stay HITL regardless.
+In other words: `provider_mode: sandbox` is the explicit knob that says "this HITL surface is automatable with test credentials, keep going." Production provider flows, MFA, prod payment, DNS cutover, and irreversible migrations stay HITL regardless.
 
 ## Improver opt-in (when to set `improver: true`)
 

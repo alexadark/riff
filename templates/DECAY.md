@@ -15,7 +15,7 @@ For each item: when did I last use it, what real problem does it solve, can it b
 | `/riff:start` | | keep | |
 | `/riff:map` | | keep | |
 | `/riff:next` | | keep | |
-| `/riff:loop` | | ? | |
+| `/riff:wave` | | ? | |
 | `/riff:status` | | ? | |
 | `/riff:quick` | | ? | |
 | `/riff:debug` | | ? | |
