@@ -7,6 +7,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/extract-files.sh"
+source "$SCRIPT_DIR/lib/scratch-mode.sh"
 riff_extract_files "$@"
 
 check_file() {
@@ -70,11 +71,13 @@ check_file() {
     fi
   done
 
+  riff_scratch_banner
   echo "RIFF Validation Guard: request body read without schema validation."
   echo "  File: $FILE_PATH"
   echo "  Add Zod/Valibot/etc. validation before processing user input."
 
   bash "$SCRIPT_DIR/log-warning.sh" "input-validation" "$FILE_PATH" "Request body read without schema validation (Zod/Valibot/etc.)"
+  riff_scratch_reconcile_append "input-validation" "$FILE_PATH" "Request body read without schema validation (Zod/Valibot/etc.)"
 }
 
 for FILE_PATH in "${RIFF_FILES[@]}"; do
