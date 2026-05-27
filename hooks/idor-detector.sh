@@ -7,6 +7,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/extract-files.sh"
+source "$SCRIPT_DIR/lib/scratch-mode.sh"
 riff_extract_files "$@"
 
 check_file() {
@@ -55,6 +56,7 @@ check_file() {
     fi
   done
 
+  riff_scratch_banner
   echo "RIFF IDOR Detector: database query with external ID but no user scoping."
   echo "  File: $FILE_PATH"
   echo "  Found ID from params/request:"
@@ -64,6 +66,7 @@ check_file() {
   local LINES_SUMMARY
   LINES_SUMMARY=$(echo "$DANGEROUS_LINES" | head -3 | tr '\n' ' ')
   bash "$SCRIPT_DIR/log-warning.sh" "idor" "$FILE_PATH" "DB query with external ID, no user scoping: $LINES_SUMMARY"
+  riff_scratch_reconcile_append "idor" "$FILE_PATH" "DB query with external ID, no user scoping: $LINES_SUMMARY"
 }
 
 for FILE_PATH in "${RIFF_FILES[@]}"; do

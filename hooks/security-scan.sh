@@ -1,15 +1,38 @@
 #!/bin/bash
 # RIFF Security Pre-Commit Hook
-# Blocks commits containing common security issues
+# Blocks commits containing common security issues.
+# In scratch_mode (RIFF_SCRATCH_MODE=1), BLOCKED findings are downgraded to
+# warnings and logged to .planning/followups/SECURITY-W{N}-RECONCILE.md.
 # Install: cp this to .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/lib/scratch-mode.sh" ]; then
+  source "$SCRIPT_DIR/lib/scratch-mode.sh"
+fi
 
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 ISSUES_FOUND=0
+
+# block_or_warn <file> <message>
+# In scratch mode: print a warning, log to SECURITY-W{N}-RECONCILE.md, do not
+# increment ISSUES_FOUND. Otherwise: print BLOCKED and bump the counter.
+block_or_warn() {
+  local file="$1"
+  shift
+  local msg="$*"
+  if command -v riff_scratch_active >/dev/null 2>&1 && riff_scratch_active; then
+    echo -e "  ${YELLOW}SCRATCH WARNING: $msg ($file)${NC}"
+    riff_scratch_reconcile_append "security-scan" "$file" "$msg"
+  else
+    echo -e "  ${RED}BLOCKED: $msg in $file${NC}"
+    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+  fi
+}
 
 # Get staged files using null-delimited output so filenames with spaces/newlines are safe
 STAGED_FILES=()
@@ -48,9 +71,7 @@ for file in "${STAGED_FILES[@]}"; do
   for pattern in "${SECRET_PATTERNS[@]}"; do
     if git diff --cached "$file" | grep -qEi "$pattern" 2>/dev/null; then
       echo ""
-      echo -e "  ${RED}BLOCKED: Possible secret in $file${NC}"
-      echo "  Pattern: $pattern"
-      ISSUES_FOUND=$((ISSUES_FOUND + 1))
+      block_or_warn "$file" "Possible secret matching pattern: $pattern"
     fi
   done
 done
@@ -104,8 +125,7 @@ echo -n "  Checking for .env files... "
 for file in "${STAGED_FILES[@]}"; do
   if [[ "$file" =~ ^\.env ]] && ! [[ "$file" =~ \.example$ ]]; then
     echo ""
-    echo -e "  ${RED}BLOCKED: .env file staged for commit: $file${NC}"
-    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+    block_or_warn "$file" ".env file staged for commit"
   fi
 done
 

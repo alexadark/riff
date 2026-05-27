@@ -49,6 +49,38 @@ Promoting from scratch → production. This will:
 
 AskUserQuestion: `proceed` / `cancel`. Cancel → exit without changes.
 
+### Step 1.4: Scratch-reconcile gate
+
+Before the audit gate, refuse to promote if any wave shipped under
+`scratch_mode` and its security reconcile is still pending.
+
+Check:
+
+```bash
+find .planning/followups -type f -name 'SECURITY-W*-RECONCILE.md' 2>/dev/null
+```
+
+For every file returned, count the bullet entries under its `## Findings`
+section. A file is **clean** when that count is zero (or the file is
+deleted). A file is **pending** otherwise.
+
+**If any pending file exists** → STOP. Print:
+
+```
+Promotion blocked: {{N}} wave(s) shipped under scratch_mode have unresolved
+security findings.
+
+Pending reconcile files:
+{{list each path with its finding count}}
+
+Resolve each finding in the code, then either delete the reconcile file or
+empty its Findings section. Re-trigger promote when clean.
+```
+
+The user fixes and re-triggers promotion. Do not proceed to Step 1.5.
+
+Skip this step silently when no `SECURITY-W*-RECONCILE.md` files exist.
+
 ### Step 1.5: Pre-promote audit gate
 
 Before flipping the scope flag (point of no return for the rest of the flow), run a baseline audit so promotion doesn't paper over known issues that the stricter production gates will then keep flagging.
@@ -144,3 +176,6 @@ Promoted to production scope.
 - Don't drop the existing PROJECT.md content — append/refine, don't replace.
 - Don't run Stage 1 (deep questioning) again — the project already exists and has identity. Only run the missing/light stages.
 - Don't promote silently. Always confirm via AskUserQuestion at Step 1.
+- Don't bypass Step 1.4 by deleting `SECURITY-W*-RECONCILE.md` without
+  actually fixing the findings. The reconcile gate is meant to be a
+  forcing function, not paperwork.

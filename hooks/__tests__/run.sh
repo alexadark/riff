@@ -47,10 +47,11 @@ codex_payload() {
 
 # Run a hook with a given payload and check output against a pattern.
 # Args: <name> <hook.sh> <payload-json> <expect: "warn"|"clean"> <pattern>
+# Honors RIFF_SCRATCH_MODE / RIFF_WAVE_ID if set in the caller's env.
 check() {
   local name="$1" hook="$2" payload="$3" expect="$4" pattern="$5"
   local out
-  out="$(printf '%s' "$payload" | bash "$HOOKS_DIR/$hook" 2>&1)"
+  out="$(printf '%s' "$payload" | env RIFF_SCRATCH_MODE="${RIFF_SCRATCH_MODE:-}" RIFF_WAVE_ID="${RIFF_WAVE_ID:-}" bash "$HOOKS_DIR/$hook" 2>&1)"
   local matched=0
   if echo "$out" | grep -q "$pattern"; then matched=1; fi
 
@@ -152,6 +153,75 @@ touch "$WORK_DIR/src/allowed.ts" "$WORK_DIR/src/outside.ts"
 check "claude: in-boundary → clean"     boundary-check.sh  "$(claude_payload src/allowed.ts)"  clean  "outside task boundaries"
 check "claude: out-of-boundary → warn"  boundary-check.sh  "$(claude_payload src/outside.ts)"  warn   "outside task boundaries"
 check "codex: out-of-boundary → warn"   boundary-check.sh  "$(codex_payload src/outside.ts)"   warn   "outside task boundaries"
+
+echo "=== scratch-mode ==="
+# Same vulnerable files as above, but with RIFF_SCRATCH_MODE=1. Hooks must
+# still emit the warning AND append a line to
+# .planning/followups/SECURITY-WTEST-RECONCILE.md.
+SCRATCH_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR" "$SCRATCH_DIR"' EXIT
+mkdir -p "$SCRATCH_DIR/routes"
+cat > "$SCRATCH_DIR/routes/leak.ts" <<'TS'
+export async function loader({ params }) {
+  return db.query("SELECT * FROM items WHERE id = ?", [params.id]);
+}
+TS
+
+scratch_check() {
+  local name="$1" hook="$2" rel="$3" pattern="$4"
+  local payload
+  payload=$(jq -nc --arg fp "$SCRATCH_DIR/$rel" --arg cwd "$SCRATCH_DIR" '
+    { cwd: $cwd, hook_event_name: "PostToolUse", tool_name: "Write",
+      tool_input: { file_path: $fp, content: "" } }
+  ')
+  local out
+  out="$(printf '%s' "$payload" | env RIFF_SCRATCH_MODE=1 RIFF_WAVE_ID=WTEST bash "$HOOKS_DIR/$hook" 2>&1)"
+  if echo "$out" | grep -q "$pattern" && echo "$out" | grep -q "SCRATCH MODE"; then
+    echo "  PASS  $name (banner + warning)"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL  $name (expected banner + warning matching: $pattern)"
+    echo "        got: ${out:-<empty>}"
+    FAIL=$((FAIL + 1))
+    FAILURES+=("$name")
+  fi
+}
+
+scratch_check "idor: scratch banner + reconcile" idor-detector.sh routes/leak.ts "IDOR Detector"
+
+RECONCILE="$SCRATCH_DIR/.planning/followups/SECURITY-WTEST-RECONCILE.md"
+if [ -f "$RECONCILE" ] && grep -q "idor" "$RECONCILE"; then
+  echo "  PASS  idor: SECURITY-WTEST-RECONCILE.md created with entry"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL  idor: SECURITY-WTEST-RECONCILE.md missing or empty"
+  if [ -f "$RECONCILE" ]; then sed 's/^/        /' "$RECONCILE"; fi
+  FAIL=$((FAIL + 1))
+  FAILURES+=("idor reconcile file")
+fi
+
+# Sanity: without scratch mode, no reconcile file should be created elsewhere.
+SCRATCH_DIR2="$(mktemp -d)"
+mkdir -p "$SCRATCH_DIR2/routes"
+cat > "$SCRATCH_DIR2/routes/leak.ts" <<'TS'
+export async function loader({ params }) {
+  return db.query("SELECT * FROM items WHERE id = ?", [params.id]);
+}
+TS
+no_scratch_payload=$(jq -nc --arg fp "$SCRATCH_DIR2/routes/leak.ts" --arg cwd "$SCRATCH_DIR2" '
+  { cwd: $cwd, hook_event_name: "PostToolUse", tool_name: "Write",
+    tool_input: { file_path: $fp, content: "" } }
+')
+out=$(printf '%s' "$no_scratch_payload" | env -u RIFF_SCRATCH_MODE -u RIFF_WAVE_ID bash "$HOOKS_DIR/idor-detector.sh" 2>&1)
+if ! ls "$SCRATCH_DIR2/.planning/followups/" >/dev/null 2>&1; then
+  echo "  PASS  idor: no reconcile file when scratch mode is off"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL  idor: reconcile file was created without scratch mode"
+  FAIL=$((FAIL + 1))
+  FAILURES+=("idor: unwanted reconcile")
+fi
+rm -rf "$SCRATCH_DIR2"
 
 echo ""
 echo "=== Summary ==="

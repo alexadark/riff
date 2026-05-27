@@ -87,6 +87,26 @@ Quality contract (non-negotiable, enforced in adversarial review):
 Effort: --model gpt-5.5 --effort high (default for wave execution).
 Per-phase overrides are inline in the bundle. Honor them.
 
+Scratch mode (conditional, only when `scratch_mode: true` in the bundle header):
+
+  - You are running in scratch mode. The PostToolUse security hooks (idor,
+    route-auth, input-validation, boundary) are DOWNGRADED: they emit a
+    SCRATCH WARNING but do not block the commit.
+  - For every file you write that triggers one of these warnings, insert a
+    `// TODO(security): <hook>: <short message>` comment at the very top of
+    the file in the SAME patch. Example:
+      `// TODO(security): idor: DB query with external ID, no user scoping`
+  - At the end of the wave, the file
+    `.planning/followups/SECURITY-W{N}-RECONCILE.md` will already exist (the
+    hooks auto-create it). Read it, group findings by file, and append a
+    short paragraph at the end summarizing the trade-off you accepted and
+    what reconcile work is owed.
+  - Do NOT silence the warnings by adding a fake auth check or a stub
+    validator. The point is to ship fast and pay it back later, not to
+    pretend the gap does not exist.
+  - The next `/riff:promote` (or "promote to production" trigger) will be
+    blocked until SECURITY-W{N}-RECONCILE.md is empty or removed.
+
 Stop conditions:
   - All phases reach terminal state (criteria green + commit + browser-check pass) → write RESULT.md, exit
   - 2+ phases blocked with no progress for 15 minutes → write partial RESULT.md, exit
@@ -146,9 +166,17 @@ Agent tool → skill codex:codex-rescue with:
   - prompt: {{template A, B, or C above, fully rendered}}
   - model: {{resolved per phase}}
   - effort: {{resolved per phase}}
+  - env: { RIFF_SCRATCH_MODE: "1", RIFF_WAVE_ID: "W{N}" }  # only when scratch_mode: true
 ```
 
 The skill returns when Codex exits. Claude reads the RESULT.md (or CODEX-RESULT.md) and reconciles.
+
+In-process env contract: the `codex:codex-rescue` skill must forward the env
+dict to its `codex exec` subprocess (e.g. via `subprocess.run(env={**os.environ, **env})`).
+Inline prefixing on the command line is the safer fallback if the skill does
+not yet support an `env` field. Verify with a dry run: launch the wave with
+`scratch_mode: true`, trigger a security finding, and confirm the hook
+prints `RIFF SCRATCH MODE: downgrading ...` before the warning.
 
 ## Out-of-process invocation
 
@@ -159,13 +187,25 @@ When the route is out-of-process, Claude prints the command and stops. The user 
 WAVE W{N} READY — paste this in a new Codex terminal:
 
 cd {{project_root}}
-codex --dangerously-bypass-approvals-and-sandbox -c model_reasoning_effort="high"
+{{env_prefix}}codex --dangerously-bypass-approvals-and-sandbox -c model_reasoning_effort="high"
 
 Then paste this prompt (already /goal-prefixed):
 
 {{Template A/B/C above, fully rendered with {{N}} and bundle path resolved}}
 ─────────────────────────────────────────────────────────────
 ```
+
+`{{env_prefix}}` resolves to:
+
+- Empty string when `scratch_mode: false` in the bundle
+- `RIFF_SCRATCH_MODE=1 RIFF_WAVE_ID=W{N} ` (trailing space, single line) when
+  `scratch_mode: true`
+
+Inline env vars on the launch line propagate to Codex and, through it, to
+every hook subprocess Codex spawns. This is the only way to reach the hooks
+in the out-of-process flow: the user is in a separate terminal that did not
+inherit Claude's env. Without the prefix, `RIFF_SCRATCH_MODE` will be unset
+in the hooks and they will run in normal blocking mode.
 
 The Codex CLI launch flag `--dangerously-bypass-approvals-and-sandbox` is the Melvynx / nowstack-saas convention for AFK wave execution. It avoids per-action approval prompts that would defeat the autonomous run. The `model_reasoning_effort` override is the wave default; per-phase overrides in the bundle take precedence.
 

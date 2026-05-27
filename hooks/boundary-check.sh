@@ -6,6 +6,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/extract-files.sh"
+source "$SCRIPT_DIR/lib/scratch-mode.sh"
 riff_extract_files "$@"
 
 # Resolve project root from payload cwd; fall back to current pwd. boundary list
@@ -43,11 +44,13 @@ check_file() {
     return 0
   fi
 
+  riff_scratch_banner
   echo "RIFF WARNING: $RELATIVE_PATH is outside task boundaries."
   echo "Allowed files: $BOUNDARIES"
   echo "If this is intentional, log it as an R2 deviation."
 
   bash "$SCRIPT_DIR/log-warning.sh" "boundary" "$FILE_PATH" "Outside task boundaries. Allowed: $BOUNDARIES"
+  riff_scratch_reconcile_append "boundary" "$FILE_PATH" "Outside task boundaries. Allowed: $BOUNDARIES"
 }
 
 for FILE_PATH in "${RIFF_FILES[@]}"; do
