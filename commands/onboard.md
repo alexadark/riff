@@ -56,6 +56,12 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
    When `NO_REGISTER=true`, skip the registry write and both symlinks, and report: `registry untouched (--no-register), still pointing at <existing framework_path or "unset">`. Global init commands not wired.
 
+1c. **Install Codex hooks** (framework context only, skipped in project context or when `NO_REGISTER=true`). When `command -v codex` succeeds, run `<framework_root>/install-codex-hooks.sh`. The installer is idempotent and patches `~/.codex/hooks.json` to wire the 4 RIFF PostToolUse hooks (idor-detector, route-auth-guard, input-validation-guard, boundary-check) under the `^(Write|Edit|apply_patch)$` matcher, preserving existing entries (auto-sync, notify, etc.). Report the installer's output verbatim.
+
+   Then tell the user: "Codex hooks installed. They will not fire until you trust them. Start an interactive `codex` session once and approve the trust prompt for each new hook (or run with `--dangerously-bypass-hook-trust` for automation). See `protocols/HOOKS.md` for the trust model."
+
+   When `command -v codex` fails, skip silently. The hooks can be installed later by running the script manually.
+
 2. **Check existing profile.** If the target file exists, AskUserQuestion: `replace` / `keep and exit` / `abort`. On `replace`, copy current to `<target>.bak` first.
 
 3. **Entry choice.** AskUserQuestion:

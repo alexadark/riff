@@ -44,6 +44,11 @@ Execution rules:
   - Browser-check contract: do not stop until the feature provably works in the browser. Read .riff/protocols/BROWSER-CHECK.md.
   - On error, read the relevant logs (server, browser console, DB query output) before changing code.
   - Write .planning/waves/W{N}.RESULT.md per the bundle's RESULT.md contract.
+  - File mutations: ALWAYS use `apply_patch` for create/modify/delete. Do NOT
+    use shell redirections (`printf > file`, `cat <<EOF > file`, `sed -i`). The
+    RIFF security hooks (idor, auth, input-validation, boundary) only fire on
+    `apply_patch`, not on `exec_command`. See .riff/protocols/HOOKS.md § "Known
+    gaps". If you bypass this, the security gate is silently disabled.
 
 Quality contract (non-negotiable, enforced in adversarial review):
 
