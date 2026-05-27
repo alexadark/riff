@@ -25,8 +25,10 @@ if [ ! -f "$CURRENT_PLAN" ]; then
   exit 0
 fi
 
-# Extract boundary files from the plan (read from "Boundaries:" until next heading or blank line)
-BOUNDARIES=$(awk '/^[#]*.*Boundaries/,/^($|#)/' "$CURRENT_PLAN" 2>/dev/null | grep '`' | sed 's/.*`\([^`]*\)`.*/\1/' || true)
+# Extract boundary files from the plan. Range starts at the Boundaries
+# header and ends on the first blank line. (Previously also terminated on
+# `#`, which collapsed the range to the header line itself.)
+BOUNDARIES=$(awk '/^#+.*Boundaries/,/^$/' "$CURRENT_PLAN" 2>/dev/null | grep '`' | sed 's/.*`\([^`]*\)`.*/\1/' || true)
 
 if [ -z "$BOUNDARIES" ]; then
   exit 0
