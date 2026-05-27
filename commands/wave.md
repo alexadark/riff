@@ -19,6 +19,7 @@ Group wave-eligible phases into a Codex Apex AXV run. Opus plans, Codex executes
 | `/riff:wave --solo P12` | Single-phase Codex delegation (no parallel, but same prompt machinery) |
 | `/riff:wave --resume W3` | Read `.planning/waves/W3.RESULT.md`, reconcile, update ROADMAP |
 | `/riff:wave --status` | List active/pending/completed waves |
+| `/riff:wave --scratch` | Run the wave with security gates downgraded to warnings. See § Scratch mode below |
 
 ## Step 1: Eligibility scan
 
@@ -122,9 +123,55 @@ Next: /riff:next or /riff:wave for the next eligible group.
 | Scope drift detected | Same as failure: `needs_human_review`. Do not auto-rollback |
 | `codex:codex-rescue` skill missing | Error, point to `commands/onboard.md` § Codex setup |
 
+## Scratch mode
+
+`/riff:wave --scratch` runs the wave with the four PostToolUse security hooks
+(idor, route-auth, input-validation, boundary) and the security-scan
+pre-commit hook **downgraded to warnings**. The wave still ships, the
+findings are logged, but no hook blocks the commit.
+
+What changes in scratch mode:
+
+1. Bundle header sets `scratch_mode: true`.
+2. Codex receives an extra instruction block (CODEX-DELEGATION Template A,
+   scratch conditional): for every file flagged by a security hook, insert
+   a `// TODO(security): <hook>: <message>` comment at the top of the file.
+3. The hooks themselves auto-append every finding to
+   `.planning/followups/SECURITY-W{N}-RECONCILE.md` via the shared helper
+   `hooks/lib/scratch-mode.sh`. The file is created from
+   `templates/SECURITY-RECONCILE.md` on first finding.
+4. `/riff:wave` propagates `RIFF_SCRATCH_MODE=1` and `RIFF_WAVE_ID=W{N}` to
+   Codex through the launch command, so the hooks see them. See
+   `protocols/CODEX-DELEGATION.md` § Out-of-process invocation.
+5. The promotion flow (`protocols/PROMOTE.md`) refuses to flip scope to
+   production while any non-empty `SECURITY-W*-RECONCILE.md` exists.
+
+When to use:
+
+- Demo prep where you need a feature shipped before the call, knowing the
+  reconcile pass will happen after
+- Internal sandbox features that will never face real users
+- Spike phases that explore a flow you'll rewrite cleanly afterwards
+
+When NOT to use:
+
+- Anything touching production data, auth, payments, PII
+- A wave whose phases include `provider_mode: production`
+- A project already at `scope: production` — RIFF still allows the flag for
+  spike phases but the promote gate is dormant there; prefer fixing the
+  finding inline
+- A pattern. Every scratch wave adds debt to the reconcile queue. Two
+  scratch waves in a row without an intervening reconcile is a smell.
+
+The reconcile gate is the backstop. There is no way to promote with a
+non-empty reconcile file. Resolve, delete the file (or empty its Findings
+section), then promote.
+
 ## Anti-patterns
 
 - Don't bundle a phase whose `depends_on` is not yet `completed`
 - Don't mix HITL phases into a wave (they require human verification, period)
 - Don't override `provider_mode: production` to fit a phase into a wave
 - Don't write the bundle yourself, always go through `protocols/WAVE-BUNDLE.md`
+- Don't use `--scratch` as a habit. The promote gate will catch it eventually,
+  but the goal is to ship clean by default

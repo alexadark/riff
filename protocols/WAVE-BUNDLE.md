@@ -15,6 +15,10 @@ The bundle is the **single contract** Codex Apex reads. Everything Codex needs t
 ```markdown
 # Wave W{N} — {{wave_title}}
 
+## Bundle header
+
+scratch_mode: false  # set to `true` when /riff:wave --scratch was invoked
+
 ## Goal
 
 {{One paragraph stating the user-facing outcome of the whole wave. Not "ship phases 5-7" — but "users can create V2 workflows with conditional branching, A/B tests, and inline editing".}}
@@ -124,6 +128,12 @@ At the end, write `.planning/waves/W{N}.RESULT.md` with this structure:
 - {{follow-up phases to seed in ROADMAP}}
 \`\`\`
 ```
+
+## Bundle header fields
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `scratch_mode` | bool | `false` | When `true`, security findings are downgraded to warnings, Codex is instructed to insert `// TODO(security)` markers, and the wave auto-generates `.planning/followups/SECURITY-W{N}-RECONCILE.md`. Set by `/riff:wave --scratch`. The reconcile file blocks promotion until cleared. See `commands/wave.md` § Scratch mode and `protocols/PROMOTE.md`. |
 
 ## Building the bundle (Claude side)
 
