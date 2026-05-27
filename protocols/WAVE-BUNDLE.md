@@ -37,8 +37,22 @@ A green wave means:
 
 ## Effort
 
-Default: `--model gpt-5.4 --effort high`.
+Default: `--model gpt-5.5 --effort high`.
 Per-phase override below if set.
+
+## Stack rules to honor
+
+{{Auto-detected from package.json. List the .riff/references/taste/stacks/*.md files
+that match the project's stack. Codex MUST read each one before writing code.
+Examples:}}
+
+- `.riff/references/taste/stacks/react-router-7.md` (if `react-router` in deps)
+- `.riff/references/taste/stacks/drizzle.md` (if `drizzle-orm` in deps)
+- `.riff/references/taste/stacks/zod.md` (if `zod` in deps)
+- `.riff/references/taste/stacks/vitest.md` (if `vitest` in devDeps)
+- `.riff/references/taste/stacks/tanstack-start-v1.md` (if `@tanstack/react-start` in deps)
+
+This list is part of the Quality contract enforced by Template A in CODEX-DELEGATION.md.
 
 ---
 

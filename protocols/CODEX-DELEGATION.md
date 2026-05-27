@@ -45,7 +45,41 @@ Execution rules:
   - On error, read the relevant logs (server, browser console, DB query output) before changing code.
   - Write .planning/waves/W{N}.RESULT.md per the bundle's RESULT.md contract.
 
-Effort: --model gpt-5.4 --effort high (default for wave execution).
+Quality contract (non-negotiable, enforced in adversarial review):
+
+  TASTE: Before writing code, read the "Stack rules to honor" list in the bundle header.
+  For each entry, READ the full file at .riff/references/taste/stacks/<stack>.md and honor
+  every rule in its Anti-Pattern Checklist. Common misses to watch:
+    - Every loader-bearing route gets a clientLoader + shouldRevalidate (react-router-7.md)
+    - Every <Link> gets prefetch="intent" (inline) or prefetch="viewport" (nav)
+    - z.record requires 2 args (zod.md)
+    - Re-throw Response/data() shapes in action try/catch before the Error branch
+    - getSession() not getUser() in loaders
+    - <Form> + action, never useEffect + fetch
+
+  NO PLACEHOLDERS: Every interactive element shipped MUST be fully wired.
+    - <button> without onClick or form submit = blocker, not "done"
+    - <Link> to a route that does not exist = blocker
+    - "TODO" / "Coming soon" in user-visible UI = blocker unless the bundle phase
+      explicitly marks it as a stub with rationale
+    - If a feature in the PLAN is out of scope for this phase, exclude it from UI
+      entirely, do not ship a dead element
+
+  COLOR & CONTRAST: When copying design tokens from a prototype or reference theme:
+    - Verify body text contrast >= 4.5:1 against its background (WCAG AA)
+    - Verify large text and UI components >= 3:1
+    - Tokens designed for white backgrounds (#FFFFFF) often fail on paper/cream
+      backgrounds (#F5F2EA range) — re-test on actual background, not the prototype's
+    - Document any text that intentionally uses a low-contrast muted color
+      (timestamps, helper text) in BROWSER-CHECK.md so reviewers do not flag it
+
+  PER-PHASE ARTIFACTS: For each phase, write BOTH:
+    - .planning/phases/{id}-{slug}/SUMMARY.md (what shipped, files touched,
+      tests added, deviations, follow-ups)
+    - .planning/phases/{id}-{slug}/BROWSER-CHECK.md if browser-check enabled
+    The wave-level RESULT.md aggregates but does NOT replace these per-phase files.
+
+Effort: --model gpt-5.5 --effort high (default for wave execution).
 Per-phase overrides are inline in the bundle. Honor them.
 
 Stop conditions:
@@ -70,7 +104,7 @@ Same execution rules as a wave. One commit. Acceptance criteria are a hard contr
 
 Write a single-phase RESULT block to .planning/phases/{id}-{slug}/CODEX-RESULT.md.
 
-Effort: --model gpt-5.4 --effort {{phase.codex_effort | default high}}.
+Effort: --model gpt-5.5 --effort {{phase.codex_effort | default high}}.
 ```
 
 ### Template C: Solo-strict (1 phase, Opus planned)
