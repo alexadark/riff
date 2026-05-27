@@ -223,6 +223,22 @@ else
 fi
 rm -rf "$SCRATCH_DIR2"
 
+echo "=== reconcile-diff ==="
+RD_DIR="$(mktemp -d)"
+(cd "$RD_DIR" && git init -q && git config user.email t@t.t && git config user.name t && mkdir -p routes && echo "// seed" > routes/seed.ts && git add -A && git commit -q -m seed)
+RD_BASE=$(git -C "$RD_DIR" rev-parse HEAD)
+cat > "$RD_DIR/routes/leak.ts" <<'TS'
+export async function loader({ params }) { return db.query("SELECT * FROM items WHERE id = ?", [params.id]); }
+TS
+git -C "$RD_DIR" add routes/leak.ts && git -C "$RD_DIR" commit -q -m wave
+RD_OUT=$(bash "$HOOKS_DIR/lib/reconcile-diff.sh" "$RD_BASE" HEAD "$RD_DIR" 2>&1)
+if echo "$RD_OUT" | grep -q 'FINDING|idor-detector' && echo "$RD_OUT" | grep -q 'FINDING|route-auth-guard' && echo "$RD_OUT" | grep -q 'SUMMARY|files_scanned=1|findings=2'; then
+  echo "  PASS  reconcile-diff: flags idor + route-auth on vulnerable diff"; PASS=$((PASS + 1))
+else
+  echo "  FAIL  reconcile-diff: unexpected output"; echo "$RD_OUT" | sed 's/^/        /'; FAIL=$((FAIL + 1)); FAILURES+=("reconcile-diff")
+fi
+rm -rf "$RD_DIR"
+
 echo ""
 echo "=== Summary ==="
 echo "  $PASS passed, $FAIL failed"
