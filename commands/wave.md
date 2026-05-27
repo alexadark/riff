@@ -68,7 +68,10 @@ User can force with `--in-process` or `--out-of-process` flag.
 
 ## Step 5a: In-process route
 
-Spawn Agent → skill `codex:codex-rescue` with the bundle. Wait for return. Read RESULT.md. Jump to Step 6.
+Record `wave_W{N}_base_sha: $(git rev-parse HEAD)` in STATE.md so Step 6
+can resolve the diff range without guessing. Spawn Agent → skill
+`codex:codex-rescue` with the bundle. Wait for return. Read RESULT.md.
+Jump to Step 6.
 
 ## Step 5b: Out-of-process route
 
@@ -96,7 +99,11 @@ Output: .planning/waves/W{N}.RESULT.md
 `RIFF_SCRATCH_MODE=1 RIFF_WAVE_ID=W{N} ` (single line, trailing space) when
 `scratch_mode: true`. See `protocols/CODEX-DELEGATION.md` § Out-of-process.
 
-Update STATE.md: `wave_pending: W{N}`. Stop. User runs Codex, comes back with `/riff:wave --resume W{N}`.
+Update STATE.md:
+- `wave_pending: W{N}`
+- `wave_W{N}_base_sha: $(git rev-parse HEAD)` (captured BEFORE the user runs Codex, so Step 6 can resolve the diff range)
+
+Stop. User runs Codex, comes back with `/riff:wave --resume W{N}`.
 
 ## Step 6: Reconcile (--resume path)
 
@@ -104,9 +111,38 @@ Read `.planning/waves/W{N}.RESULT.md`. For each phase in the wave:
 
 1. Verify the commit exists (`git log --grep="<phase_slug>"`)
 2. Read the per-phase block: pass/fail per acceptance criterion, browser-check verdict, any deviation note
-3. Spawn `scope-checker` agent against the wave's planned files vs actual diff
-4. If a phase reports browser-check FAIL or scope drift → mark `status: needs_human_review`, surface to user
-5. If all phases PASS → mark `status: completed`, update ROADMAP.yaml, run [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) once per phase (compressed)
+
+### Step 6.1: Security and scope reconcile
+
+Read [`protocols/WAVE-RECONCILE.md`](../protocols/WAVE-RECONCILE.md). The
+protocol drives the verification matrix based on
+`profile.yaml § wave.reconcile_mode` (default `both`):
+
+- `hooks` — re-run the four PostToolUse security hooks against the wave
+  diff via `.riff/hooks/lib/reconcile-diff.sh`, plus `scope-checker` per
+  phase
+- `sonnet` — spawn `security-reviewer` per phase, plus `scope-checker`
+  per phase
+- `both` — hooks + sonnet + scope-checker, verdicts merged
+- `off` — `scope-checker` only
+
+Output: `.planning/waves/W{N}.RECONCILE.md` from
+[`templates/RECONCILE.md`](../templates/RECONCILE.md). Verdict is one of
+`PASS`, `PASS-WITH-WARNINGS`, `FAIL`.
+
+### Step 6.2: React to verdict
+
+- `FAIL` → mark wave `status: needs_human_review`, surface verdict + top
+  3 blocking findings inline, stop
+- `PASS-WITH-WARNINGS` → mark phases `completed`, surface warnings in
+  Step 7 output, continue
+- `PASS` → mark phases `completed`, no friction
+
+If a phase reports browser-check FAIL or the reconcile is FAIL → mark
+`status: needs_human_review`, surface to user. Otherwise mark
+`status: completed`, update ROADMAP.yaml, run
+[`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) once per phase
+(compressed).
 
 Write `.planning/waves/W{N}.SUMMARY.md` (one consolidated post-mortem, not N separate ones).
 
@@ -126,6 +162,8 @@ Next: /riff:next or /riff:wave for the next eligible group.
 | Codex aborts mid-wave | RESULT.md has partial results. Reconcile what completed, mark rest as `status: todo` with `notes: wave-W{N}-partial` |
 | Browser-check fails on a phase | Phase marked `status: needs_human_review`. User decides: re-queue in next wave, or hand-fix |
 | Scope drift detected | Same as failure: `needs_human_review`. Do not auto-rollback |
+| Reconcile verdict `FAIL` | Wave marked `status: needs_human_review`. Surface top 3 findings, no auto-rollback. User fixes, re-runs `/riff:wave --resume W{N}` |
+| `wave_W{N}_base_sha` missing in STATE.md | Fallback to parent of first wave commit via `git log --grep="<first_phase_slug>"`. Warn in reconcile Notes section |
 | `codex:codex-rescue` skill missing | Error, point to `commands/onboard.md` § Codex setup |
 
 ## Scratch mode
