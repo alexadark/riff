@@ -49,6 +49,7 @@ Skip phases marked `planner_model: opus` AND `complex_execution: true` — those
 
 Read [`protocols/WAVE-BUNDLE.md`](../protocols/WAVE-BUNDLE.md). Write `.planning/waves/W{N}.bundle.md` containing:
 
+- Bundle header: set `scratch_mode: true` when `--scratch` was passed, `false` otherwise
 - Goal (one paragraph, what the wave delivers as a user-facing outcome)
 - Per-phase PLAN.md, acceptance criteria, files touched, risks
 - Browser-check contract per UI phase
@@ -78,7 +79,7 @@ Print the exact two-step sequence to paste in Codex. Format:
 WAVE W{N} READY — open a new Codex terminal and run:
 
   cd {{project_root}}
-  codex --dangerously-bypass-approvals-and-sandbox -c model_reasoning_effort="high"
+  {{env_prefix}}codex --dangerously-bypass-approvals-and-sandbox -c model_reasoning_effort="high"
 
 Then paste this /goal-prefixed prompt (rendered from CODEX-DELEGATION
 Template A):
@@ -90,6 +91,10 @@ Expected duration: ~{{eta}}
 Output: .planning/waves/W{N}.RESULT.md
 ─────────────────────────────────────────────────────────────
 ```
+
+`{{env_prefix}}` is empty when the bundle's `scratch_mode: false`, and
+`RIFF_SCRATCH_MODE=1 RIFF_WAVE_ID=W{N} ` (single line, trailing space) when
+`scratch_mode: true`. See `protocols/CODEX-DELEGATION.md` § Out-of-process.
 
 Update STATE.md: `wave_pending: W{N}`. Stop. User runs Codex, comes back with `/riff:wave --resume W{N}`.
 
