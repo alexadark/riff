@@ -81,6 +81,50 @@ The user fixes and re-triggers promotion. Do not proceed to Step 1.5.
 
 Skip this step silently when no `SECURITY-W*-RECONCILE.md` files exist.
 
+### Step 1.45: Wave reconcile gate
+
+Before the audit gate, refuse to promote if any wave that shipped is
+missing its reconcile file or has a reconcile verdict of `FAIL`.
+
+Check:
+
+```bash
+for w in .planning/waves/W*.RESULT.md; do
+  n="${w##*/W}"; n="${n%.RESULT.md}"
+  rec=".planning/waves/W${n}.RECONCILE.md"
+  if [ ! -f "$rec" ]; then
+    echo "MISSING|W${n}"
+  else
+    v=$(awk -F': ' '/^verdict:/{print $2; exit}' "$rec")
+    echo "${v:-UNKNOWN}|W${n}"
+  fi
+done
+```
+
+Block when any line is `MISSING|*` or `FAIL|*`.
+
+**If MISSING** → print:
+
+```
+Promotion blocked: wave(s) {{list}} have no RECONCILE.md.
+Run `/riff:wave --resume W{N}` for each before promoting.
+```
+
+**If FAIL** → print:
+
+```
+Promotion blocked: wave(s) {{list}} have FAIL reconcile verdicts.
+Open .planning/waves/W{N}.RECONCILE.md to see the blocking findings.
+Fix, then re-run `/riff:wave --resume W{N}` to refresh the verdict.
+```
+
+`PASS-WITH-WARNINGS` does NOT block. Warnings surface in Step 1.5 below
+as part of the audit summary so the user sees them once before flipping
+scope.
+
+Skip this step silently when no `.planning/waves/W*.RESULT.md` files
+exist (no waves shipped yet).
+
 ### Step 1.5: Pre-promote audit gate
 
 Before flipping the scope flag (point of no return for the rest of the flow), run a baseline audit so promotion doesn't paper over known issues that the stricter production gates will then keep flagging.
