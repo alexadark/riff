@@ -35,6 +35,11 @@ budget:
 notifications:
   channel: none
 
+wave:
+  # Reconcile pass run by /riff:wave --resume Step 6.
+  # Valid: hooks | sonnet | both | off. See protocols/WAVE-RECONCILE.md § Modes.
+  reconcile_mode: both
+
 git:
   # Valid values: github_button | local_no_ff | auto_merge
   merge_strategy: github_button
