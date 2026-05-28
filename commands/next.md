@@ -355,6 +355,16 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch. Full procedure: [`
 - Taste proposals: new pattern → append to taste.md with `<!-- PENDING -->`
 - Seeds: check `.planning/seeds/` triggers
 
+### Step 9b: Post-deploy monitoring (gated, once)
+
+**Skip if** `scope: scratch` OR `.planning/POST-DEPLOY-RESULT.md` already exists.
+
+**Fire when** `scope: production` AND this is a post-merge step (Step 8c completed or `github_button` merge reconciled in Step 0) AND no `POST-DEPLOY-RESULT.md` exists yet. This triggers once per project lifetime, on the first successfully merged production phase.
+
+Read `protocols/POST-DEPLOY.md` and execute. Single Codex rescue call, in-process.
+
+---
+
 ### Step 10: Report + usage (inline)
 
 Collect `total_tokens`, `tool_uses`, `duration_ms` from each Agent result. Write `.planning/phases/N-slug/USAGE.md` using `templates/usage.md`. USAGE.md + PROMPTS.md are read by `riff-pr-metadata.sh` at Step 8 to enrich the PR body.

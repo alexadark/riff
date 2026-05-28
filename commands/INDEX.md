@@ -87,7 +87,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - `protocols/STARTER-CLONE.md` — read by `/riff:start` Stage 5 only when `stack_source: starter-clone`. Registry match heuristic, clone flow, install verification.
 - `protocols/BOOTSTRAP-FILES.md` — read by `/riff:start` Stage 5 to create persistent artifacts. Two paths: scratch (light) and production (full taste / CONTEXT / INCIDENTS / README), plus the stack-detection slug table.
 - `protocols/DASHBOARD-REGISTER.md` — read by `/riff:start` Stage 5 final step. Best-effort ping so the new project shows up in a running `/riff:dashboard` immediately.
-- `protocols/POST-DEPLOY.md` — read by `PROMOTE.md` Step 10 after successful promotion. Sets up error tracking (Sentry), uptime monitoring (health endpoint), and a scheduled Playwright smoke test. Each category opt-outable via `ROADMAP.yaml`.
+- `protocols/POST-DEPLOY.md` — production monitoring setup (Sentry, uptime health check, scheduled Playwright smoke). Two entry points: `PROMOTE.md` Step 10 (after scratch → production promotion), and `/riff:next` Step 9b (first merged phase on a native production project). Runs once per project lifetime. Each category opt-outable via `ROADMAP.yaml`.
 
 ## Agents referenced by commands and protocols
 

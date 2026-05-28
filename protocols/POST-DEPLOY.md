@@ -1,14 +1,22 @@
 # POST-DEPLOY
 
-How RIFF sets up production monitoring after a successful promotion. Read by the agent at the end of `protocols/PROMOTE.md` (Step 10). Single pass, in-process via the `codex:codex-rescue` skill.
+How RIFF sets up production monitoring. Single pass, in-process via the `codex:codex-rescue` skill.
 
 ---
 
 ## When to read this protocol
 
-Automatically, after PROMOTE.md Step 9 completes. Not a conversational trigger — always machine-invoked.
+Two entry points:
 
-**Skip entirely** if `scope` is still `scratch` (should never happen, but guard).
+1. **After promotion** (scratch → production): `protocols/PROMOTE.md` Step 10 triggers this automatically after scope flip.
+2. **First deploy of a production project**: `/riff:next` Step 9 (post-merge) triggers this once when ALL of:
+   - `scope: production` in `.planning/config.json`
+   - `.planning/POST-DEPLOY-RESULT.md` does not exist yet
+   - At least one phase has `status: completed`
+
+This means projects that start as production get monitoring wired on their first completed phase, not only if they promote from scratch.
+
+**Skip entirely** if `scope: scratch`.
 
 ---
 
@@ -42,6 +50,13 @@ Single `codex:codex-rescue` call, in-process. Codex reads this protocol and exec
 ---
 
 ## Category 1: Error tracking (Sentry)
+
+**Prerequisite: Sentry DSN.** The user must have a Sentry account (free tier: 5k errors/month). The DSN lives in the project's `.env` file as `SENTRY_DSN=https://...@sentry.io/...`. If `SENTRY_DSN` is not set in `.env` when this protocol runs:
+1. Check `.env.example` or `.env.local` for a placeholder.
+2. If absent, ask the user once: _"Sentry DSN needed for error tracking. Create a free project at sentry.io, copy the DSN, and paste it here (or set `error_tracking: none` in ROADMAP.yaml to skip)."_
+3. Write the DSN to `.env` (and `.env.example` as a placeholder `SENTRY_DSN=your-dsn-here`).
+
+Steps:
 
 1. **Detect stack.** Read `package.json` / `requirements.txt` / `go.mod`.
 2. **Install SDK.**
