@@ -614,19 +614,60 @@
     clear(root);
     if (!state.project) {
       root.appendChild(el("div", { class: "empty-state" }, "Loading project…"));
+      renderKanbanHeader();
       return;
     }
     if (state.project.error) {
       root.appendChild(
         el("div", { class: "empty-state" }, `Error: ${state.project.error}`),
       );
+      renderKanbanHeader();
       return;
     }
+    renderKanbanHeader();
     const phases = Array.isArray(state.project.phases) ? state.project.phases : [];
     const groups = groupPhases(phases);
     for (const status of COLUMN_ORDER) {
       root.appendChild(buildColumn(status, groups[status]));
     }
+  }
+
+  // ----------------------------------------------------------
+  // Plan Preview
+  // ----------------------------------------------------------
+  function renderKanbanHeader() {
+    const wrap = $("#kanban-header-actions");
+    clear(wrap);
+    if (!state.project || !state.project.has_preview) return;
+    const btn = el(
+      "button",
+      {
+        class: "btn-preview",
+        type: "button",
+        title: "Open plan preview",
+        onClick: () => openPreview(),
+      },
+      [el("span", { class: "btn-icon" }, "◈"), "Plan Preview"],
+    );
+    wrap.appendChild(btn);
+  }
+
+  function openPreview() {
+    if (!state.currentProjectSlug) return;
+    const url = `/api/projects/${encodeURIComponent(state.currentProjectSlug)}/preview`;
+    const iframe = $("#preview-iframe");
+    iframe.src = url;
+    const openLink = $("#preview-open-tab");
+    openLink.href = url;
+    $("#preview-view").classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closePreview() {
+    $("#preview-view").classList.add("hidden");
+    const iframe = $("#preview-iframe");
+    iframe.src = "about:blank";
+    document.body.style.overflow = "";
   }
 
   // ----------------------------------------------------------
@@ -1217,6 +1258,9 @@
       closeSwitcher();
     });
 
+    // Plan preview
+    $("#preview-close").addEventListener("click", closePreview);
+
     // Back to overview
     $("#back-to-overview").addEventListener("click", navigateToOverview);
 
@@ -1255,6 +1299,10 @@
       }
       if (state.switcherOpen) {
         closeSwitcher();
+        return;
+      }
+      if (!$("#preview-view").classList.contains("hidden")) {
+        closePreview();
         return;
       }
       if (state.currentPhaseId != null) {

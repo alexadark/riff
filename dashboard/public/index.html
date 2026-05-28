@@ -186,7 +186,22 @@
 
       <!-- Project (kanban) view -->
       <section id="kanban-view" class="view kanban-view hidden">
+        <div id="kanban-header" class="kanban-header">
+          <div id="kanban-header-actions" class="kanban-header-actions"></div>
+        </div>
         <div id="kanban" class="kanban"></div>
+      </section>
+
+      <!-- Plan preview overlay (full-screen iframe) -->
+      <section id="preview-view" class="preview-view hidden" role="dialog" aria-modal="true">
+        <div class="preview-bar">
+          <button id="preview-close" class="icon-btn" type="button" aria-label="Close preview">
+            <svg width="16" height="16"><use href="#icon-x" /></svg>
+          </button>
+          <span class="preview-bar-title">Plan Preview</span>
+          <a id="preview-open-tab" class="btn btn-sm" target="_blank" rel="noopener">Open in new tab</a>
+        </div>
+        <iframe id="preview-iframe" class="preview-iframe" sandbox="allow-scripts allow-same-origin"></iframe>
       </section>
 
       <!-- Phase detail modal -->

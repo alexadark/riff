@@ -406,6 +406,9 @@ app.get("/api/projects/:slug", (c) => {
     };
   });
 
+  const previewPath = join(ctx.root, ".planning", "preview", "plan-preview.html");
+  const has_preview = existsSync(previewPath);
+
   return c.json({
     slug: ctx.slug,
     root: ctx.root,
@@ -416,6 +419,7 @@ app.get("/api/projects/:slug", (c) => {
     state: parseProjectState(ctx.root),
     config: { level: liveConfig.level, language: liveConfig.language },
     bootstrap_status: ctx.bootstrap.getStatus(),
+    has_preview,
   });
 });
 
@@ -555,6 +559,39 @@ app.get("/api/projects/:slug/phase/:id/generate", (c) => {
       await send({ type: "error", message });
     }
   });
+});
+
+/** GET /api/projects/:slug/preview — serve the plan preview HTML if it exists. */
+app.get("/api/projects/:slug/preview", (c) => {
+  const slug = c.req.param("slug");
+  const ctx = contexts.get(slug);
+  if (!ctx) return c.json({ error: "project not found" }, 404);
+
+  const previewPath = join(ctx.root, ".planning", "preview", "plan-preview.html");
+  if (!existsSync(previewPath)) {
+    return c.json({ error: "no preview available", has_preview: false }, 404);
+  }
+  const file = Bun.file(previewPath);
+  return new Response(file, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+});
+
+/** GET /api/projects/:slug/preview/status — check if a plan preview exists. */
+app.get("/api/projects/:slug/preview/status", (c) => {
+  const slug = c.req.param("slug");
+  const ctx = contexts.get(slug);
+  if (!ctx) return c.json({ error: "project not found" }, 404);
+
+  const previewPath = join(ctx.root, ".planning", "preview", "plan-preview.html");
+  const exists = existsSync(previewPath);
+  let mtime: number | null = null;
+  if (exists) {
+    try {
+      mtime = statSync(previewPath).mtimeMs;
+    } catch { /* ignore */ }
+  }
+  return c.json({ has_preview: exists, mtime });
 });
 
 /** GET /api/projects/:slug/bootstrap-status — bootstrap progress for one project. */

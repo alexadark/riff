@@ -1326,3 +1326,97 @@ button {
   border-color: color-mix(in srgb, var(--danger) 85%, black);
   color: #ffffff;
 }
+
+/* ============================================================
+   Plan preview overlay
+   ============================================================ */
+
+.kanban-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 12px;
+}
+
+.kanban-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--fg);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-preview:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn-preview .btn-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.preview-view {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.preview-bar-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.preview-iframe {
+  flex: 1;
+  border: none;
+  width: 100%;
+  background: var(--bg);
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  color: var(--fg-muted);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-sm:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
