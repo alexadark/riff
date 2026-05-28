@@ -45,6 +45,11 @@ executors:
                                    # allowed: [claude] | [claude, codex]
                                    # the alex preset uses [claude, codex] — enable only if Codex CLI is installed
 
+codex:
+  execution_skill: /apex           # skill invoked by CODEX-DELEGATION.md prompt templates
+                                   # must accept flags: -a -x -v -m -bundle <path>
+                                   # default: /apex. Set to any skill that honors the same flag contract.
+
 risk:
   sensitive_task_preference: balanced  # cautious | balanced | fast
 

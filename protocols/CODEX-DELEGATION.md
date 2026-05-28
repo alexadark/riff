@@ -10,11 +10,21 @@ How RIFF hands work to Codex, for both **waves** (N phases) and **solo** (1 phas
 |---|---|---|---|
 | 1 phase, simple | < 30 min | in-process | Cheap and keeps the user in one terminal |
 | 1 phase, complex | > 30 min | out-of-process | Codex output would bloat Claude context |
-| 2+ phases | any | out-of-process | Multi-phase parallelism is what Apex Teams (-m) is for, runs cleanest in its own session |
+| 2+ phases | any | out-of-process | Multi-phase parallelism runs cleanest in its own session |
 
 User overrides: `--in-process` or `--out-of-process` flag on `/riff:wave`.
 
 If Codex CLI is not installed locally (`which codex` fails), fall back to in-process via the `codex:codex-rescue` skill (which uses Anthropic's Codex API wrapper). Surface a one-line warning so the user knows performance will differ.
+
+## Execution skill resolution
+
+The prompt templates below invoke `{{execution_skill}}`, resolved from:
+
+1. Per-phase `execution_skill:` in ROADMAP.yaml (rare)
+2. `codex.execution_skill` in profile.yaml
+3. Hardcoded fallback: `/apex`
+
+The skill must accept flags `-a`, `-x`, `-v`, `-m`, and `-bundle <path>`.
 
 ## Prompt templates
 
@@ -29,8 +39,8 @@ The `/goal` framing convention (per nowstack-saas / Melvynx pattern). First line
 
 Read .planning/waves/W{N}.bundle.md first. It contains {{N}} independent phases, all wave-eligible (no depends_on between them, all AFK, no production providers).
 
-Invoke the apex skill with these flags:
-  /apex -a -x -v -m -bundle .planning/waves/W{N}.bundle.md
+Invoke the configured execution skill (profile.yaml `codex.execution_skill`, default `/apex`):
+  {{execution_skill}} -a -x -v -m -bundle .planning/waves/W{N}.bundle.md
 
 Flag meanings (do not skip any):
   -a  autonomous, no confirmations
@@ -122,8 +132,8 @@ For phases that are not wave-eligible (depends_on chain) but you still want Code
 
 Read .planning/phases/{id}-{slug}/PLAN.md. It is the source of truth.
 
-Invoke the apex skill with these flags:
-  /apex -a -x -v {{phase task description, one line}}
+Invoke the configured execution skill:
+  {{execution_skill}} -a -x -v {{phase task description, one line}}
 
 Same execution rules as a wave. One commit. Acceptance criteria are a hard contract. Browser-check enforced per .riff/protocols/BROWSER-CHECK.md.
 
@@ -141,8 +151,8 @@ For risky phases where Opus wrote the plan and Codex must execute STRICTLY witho
 
 Read .planning/phases/{id}-{slug}/PLAN.md. Treat every file path, every function signature, every test case as a contract.
 
-Invoke the apex skill with these flags:
-  /apex -a -x -v {{phase task description}}
+Invoke the configured execution skill:
+  {{execution_skill}} -a -x -v {{phase task description}}
 
 Constraints specific to strict mode:
   - Do not add files beyond what the plan lists, even helpers

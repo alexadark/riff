@@ -1,6 +1,6 @@
 # Browser-check
 
-The "prove the feature actually works" contract Codex (or Claude) must honor during wave / solo execution. Adapted from Apex `-v verify`.
+The "prove the feature actually works" contract Codex (or Claude) must honor during wave / solo execution.
 
 **Not the same as smoke test.** Smoke test = "the page loads, no 500". Browser-check = "the user can do the thing the feature promises".
 
@@ -63,9 +63,9 @@ The planner (or Opus during bundle construction) writes this block by reading PL
 
 Codex / Claude has two ways to actually drive the browser:
 
-### Option 1: Built-in browser (Apex `-v` native path)
+### Option 1: Built-in browser (native path)
 
-Codex CLI and Claude Code both have built-in browser tools (Claude in Chrome MCP, Codex browser subagent). Apex `-v` uses these by default. No setup, works out of the box.
+Codex CLI and Claude Code both have built-in browser tools (Claude in Chrome MCP, Codex browser subagent). The `-v` flag uses these by default. No setup, works out of the box.
 
 **Trade-off:** the browser is visible (Chrome window opens), slower than headless, requires a graphical session.
 
@@ -106,7 +106,7 @@ Reconcile step in `/riff:wave` Step 6 reads these blocks and decides next action
 
 ## Why this matters specifically for Codex waves
 
-Apex / Codex agents are extremely good at making code compile and pass unit tests. They are also extremely good at declaring "done" when the feature does not actually work end-to-end. Without browser-check, the wave returns "5 phases complete" and 2 of them silently ship broken UI.
+Codex agents are extremely good at making code compile and pass unit tests. They are also extremely good at declaring "done" when the feature does not actually work end-to-end. Without browser-check, the wave returns "5 phases complete" and 2 of them silently ship broken UI.
 
 Browser-check is the only gate cheap enough to run on every UI phase that catches "compiles but broken". Smoke test catches "404 / 500". Tests catch logic bugs in isolated units. Browser-check catches "the buttons don't wire to the right handler" / "the form submits but nothing happens" / "the new feature is invisible behind a hidden flag".
 

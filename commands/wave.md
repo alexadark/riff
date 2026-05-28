@@ -6,7 +6,7 @@ model: opus
 
 # /riff:wave [W{N} | --resume W{N}]
 
-Group wave-eligible phases into a Codex Apex AXV run. Opus plans, Codex executes, browser-check proves it works.
+Group wave-eligible phases into a Codex wave run. Opus plans, Codex executes, browser-check proves it works.
 
 **Prerequisite:** `executors.available` includes `codex` in profile. Otherwise the command errors and points to `/riff:onboard`.
 

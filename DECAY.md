@@ -59,7 +59,7 @@ The 30 minutes per quarter saves multiple debugging sessions later.
 
 ## Considered and rejected (do not re-debate without new evidence)
 
-- **Docker sandbox for the AFK loop** — rejected 2026-04-07, then mooted 2026-05-26 when the AFK loop itself was retired in favor of `/riff:wave` (Codex Apex out-of-process). Docker sandbox no longer applicable. Archived files: `.riff-private/legacy/`.
+- **Docker sandbox for the AFK loop** — rejected 2026-04-07, then mooted 2026-05-26 when the AFK loop itself was retired in favor of `/riff:wave` (Codex out-of-process). Docker sandbox no longer applicable. Archived files: `.riff-private/legacy/`.
 - **expertise.yaml with auto-validation against codebase** — rejected 2026-04-07. Reason: overkill for solo, markdown expertise notes with human validation are enough.
 - **Meta-agents that create other agents** — rejected 2026-04-07. Reason: classic framework trap, high complexity for no measurable benefit in solo context.
 - **ADWs in Python (orchestrators replacing riff-loop.sh)** — rejected 2026-04-07, then mooted 2026-05-26: `riff-loop.sh` itself was retired in favor of `/riff:wave`. Archived files: `.riff-private/legacy/`.
