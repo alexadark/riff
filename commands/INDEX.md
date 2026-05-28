@@ -47,6 +47,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 | "promote to production", "passe en production"                            | Read `protocols/PROMOTE.md`, flip `scope: scratch → production`, run skipped discovery stages                                          |
 | "re-audit phase N", "re-run security on this branch"                      | Mirror `/riff:next` Steps 5c, 6, 7 against the named phase, write `VERIFICATION.md`                                                    |
 | "deep audit", "audit ce module", "milestone review"                       | Read `protocols/DEEP-AUDIT.md`, run cross-phase Codex audit at a milestone boundary                                                    |
+| "set up monitoring", "configure post-deploy", "wire sentry"               | Read `protocols/POST-DEPLOY.md`, one-shot production monitoring setup (Sentry, health endpoint, scheduled smoke). User-triggered when app is deployed. |
 | "resync riff", "sync framework"                                           | Run `bash .riff/riff-resync.sh` to refresh symlinks; same as `/riff:resync` but works pre-bootstrap                                    |
 | "set my notification channel to X", "edit profile.yaml"                   | Edit the active profile directly (project override `.planning/profile.yaml` if it exists, else framework default). See `references/PROFILE-RESOLUTION.md`. |
 | (automatic at end of phase) Pending expertise patches                     | Inline review (Stack/Architecture/Project routing) via `/riff:next` Step 10 with Review now / Defer to next phase / Reject all options |
@@ -87,7 +88,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - `protocols/STARTER-CLONE.md` — read by `/riff:start` Stage 5 only when `stack_source: starter-clone`. Registry match heuristic, clone flow, install verification.
 - `protocols/BOOTSTRAP-FILES.md` — read by `/riff:start` Stage 5 to create persistent artifacts. Two paths: scratch (light) and production (full taste / CONTEXT / INCIDENTS / README), plus the stack-detection slug table.
 - `protocols/DASHBOARD-REGISTER.md` — read by `/riff:start` Stage 5 final step. Best-effort ping so the new project shows up in a running `/riff:dashboard` immediately.
-- `protocols/POST-DEPLOY.md` — production monitoring setup (Sentry, uptime health check, scheduled Playwright smoke). Two entry points: `PROMOTE.md` Step 10 (after scratch → production promotion), and `/riff:next` Step 9b (first merged phase on a native production project). Runs once per project lifetime. Each category opt-outable via `ROADMAP.yaml`.
+- `protocols/POST-DEPLOY.md` — production monitoring setup (Sentry, uptime health check, scheduled Playwright smoke). User-triggered via conversational trigger ("set up monitoring") or `/riff:post-deploy`. One-shot, runs when the app is deployed. Each category opt-outable via `ROADMAP.yaml`. Also available as global skill `/post-deploy` for non-RIFF projects.
 
 ## Agents referenced by commands and protocols
 

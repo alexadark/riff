@@ -37,6 +37,7 @@ The triggers below are matched by the FULL phrase, not by isolated words. If the
 | "deep audit", "audit this module", "milestone review", "full milestone review"          | Read `protocols/DEEP-AUDIT.md`, run flow. **Milestone boundary** = a phase tagged `milestone: <name>` in ROADMAP.yaml; the audit covers all phases in that group. Also auto-triggers at `/riff:next` Step 10 when the just-completed phase has a `milestone:` tag. Frequency: decided by milestone tag placement in roadmap, no fixed cadence. |
 | "audit codebase", "health check", "assess this project"                                 | Read skill `audit-codebase` SKILL.md, run mode `bug` / `ai` / `full` based on user phrasing (default `full`). Skip silently if `scope=scratch`. |
 | "resync riff", "sync framework", "re-link riff symlinks"                                | Run `bash .riff/riff-resync.sh` from the project root, paste output back. Surfaces CLAUDE.md drift; never auto-patches. |
+| "set up monitoring", "configure post-deploy", "wire sentry", "post-deploy"               | Read `protocols/POST-DEPLOY.md`, run the one-shot monitoring setup (Sentry, health endpoint, scheduled smoke). User-triggered when the app is deployed.  |
 | "change my profile X to Y", "set my notification channel to Z", "edit profile.yaml"     | Edit the active profile (project override `.planning/profile.yaml` if it exists, else framework default; see `references/PROFILE-RESOLUTION.md`). Preserve other fields. Confirm the change. |
 
 Discoverable via this section. Do not invent commands the user did not invoke.

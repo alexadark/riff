@@ -1,22 +1,16 @@
 # POST-DEPLOY
 
-How RIFF sets up production monitoring. Single pass, in-process via the `codex:codex-rescue` skill.
+Sets up production monitoring in a single pass. User-triggered, never automatic.
 
 ---
 
 ## When to read this protocol
 
-Two entry points:
+When the user says "set up monitoring", "configure post-deploy", "wire sentry", "post-deploy", or invokes `/riff:post-deploy`. This is a one-shot action the user launches when the app is deployed and ready for monitoring.
 
-1. **After promotion** (scratch → production): `protocols/PROMOTE.md` Step 10 triggers this automatically after scope flip.
-2. **First deploy of a production project**: `/riff:next` Step 9 (post-merge) triggers this once when ALL of:
-   - `scope: production` in `.planning/config.json`
-   - `.planning/POST-DEPLOY-RESULT.md` does not exist yet
-   - At least one phase has `status: completed`
+**Also available as a global skill** (`/post-deploy`) for projects without RIFF. The skill runs the same logic but without RIFF-specific context (no profile.yaml opt-outs, no ROADMAP route detection).
 
-This means projects that start as production get monitoring wired on their first completed phase, not only if they promote from scratch.
-
-**Skip entirely** if `scope: scratch`.
+**Skip entirely** if `scope: scratch` (warn user, suggest promoting first).
 
 ---
 

@@ -139,7 +139,7 @@ Set at Stage 1 of `/riff:start` (or at `/riff:init` Step 3b):
 - **`production`** — others will use it, deployed, has auth/payments/PII, or is destined to. Full RIFF discipline (security review on every phase, R3 architecture gates, all hooks wired).
 - **`scratch`** — personal/local script, no auth, no public exposure. Skips adversarial review, skips security review, only the "no hardcoded secrets" rule applies.
 
-When a scratch project gets serious, ask Claude to "promote to production". RIFF runs the skipped discovery stages, flips the scope, and sets up post-deploy monitoring (error tracking, uptime, scheduled smoke tests) via `protocols/POST-DEPLOY.md`. Projects that start as production get the same monitoring wired automatically on their first merged phase (`/riff:next` Step 9b).
+When a scratch project gets serious, ask Claude to "promote to production". RIFF runs the skipped discovery stages and flips the scope. When the app is deployed, say "set up monitoring" to wire error tracking, uptime checks, and scheduled smoke tests via `protocols/POST-DEPLOY.md`.
 
 ---
 
