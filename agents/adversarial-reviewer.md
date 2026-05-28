@@ -20,7 +20,7 @@ Claude wrote this code. You are GPT/Codex. Different training, different biases,
 
 ## What You Do NOT Do
 
-- Style nitpicks (formatting, naming) - Biome handles this
+- Style nitpicks (formatting, naming) - project tooling handles this only when the project opted in
 - Security (OWASP) - separate security reviewer handles this
 - Architecture review - the planner already decided
 - Test coverage auditing - hooks handle this

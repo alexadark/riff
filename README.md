@@ -10,7 +10,7 @@
 > **Build like a band of six. Ship like one.**
 > Solo dev framework for Claude Code.
 
-Lean, profile-driven coding agent framework for Claude Code. Clone, answer 13 questions (or pick a preset), build your own version.
+Lean, profile-driven coding agent framework for Claude Code. Clone, answer the onboarding questions (or pick a preset), build your own version.
 
 ## Why this exists
 
@@ -22,9 +22,9 @@ When Claude Code ships a native feature that replaces one of your hooks or comma
 
 ## What you get
 
-- **13 agents** (~60KB total): planner, executor, security-reviewer, adversarial-reviewer (post-build, runs on the Codex CLI as a different model family), plan / architecture / roadmap / incident adversarial reviewers (pre-artifact passes), scope-checker, debugger, simplifier, improver, deep-auditor. Each has a clear single job.
+- **Agents + mechanical gates**: planner, executor, security-reviewer, adversarial-reviewer (post-build, runs on Codex as a different model family), plan / architecture / roadmap / incident adversarial reviewers (pre-artifact passes), debugger, simplifier, improver, deep-auditor, plus mechanical scope-check via `scripts/scope-check.mjs`.
 - **14 slash commands**: framework (onboard, learn-stack, dashboard), project lifecycle (init, start, map, resync), daily loop (next, wave, status), off-loop (add-phase, quick, debug, improver). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
-- **18 hooks** in 3 buckets: A (universal discipline), B (security-adaptable), C (stack-specific). Your profile picks which ones wire.
+- **Claude Code hooks** in profile-selected buckets: A (universal discipline), B (security-adaptable), C (stack-specific). Your profile picks which ones wire.
 - **~20 protocols**: EXECUTION (confidence gates, R1-R4 deviations, waves), MODEL (dispatch and budget resolution), QUALITY (post-build checks), browser verification, wave bundling, promotion, incident review, and related workflow contracts.
 - **Mechanical-quality gate** via [`fallow`](https://github.com/fallow-rs/fallow) on every TS/JS phase: dead code, duplication, complexity, and boundary violations on the diff. Sub-second, deterministic, no LLM. Auto-installed as a devDep at `/riff:start`.
 - **Browser-based verification** for TS/JS: opt-in smoke test gate (`smoke_test: true`) boots the dev server and loads changed routes in a headless browser; sandbox provider flows (`provider_mode: sandbox`) verify autonomously via the framework-native browser verification protocol (`references/BROWSER-VERIFICATION.md` — Lightpanda + chrome-devtools-mcp) instead of pausing for human OAuth or test-checkout; the `debugger` agent opens the failing route and attaches screenshots to `DEBUG.md` for frontend failures.
@@ -46,7 +46,7 @@ Open Claude Code in the framework directory and run:
 /riff:onboard
 ```
 
-This walks you through 13 questions (or picks a preset) and writes `profile.yaml` at the framework root. Every agent reads it on startup.
+This walks you through the profile questions (or picks a preset) and writes `profile.yaml` at the framework root. Every agent reads it on startup.
 
 > Your `profile.yaml` is gitignored — it stays local, never gets committed when you contribute back. See [`profile.yaml.example`](./profile.yaml.example) for the schema with field comments if you'd rather edit by hand.
 
@@ -57,7 +57,7 @@ cd ~/my-project
 riff init
 ```
 
-`riff init` symlinks this RIFF clone into the project as `.riff/`, then installs the Claude Code harness (commands, agents, hooks). After installing files, it starts profile onboarding when the terminal is interactive. Use `--profile alex`, `--profile custom`, or `--no-onboard` for scripted runs.
+`riff init` symlinks this RIFF clone into the project as `.riff/`, then installs Claude Code runtime files (commands, agents, hooks, settings). Codex remains the default executor runtime through the configured skill/CLI; it is not installed as a project harness. After installing files, init starts profile onboarding when the terminal is interactive. Use `--profile alex`, `--profile custom`, or `--no-onboard` for scripted runs.
 
 Or, from inside Claude Code in the project directory, run the wrapper:
 
@@ -87,11 +87,12 @@ One file at the framework root by default, optionally overridden per project at 
 
 Fields (full schema in `commands/onboard.md` § Profile schema):
 
-- `user.*`: programming level, AI agents experience, domains, work mode, side activities, parallel projects count, conversational vs artifact language
+- `user.*`: programming level, AI agents experience, domains, work mode, side activities, conversational vs artifact language
 - `risk.sensitive_task_preference`: `cautious` / `balanced` / `fast`
 - `style.*`: length, jargon policy, when to ask vs take initiative
 - `budget.default_quality`: `frugal` / `balanced` / `max`
 - `notifications.channel`: where unattended runs ping you
+- `metadata.pr_body`: `off` / `standard` / `full` for generated PR metadata detail
 
 Edit by hand anytime, or ask Claude conversationally to update specific fields (e.g. "set my notification channel to slack").
 
@@ -117,9 +118,9 @@ Full spec: `protocols/MODEL.md` § Budget and model resolution.
 
 ### Hook buckets
 
-- **A** (always wired): destructive-guard, boundary-check, typecheck-gate, lint-gate, test-gate
+- **A** (always wired): destructive-guard, boundary-check, typecheck-gate, test-gate
 - **B** (security-adaptable, driven by `risk.sensitive_task_preference`): route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard
-- **C** (stack-specific, picked at `/riff:init`): registry-reminder, migration-gate, notify-human
+- **C** (stack/convention helpers): registry-reminder and migration-gate run from `security-scan.sh` when relevant files are staged; notify-human is manual.
 
 Details: `hooks/README.md` § Buckets.
 

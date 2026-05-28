@@ -2,7 +2,7 @@
 
 Three sub-steps run in order: documentation check, push + PR composition + merge strategy branching, post-merge state update.
 
-**Invariant:** do NOT update ROADMAP.yaml or STATE.md on the feature branch. Those mutations land on `main` (via Step 8c on `local_no_ff`, or via Step 0 stale-todo reconciliation on the next `/riff:next` run for `github_button` / `auto_merge`).
+**Invariant:** do NOT update ROADMAP.yaml or STATE.md on the feature branch. Those mutations land on `main` (via Step 8c on `local_no_ff`, or via Step 0 stale-todo reconciliation on the next `/riff:next` run for `github_button`).
 
 Cross-reference: Step 8c clears `.planning/active-phase.txt` and STATE.md `## Active Phase` — the same sidecar that Step 0 clears at the start of each run and Step 2b writes when a new phase is picked. See [`RECONCILE.md`](./RECONCILE.md) § Step 0.
 
@@ -21,32 +21,18 @@ Compare SUMMARY.md against `.claude/references/project-details.md` (file tree), 
 1. `git push -u origin riff/phase-N-slug`
 2. Compose the PR body:
    a. Draft the human summary (phase title, artifacts touched, review + security verdict, key changes from SUMMARY.md)
-   b. **Finalize PROMPTS.md.** Open `.planning/phases/N-slug/PROMPTS.md`. For any section whose sub-agent did not fire this phase (typically `## Debugger (if invoked)` when no failure occurred, or `## Simplifier` if Step 5b skipped), replace the remaining `{{prompt verbatim}}` placeholder with `_(not invoked)_`. Every section must end up either with the actual prompt or with `_(not invoked)_`. The metadata script in (c) hard-fails if any `{{prompt verbatim}}` remains, blocking PR creation — by design, so stakeholders never see template tokens leaking into the body.
-   c. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and capture stdout — this is the tracked Generation metadata section (models per step, real duration from git timestamps, gates, Codex usage, agents observed in commit trailers, **token usage per agent parsed from USAGE.md**, and **agent prompts in a collapsible block parsed from PROMPTS.md**)
-   d. Concatenate: `<human summary>` + `<script stdout>`. The script output already starts with a horizontal rule `---` and an `## Generation metadata (RIFF)` heading, so no separator needed
+   b. Resolve profile field `metadata.pr_body` (`off | standard | full`, default `standard`).
+   c. If `metadata.pr_body: off`, use only the human summary.
+   d. If `metadata.pr_body: standard`, run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and append stdout. Standard metadata includes models, duration, gates, Codex usage, and commit trailers; it does not require `USAGE.md` or finalized prompt capture.
+   e. If `metadata.pr_body: full`, write `.planning/phases/N-slug/USAGE.md` before running the metadata script, then finalize PROMPTS.md: replace any remaining `{{prompt verbatim}}` placeholder with the actual prompt or `_(not invoked)_`. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and append stdout. Full metadata includes token usage from USAGE.md and prompts from PROMPTS.md; the script hard-fails if placeholders remain.
 3. `PR_URL=$(gh pr create --title "<phase title>" --body "<composed body>")`
-   Capture stdout (the URL) so every strategy can interpolate the real PR URL into the final report. Required for `auto_merge` (passed to `gh pr merge`); improves report accuracy for the other two.
+   Capture stdout (the URL) so every strategy can interpolate the real PR URL into the final report.
 4. **Read `profile.yaml` `git.merge_strategy`** (resolved per `.riff/references/PROFILE-RESOLUTION.md`; default `github_button` if missing or file missing) and branch:
    - **`github_button`:** print final report ending with `PR open at $PR_URL. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
    - **`local_no_ff`:** print final report ending with `PR open at $PR_URL. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
-   - **`auto_merge`:** (AFK chaining path)
-     1. **Blocking-label check.** Read `git.auto_merge_blocking_labels` from resolved profile (default `["do-not-merge", "wip", "hold"]`). Then:
-        ```bash
-        labels=$(gh pr view "$PR_URL" --json labels --jq '[.labels[].name] | @csv' | tr -d '"')
-        ```
-        If any label in `labels` appears in the blocking list, append `LOOP_STOP[$LOOP_ID]: blocking label on PR <PR_URL> — human must resolve` to STATE.md, print the report, STOP.
-     2. **Re-verify gates (read-only, no agent re-spawn).** Both must pass:
-        - Security: `grep -Eq '^### \[(CRITICAL|HIGH)\]' .planning/phases/<id>-<slug>/SECURITY.md` → any match fails (security-reviewer writes SECURITY.md per `agents/security-reviewer.md` and `templates/SECURITY.md`; CRITICAL/HIGH headings use this exact format).
-        - Scope: `jq -e '.verdict == "MATCH"' .planning/phases/<id>-<slug>/SCOPE-CHECK.json` (exit 0 = pass; non-zero = fail). The file is the structured output produced by `agents/scope-checker.md`.
-        On either failure: append `LOOP_STOP[$LOOP_ID]: gate failure before auto-merge on PR <PR_URL> — <security|scope>` to STATE.md, print the report, STOP. The gates already ran at Steps 6-7; this is a fast assertion against their durable artifacts.
-     3. **Schedule merge:**
-        ```bash
-        gh pr merge "$PR_URL" --auto --squash --delete-branch
-        ```
-        Returns immediately; GitHub merges when all required checks pass. Exit code non-zero (e.g. branch protections, auto-merge disabled on the repo): append `LOOP_STOP[$LOOP_ID]: gh pr merge failed on PR <PR_URL>` and STOP.
-     4. Print final report ending with `PR open at $PR_URL. Auto-merge scheduled. Loop continues after CI completes; Step 0 of the next run reconciles ROADMAP/STATE.` STOP. Skip 8c (same as `github_button` — Step 0 stale-todo detection handles bookkeeping after the squash-merge lands).
+   - Any other value: treat as invalid profile config, print the value, and STOP before merging.
 
-The metadata script lives in the framework at `.riff/scripts/riff-pr-metadata.sh` and reads only tracked artifacts (PLAN.md path, SUMMARY.md path, GATES.md, ROADMAP.yaml, `.planning/codex-usage.csv`, git commit timestamps and trailers). It never includes Claude estimates like the PLAN.md `Estimate:` field — duration comes from first/last commit timestamps.
+The metadata script lives in the framework at `.riff/scripts/riff-pr-metadata.sh` and reads only tracked artifacts (PLAN.md path, SUMMARY.md path, GATES.md, ROADMAP.yaml, `.planning/codex-usage.csv`, git commit timestamps and trailers; plus USAGE.md/PROMPTS.md only in `full` mode). It never includes Claude estimates like the PLAN.md `Estimate:` field — duration comes from first/last commit timestamps.
 
 ---
 
@@ -87,5 +73,3 @@ The flow depends on `git.merge_strategy`:
   ```
 
   GitHub auto-closes the PR as merged when it sees the merge commit on origin/main. If `git branch -d` complains "not fully merged" because GitHub already squash-merged a previous run, fall back to `-D` (the branch is merged in spirit).
-
-- **`auto_merge`:** skipped — Step 0 stale-todo detection on the next run handles bookkeeping after the squash-merge lands.

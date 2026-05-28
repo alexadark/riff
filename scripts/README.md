@@ -8,7 +8,7 @@ Standalone shell scripts used by the RIFF pipeline. These are called directly fr
 
 **Usage:** `scripts/riff-pr-metadata.sh <phase-id>`
 
-Generates the `## Generation metadata (RIFF)` section appended to every RIFF PR description. Called at `/riff:next` Step 8c.
+Generates the optional `## Generation metadata (RIFF)` section appended to RIFF PR descriptions. Called at `/riff:next` Step 8b when `metadata.pr_body` is `standard` or `full`.
 
 **Inputs:** reads from the project root. All paths are relative to `cwd`.
 
@@ -17,8 +17,8 @@ Generates the `## Generation metadata (RIFF)` section appended to every RIFF PR 
 | `.planning/phases/<id>-*/PLAN.md` | Phase artifact paths |
 | `.planning/phases/<id>-*/SUMMARY.md` | Phase artifact paths |
 | `.planning/phases/<id>-*/GATES.md` | Gate log entries |
-| `.planning/phases/<id>-*/USAGE.md` | Token usage table |
-| `.planning/phases/<id>-*/PROMPTS.md` | Sub-agent prompts |
+| `.planning/phases/<id>-*/USAGE.md` | Token usage table (`metadata.pr_body: full` only) |
+| `.planning/phases/<id>-*/PROMPTS.md` | Sub-agent prompts (`metadata.pr_body: full` only) |
 | `.planning/codex-usage.csv` | Codex call count + duration for this phase |
 | `ROADMAP.yaml` | Slug, executor_model, codex_model, codex_effort, debug_model |
 | `git log main..HEAD` | Commit count, file diff, duration (first→last commit timestamp) |
@@ -32,10 +32,15 @@ body+=$'\n'$(scripts/riff-pr-metadata.sh N)
 gh pr create --body "$body" ...
 ```
 
+**Metadata modes:** resolved from profile `metadata.pr_body`:
+- `off` → emits nothing and exits 0
+- `standard` → models, duration, gates, Codex usage, commit trailers
+- `full` → standard plus USAGE.md token table and PROMPTS.md captured prompts
+
 **Error conditions:**
 - Missing `<phase-id>` argument → exits 2 with usage message.
 - Phase folder not found → exits 1 with a clear message.
-- `PROMPTS.md` still contains `{{prompt verbatim}}` placeholder → exits 1 with instructions for which sections need filling. This prevents template tokens from leaking into the PR body.
+- `metadata.pr_body: full` and `PROMPTS.md` still contains `{{prompt verbatim}}` placeholder → exits 1 with instructions for which sections need filling. This prevents template tokens from leaking into the PR body.
 
 **Slug resolution:** reads `slug` from `ROADMAP.yaml` for the given phase id. Falls back to the folder name if YAML has no `slug` field (legacy roadmap). Logs a warning to stderr on fallback.
 
@@ -74,11 +79,21 @@ timestamp,phase,step,model,effort,outcome,duration_sec
 
 ---
 
+## scope-check.mjs
+
+**Usage:** `node .riff/scripts/scope-check.mjs --phase .planning/phases/N-slug`
+
+Mechanical Step 5c checker. Reads `PLAN.md` and `SUMMARY.md`, writes `SCOPE-CHECK.json`, and exits `0` only for `MATCH`.
+
+Source of truth: `protocols/SCOPE-CHECK.md`.
+
+---
+
 ## riff-codex.mjs
 
 **Usage:** `node scripts/riff-codex.mjs <command> [options]`
 
-Generates compact Codex context packs and, with `--run`, runs one Codex capability through `codex exec --full-auto`. It is step-oriented and does not run unattended loops.
+Generates compact Codex context packs and, with `--run`, runs one Codex capability through `codex exec --full-auto`. This is a Codex executor runtime path, not a project adapter or install target. It is step-oriented and does not run unattended loops.
 
 Start a project:
 
@@ -115,14 +130,12 @@ node scripts/riff-codex.mjs add-phase --input "Add billing setup phase" --run
 
 **Usage:** `riff init [options]` or `node scripts/riff-init.mjs [options]`
 
-Installs RIFF into a project from the terminal. This is the harness-neutral setup path used before `start`.
+Installs RIFF into a project from the terminal. It installs Claude Code runtime files only; Codex remains the default executor runtime via skill/CLI and requires no project harness.
 
 ```bash
 riff init
-riff init --harness all
-riff init codex
-riff init --harness codex --scope scratch
-riff init command --project-root /path/to/project
+riff init --scope scratch
+riff init --project-root /path/to/project
 riff init --profile alex
 ```
 
@@ -130,19 +143,11 @@ riff init --profile alex
 
 - `.riff` symlink to the RIFF framework repo
 - `.planning/` skeleton and `.planning/config.json`
-- harness files for `claude`, `codex`, `commandcode`, or `all`
-
-Harness install behavior:
-
-- Omitting `--harness` installs all harnesses.
-- Positional shortcuts are accepted: `codex`, `claude`, `command`.
-- `claude` wires `.claude/commands/riff`, `.claude/agents/riff`, `.claude/hooks/riff`, and git hooks.
-- `claude-code` and `codeable` are accepted aliases for `claude`.
-- `codex` wires `.codex/riff` docs and `.agents/skills/riff-*` repo-local skills (the documented Codex CWD discovery scope). After restart, invoke with `$riff:start` or via `/skills`.
-- `commandcode` wires `.commandcode/commands/riff`, `.commandcode/hooks`, and `.commandcode/settings.json`.
+- `.claude/commands/riff`, `.claude/agents/riff`, `.claude/hooks/riff`, `.claude/settings.json`, and git hooks
+- `.gitignore` entries and a RIFF section in project `CLAUDE.md`
 
 When the terminal is interactive, `riff init` continues into profile onboarding and writes `.planning/profile.yaml`. Use `--profile <expert|neutre|apprentissage|alex>`, `--profile custom`, or `--no-onboard` to control this explicitly.
 
-Installed harness files are symlinked through the project-local `.riff/` link so the RIFF framework clone remains the source of truth.
+Installed Claude files are symlinked through the project-local `.riff/` link so the RIFF framework clone remains the source of truth.
 
 `riff init` does not create `PROJECT.md`, `.planning/design/*`, `ROADMAP.yaml`, or `STATE.md`; those are `start` artifacts.

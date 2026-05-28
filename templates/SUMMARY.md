@@ -59,7 +59,7 @@
 <!-- MANDATORY. One row per PLAN.md `## Smoke` line, in the same order.
      Status values: pass | fail | skipped.
      The executor MUST NOT write this section claiming `pass` if a smoke
-     actually failed. Fail-on-fail is enforced by the scope-checker. -->
+     actually failed. Fail-on-fail is enforced by scripts/scope-check.mjs. -->
 
 | Command | Expected | Observed | Status |
 | ------- | -------- | -------- | ------ |

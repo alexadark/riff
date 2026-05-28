@@ -37,7 +37,6 @@ Brownfield entry point. Analyzes an existing codebase and produces the planning 
    - Do NOT proceed until the explorer agent completes
 4. **Post-exploration:** Present summary, ask for corrections, apply to taste.md and `.planning/architecture.md`
 5. **CI drift audit:** if `.github/workflows/ci.yml` or `e2e.yml` exist, diff them against `.riff/templates/github-workflows/` and warn on:
-   - Lint step that gates merges (no `|| true`, no `continue-on-error`) — RIFF default is informational
    - `e2e.yml` triggering on `push` or `pull_request` — RIFF default is `workflow_dispatch` only
 
    Do NOT rewrite. Surface to the user with a one-line summary; they decide whether to adopt.

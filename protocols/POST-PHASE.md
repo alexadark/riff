@@ -13,7 +13,7 @@ Procedures used by `/riff:next` outside the main step sequence:
 
 ## Prompt capture convention
 
-After launching each sub-agent, append the substantive prompt to `.planning/phases/N-slug/PROMPTS.md` under the section heading named in each step (e.g. `## Planner`, `## Executor`, `## Adversarial reviewer (Codex)`, `## Simplifier`, `## Security reviewer`, `## Debugger (if invoked)`). PROMPTS.md was seeded at Step 2c from `.riff/templates/PROMPTS.md` and is finalized at Step 8b (any leftover `{{prompt verbatim}}` placeholder for a sub-agent that did not fire becomes `_(not invoked)_`, or `riff-pr-metadata.sh` hard-fails).
+After launching each sub-agent, append the substantive prompt to `.planning/phases/N-slug/PROMPTS.md` under the section heading named in each step (e.g. `## Planner`, `## Executor`, `## Adversarial reviewer (Codex)`, `## Simplifier`, `## Security reviewer`, `## Debugger (if invoked)`). PROMPTS.md was seeded at Step 2c from `.riff/templates/PROMPTS.md`. It is finalized at Step 8b only when `metadata.pr_body: full`; leftover `{{prompt verbatim}}` placeholders then become `_(not invoked)_`, and `riff-pr-metadata.sh` hard-fails if any remain.
 
 **Substantive** means: capture only what tells the reader what the agent was asked to DO. Drop the boilerplate that controls how its output gets formatted. The PR reader is a stakeholder, not the agent — they want signal, not the agent's mechanical instructions.
 

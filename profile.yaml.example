@@ -80,6 +80,12 @@ notifications:
                                      # email    → tries `gws gmail` first, falls back to system `mail`.
                                      # If a required sub-field is missing, notify-human.sh skips + warns (never fails the phase).
 
+metadata:
+  pr_body: standard                  # off | standard | full
+                                     # off: no RIFF metadata in PR body.
+                                     # standard: model/gate/stats metadata, no token table or captured prompts.
+                                     # full: standard plus USAGE.md token table and PROMPTS.md prompt capture.
+
 git:
   merge_strategy: github_button      # github_button | local_no_ff
                                      # github_button: I click Merge on GitHub myself; Step 0 reconciles next /riff:next run.

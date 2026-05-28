@@ -21,7 +21,7 @@ From `profile.yaml`:
 - `risk.sensitive_task_preference: cautious` ALSO adds an explicit AC on every sensitive surface (auth, payments, DB writes), on top of the general density bump above. `fast` trusts the executor and security-reviewer to catch issues, no extra AC density.
 - `style.length`, `style.allow_jargon`, `style.when_uncertain` — PLAN.md density and whether to surface questions or proceed on assumptions.
 - `budget.default_quality` — `max` biases Model Recommendation toward Opus; `frugal` toward Sonnet.
-- `executors.available` — which executors are installed. Drives the Model Recommendation: skip `codex` unless this list contains it. Missing field → treat as `[claude]`.
+- `executors.available` — which executors are installed. Drives the Model Recommendation: skip `codex` unless this list contains it. Missing field → treat as `[claude, codex]`.
 - `user.ai_agents_experience` — onboarding footer trigger. If `none` or `tried` AND `find .planning/phases -name SUMMARY.md | wc -l` returns < 3 (one of the first 3 phases on this project), append a 2-line footer to your chat reply: line 1 = model used + plan structure (waves, parallelism), line 2 = why this structure (one short sentence). Skip for `regular`/`advanced` and after the 3rd phase. Footer goes in the chat reply only, never in PLAN.md.
 
 If `profile.yaml` is missing, fall back to `neutre` defaults: intermediate, generalist, balanced, standard length, first_mention jargon, important_only.
@@ -75,7 +75,7 @@ Never emit `planner_model: codex` if `executors.available` does not contain `cod
 When ROADMAP.yaml will feed `/riff:wave`, the planner sets two optional flags per phase. Both default to "auto-decide at wave-time", explicit override only when needed.
 
 - `wave_eligible: true | false` — force include or exclude from waves. Default omitted (computed at wave-time per `/riff:wave` Step 1 eligibility rules). Set `false` on phases that need Claude execution even though they look wave-eligible (e.g. a phase you want to babysit).
-- `browser_check: true | false` — force enable or disable the browser-check contract on this phase. Default omitted (auto-computed per `protocols/BROWSER-CHECK.md` § Auto-enable). Set `true` on a non-UI phase that still has an observable end-to-end outcome worth verifying. Set `false` on a UI phase that genuinely has no user journey (a hidden admin route, a webhook receiver).
+- `smoke_test: true | false` — force enable or disable the Step 5e runtime smoke test on this phase. Default omitted; the gate is opt-in unless explicitly set. Set `true` on a phase with an observable route/user journey worth verifying. Set `false` only to document an intentional opt-out.
 - `codex_effort: medium | high | xhigh` — already documented in `protocols/MODEL.md` § Per-phase override fields. For wave execution: default `high`, bump to `xhigh` on auth/payments/migrations/architecture, drop to `medium` on trivial refactor or pure UI tweaks.
 
 The full wave-eligibility rule is owned by `/riff:wave` Step 1; the planner does not re-implement it here, only sets the per-phase opt-out / opt-in.
@@ -189,7 +189,7 @@ For the FIRST phase of any new feature: plan a thin end-to-end slice through all
 
 Every PLAN.md MUST end with a `## Smoke` section, regardless of scope. This is the executor's executable smoke contract — it lists every surface the phase touches and the exact shell command that exercises each one.
 
-**Why mandatory:** the executor runs every line in `## Smoke` before writing SUMMARY.md. If any fails, the phase does not complete. The scope-checker (Step 5c) flags a missing or thin Smoke section as DROPPED. This is the framework-level safety net against "feature works on the path the executor tried, broken on every other path."
+**Why mandatory:** the executor runs every line in `## Smoke` before writing SUMMARY.md. If any fails, the phase does not complete. The mechanical scope check (Step 5c) flags a missing or thin Smoke section as DROPPED. This is the framework-level safety net against "feature works on the path the executor tried, broken on every other path."
 
 **The user does NOT write this.** You, the planner, write it. The user does not know which CLI commands exist, which routes the diff touches, or which neighbor functions share a modified file.
 
@@ -233,7 +233,7 @@ Rules:
 
 ### Minimum density
 
-A phase that touches code must have AT LEAST 2 smoke entries. A phase with `## Smoke` containing only `- N/A` or fewer than 2 actionable commands fails scope-checker.
+A phase that touches code must have AT LEAST 2 smoke entries. A phase with `## Smoke` containing only `- N/A` or fewer than 2 actionable commands fails scope check.
 
 A phase that is pure docs/README/refactor with no behavioral change writes:
 

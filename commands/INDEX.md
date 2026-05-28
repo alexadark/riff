@@ -14,7 +14,7 @@
 
 | Command          | When to run                                                                                                                                              | Output                                                                                                                              |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `/riff:init`     | Claude wrapper for terminal `riff init --harness claude`. Installs `.riff/` symlink, `.planning/` skeleton, harness symlinks, and hooks.                        | `.riff/`, `.planning/`, harness symlinks, hooks                                                                                     |
+| `/riff:init`     | Claude wrapper for terminal `riff init`. Installs `.riff/` symlink, `.planning/` skeleton, Claude runtime symlinks, settings, and hooks.                        | `.riff/`, `.planning/`, `.claude/`, hooks                                                                                           |
 | `/riff:resync`   | Re-link `.riff/` symlinks after the framework adds/removes files (new agent, dropped command). Idempotent. Bootstrap: `bash .riff/riff-resync.sh`.       | Refreshed symlinks under `.claude/{commands,agents,hooks}/riff/`, dangling links removed, CLAUDE.md drift report                    |
 | `/riff:start`    | Greenfield project — before any code. 5-stage discovery (problem → users → MVP → research → roadmap). Asks `scratch` vs `production` scope at Stage 1. | `PROJECT.md`, `ROADMAP.yaml`, `STATE.md`, `.planning/config.json` (+ `taste.md`, `INCIDENTS.md`, `CONTEXT.md` in production scope) |
 | `/riff:map`      | Brownfield project — point at an existing codebase to onboard RIFF onto it.                                                                              | `PROJECT.md`, `taste.md`, `ROADMAP.yaml` (seeded from real code)                                                                    |
@@ -24,7 +24,7 @@
 | Command          | When to run                                                                                        | Output                                                              |
 | ---------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `/riff:next`     | The main command. Plans + executes + reviews + opens PR for the next phase.                        | `PLAN.md`, `SUMMARY.md`, `REVIEW.md`, security report, USAGE.md, PR |
-| `/riff:wave [W{N}\|--solo P\|--resume W{N}]` | Bundle N parallel-eligible phases (or 1 solo) and delegate to Codex. Opus plans, Codex executes, browser-check proves it works. | `.planning/waves/W{N}.bundle.md`, `.RESULT.md`, `.SUMMARY.md` |
+| `/riff:wave [W{N}\|--solo P\|--resume W{N}]` | Bundle N parallel-eligible phases (or 1 solo) and delegate to Codex. Opus plans, Codex executes, opt-in smoke/browser checks prove it works. | `.planning/waves/W{N}.bundle.md`, `.RESULT.md`, `.SUMMARY.md` |
 | `/riff:status`   | "Where am I?" — shows current phase, next phase, blocked phases, pending expertise.                | Console output                                                      |
 
 ## Off-loop work (when you need to act outside the roadmap)
@@ -80,7 +80,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - `protocols/HANDOFF.md` — session checkpoint contract for `/riff:start`, `/riff:next`, `/riff:wave`. Session bloats past safe context → propose `/clear`, reopen with STATE.md. Read at Stage / Step boundaries when 2+ heuristics fire (sub-agents, revisions, tool calls, files written).
 - `protocols/WAVE-BUNDLE.md` — assembled by `/riff:wave` Step 3 to package N phases for Codex wave execution. Defines the single contract Codex reads (goal, per-phase plans, acceptance criteria, RESULT.md shape).
 - `protocols/CODEX-DELEGATION.md` — read by `/riff:wave` Steps 4-5 for the in-process vs out-of-process routing and the three prompt templates (wave, solo, solo-strict).
-- `protocols/HOOKS.md` — payload shapes and matchers for writing one hook that fires in both Claude Code and Codex CLI runtimes. Covers tool-name differences (`Write`/`Edit` vs `apply_patch`), file-path extraction across both shapes, Codex's hook-trust mechanism, and known gaps (`exec_command` shell-creation coverage).
+- `protocols/HOOKS.md` — Claude Code project hook contract, installed events, templates, and test workflow.
 - `protocols/BROWSER-CHECK.md` — read by `/riff:wave` Step 3 (auto-enable rules) and by Codex during execution. The "prove the feature actually works" contract for wave and solo execution.
 - `protocols/DISCOVERY-DETECTION.md` — read by `/riff:start` Stage 0 to branch greenfield / starter / brownfield and route the brownfield audit-codebase prompt.
 - `protocols/DISCOVERY-DETECTION.md` § Stack Source Gate — read by `/riff:start` Stage 1 to capture how the stack decision is made (`starter-local | starter-clone | known | discussed`) so Stage 5 knows whether to run the starter clone.
@@ -94,7 +94,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 
 - `agents/planner.md` — read inline by `/riff:next` Step 4 (goal-backward planning policy, AC rules, HITL/AFK criteria, TDD mode, anti-patterns).
 - `agents/adversarial-reviewer.md` — read by the Codex sub-agent invoked at `/riff:next` Step 6 (review contract, severity scale, REVIEW.md format).
-- `agents/scope-checker.md` — invoked by `/riff:next` Step 5c to diff PLAN.md vs SUMMARY.md and flag silently dropped tasks before review.
+- `protocols/SCOPE-CHECK.md` + `scripts/scope-check.mjs` — invoked by `/riff:next` Step 5c to diff PLAN.md vs SUMMARY.md and flag silently dropped tasks before review.
 - `agents/architecture-adversarial-reviewer.md` — invoked by `/riff:start` Stage 2.5 to challenge the System Architecture before scope and roadmap lock.
 - `agents/roadmap-adversarial-reviewer.md` — invoked by `/riff:start` Stage 4.5 to challenge `ROADMAP.yaml` before bootstrap.
 - `agents/plan-adversarial-reviewer.md` — invoked by `/riff:next` Step 4b to challenge `PLAN.md` before execution.

@@ -2,7 +2,7 @@
 # RIFF IDOR Pattern Detector - PostToolUse hook for Edit/Write/apply_patch
 # Detects database queries using an ID parameter without user scoping
 # Rule: "No IDOR: always scope queries to the authenticated user"
-# Wired in .claude/settings.json (Claude) and ~/.codex/hooks.json (Codex).
+# Wired in project .claude/settings.json.
 # Reads JSON payload on stdin; falls back to $1 for legacy invocation.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

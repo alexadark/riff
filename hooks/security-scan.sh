@@ -3,7 +3,7 @@
 # Blocks commits containing common security issues.
 # In scratch_mode (RIFF_SCRATCH_MODE=1), BLOCKED findings are downgraded to
 # warnings and logged to .planning/followups/SECURITY-W{N}-RECONCILE.md.
-# Install: cp this to .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# Install: riff init symlinks this to .git/hooks/pre-commit.
 
 set -e
 

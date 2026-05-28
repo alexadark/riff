@@ -213,7 +213,7 @@ Step 4b  Plan adversarial review ─────────── plan-adversar
 Step 4c  Pre-exec explanation ───────────── haiku, for dashboard (fail-silent)
 Step 5   Execute ────────────────────────── executor (sub-agent)
 Step 5b  Simplify ───────────────────────── simplifier (gated)
-Step 5c  Scope check ────────────────────── scope-checker (inline)
+Step 5c  Scope check ────────────────────── scope-check.mjs (mechanical)
 Step 5d  Fallow audit ───────────────────── mechanical, no LLM (gated)
 Step 5e  Smoke test (browser) ───────────── headless browser (gated)
 Step 5f  Post-mortem explanation ───────── haiku, for dashboard (fail-silent)
@@ -244,7 +244,7 @@ R1/R2 keep things moving without bothering you. R3/R4 protect you from drift.
 
 ### Atomic commits
 
-One commit per task in the plan. Conventional commit prefixes (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`). No `git add .`. Pre-commit hook runs `security-scan.sh` (gitleaks + semgrep) on every commit.
+One commit per task in the plan. Conventional commit prefixes (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`). No `git add .`. Pre-commit hook runs `security-scan.sh`, which blocks obvious secrets and `.env` files and warns on common quality issues.
 
 ### Auto-debug
 
@@ -258,7 +258,7 @@ If `scope: scratch`, Steps 6 (adversarial) and 7 (security) are skipped entirely
 
 ---
 
-## The 13 agents
+## Agents and Mechanical Gates
 
 Each agent lives as a single markdown file in `agents/`. The file IS the instruction, fully editable.
 
@@ -274,9 +274,9 @@ Implements `PLAN.md` tasks one by one, atomic commits. Reads the wave grouping a
 
 Structural smell pass on the diff. Looks for premature abstraction, misnaming, dead branches, copy-pasted code that should be a function. Gated by budget. Default model: Haiku.
 
-### Scope-checker (`agents/scope-checker.md`)
+### Scope Check (`scripts/scope-check.mjs`)
 
-Diffs `PLAN.md` vs `SUMMARY.md`. Flags tasks that were silently dropped or added without an R-deviation log. Runs inline (no LLM).
+Diffs `PLAN.md` vs `SUMMARY.md`. Flags tasks that were silently dropped and smoke commands that were not reported. Runs inline with no LLM. Source of truth: `protocols/SCOPE-CHECK.md`.
 
 ### Adversarial-reviewer (`agents/adversarial-reviewer.md`)
 
@@ -304,7 +304,7 @@ OWASP top-10 scan on every production phase: auth, input validation, injection, 
 
 ### Debugger (`agents/debugger.md`)
 
-Auto-triggered on FAIL across the pipeline. Reads the failing artifact, opens the failing route in a headless browser (for frontend failures), takes a screenshot, writes `DEBUG.md` with root cause and proposed fix. Default model: Sonnet.
+Auto-triggered on FAIL across the pipeline. Reads the failing artifact, opens the failing route in a headless browser (for frontend failures), takes a screenshot, writes `DEBUG.md` with root cause and proposed fix. Default model: Opus; Sonnet is an explicit `debug_model: sonnet` cost override.
 
 ### Improver (`agents/improver.md`)
 
@@ -377,14 +377,13 @@ Full spec: `protocols/MODEL.md` § Budget and model resolution.
 
 ## Hooks: the 3 buckets
 
-18 hooks in `hooks/`, grouped into 3 buckets. Your profile picks which ones wire.
+Hooks are grouped into 3 buckets. Your profile picks which ones wire.
 
 ### Bucket A, always wired (universal discipline)
 
 - `destructive-guard.sh` — block `rm -rf`, force-push to main, hard reset of upstream branches.
 - `boundary-check.sh` — block cross-boundary imports (e.g., backend imports from frontend).
 - `typecheck-gate.sh` — block commits that break `tsc --noEmit`.
-- `lint-gate.sh` — block commits that violate the project's lint config.
 - `test-gate.sh` — block commits that break the test suite.
 
 ### Bucket B, security-adaptable (driven by `risk.sensitive_task_preference`)
@@ -396,16 +395,18 @@ Full spec: `protocols/MODEL.md` § Budget and model resolution.
 
 Wired all-on for `cautious`, partial for `balanced`, off for `fast`.
 
-### Bucket C, stack-specific (picked at `/riff:init`)
+### Bucket C, stack/convention helpers
 
 - `registry-reminder.sh` — remind to update the registry when a new module is added.
 - `migration-gate.sh` — block commits that change a migration without running it.
 - `notify-human.sh` — ping the user via the configured `notifications.channel`.
 
+`registry-reminder.sh` and `migration-gate.sh` are invoked by `security-scan.sh` when matching files are staged. `notify-human.sh` is a manual helper for agents, not an init-selected hook.
+
 ### Shared infrastructure
 
-- `commit-msg.sh` — enforce conventional commit format.
-- `security-scan.sh` — gitleaks + semgrep on every commit.
+- `commit-msg.sh` — no-op placeholder; commit wording is a RIFF convention, not a hook-enforced format.
+- `security-scan.sh` — staged-file secret scan, `.env` blocking, quality warnings, and project tests when dependencies are installed.
 - `log-warning.sh` — central warning logger.
 - `orphan-file-check.sh` — flag files created but not imported.
 - `test.sh` — test runner helper.
@@ -416,16 +417,16 @@ Details: `hooks/README.md` § Buckets.
 
 ## Unattended runs: /riff:wave
 
-`/riff:wave` bundles N parallel-eligible phases and delegates execution to Codex. Opus plans, Codex executes, browser-check proves it works.
+`/riff:wave` bundles N parallel-eligible phases and delegates execution to Codex. Opus plans, Codex executes, and opt-in smoke/browser checks prove it works.
 
-Eligibility: phase has `status: todo`, `mode: AFK`, `provider_mode != production`, all upstream `depends_on` are completed.
+Eligibility: phase has `status: todo`, `mode: AFK`, `provider_mode != production`, all upstream `depends_on` are `done`.
 
 Two routes (decided per Step 4 of `commands/wave.md`):
 
 - **In-process** — ≤1 phase under 30 min: spawned via the `codex:codex-rescue` skill, blocks Claude until done.
 - **Out-of-process** — ≥2 phases or over 30 min: Claude prints the exact `codex --dangerously-bypass-approvals-and-sandbox` command, the user runs it in a separate Codex terminal. Come back with `/riff:wave --resume W{N}`.
 
-It stops on: FAIL on any phase, security BLOCKED, browser-check FAIL after 3 fix-retest cycles, or scope drift. Phases marked `mode: HITL` never enter a wave.
+It stops on: FAIL on any phase, security BLOCKED, smoke/browser-check FAIL after fix-retest cycles, or scope drift. Phases marked `mode: HITL` never enter a wave.
 
 ### HITL vs AFK phases
 
@@ -528,8 +529,8 @@ RIFF dispatches across 3 model families. Each has a job it's good at.
 
 | Family    | When used                                                                                  |
 | --------- | ------------------------------------------------------------------------------------------ |
-| **Opus**  | Planning (default). Adversarial fallback when Codex CLI is unavailable.                    |
-| **Sonnet**| Execution. Security review. Debug. Most general-purpose work.                              |
+| **Opus**  | Planning (default). Debug (default). Adversarial fallback when Codex CLI is unavailable.   |
+| **Sonnet**| Claude fallback execution. Security review. Debug cost override. Most general-purpose work. |
 | **Haiku** | Simplifier. Pre-exec + post-mortem explanations for the dashboard.                         |
 | **Codex** | Adversarial review (different model family, catches Claude's blind spots).                 |
 
@@ -540,11 +541,11 @@ RIFF dispatches across 3 model families. Each has a job it's good at.
 | Step 4: Plan                     | Inline (frontmatter)  | Opus                 | `planner_model:` per phase in `ROADMAP.yaml`              |
 | Step 4b: Plan adversarial        | Sub-agent (Codex)     | Codex CLI            | Falls back to Opus if Codex unavailable                   |
 | Step 4c: Pre-exec explanation    | Sub-agent             | Haiku                | (none)                                                    |
-| Step 5: Execute                  | Codex (in-process)    | Codex CLI (default)  | `executor_model: sonnet` falls back to Claude sub-agent    |
+| Step 5: Execute                  | Codex (in-process)    | Codex CLI (default)  | `executor_model: sonnet` forces Claude fallback            |
 | Step 5b: Simplify                | Sub-agent             | Haiku                | `simplify_model:` per phase                                |
 | Step 6: Adversarial review       | Sub-agent (Codex)     | Codex CLI            | Falls back to Opus                                        |
 | Step 7: Security review          | Sub-agent             | Sonnet               | `security_model:` per phase                                |
-| Step 7b: Improver                | Sub-agent             | Sonnet               | (gated, see AUTO-TRIGGERS.md)                             |
+| Step 7b: Improver                | Sub-agent             | Haiku                | (gated, see AUTO-TRIGGERS.md)                             |
 
 ### Codex CLI fallback
 

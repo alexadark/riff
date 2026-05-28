@@ -1,7 +1,7 @@
 #!/bin/bash
 # RIFF Boundary Check - PostToolUse hook for Edit/Write/apply_patch
 # Checks if the modified file is within the current task's boundary list
-# Wired in .claude/settings.json (Claude) and ~/.codex/hooks.json (Codex).
+# Wired in project .claude/settings.json.
 # Reads JSON payload on stdin; falls back to $1 for legacy invocation.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

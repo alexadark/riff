@@ -108,13 +108,12 @@ const CAPABILITIES = {
     ],
   },
   'scope-check': {
-    prompt: 'scope-check.md',
+    deterministic: true,
     artifact: 'SCOPE-CHECK.json',
     tier: 'focused',
     core: [
-      'protocols/QUALITY.md',
+      'protocols/SCOPE-CHECK.md',
       'templates/PLAN.md',
-      'protocols/CODEX-DELEGATION.md',
     ],
   },
   review: {
@@ -281,21 +280,11 @@ const CAPABILITIES = {
       'templates/PLAN.md',
     ],
   },
-  loop: {
-    deterministic: true,
-    phaseRequired: false,
-    acceptsInput: true,
-    artifact: undefined,
-    tier: 'minimal',
-    core: [
-      'templates/STATE.md',
-    ],
-  },
 };
 
 function usage(exitCode = 0) {
   const commands = Object.keys(CAPABILITIES).join(', ');
-  const text = `RIFF Codex adapter
+  const text = `RIFF Codex runtime
 
 Usage:
   node scripts/riff-codex.mjs <command> [--phase <phase-id-or-path>] [options]
@@ -611,10 +600,33 @@ function contractSnapshot() {
   ].map((file) => artifactExcerpt(FRAMEWORK_ROOT, file, 8000)).join('\n');
 }
 
+function capabilityPrompt(capability) {
+  const name = capability.name;
+  if (name === 'start') {
+    return 'Follow the `/riff:start` command contract. Produce normal RIFF start artifacts only.';
+  }
+  if (name === 'plan') {
+    return 'Read `agents/planner.md` and write the phase PLAN.md. Do not execute implementation work.';
+  }
+  if (name === 'execute') {
+    return 'Execute the phase PLAN.md exactly, stay within boundaries, commit atomically, and write SUMMARY.md.';
+  }
+  if (name === 'scope-check') {
+    return 'Mechanical capability. Run `node .riff/scripts/scope-check.mjs --phase <phase-dir>` and inspect SCOPE-CHECK.json.';
+  }
+  if (name === 'code-review') {
+    return 'Review the phase diff for behavioral bugs, missing tests, race conditions, edge cases, and wrong assumptions. Write REVIEW.md.';
+  }
+  if (name === 'security-review') {
+    return 'Review the phase diff for security issues per `agents/security-reviewer.md`. Write SECURITY.md.';
+  }
+  return `Run the RIFF \`${name}\` capability exactly. Keep durable artifacts provider-neutral.`;
+}
+
 function renderStartContextPack(args, capability) {
   const projectRoot = args.projectRoot;
   const scope = detectScope(projectRoot, args.scope);
-  const prompt = readText(FRAMEWORK_ROOT, path.join('adapters', 'codex', 'prompts', capability.prompt));
+  const prompt = capabilityPrompt(capability);
   const coreRefs = capability.core.map((file) => `- \`${displayFrameworkPath(file)}\``).join('\n');
   const refreshPolicy = args.refresh
     ? 'Refresh mode: existing RIFF start artifacts may be updated when the update is necessary and the final report names what changed.'
@@ -636,7 +648,7 @@ Expected output: \`PROJECT.md\`, \`.planning/design/*\` when needed, \`ROADMAP.y
 
 Initialize this project into RIFF v2 artifacts. Do not run a phase, execute implementation work, or chain into another gate.
 
-Use the RIFF core contracts as the source of truth. Adapter prompts may explain how to operate in Codex, but durable outputs must be normal RIFF artifacts in the project root.
+Use the RIFF core contracts as the source of truth. Runtime prompts may explain how to operate in Codex, but durable outputs must be normal RIFF artifacts in the project root.
 
 ## User Brief
 
@@ -665,7 +677,7 @@ ${projectArtifactSnapshot(projectRoot)}
 
 ${projectOverviewSnapshot(projectRoot)}
 
-## Adapter Prompt
+## Runtime Prompt
 
 ${prompt}
 
@@ -673,7 +685,7 @@ ${prompt}
 
 - Write or preserve \`PROJECT.md\`, \`.planning/config.json\`, \`ROADMAP.yaml\`, and \`STATE.md\`.
 - Write one or more \`.planning/design/*.md\` files when architecture, data, user experience, security, or integration decisions materially affect the roadmap.
-- Keep durable artifacts provider-neutral; do not require Codex, Claude, CommandCode, Opus, slash commands, or provider transcripts.
+- Keep durable artifacts provider-neutral; do not require Codex, Claude, Opus, slash commands, or provider transcripts.
 - If manual Opus escalation is required, generate a paste-ready start prompt with \`${opusCommand}\`, then stop and report the prompt path. Treat any Opus response as draft input only.
 - End with artifacts created or preserved, selected scope, first phase id and title, and the recommended next command.
 `;
@@ -692,7 +704,7 @@ function projectPhaseList() {
 
 function renderProjectCommandContextPack(args, capability) {
   const prompt = capability.prompt
-    ? readText(FRAMEWORK_ROOT, path.join('adapters', 'codex', 'prompts', capability.prompt))
+    ? capabilityPrompt(capability)
     : deterministicPrompt(capability.name);
   const coreRefs = capability.core.map((file) => `- \`${displayFrameworkPath(file)}\``).join('\n');
   const expectedOutput = capability.artifact || 'read-only status output';
@@ -736,7 +748,7 @@ ${artifactExcerpt(ROOT, '.planning/config.json')}
 
 ${projectPhaseList()}
 
-## Adapter Prompt
+## Runtime Prompt
 
 ${prompt}
 
@@ -760,7 +772,7 @@ function renderContextPack(args) {
   const phase = normalizePhase(args.phase);
   const scope = detectScope(ROOT, args.scope);
   const prompt = capability.prompt
-    ? readText(FRAMEWORK_ROOT, path.join('adapters', 'codex', 'prompts', capability.prompt))
+    ? capabilityPrompt(capability)
     : deterministicPrompt(capability.name);
   const outputPath = expectedOutputPath(capability.name, phase, capability);
   const coreRefs = capability.core.map((file) => `- \`${displayFrameworkPath(file)}\``).join('\n');
@@ -779,7 +791,7 @@ Expected output: \`${outputPath}\`
 
 Run exactly this capability for exactly this phase. Do not chain into another phase or gate.
 
-Use the RIFF core contracts as the source of truth. Adapter prompts may explain how to operate in Codex, but durable outputs must be normal RIFF artifacts.
+Use the RIFF core contracts as the source of truth. Runtime prompts may explain how to operate in Codex, but durable outputs must be normal RIFF artifacts.
 
 ## Stop Conditions
 
@@ -795,7 +807,7 @@ ${coreRefs}
 
 ${artifactSnapshot(phase.dir)}
 
-## Adapter Prompt
+## Runtime Prompt
 
 ${prompt}
 
@@ -833,6 +845,16 @@ Output:
 
 - .planning/phases/<phase>/dashboard-metadata.json
 - dashboard gate status in GATES.md
+`;
+  }
+  if (command === 'scope-check') {
+    return `# Deterministic Capability: Scope Check
+
+Run \`node .riff/scripts/scope-check.mjs --phase <phase>\`.
+
+Output:
+
+- .planning/phases/<phase>/SCOPE-CHECK.json
 `;
   }
   return '# Deterministic Capability\n';
@@ -1014,25 +1036,28 @@ echo "Stop: node .riff/scripts/riff-codex.mjs dashboard --run --input '--stop'"`
     });
     process.exit(result.status ?? 1);
   }
-  if (args.command === 'loop') {
+  initializeGateLedger(ROOT, phase, scope);
+  if (args.command === 'scope-check') {
     const frameworkRoot = resolveFrameworkRoot();
-    const iterations = args.input ? args.input.trim() : '';
-    const n = iterations && /^\d+$/.test(iterations) ? iterations : '20';
-    const loopScript = [
-      path.join(ROOT, '.riff', 'riff-loop-codex.sh'),
-      path.join(frameworkRoot, 'riff-loop-codex.sh'),
-    ].find(existsSync);
-    if (!loopScript) {
-      fail('riff-loop-codex.sh not found. Framework not properly installed.');
-    }
-    const result = spawnSync('bash', [loopScript, '-n', n], {
+    const script = existsSync(path.join(ROOT, '.riff', 'scripts', 'scope-check.mjs'))
+      ? path.join(ROOT, '.riff', 'scripts', 'scope-check.mjs')
+      : path.join(frameworkRoot, 'scripts', 'scope-check.mjs');
+    const result = spawnSync(process.execPath, [script, '--project-root', ROOT, '--phase', phase.dir], {
       cwd: ROOT,
       stdio: 'inherit',
       env: process.env,
     });
-    process.exit(result.status ?? 1);
+    const exitCode = result.status ?? 1;
+    updateGate(ROOT, phase, scope, {
+      gate: 'scope-check',
+      status: exitCode === 0 ? 'pass' : 'fail',
+      command: 'node .riff/scripts/scope-check.mjs',
+      exitCode,
+      artifact: artifactPath(phase.dir, 'SCOPE-CHECK.json'),
+      reason: exitCode === 0 ? 'mechanical scope check passed' : 'mechanical scope check failed',
+    });
+    process.exit(exitCode);
   }
-  initializeGateLedger(ROOT, phase, scope);
   if (args.command === 'hooks') {
     const result = runHooks({ root: ROOT, phase, scope });
     process.stdout.write(`hooks ${result.status}\n`);
@@ -1148,7 +1173,7 @@ function runCodex(args, contextPack, phase, scope) {
     status: 'running',
     command: `codex exec ${capability.name}`,
     artifact: gateArtifact,
-    reason: 'adapter command started',
+    reason: 'runtime command started',
   });
 
   const result = spawnSync(args.codexBin, ['exec', '--full-auto', '-'], {
@@ -1172,10 +1197,10 @@ function runCodex(args, contextPack, phase, scope) {
   const artifactReady = exitCode === 0 && artifactChangedSince(artifactBefore, gateArtifact);
   const status = artifactReady ? 'pass' : 'fail';
   const reason = exitCode !== 0
-    ? 'adapter command failed'
+    ? 'runtime command failed'
     : artifactReady
-      ? 'adapter command completed'
-      : `adapter command completed without expected artifact: ${gateArtifact}`;
+      ? 'runtime command completed'
+      : `runtime command completed without expected artifact: ${gateArtifact}`;
   updateGate(ROOT, phase, scope, {
     gate,
     status,
