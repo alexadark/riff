@@ -212,6 +212,12 @@ Promoted to production scope.
 - Next /riff:next will run: planner adversarial, simplifier, security-reviewer, adversarial Codex.
 ```
 
+### Step 10: Post-deploy monitoring
+
+Read `protocols/POST-DEPLOY.md` and execute. Sets up error tracking (Sentry), uptime monitoring (health endpoint), and a scheduled smoke test. Each category can be opted out via `ROADMAP.yaml` (`error_tracking: none`, `uptime_monitor: none`, `scheduled_smoke: none`).
+
+This step runs in-process via `codex:codex-rescue`. Failures are logged as warnings, not blockers — promotion already succeeded at Step 2.
+
 ---
 
 ## Anti-patterns

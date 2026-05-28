@@ -139,7 +139,7 @@ Set at Stage 1 of `/riff:start` (or at `/riff:init` Step 3b):
 - **`production`** — others will use it, deployed, has auth/payments/PII, or is destined to. Full RIFF discipline (security review on every phase, R3 architecture gates, all hooks wired).
 - **`scratch`** — personal/local script, no auth, no public exposure. Skips adversarial review, skips security review, only the "no hardcoded secrets" rule applies.
 
-When a scratch project gets serious, ask Claude to "promote to production". RIFF runs the skipped discovery stages and flips the scope.
+When a scratch project gets serious, ask Claude to "promote to production". RIFF runs the skipped discovery stages, flips the scope, and sets up post-deploy monitoring (error tracking, uptime, scheduled smoke tests) via `protocols/POST-DEPLOY.md`.
 
 ---
 
@@ -187,7 +187,7 @@ Rare lifecycle actions live as protocol files. Trigger them by saying a phrase:
 
 - "log incident" → append entry to `INCIDENTS.md`
 - "incident review" → quarterly review, runs `incident-adversarial-reviewer`
-- "promote to production" → flip scope and run skipped discovery stages
+- "promote to production" → flip scope, run skipped discovery stages, set up post-deploy monitoring (Sentry, health endpoint, smoke test)
 - "re-audit phase N" → re-run scope-check + adversarial + security against a phase
 - "deep audit" / "milestone review" → `deep-auditor` runs across phases at a milestone boundary
 - "resync riff" → run `bash .riff/riff-resync.sh`
