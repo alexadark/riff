@@ -120,7 +120,30 @@ if [ $ANY_FOUND -eq 0 ]; then
   echo "OK"
 fi
 
-# Check 4: .env files being committed
+# Check 4: TypeScript project typecheck (warning only)
+echo -n "  Running TypeScript typecheck... "
+TYPECHECK_FOUND=0
+if [ -f tsconfig.json ]; then
+  set +e
+  TSC_OUTPUT=$(npx tsc --noEmit 2>&1)
+  TSC_EXIT=$?
+  set -e
+  if [ $TSC_EXIT -ne 0 ]; then
+    TYPECHECK_FOUND=$(printf "%s\n" "$TSC_OUTPUT" | grep -c "error TS" || true)
+    if [ "$TYPECHECK_FOUND" -eq 0 ]; then
+      TYPECHECK_FOUND=$(printf "%s\n" "$TSC_OUTPUT" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
+    fi
+    echo ""
+    echo -e "  ${YELLOW}⚠ typecheck: tsc --noEmit failed (${TYPECHECK_FOUND} errors). Review before merge.${NC}"
+    printf "%s\n" "$TSC_OUTPUT" | tail -10
+  else
+    echo "OK"
+  fi
+else
+  echo "skipped (no tsconfig.json)"
+fi
+
+# Check 5: .env files being committed
 echo -n "  Checking for .env files... "
 for file in "${STAGED_FILES[@]}"; do
   if [[ "$file" =~ ^\.env ]] && ! [[ "$file" =~ \.example$ ]]; then
@@ -133,7 +156,7 @@ if [ $ISSUES_FOUND -eq 0 ]; then
   echo "OK"
 fi
 
-# Check 5: Commit scope (too many files = probably not atomic)
+# Check 6: Commit scope (too many files = probably not atomic)
 echo -n "  Checking commit scope... "
 FILE_COUNT=${#STAGED_FILES[@]}
 if [ "$FILE_COUNT" -gt 15 ]; then
@@ -145,24 +168,24 @@ else
   echo "OK ($FILE_COUNT files)"
 fi
 
-# Check 6: Orphan files (new files not imported anywhere)
+# Check 7: Orphan files (new files not imported anywhere)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/orphan-file-check.sh" ]; then
   bash "$SCRIPT_DIR/orphan-file-check.sh"
 fi
 
-# Check 6b: REGISTRY.md staleness reminder
+# Check 7b: REGISTRY.md staleness reminder
 if [ -f "$SCRIPT_DIR/registry-reminder.sh" ]; then
   bash "$SCRIPT_DIR/registry-reminder.sh" || ISSUES_FOUND=$((ISSUES_FOUND + 1))
 fi
 
-# Check 6c: Migration gate (apply pending migrations when migration files are staged)
+# Check 7c: Migration gate (apply pending migrations when migration files are staged)
 if [ -z "${RIFF_SKIP_MIGRATION_GATE:-}" ] && [ -f "$SCRIPT_DIR/migration-gate.sh" ]; then
   source "$SCRIPT_DIR/migration-gate.sh"
   ISSUES_FOUND=$((ISSUES_FOUND + $?))
 fi
 
-# Check 7: Tests pass (skip when project is not yet a TS/JS workspace with deps installed)
+# Check 8: Tests pass (skip when project is not yet a TS/JS workspace with deps installed)
 if [ -f package.json ] && [ -d node_modules ]; then
   echo -n "  Running test suite... "
   TEST_OUTPUT=$(npx vitest run 2>&1)
@@ -186,8 +209,8 @@ if [ $ISSUES_FOUND -gt 0 ]; then
   echo "Fix the issues above and try again."
   exit 1
 else
-  if [ $((CONSOLE_FOUND + ANY_FOUND)) -gt 0 ]; then
-    echo -e "${YELLOW}RIFF Security: $((CONSOLE_FOUND + ANY_FOUND)) warning(s). Commit allowed.${NC}"
+  if [ $((CONSOLE_FOUND + ANY_FOUND + TYPECHECK_FOUND)) -gt 0 ]; then
+    echo -e "${YELLOW}RIFF Security: $((CONSOLE_FOUND + ANY_FOUND + TYPECHECK_FOUND)) warning(s). Commit allowed.${NC}"
   else
     echo "RIFF Security: All clear."
   fi

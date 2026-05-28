@@ -1,3 +1,4 @@
+last_audited: 2026-05-28
 ---
 description: Vercel AI SDK conventions for LLM streaming, structured output, and chat UIs
 paths:

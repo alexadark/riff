@@ -257,7 +257,7 @@ Mechanical codebase intelligence on the phase diff via [`fallow`](https://github
 
 ### Step 5e: Smoke test browser — inline (gated)
 
-Boot the dev server, load every route touched by the phase diff in a headless browser, capture HTTP status + console errors/warnings. Catches "compiles green but blows up at boot" regressions. Full pipeline (detect runner, port selection, route derivation, SMOKE.json schema) + skip conditions table + installation: [`references/SMOKE-TEST.md`](../references/SMOKE-TEST.md).
+Boot the dev server, load every route touched by the phase diff in a headless browser, capture HTTP status + console errors/warnings. Catches "compiles green but blows up at boot" regressions. Full pipeline (detect runner, port selection, route derivation, SMOKE.json schema) + skip conditions table + installation: [`protocols/BROWSER-CHECK.md § Runtime Smoke Test`](../protocols/BROWSER-CHECK.md#runtime-smoke-test-step-5e).
 
 **Skip conditions** (all log via `gates-update.mjs --gate smoke --status skipped --reason "<reason>"`):
 - `scope: scratch`

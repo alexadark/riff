@@ -91,6 +91,8 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
 ## Questions
 
+Questions are numbered Q1-Q15. Q4 and Q6 were removed; numbers are stable, not sequential.
+
 ### Section 1 — Who you are
 
 **Q1. Programming level**

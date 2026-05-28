@@ -1,3 +1,4 @@
+last_audited: 2026-05-28
 ---
 description: Vitest gotchas (mock hoisting, module reset, RR7 action/loader testing, Trigger.dev mocks, env stubbing)
 paths:

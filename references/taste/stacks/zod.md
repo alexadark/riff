@@ -1,3 +1,4 @@
+last_audited: 2026-05-28
 ---
 description: Zod gotchas (z.record arity, superRefine + partial, UUID variant bits, boolean default inference)
 paths:

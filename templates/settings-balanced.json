@@ -47,10 +47,6 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/riff/lint-gate.sh \"$TOOL_INPUT\""
-          },
-          {
-            "type": "command",
             "command": "bash .claude/hooks/riff/test-gate.sh \"$TOOL_INPUT\""
           },
           {

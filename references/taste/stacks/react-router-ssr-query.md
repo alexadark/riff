@@ -1,3 +1,4 @@
+last_audited: 2026-05-28
 ---
 description: @tanstack/react-router-ssr-query version pinning protocol (peer dep awareness)
 paths:

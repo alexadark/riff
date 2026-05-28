@@ -54,6 +54,6 @@ Delete `.planning/profile.yaml`. The next agent run falls through to the framewo
 
 ## Cross-references
 
-- Project scope (independent of profile): `references/PROJECT-SCOPE.md`
+- Project scope (independent of profile): `protocols/EXECUTION.md` § Project Scope
 - Onboard flow: `commands/onboard.md`
 - Init flow: `commands/init.md`

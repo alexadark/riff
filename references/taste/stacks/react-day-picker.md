@@ -1,3 +1,4 @@
+last_audited: 2026-05-28
 ---
 description: react-day-picker v10 breaking changes (classname renames)
 paths:

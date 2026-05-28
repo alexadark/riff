@@ -1,3 +1,4 @@
+last_audited: 2026-05-28
 ---
 description: API reference for server utilities shipped by saas-starter and web-starter (logger, events, config, rate-limit, form, feature flags)
 paths:

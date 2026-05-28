@@ -75,7 +75,7 @@ For each item: when did I last use it, what real problem does it solve, can it b
 | protocols/PROMOTE.md | | ? | |
 | references/LANGUAGE.md | | keep | |
 | references/PROFILE-RESOLUTION.md | | keep | |
-| references/PROJECT-SCOPE.md | | ? | |
+| protocols/EXECUTION.md § Project Scope | | ? | |
 | references/CONTEXT-BUDGET.md | | ? | |
 | references/EXPLANATION-LEVEL.md | | ? | |
 

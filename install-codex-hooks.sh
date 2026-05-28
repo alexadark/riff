@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Install RIFF PostToolUse hooks into Codex CLI.
 #
-# Adds the 4 dual-runtime hooks (idor-detector, route-auth-guard,
-# input-validation-guard, boundary-check) to ~/.codex/hooks.json under
+# Adds the 5 dual-runtime hooks (idor-detector, route-auth-guard,
+# input-validation-guard, boundary-check, todo-orphan-guard) to ~/.codex/hooks.json under
 # the apply_patch matcher. Idempotent: skips entries that are already
 # present. Preserves all other hook entries (auto-sync, notify, etc.).
 #
@@ -24,6 +24,7 @@ HOOK_NAMES=(
   "route-auth-guard.sh"
   "input-validation-guard.sh"
   "boundary-check.sh"
+  "todo-orphan-guard.sh"
 )
 
 if ! command -v jq >/dev/null 2>&1; then

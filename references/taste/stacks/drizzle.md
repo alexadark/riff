@@ -1,3 +1,4 @@
+last_audited: 2026-05-28
 ---
 description: Drizzle ORM gotchas (jsonb inference, onConflictDoUpdate constraints, containment queries, select projection drift)
 paths:

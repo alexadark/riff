@@ -6,8 +6,8 @@ Hooks are organized in three buckets. `/riff:init` picks the right set based on 
 
 | Bucket | Content | Wired when |
 | ------ | ------- | ---------- |
-| **A** — Universal discipline | destructive-guard, boundary-check, typecheck-gate, lint-gate, test-gate | Always, regardless of profile. |
-| **B** — Security-adaptable | route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard | `cautious` → all of B; `balanced` → route-auth-guard + idor-detector; `fast` → none. |
+| **A** — Universal discipline | destructive-guard, boundary-check, typecheck-gate, test-gate | Always, regardless of profile. |
+| **B** — Security/caution-adaptable | route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard, lint-gate | `cautious` → all of B; `balanced` → route-auth-guard + idor-detector; `fast` → none. |
 | **C** — Stack/convention | registry-reminder, migration-gate (Drizzle/Prisma), notify-human | Installed per-project at `/riff:init` based on detected stack. |
 | **D** — Session voice (SessionStart + PreCompact) | voice-rules-inject | Always wired in all three templates. Reads `profile.yaml` and injects language + explanation-depth rules at session start (and after compaction) so every session honors the user's preferences, not just RIFF agents. |
 
@@ -80,7 +80,7 @@ After editing .ts/.tsx files, run `tsc --noEmit` if available. Catch type errors
 
 ### Lint Gate (PostToolUse: Edit, Write)
 
-After editing .ts/.tsx/.js/.jsx files, run the project's linter if configured. Auto-detects Biome or ESLint from project config. Skips test/config files. Informational only (does not block).
+After editing .ts/.tsx/.js/.jsx files, run the project's linter if configured. Auto-detects Biome or ESLint from project config. Skips test/config files. Informational only (does not block). Cautious template only.
 
 ### TODO Orphan Guard (PostToolUse: Edit, Write)
 

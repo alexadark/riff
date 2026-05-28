@@ -30,7 +30,6 @@ const MAX_GIT_DIFF_CHARS = 12000;
 const UNTRACKED_CONTEXT_PREFIXES = [
   '.planning/',
   'adapters/',
-  'core/',
   'docs/',
   'scripts/',
 ];
@@ -375,36 +374,31 @@ function extractSection(text, heading) {
 }
 
 function phaseArtifactContract(command) {
-  const text = readText(FRAMEWORK_ROOT, 'core/schemas/phase-artifacts.md');
-  const sections = command === 'start'
+  const files = command === 'start'
     ? [
-        extractSection(text, '## `PROJECT.md`'),
-        extractSection(text, '## `.planning/design/*`'),
-        extractSection(text, '## `ROADMAP.yaml`'),
-        extractSection(text, '## `.planning/config.json`'),
-        extractSection(text, '## `.planning/phases/<N-slug>/PLAN.md`'),
+        'templates/PROJECT.md',
+        'templates/ROADMAP.yaml',
+        'templates/STATE.md',
+        'templates/PLAN.md',
       ]
     : [
-        extractSection(text, '## `ROADMAP.yaml`'),
-        extractSection(text, '## `.planning/config.json`'),
-        extractSection(text, '## `.planning/phases/<N-slug>/PLAN.md`'),
+        'templates/ROADMAP.yaml',
+        'templates/STATE.md',
+        'templates/PLAN.md',
+        'templates/SUMMARY.md',
       ];
-  if (command === 'architecture-review') {
-    sections.push(extractSection(text, '## `.planning/phases/<N-slug>/PLAN-REVIEW.md`'));
-  }
-  return `## core/schemas/phase-artifacts.md\n\n\`\`\`markdown\n${sections.filter(Boolean).join('\n\n')}\n\`\`\`\n`;
+  const excerpts = files.map((file) => readContract(file, 3000)).join('\n\n');
+  return `## RIFF Artifact Templates\n\n${excerpts}`;
 }
 
 function adapterEscalationContract() {
-  const text = readText(FRAMEWORK_ROOT, 'core/protocols/adapter-contract.md');
+  const text = readText(FRAMEWORK_ROOT, 'protocols/CODEX-DELEGATION.md');
   const excerpt = [
-    'Adapters may name the escalation capability `opus-prompt` when the target workflow is specifically an Opus prompt pack. Core treats it as an escalation prompt, not as a required executor.',
-    extractSection(text, '`escalation-prompt`:'),
-    'Manual escalation adapters may implement only `escalation-prompt` or `opus-prompt`. They are valid for planning and review assistance but are not full executors unless they also satisfy the execution, gate, and state capabilities.',
-    extractSection(text, '## Provider Neutrality Rules'),
-    extractSection(text, '## Context Pack Requirement'),
+    'Manual Opus prompt generation is an escalation path. It produces artifact-ready markdown or YAML; it does not bypass RIFF gates or create provider-specific durable artifacts.',
+    extractSection(text, '## Routing decision'),
+    extractSection(text, '## Execution skill resolution'),
   ].filter(Boolean).join('\n\n');
-  return `## core/protocols/adapter-contract.md\n\n\`\`\`markdown\n${excerpt}\n\`\`\`\n`;
+  return `## protocols/CODEX-DELEGATION.md\n\n\`\`\`markdown\n${excerpt}\n\`\`\`\n`;
 }
 
 function listMarkdownFiles(relativeDir) {
@@ -582,7 +576,7 @@ After Opus responds, a human or calling adapter applies the result to the expect
 
 ## Core Contract Excerpts
 
-${readContract('core/protocols/planning.md')}
+${readContract('agents/planner.md')}
 
 ${phaseArtifactContract(args.command)}
 

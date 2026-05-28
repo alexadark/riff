@@ -35,7 +35,7 @@ Open with: **"What do you want to build?"** Then follow the thread.
 
 ### Stack source gate (early in the conversation)
 
-Follow [`protocols/STACK-SOURCE-GATE.md`](../protocols/STACK-SOURCE-GATE.md). It asks "Do you already know your stack?" with three options (have a starter, know my stack, let's discuss), records the choice in `.planning/config.json` under `stack_source` (`starter-local | starter-clone | known | discussed`), and skips itself if Stage 0 already set `starter-local`. Stage 5 starter clone only runs when `stack_source: starter-clone`.
+Follow [`protocols/DISCOVERY-DETECTION.md § Stack Source Gate`](../protocols/DISCOVERY-DETECTION.md#stack-source-gate). It asks "Do you already know your stack?" with three options (have a starter, know my stack, let's discuss), records the choice in `.planning/config.json` under `stack_source` (`starter-local | starter-clone | known | discussed`), and skips itself if Stage 0 already set `starter-local`. Stage 5 starter clone only runs when `stack_source: starter-clone`.
 
 ### Scope gate (mandatory)
 
@@ -158,13 +158,13 @@ Runs before bootstrap. Roadmap fixes are nearly free now; once Stage 5 lands and
 
 ## Stage 5: Bootstrap Files
 
-1. **(production only) Starter clone.** If `stack_source: starter-clone` in `.planning/config.json`, follow [`protocols/STARTER-CLONE.md`](../protocols/STARTER-CLONE.md). Skip on `starter-local`, `known`, `discussed`, brownfield, and scratch scope. Continue to bootstrap whether or not a clone happened.
+1. **(production only) Starter clone.** If `stack_source: starter-clone` in `.planning/config.json`, follow [`protocols/DISCOVERY-DETECTION.md § Starter Clone`](../protocols/DISCOVERY-DETECTION.md#starter-clone). Skip on `starter-local`, `known`, `discussed`, brownfield, and scratch scope. Continue to bootstrap whether or not a clone happened.
 
 2. **Bootstrap files.** Follow [`protocols/BOOTSTRAP-FILES.md`](../protocols/BOOTSTRAP-FILES.md). Two paths gated on `scope`: scratch creates a minimal set (STATE, stub README, `.planning/{phases,sessions}`), production creates the full set (CONTEXT, taste index + topic files, STATE, INCIDENTS, project README, `.planning/{phases,sessions,design}`). The protocol also covers stack detection and the slug mapping for new stack files.
 
 3. **(TS/JS production only) Mechanical-quality tooling.** Install `fallow` as a devDep via the detected package manager (pnpm/bun/yarn/npm). Powers `/riff:next` Step 5d. See [`references/FALLOW.md`](../references/FALLOW.md) for behavior, gate logic, and skip rules. Skip silently if `package.json` is absent or in scratch scope. Install failure → warn + continue.
 
-4. **Register with the running dashboard (best-effort).** Follow [`protocols/DASHBOARD-REGISTER.md`](../protocols/DASHBOARD-REGISTER.md). No-op if the dashboard is not running.
+4. **Register with the running dashboard (best-effort).** Follow [`protocols/BOOTSTRAP-FILES.md § Dashboard Registration`](../protocols/BOOTSTRAP-FILES.md#dashboard-registration). No-op if the dashboard is not running.
 
 ## Output
 

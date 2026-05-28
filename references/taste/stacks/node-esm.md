@@ -1,3 +1,4 @@
+last_audited: 2026-05-28
 ---
 description: Node ESM / tsx script conventions (dry-run policy, sanitization tables, Postgres bind-param limits)
 paths:

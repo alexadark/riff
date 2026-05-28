@@ -70,11 +70,11 @@ const CAPABILITIES = {
     tier: 'focused',
     phaseRequired: false,
     core: [
-      'core/protocols/adapter-contract.md',
-      'core/protocols/context-budget.md',
-      'core/protocols/planning.md',
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/CODEX-DELEGATION.md',
+      'references/CONTEXT-BUDGET.md',
+      'agents/planner.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
     ],
   },
   plan: {
@@ -82,9 +82,9 @@ const CAPABILITIES = {
     artifact: 'PLAN.md',
     tier: 'focused',
     core: [
-      'core/protocols/planning.md',
-      'core/protocols/context-budget.md',
-      'core/schemas/phase-artifacts.md',
+      'agents/planner.md',
+      'references/CONTEXT-BUDGET.md',
+      'templates/PLAN.md',
     ],
   },
   execute: {
@@ -92,9 +92,9 @@ const CAPABILITIES = {
     artifact: 'SUMMARY.md',
     tier: 'expanded',
     core: [
-      'core/protocols/execution.md',
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/EXECUTION.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
     ],
   },
   'plan-review': {
@@ -102,9 +102,9 @@ const CAPABILITIES = {
     artifact: 'PLAN-REVIEW.md',
     tier: 'focused',
     core: [
-      'core/protocols/review.md',
-      'core/protocols/planning.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/QUALITY.md',
+      'agents/planner.md',
+      'templates/PLAN.md',
     ],
   },
   'scope-check': {
@@ -112,9 +112,9 @@ const CAPABILITIES = {
     artifact: 'SCOPE-CHECK.json',
     tier: 'focused',
     core: [
-      'core/protocols/review.md',
-      'core/schemas/phase-artifacts.md',
-      'core/protocols/adapter-contract.md',
+      'protocols/QUALITY.md',
+      'templates/PLAN.md',
+      'protocols/CODEX-DELEGATION.md',
     ],
   },
   review: {
@@ -125,9 +125,9 @@ const CAPABILITIES = {
     artifact: 'REVIEW.md',
     tier: 'focused',
     core: [
-      'core/protocols/review.md',
-      'core/protocols/execution.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/QUALITY.md',
+      'protocols/EXECUTION.md',
+      'templates/PLAN.md',
     ],
   },
   'security-review': {
@@ -135,9 +135,9 @@ const CAPABILITIES = {
     artifact: 'SECURITY.md',
     tier: 'expanded',
     core: [
-      'core/protocols/review.md',
-      'core/protocols/execution.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/QUALITY.md',
+      'protocols/EXECUTION.md',
+      'templates/PLAN.md',
     ],
   },
   'docs-check': {
@@ -145,9 +145,9 @@ const CAPABILITIES = {
     artifact: 'DOCS-CHECK.md',
     tier: 'focused',
     core: [
-      'core/protocols/review.md',
-      'core/protocols/execution.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/QUALITY.md',
+      'protocols/EXECUTION.md',
+      'templates/PLAN.md',
     ],
   },
   hooks: {
@@ -155,8 +155,8 @@ const CAPABILITIES = {
     artifact: 'GATES.md',
     tier: 'minimal',
     core: [
-      'core/protocols/hooks.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/HOOKS.md',
+      'templates/PLAN.md',
     ],
   },
   'dashboard-metadata': {
@@ -164,9 +164,9 @@ const CAPABILITIES = {
     artifact: 'dashboard-metadata.json',
     tier: 'minimal',
     core: [
-      'core/protocols/dashboard.md',
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/DASHBOARD-EXPLAIN.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
     ],
   },
   'dashboard-explain': {
@@ -174,9 +174,9 @@ const CAPABILITIES = {
     artifact: 'dashboard-explanation.json',
     tier: 'minimal',
     core: [
-      'core/protocols/dashboard.md',
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/DASHBOARD-EXPLAIN.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
     ],
   },
   finalize: {
@@ -184,9 +184,9 @@ const CAPABILITIES = {
     artifact: 'STATE.md',
     tier: 'focused',
     core: [
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
-      'core/protocols/adapter-contract.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
+      'protocols/CODEX-DELEGATION.md',
     ],
   },
   status: {
@@ -195,9 +195,9 @@ const CAPABILITIES = {
     artifact: undefined,
     tier: 'minimal',
     core: [
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
-      'core/protocols/adapter-contract.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
+      'protocols/CODEX-DELEGATION.md',
     ],
   },
   'add-phase': {
@@ -207,9 +207,9 @@ const CAPABILITIES = {
     acceptsInput: true,
     tier: 'focused',
     core: [
-      'core/protocols/planning.md',
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
+      'agents/planner.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
     ],
   },
   improver: {
@@ -219,9 +219,9 @@ const CAPABILITIES = {
     phaseRequired: false,
     acceptsInput: true,
     core: [
-      'core/protocols/review.md',
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/QUALITY.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
     ],
   },
   debug: {
@@ -231,9 +231,9 @@ const CAPABILITIES = {
     phaseRequired: false,
     acceptsInput: true,
     core: [
-      'core/protocols/execution.md',
-      'core/protocols/review.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/EXECUTION.md',
+      'protocols/QUALITY.md',
+      'templates/PLAN.md',
     ],
   },
   'learn-stack': {
@@ -243,8 +243,8 @@ const CAPABILITIES = {
     phaseRequired: false,
     acceptsInput: true,
     core: [
-      'core/protocols/planning.md',
-      'core/schemas/phase-artifacts.md',
+      'agents/planner.md',
+      'templates/PLAN.md',
     ],
   },
   dashboard: {
@@ -253,8 +253,8 @@ const CAPABILITIES = {
     artifact: undefined,
     tier: 'minimal',
     core: [
-      'core/protocols/dashboard.md',
-      'core/protocols/state.md',
+      'protocols/DASHBOARD-EXPLAIN.md',
+      'templates/STATE.md',
     ],
   },
   quick: {
@@ -264,9 +264,9 @@ const CAPABILITIES = {
     acceptsInput: true,
     tier: 'focused',
     core: [
-      'core/protocols/execution.md',
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
+      'protocols/EXECUTION.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
     ],
   },
   map: {
@@ -276,9 +276,9 @@ const CAPABILITIES = {
     acceptsInput: true,
     tier: 'expanded',
     core: [
-      'core/protocols/planning.md',
-      'core/protocols/state.md',
-      'core/schemas/phase-artifacts.md',
+      'agents/planner.md',
+      'templates/STATE.md',
+      'templates/PLAN.md',
     ],
   },
   loop: {
@@ -288,7 +288,7 @@ const CAPABILITIES = {
     artifact: undefined,
     tier: 'minimal',
     core: [
-      'core/protocols/state.md',
+      'templates/STATE.md',
     ],
   },
 };
@@ -604,10 +604,10 @@ function projectOverviewSnapshot(projectRoot) {
 
 function contractSnapshot() {
   return [
-    'core/protocols/adapter-contract.md',
-    'core/protocols/planning.md',
-    'core/protocols/state.md',
-    'core/schemas/phase-artifacts.md',
+    'protocols/CODEX-DELEGATION.md',
+    'agents/planner.md',
+    'templates/STATE.md',
+    'templates/PLAN.md',
   ].map((file) => artifactExcerpt(FRAMEWORK_ROOT, file, 8000)).join('\n');
 }
 

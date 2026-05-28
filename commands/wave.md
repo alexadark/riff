@@ -95,6 +95,14 @@ Output: .planning/waves/W{N}.RESULT.md
 ─────────────────────────────────────────────────────────────
 ```
 
+### RESULT.md Schema
+
+W{N}.RESULT.md must contain:
+
+- **Header**: wave number, goal, date, executor model
+- **Per-phase block**: phase id, slug, status (pass|fail|partial), commit hash, acceptance criteria (each with pass/fail), browser-check (pass/fail/skipped/N/A), deviations (if any), files touched, duration
+- **Wave notes**: cross-cutting learnings, patterns for taste.md, follow-up phases needed
+
 `{{env_prefix}}` is empty when the bundle's `scratch_mode: false`, and
 `RIFF_SCRATCH_MODE=1 RIFF_WAVE_ID=W{N} ` (single line, trailing space) when
 `scratch_mode: true`. See `protocols/CODEX-DELEGATION.md` § Out-of-process.

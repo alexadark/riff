@@ -128,6 +128,6 @@ When neither driver is available, the protocol degrades per § Skip behavior. Th
 
 Personal Claude Code skills live in a single user's `~/.claude/skills/` and never propagate to other RIFF users. A RIFF feature gated on one user's private browser-driving skill silently no-ops for everyone else.
 
-CLI specs shipped inside the framework (`references/BROWSER-VERIFICATION.md`, `references/FALLOW.md`, `references/SMOKE-TEST.md`) work for every clone of the repo, every fresh `/riff:init`, every CI runner. The agents follow the spec inline, the orchestrator runs the CLI, and the driver detection block is the only piece that's environment-dependent.
+CLI specs shipped inside the framework (`references/BROWSER-VERIFICATION.md`, `references/FALLOW.md`, `protocols/BROWSER-CHECK.md` § Runtime Smoke Test) work for every clone of the repo, every fresh `/riff:init`, every CI runner. The agents follow the spec inline, the orchestrator runs the CLI, and the driver detection block is the only piece that's environment-dependent.
 
 Same design principle as the Fallow gate: ship the contract, let the user install the binary, degrade cleanly when it's missing.

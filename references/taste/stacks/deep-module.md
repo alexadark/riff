@@ -1,3 +1,4 @@
+last_audited: 2026-05-28
 ---
 description: Deep module pattern for organizing server features (folder per feature, barrel as public API, mock the DB not the module)
 paths:

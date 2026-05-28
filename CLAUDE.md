@@ -8,7 +8,7 @@
 
 ## Project scope
 
-`scope: scratch | production` in `.planning/config.json`, set at `/riff:start` Stage 1. Default when missing → `production`. Drives which stages run on `/riff:start` and which gates run on `/riff:next`. Per-scope behavior, code-quality rule applicability, and promotion trigger: `references/PROJECT-SCOPE.md`.
+`scope: scratch | production` in `.planning/config.json`, set at `/riff:start` Stage 1. Default when missing → `production`. Drives which stages run on `/riff:start` and which gates run on `/riff:next`. Per-scope behavior, code-quality rule applicability, and promotion trigger: `protocols/EXECUTION.md` § Project Scope.
 
 ## Language
 

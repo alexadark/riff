@@ -83,11 +83,11 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - `protocols/HOOKS.md` — payload shapes and matchers for writing one hook that fires in both Claude Code and Codex CLI runtimes. Covers tool-name differences (`Write`/`Edit` vs `apply_patch`), file-path extraction across both shapes, Codex's hook-trust mechanism, and known gaps (`exec_command` shell-creation coverage).
 - `protocols/BROWSER-CHECK.md` — read by `/riff:wave` Step 3 (auto-enable rules) and by Codex during execution. The "prove the feature actually works" contract for wave and solo execution.
 - `protocols/DISCOVERY-DETECTION.md` — read by `/riff:start` Stage 0 to branch greenfield / starter / brownfield and route the brownfield audit-codebase prompt.
-- `protocols/STACK-SOURCE-GATE.md` — read by `/riff:start` Stage 1 to capture how the stack decision is made (`starter-local | starter-clone | known | discussed`) so Stage 5 knows whether to run the starter clone.
+- `protocols/DISCOVERY-DETECTION.md` § Stack Source Gate — read by `/riff:start` Stage 1 to capture how the stack decision is made (`starter-local | starter-clone | known | discussed`) so Stage 5 knows whether to run the starter clone.
 - `protocols/ADVERSARIAL-REVIEW.md` — shared protocol for `/riff:start` Stages 2.5 (architecture) and 4.5 (roadmap). Codex invocation, REVISE/PROCEED loop, 2-cycle cap, skip-safely fallback. Each stage supplies its 5 parameters.
-- `protocols/STARTER-CLONE.md` — read by `/riff:start` Stage 5 only when `stack_source: starter-clone`. Registry match heuristic, clone flow, install verification.
+- `protocols/DISCOVERY-DETECTION.md` § Starter Clone — read by `/riff:start` Stage 5 only when `stack_source: starter-clone`. Registry match heuristic, clone flow, install verification.
 - `protocols/BOOTSTRAP-FILES.md` — read by `/riff:start` Stage 5 to create persistent artifacts. Two paths: scratch (light) and production (full taste / CONTEXT / INCIDENTS / README), plus the stack-detection slug table.
-- `protocols/DASHBOARD-REGISTER.md` — read by `/riff:start` Stage 5 final step. Best-effort ping so the new project shows up in a running `/riff:dashboard` immediately.
+- `protocols/BOOTSTRAP-FILES.md` § Dashboard Registration — read by `/riff:start` Stage 5 final step. Best-effort ping so the new project shows up in a running `/riff:dashboard` immediately.
 - `protocols/POST-DEPLOY.md` — production monitoring setup (Sentry, uptime health check, scheduled Playwright smoke). User-triggered via conversational trigger ("set up monitoring") or `/riff:post-deploy`. One-shot, runs when the app is deployed. Each category opt-outable via `ROADMAP.yaml`. Also available as global skill `/post-deploy` for non-RIFF projects.
 
 ## Agents referenced by commands and protocols

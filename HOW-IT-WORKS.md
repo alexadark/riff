@@ -486,12 +486,11 @@ Pending expertise patches are reviewed at the end of the next `/riff:next` Step 
 ├── agents/                      # 13 agents (single markdown each)
 ├── commands/                    # 14 slash commands + INDEX.md
 ├── hooks/                       # 18 hooks + README.md
-├── protocols/                   # EXECUTION, MODEL, QUALITY, INCIDENT, PROMOTE, etc.
-├── references/                  # PROFILE-RESOLUTION, BROWSER-VERIFICATION, taste/, etc.
+├── protocols/                   # ~20 workflow contracts: EXECUTION, MODEL, QUALITY, INCIDENT, PROMOTE, etc.
+├── references/                  # ~10 references: PROFILE-RESOLUTION, BROWSER-VERIFICATION, taste/, etc.
 ├── templates/                   # PROJECT.md, ROADMAP.yaml, settings JSONs, banner.sh, etc.
 ├── scripts/                     # riff-init.mjs, riff-codex.mjs, gates-update.mjs, etc.
-├── dashboard/                   # local web dashboard (Bun + React)
-└── core/                        # core schemas (phase artifacts)
+└── dashboard/                   # local web dashboard (Bun + React)
 ```
 
 Project side (after `/riff:init`):

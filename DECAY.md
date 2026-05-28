@@ -39,7 +39,7 @@ For each component below, answer:
 - [ ] references/LANGUAGE.md
 - [ ] references/EXPLANATION-LEVEL.md
 - [ ] references/CONTEXT-BUDGET.md
-- [ ] references/PROJECT-SCOPE.md
+- [ ] protocols/EXECUTION.md § Project Scope
 - [ ] references/PROFILE-RESOLUTION.md
 
 ## Stack drift audit
@@ -72,3 +72,4 @@ The 30 minutes per quarter saves multiple debugging sessions later.
 - **Multi-instance Octopus search** — rejected 2026-04-07. Reason: overkill for solo.
 - **Branch-per-phase optional (`merge_strategy: direct`)** — rejected 2026-04-07. Reason: current branch-per-phase already works.
 - **CostSentinel hook (token budget limit)** — rejected 2026-04-07. Reason: user on $200 Claude plan, never hit limits.
+- **lint-gate as default** — moved to cautious-only 2026-05-28. Reason: formatting wars between Biome/ESLint/Prettier cause more friction than value. Typecheck catches real bugs; lint catches style.
