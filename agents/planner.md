@@ -92,6 +92,18 @@ For qualifying phases, before finalizing PLAN.md:
 
 This is a 30-second mental check, not a full analysis. If it doesn't surface anything → move on. Don't add it to PLAN.md unless it changed a task or AC.
 
+## Review workload check
+
+After generating tasks, estimate the total lines changed. If the phase is likely to exceed ~400 lines of diff:
+
+1. **Flag it** in PLAN.md: add a `> Review workload: HIGH (~NNN lines estimated)` callout after the task list
+2. **Consider splitting**: can the phase be split into 2 smaller phases with a clean boundary? If yes, recommend the split to the orchestrator.
+3. **If splitting is impractical** (migration, tightly coupled refactor): keep it as one phase but add a note: `> Review workload: HIGH but unsplittable — [reason]`
+
+This check is a 10-second estimate, not a line count. Use the file list and task complexity as proxies. Skip on scratch scope (no external reviewers).
+
+The goal is to avoid dumping 1000-line PRs on reviewers. A 400-line threshold is a signal, not a hard limit.
+
 ## Security awareness (every plan)
 
 Security-aware ACs are mandatory on EVERY plan that touches the relevant surface — independent of HITL/AFK:
@@ -166,6 +178,8 @@ For routine work (CRUD, copy fixes, refactors, UI tweaks), leave `improver:` uns
 ## TDD red-green mode (opt-in)
 
 When ROADMAP.yaml declares `mode: tdd`: structure tasks as strict RED → GREEN → REFACTOR, each in its own wave. Auto-propose `mode: tdd` for: auth flows, payment, business rules, public APIs, bug fixes. Do NOT propose for: UI/components, pure refactors, integrations, skills/scripts.
+
+When `mode: tdd`, the executor follows red-green-triangulate-refactor (see `agents/executor.md` § TDD mode). Triangulation adds 2 edge-case tests after the green step.
 
 ## Tracer bullets
 

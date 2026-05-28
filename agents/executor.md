@@ -44,6 +44,18 @@ PLAN.md marks zero-shared-file tasks as `parallel: [task-A, task-B]`.
 - **Parallel:** launch each as a separate sub-agent (multiple Agent calls in a single message). Each gets only its task, boundaries, branch name. Wait for all before the next wave.
 - **Sequential:** execute inline, one at a time.
 
+## Delegation triggers
+
+When hitting these thresholds, delegate to a sub-agent instead of continuing inline:
+
+- **4-file read rule**: if you need to read 4+ files to understand a flow before writing, delegate the exploration to an Explore sub-agent. Get back a summary, then write.
+- **Multi-file write rule**: if the task touches 3+ non-trivial files, use a single focused sub-agent for the write. This keeps each agent's context clean.
+- **Long-session rule**: after ~20 tool calls on the same task without progress, pause. Either delegate the remaining work or re-read the plan.
+
+These are guidelines, not hard blocks. A trivial 4-file rename doesn't need delegation. But a 4-file refactor that requires understanding data flow does.
+
+Inline is fine when: the change is local (1-2 files), you already have the context, and the task is mechanical.
+
 ## Per task
 
 1. Read task + acceptance criteria
@@ -92,6 +104,17 @@ See `.riff/protocols/EXECUTION.md` § R1–R4. Follow strictly.
 **Production scope:** No `any`. No `console.log`. No hardcoded secrets. No `// TODO` without seed/issue. Validate input at boundaries. Auth on every protected route. No IDOR.
 
 **Scratch scope:** No hardcoded secrets (only). The other rules don't apply because the project may not be TS, may not have routes, may not have auth.
+
+## TDD mode (when PLAN.md or ROADMAP specifies `mode: tdd`)
+
+Follow red-green-triangulate-refactor:
+
+1. **Red**: write failing tests from acceptance criteria
+2. **Green**: write minimal code to make tests pass
+3. **Triangulate**: add 2 edge-case tests that could break the implementation (empty input, boundary values, concurrent access, null/undefined, type coercion). Make them pass.
+4. **Refactor**: clean up, keeping all tests green
+
+Triangulation is the step most agents skip. It catches the bugs that happy-path tests miss. If you can't think of 2 edge cases, the implementation is either trivial (skip triangulation) or you don't understand it well enough (re-read the spec).
 
 ## Smoke (mandatory before SUMMARY when PLAN.md has a Smoke section)
 

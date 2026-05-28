@@ -39,6 +39,35 @@ A green wave means:
 - Browser-check is non-negotiable on UI phases. Read `.riff/protocols/BROWSER-CHECK.md` for the contract.
 - Stop only when ALL phases reach a terminal state (commit + criteria green, OR blocker logged).
 
+## Skill digestion
+
+When assembling the bundle, the orchestrator checks which skills (from `.claude/skills/` and project-level skills) are relevant to the wave's phases. Instead of inlining full skill files (which would blow the 50KB bundle cap), digest each relevant skill into 3-5 actionable rules.
+
+### How to digest
+
+1. Read the skill's SKILL.md trigger description and core rules
+2. Extract only the rules that apply to THIS wave's file boundaries
+3. Write them as short, imperative bullets (not explanations)
+
+### Where to put it
+
+Add a `## Digested Rules` section in each per-phase block, after the acceptance criteria:
+
+```
+## Digested Rules (from project skills)
+
+- Use server loaders for initial data, clientLoader for refresh only
+- No `use client` unless the component uses browser APIs
+- Form submissions go through action functions, not event handlers
+- Test files next to source files, not in a separate __tests__ directory
+```
+
+If no skills are relevant to a phase, omit the section entirely. Do not add empty sections.
+
+### Why not inline the full skill?
+
+A typical SKILL.md is 100-300 lines. 3 phases × 200 lines = 600 lines of skills alone, eating 30%+ of the 50KB bundle cap. Digestion compresses this to ~20 lines total while preserving the rules Codex actually needs.
+
 ## Effort
 
 Default: `--model gpt-5.5 --effort high`.
