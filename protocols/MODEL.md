@@ -15,7 +15,7 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 | `/riff:start` Stage 4.5: Roadmap adversarial           | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
 | Step 4: Planner                                        | **Inline** (parent)    | **Opus** (parent)                    | Dynamic per phase                                             |
 | Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
-| Step 5: Executor                                       | Sub-agent              | **Sonnet** (default), Opus on opt-in | none, `think hard` if `complex_execution:`                    |
+| Step 5: Executor                                       | Sub-agent              | **Codex** (default), Sonnet/Opus on opt-in | none, `think hard` if `complex_execution:`               |
 | Step 5b: Simplifier                                    | Sub-agent              | **Haiku**                            | none                                                          |
 | Step 6: Adversarial review                             | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
 | Step 7: Security review                                | Sub-agent              | **Sonnet**                           | `think harder` for auth/payment/public-API, else `think hard` |
@@ -46,7 +46,20 @@ The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF reso
 - **Stage 4.5:** sequencing and dependency analysis. No need for the frontier model — `gpt-5.4 medium` suffices.
 - **Quarterly incident pass:** post-mortem on shipped bugs, you want the deepest possible analysis — `gpt-5.5 high`.
 
-### Resolution chain (Codex)
+### Executor runtime resolution (Step 5)
+
+The executor defaults to Codex via the `codex:codex-rescue` skill (in-process, blocks until done). Fallback chain (highest wins):
+
+1. Per-phase `executor_model:` in ROADMAP.yaml (`sonnet` or `opus` forces Claude sub-agent)
+2. PLAN.md `## Model Recommendation` (ROADMAP override beats this)
+3. `executors.available` in profile.yaml (if `codex` absent, fall back to Sonnet)
+4. Default: `codex`
+
+When Codex executes: the orchestrator invokes `codex:codex-rescue` with the execution skill (resolved per `codex.execution_skill` in profile.yaml). The skill receives the PLAN.md path, branch name, and execution contract.
+
+When Claude executes: standard sub-agent spawn with `model: sonnet` (or `opus`), same prompt as today.
+
+### Resolution chain (Codex review)
 
 Same precedence as everything else (highest wins):
 
@@ -93,9 +106,9 @@ If `planner_model: codex` but `codex` is not in `executors.available`, fall back
 
 Gates which executor models the planner may recommend.
 
-- **Allowed values:** `[claude]` (default) | `[claude, codex]`
-- **Default when missing:** treated as `[claude]` — existing profiles without the field keep working unchanged.
-- **Effect:** if `codex` is not present in the list, the planner must never emit `executor_model: codex` in PLAN.md's Model Recommendation, regardless of phase type.
+- **Allowed values:** `[claude, codex]` (default) | `[claude]`
+- **Default when missing:** treated as `[claude, codex]` — Codex is the default executor runtime.
+- **Effect:** if `codex` is not present in the list, the planner must never emit `executor_model: codex` in PLAN.md's Model Recommendation. If only `[claude]`, executor falls back to Sonnet sub-agent.
 - **Cross-reference:** see `commands/onboard.md` § Questions for setup guidance; `scripts/riff-init.mjs` presets for per-preset defaults.
 
 Every decision (model choice, whether to run optional pipeline steps) resolves through this chain. Highest wins:
@@ -109,9 +122,9 @@ Every decision (model choice, whether to run optional pipeline steps) resolves t
 
 | Budget | Optional pipeline steps (defaults) | Model defaults |
 | ------ | ---------------------------------- | -------------- |
-| `frugal` | `simplify: false`, `arch_adversarial: false`, `plan_adversarial: false`, `roadmap_adversarial: false`, `adversarial: false`, improver off | Haiku or Sonnet everywhere, never Opus by default |
-| `balanced` | `simplify: auto`, `arch_adversarial: auto`, `plan_adversarial: auto`, `roadmap_adversarial: auto`, `adversarial: auto`, improver per existing heuristic | Sonnet for execution, Opus only on per-phase flag |
-| `max` | `simplify: auto`, `arch_adversarial: auto` (bias toward running), `plan_adversarial: auto` (bias toward running), `roadmap_adversarial: auto` (bias toward running), `adversarial: auto` (bias toward running), improver per heuristic | Opus for planner and security-critical execution, Sonnet for routine work |
+| `frugal` | `simplify: false`, `arch_adversarial: false`, `plan_adversarial: false`, `roadmap_adversarial: false`, `adversarial: false`, improver off | Codex for execution (default), Haiku/Sonnet for lightweight steps, never Opus by default |
+| `balanced` | `simplify: auto`, `arch_adversarial: auto`, `plan_adversarial: auto`, `roadmap_adversarial: auto`, `adversarial: auto`, improver per existing heuristic | Codex for execution (default), Sonnet on `executor_model: sonnet` override, Opus only on per-phase flag |
+| `max` | `simplify: auto`, `arch_adversarial: auto` (bias toward running), `plan_adversarial: auto` (bias toward running), `roadmap_adversarial: auto` (bias toward running), `adversarial: auto` (bias toward running), improver per heuristic | Codex for execution (default), Opus for planner and security-critical execution |
 
 Per-phase flags always win over budget defaults.
 
@@ -132,7 +145,7 @@ phases:
 ```yaml
 phases:
   - id: 42
-    executor_model: opus        # force Opus for execution
+    executor_model: opus        # force Opus for execution (default: codex, fallback: sonnet)
     complex_execution: true     # inject `think hard` into executor prompt
     security_critical: true     # force `think harder` in security review
     auto_debug: false           # disable auto-debug triggers for this phase
