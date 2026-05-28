@@ -10,15 +10,15 @@ runs the verification, and `protocols/PROMOTE.md` consumes the verdict.
 
 ## Modes
 
-Driven by `profile.yaml` field `wave_reconcile_mode`. Resolution order:
+Driven by `profile.yaml` field `wave.reconcile_mode`. Resolution order:
 project override `.planning/profile.yaml` → framework default → `both`.
 
 | Mode | What runs | Cost | When |
 |---|---|---|---|
-| `hooks` | Hooks re-run on diff (no LLM) + scope-checker per phase | Cheap, no token spend | Trusted waves, every phase already passed live hooks |
-| `sonnet` | security-reviewer (Sonnet) per phase + scope-checker per phase | ~1 Sonnet pass per phase | Hooks not trusted, or extra adversarial read wanted |
-| `both` | hooks + sonnet + scope-checker, verdicts merged | Maximum coverage | Default. Catches what either alone would miss |
-| `off` | scope-checker only | Cheapest | Spike / personal projects on `scope: scratch` |
+| `hooks` | Hooks re-run on diff (no LLM) + mechanical scope-check per phase | Cheap, no token spend | Trusted waves, every phase already passed live hooks |
+| `sonnet` | security-reviewer (Sonnet) per phase + mechanical scope-check per phase | ~1 Sonnet pass per phase | Hooks not trusted, or extra adversarial read wanted |
+| `both` | hooks + sonnet + mechanical scope-check, verdicts merged | Maximum coverage | Default. Catches what either alone would miss |
+| `off` | mechanical scope-check only | Cheapest | Spike / personal projects on `scope: scratch` |
 
 Override per wave: not exposed yet. Profile setting is wave-level for now.
 
@@ -44,8 +44,9 @@ Run substeps in the order below. Each is a precondition for the next.
 
 ### 1. Scope-check, per phase
 
-For each phase in the wave (read from the bundle), spawn the `scope-checker`
-agent with the phase's PLAN.md and SUMMARY.md. The agent writes
+For each phase in the wave (read from the bundle), run
+`node .riff/scripts/scope-check.mjs --phase .planning/phases/{id}-{slug}`.
+The script writes
 `.planning/phases/{id}-{slug}/SCOPE-CHECK.json` with a `verdict` of `MATCH`,
 `DROPPED`, or `MALFORMED`.
 
@@ -86,7 +87,7 @@ level.
 
 The `security-reviewer` agent already honors `scope: scratch` and exits
 early there. So in `scope: scratch` projects, the Sonnet branch is a
-no-op and the verdict relies on hooks + scope-checker only.
+no-op and the verdict relies on hooks + mechanical scope-check only.
 
 ### 4. Compose RECONCILE.md
 
@@ -102,12 +103,12 @@ Verdict resolution rules: see `templates/RECONCILE.md § Verdict resolution`.
 
 ### 5. React to verdict
 
-- `PASS`: continue Step 6 in `commands/wave.md` (mark phases completed,
+- `PASS`: continue Step 6 in `commands/wave.md` (mark phases done,
   update ROADMAP)
-- `PASS-WITH-WARNINGS`: mark phases completed, surface warnings to user,
+- `PASS-WITH-WARNINGS`: mark phases done, surface warnings to user,
   flag in `commands/wave.md` Step 7 output
 - `FAIL`: mark the wave `status: needs_human_review` in ROADMAP. Do NOT
-  flip phases to `completed`. Surface the verdict and the first three
+  flip phases to `done`. Surface the verdict and the first three
   blocking findings inline to the user. The user decides: re-queue in
   next wave, hand-fix, or accept and override
 
@@ -116,7 +117,7 @@ Verdict resolution rules: see `templates/RECONCILE.md § Verdict resolution`.
 `/riff:promote` (or the conversational "promote to production" trigger)
 reads every `.planning/waves/W*.RECONCILE.md`:
 
-- Missing RECONCILE.md for a completed wave → BLOCK promote, with
+- Missing RECONCILE.md for a done wave → BLOCK promote, with
   instruction to run `/riff:wave --resume W{N}` first
 - RECONCILE.md verdict `FAIL` → BLOCK promote
 - RECONCILE.md verdict `PASS-WITH-WARNINGS` → ALLOW promote, surface
@@ -143,7 +144,7 @@ Both must clear before promote.
 
 ## Failure recovery
 
-If reconcile crashes mid-run (e.g., scope-checker can't parse a PLAN.md,
+If reconcile crashes mid-run (e.g., scope-check cannot parse a PLAN.md,
 or git diff fails), write a partial RECONCILE.md with verdict `FAIL` and
 a `## Notes` block describing what crashed. The user can re-trigger after
 fixing the underlying issue.
@@ -153,6 +154,6 @@ fixing the underlying issue.
 - `commands/wave.md` Step 6 invokes this protocol
 - `templates/RECONCILE.md` defines the output schema
 - `protocols/PROMOTE.md` Step 1.6 reads the verdict
-- `agents/scope-checker.md` writes per-phase SCOPE-CHECK.json
+- `protocols/SCOPE-CHECK.md` + `scripts/scope-check.mjs` write per-phase SCOPE-CHECK.json
 - `agents/security-reviewer.md` writes per-phase SECURITY.md
 - `hooks/lib/reconcile-diff.sh` runs the hook re-run pass

@@ -13,10 +13,9 @@ concurrency:
 env:
   CI: true
 
-# RIFF default: lint is informational, typecheck + tests + build gate merges.
-# Rationale: cosmetic drift (format quirks, unused imports) should not block PRs.
-# Real bugs are caught by typecheck and tests. Swap `npm` → `pnpm` and
-# `actions/setup-node` → `pnpm/action-setup` if the project uses pnpm.
+# RIFF default template: typecheck + tests + build gate merges.
+# Lint, format, dependency audit, Semgrep, and Gitleaks are project opt-ins.
+# Swap `npm` → `pnpm` and `actions/setup-node` → `pnpm/action-setup` if the project uses pnpm.
 
 jobs:
   quality:
@@ -33,9 +32,6 @@ jobs:
 
       - run: npm ci
 
-      - name: Lint (non-blocking, informational)
-        run: npm run lint || true
-
       - name: Typecheck
         run: npm run typecheck
 
@@ -48,21 +44,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Audit dependencies
-        run: npm audit --audit-level=high
-        continue-on-error: false
-
-      - name: Semgrep scan
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: >-
-            p/owasp-top-ten
-            p/typescript
-            p/react
-            p/nodejs
-
-      - name: Gitleaks scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -15,7 +15,7 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
 ## How it works
 
-- Two paths: **preset** (0 extra questions) or **custom** (16 questions, ~5 min).
+- Two paths: **preset** (0 extra questions) or **custom** (17 questions, ~5 min).
 - Re-running `/riff:onboard` backs up the previous profile to `<file>.bak` before overwriting.
 - Flag `--no-register`: in framework context, skip writing `~/.config/riff/config.yaml`. Use this for workshop demos or testing on a throwaway clone, so the global registry keeps pointing at your real RIFF.
 
@@ -56,21 +56,15 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
    When `NO_REGISTER=true`, skip the registry write and both symlinks, and report: `registry untouched (--no-register), still pointing at <existing framework_path or "unset">`. Global init commands not wired.
 
-1c. **Install Codex hooks** (framework context only, skipped in project context or when `NO_REGISTER=true`). When `command -v codex` succeeds, run `<framework_root>/install-codex-hooks.sh`. The installer is idempotent and patches `~/.codex/hooks.json` to wire the 4 RIFF PostToolUse hooks (idor-detector, route-auth-guard, input-validation-guard, boundary-check) under the `^(Write|Edit|apply_patch)$` matcher, preserving existing entries (auto-sync, notify, etc.). Report the installer's output verbatim.
-
-   Then tell the user: "Codex hooks installed. They will not fire until you trust them. Start an interactive `codex` session once and approve the trust prompt for each new hook (or run with `--dangerously-bypass-hook-trust` for automation). See `protocols/HOOKS.md` for the trust model."
-
-   When `command -v codex` fails, skip silently. The hooks can be installed later by running the script manually.
-
 2. **Check existing profile.** If the target file exists, AskUserQuestion: `replace` / `keep and exit` / `abort`. On `replace`, copy current to `<target>.bak` first.
 
 3. **Entry choice.** AskUserQuestion:
    - `preset` — quick start, 0 extra questions
-   - `custom` — 16 questions, ~5 min
+   - `custom` — 17 questions, ~5 min
 
 4. **Preset path.** AskUserQuestion with the 4 presets (descriptions in the "Presets" section below). Pick one, grab its full answer map, jump to step 6.
 
-5. **Custom path.** Walk the 15 questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect. Note: Q6 was removed (parallel_projects is handled by the dashboard project dropdown), so the numbering jumps from Q5 to Q7a — leave the gap, do not renumber downstream questions.
+5. **Custom path.** Walk the questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect. Note: Q6 was removed (parallel_projects is handled by the dashboard project dropdown), so the numbering jumps from Q5 to Q7a — leave the gap, do not renumber downstream questions.
 
 6. **Write profile.yaml** to the target resolved in Step 1 (framework root or project `.planning/`) using the schema below. YAML format, quote string values with special characters.
 
@@ -162,8 +156,8 @@ Maps to: `user.artifact_language`. Default `en` if the user skips the question.
 > Nuance: non-commit personal notes default to `conversational_language`. Rule: "if it's going in a commit → `artifact_language`; for personal use → `conversational_language`".
 
 **Q5b. Which executors do you have installed?**
-- `claude only` — Claude Code only (default)
-- `claude + codex` — Claude Code + OpenAI Codex CLI
+- `claude + codex` — Claude Code + OpenAI Codex CLI (default, Codex is the executor runtime default)
+- `claude only` — Claude Code only; executor falls back to Sonnet
 
 Maps to: `executors.available` (top-level array). `claude only` → `[claude]`, `claude + codex` → `[claude, codex]`.
 
@@ -253,6 +247,13 @@ Maps to: `git.merge_strategy`. Default: `github_button`.
 
 > Tradeoff: `local_no_ff` produces a denser main history (one merge commit per phase + the phase commits as themselves) but the merge cleanly preserves both timelines. `github_button` with squash gives a single-commit-per-phase main, but any unpushed personal commits get pulled into the squash and create local divergence.
 
+**Q13b. PR metadata detail**
+- `standard` — include RIFF model/gate/duration metadata, but no token table or captured prompts (default)
+- `off` — no generated RIFF metadata in PR bodies
+- `full` — include standard metadata plus USAGE.md token table and PROMPTS.md captured prompts
+
+Maps to: `metadata.pr_body`.
+
 ### Section 7 — Explanation level
 
 **Q14. Explanation level** (drives `/riff:dashboard` AND how Claude reports work in the terminal)
@@ -287,7 +288,7 @@ user:
   narrative_language: <en | fr | other>                                          # default: falls back to conversational_language
 
 executors:
-  available: [<claude> | <claude, codex>]  # default [claude] when missing
+  available: [<claude> | <claude, codex>]  # default [claude, codex] when missing
 
 risk:
   sensitive_task_preference: <cautious | balanced | fast>
@@ -307,6 +308,9 @@ notifications:
   telegram_bot_token: <"BOT_TOKEN">    # required when channel=telegram (quote it, has a colon)
   telegram_chat_id: <CHAT_ID>          # required when channel=telegram
   email_to: <address>                  # required when channel=email
+
+metadata:
+  pr_body: <off | standard | full>
 
 git:
   merge_strategy: <github_button | local_no_ff>
@@ -332,7 +336,7 @@ user:
   artifact_language: en
   narrative_language: en
 executors:
-  available: [claude]
+  available: [claude, codex]
 risk:
   sensitive_task_preference: fast
 style:
@@ -344,6 +348,8 @@ budget:
   default_quality: balanced
 notifications:
   channel: none
+metadata:
+  pr_body: standard
 git:
   merge_strategy: github_button
 dashboard:
@@ -363,7 +369,7 @@ user:
   artifact_language: en
   narrative_language: en
 executors:
-  available: [claude]
+  available: [claude, codex]
 risk:
   sensitive_task_preference: balanced
 style:
@@ -375,6 +381,8 @@ budget:
   default_quality: balanced
 notifications:
   channel: none
+metadata:
+  pr_body: standard
 git:
   merge_strategy: github_button
 dashboard:
@@ -394,7 +402,7 @@ user:
   artifact_language: en
   narrative_language: fr
 executors:
-  available: [claude]
+  available: [claude, codex]
 risk:
   sensitive_task_preference: cautious
 style:
@@ -406,6 +414,8 @@ budget:
   default_quality: balanced
 notifications:
   channel: none
+metadata:
+  pr_body: standard
 git:
   merge_strategy: github_button
 dashboard:
@@ -438,6 +448,8 @@ budget:
   default_quality: max
 notifications:
   channel: telegram
+metadata:
+  pr_body: standard
 git:
   merge_strategy: local_no_ff
 dashboard:
@@ -446,7 +458,7 @@ dashboard:
 
 ## Notes
 
-- v1 scope: writes `profile.yaml` only. Hook-bucket wiring based on Q8 and `{{USER_CONTEXT}}` injection into the 3 agents (planner, executor, security-reviewer) land in follow-up phases — see `specs/plans/riff-onboarding-questions.md` § Next implementation steps.
-- User edits `profile.yaml` by hand anytime. Agents re-read the file on every run.
-- For a re-answer flow limited to one or more questions, edit `profile.yaml` directly or ask Claude to update specific fields conversationally.
-- The 4 presets are starting points — users are expected to tweak `profile.yaml` after picking one.
+- Onboarding writes only the resolved profile file: framework `profile.yaml` in framework mode, or `.planning/profile.yaml` in project mode. Project hook wiring is handled by `riff init`, which chooses the Claude settings template from the resolved profile.
+- User edits the resolved profile file by hand anytime. Agents re-read it on every run.
+- For a re-answer flow limited to one or more questions, edit the resolved profile file directly or ask Claude to update specific fields conversationally.
+- The 4 presets are starting points — users are expected to tweak the resolved profile after picking one.

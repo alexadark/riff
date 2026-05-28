@@ -11,13 +11,13 @@ Install RIFF into the current project via symlink to the local framework repo.
 
 `.riff/` is a symlink to your local RIFF clone (single source of truth). Commands, agents, and hooks in `.claude/` are symlinks to `.riff/`. Update the framework once, every project sees the change instantly.
 
-The harness-neutral terminal entrypoint is:
+The terminal entrypoint is:
 
 ```bash
-riff init --harness claude
+riff init
 ```
 
-`/riff:init` is the Claude Code wrapper for the same install model. Prefer the terminal CLI when running from Codex, CommandCode, shell scripts, or any environment that can execute project setup directly.
+`/riff:init` is the Claude Code wrapper for the same install model. Prefer the terminal CLI from shell scripts or any environment that can execute project setup directly.
 
 The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`), written by `/riff:onboard` on first run. If the registry is missing, falls back to `~/DEV/frameworks/riff` for backwards compat.
 
@@ -31,42 +31,14 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
 ## Steps
 
-1. **Prerequisites:** if no git repo exists in the current directory (`! -d .git`), run `git init -q` and proceed without asking — a git repo is a non-negotiable RIFF requirement, no need to confirm. If `.riff/` or `.planning/` already exist, ask before overwriting.
-
-1b. **Git remote setup.** Check for an existing remote with `git remote get-url origin 2>/dev/null`. If none, AskUserQuestion:
-
-   > 🌐 **Where to host this project?**
-   >
-   > - 🟢 **GitHub public** — public repo on GitHub. PRs visible online. Best for OSS or workshop demos. (Recommended)
-   > - 🔵 **GitHub private** — private repo on GitHub. PRs visible online, restricted access. Best for client work.
-   > - 🟡 **Local only** — no remote. Stays on your machine. PRs render in `local_no_ff` merge mode only.
-
-   On `GitHub public` or `GitHub private`:
-
-   ```bash
-   gh auth status >/dev/null 2>&1 || {
-     echo "ERROR: gh is not authenticated. Run 'gh auth login' first." >&2
-     exit 1
-   }
-   name=$(basename "$PWD")
-   visibility=public   # or private depending on the answer
-   gh repo create "$name" --"$visibility" --source=. --remote=origin
-   ```
-
-   On `Local only`: skip remote creation. The project will still work; `/riff:next` Step 8 falls back to `local_no_ff`.
-
-   Echo confirmation (ANSI-styled):
-
-   ```bash
-   printf '\033[32m●\033[0m Remote: %s\n' "$(git remote get-url origin 2>/dev/null || echo 'local only')"
-   ```
+1. **Prerequisites:** if no git repo exists in the current directory (`! -d .git`), `riff init` runs `git init -q` and proceeds. A git repo is a non-negotiable RIFF requirement. Existing `.riff/` and `.planning/` content is preserved unless `--force` is explicitly used for a mismatched `.riff` symlink.
 
 2. **Resolve framework path and link RIFF:**
 
    If the global `riff` CLI is available, run:
 
    ```bash
-   riff init --harness claude
+   riff init
    ```
 
    Then verify `.riff/commands/` exists and skip the rest of the mechanical install steps below. The remaining steps are the fallback/reference implementation for environments where the CLI is not on `PATH`.
@@ -142,9 +114,9 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
 6. **Git hooks:** symlink `.git/hooks/pre-commit` → `.riff/hooks/security-scan.sh` and `.git/hooks/commit-msg` → `.riff/hooks/commit-msg.sh`. If hooks already exist and are not RIFF symlinks, stop unless the user explicitly asks to replace them.
 
-7. **Claude Code hooks:** pick the hook bucket from `profile.yaml`, then merge into `.claude/settings.json` (or copy if missing).
+7. **Claude Code hooks:** pick the hook bucket from the resolved profile, then copy the selected template into `.claude/settings.json` when that file is absent. Preserve existing project settings.
 
-   Read `.riff/profile.yaml` and extract `risk.sensitive_task_preference`. Pick the template:
+   Read the resolved profile and extract `risk.sensitive_task_preference`. Pick the template:
 
    | Profile value | Template | Hooks wired |
    | ------------- | -------- | ----------- |
@@ -152,10 +124,10 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
    | `balanced` | `.riff/templates/settings-balanced.json` | Bucket A + route-auth-guard + idor-detector |
    | `fast` or missing profile | `.riff/templates/settings.json` | Bucket A only |
 
-   **Bucket A** (universal): destructive-guard, boundary-check, typecheck-gate, lint-gate, test-gate.
+   **Bucket A** (universal): destructive-guard, boundary-check, typecheck-gate, test-gate.
    **Bucket B** (security-adaptable): route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard.
 
-   If profile changes later (edit `profile.yaml` directly, or ask Claude to update it), re-run this step manually or re-run `/riff:init` to rewire.
+   If profile changes later (edit `.planning/profile.yaml` or the framework fallback `profile.yaml`, or ask Claude to update it), re-run this step manually or re-run `/riff:init` after removing or editing `.claude/settings.json`.
 
 8. **Project files:** do not create `PROJECT.md`, `ROADMAP.yaml`, `STATE.md`, `CONTEXT.md`, or `taste.md` during init. Those are start/map artifacts.
 
@@ -163,67 +135,11 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
 10. **Update CLAUDE.md:** append RIFF section with commands reference, execution rules, pointer to `.riff/protocols/`.
 
-11. **GitHub workflows:** if `.github/workflows/` does NOT exist, copy the RIFF defaults. If it DOES exist, leave it and run the drift audit described in `.riff/templates/github-workflows/README.md` (warn if lint is gating or if `e2e.yml` auto-triggers on push/PR — do not rewrite without confirmation).
+11. **GitHub workflows:** do not install workflows during init. `.riff/templates/github-workflows/` contains optional reference workflows for projects that deliberately adopt them later.
 
-    ```bash
-    if [ ! -d .github/workflows ]; then
-      if [ -f package.json ]; then
-        mkdir -p .github/workflows
-        cp .riff/templates/github-workflows/ci.yml  .github/workflows/ci.yml
-        cp .riff/templates/github-workflows/e2e.yml .github/workflows/e2e.yml
-        # If the project uses pnpm, swap the package manager references:
-        # sed -i.bak -E 's|actions/setup-node@v4|pnpm/action-setup@v4|;s|npm ci|pnpm install --frozen-lockfile|;s|npm run|pnpm run|' .github/workflows/ci.yml .github/workflows/e2e.yml
-        echo "Installed default RIFF workflows. Review .github/workflows/ before pushing."
-      else
-        echo "No package.json detected — skipping default RIFF workflows (they target JS/TS). Add your own .github/workflows/ when ready."
-      fi
-    else
-      echo "Existing .github/workflows/ detected — skipped. Check against .riff/templates/github-workflows/README.md for drift."
-    fi
-    ```
+12. **Tooling config:** do not copy lint/format/tooling configs during init. Stack-specific tooling belongs to `/riff:start` or explicit project decisions, not the RIFF install step.
 
-11.5. **Tooling config:** copy canonical tooling configs from `templates/` into project root if absent. Stack-agnostic security configs (`.semgrep.yml`, `.gitleaks.toml`) are always copied. JS/TS stack configs are gated on the presence of `package.json` so Python, Go, Rust, bash, or scratch projects don't get JS/TS files dumped at their root.
-
-    ```bash
-    # Stack-agnostic security configs, always copy
-    for f in .semgrep.yml .gitleaks.toml; do
-      if [ ! -f "$f" ] && [ -f ".riff/templates/$f" ]; then
-        cp ".riff/templates/$f" "./$f"
-        echo "Installed $f from RIFF templates."
-      fi
-    done
-
-    # JS/TS stack configs, only if package.json signals a JS/TS project
-    if [ -f package.json ]; then
-      for f in biome.json vitest.config.ts vitest.setup.ts drizzle.config.ts playwright.config.ts tsconfig.json components.json vite.config.ts; do
-        if [ ! -f "$f" ] && [ -f ".riff/templates/$f" ]; then
-          cp ".riff/templates/$f" "./$f"
-          echo "Installed $f from RIFF templates."
-        fi
-      done
-      if [ -f vitest.config.ts ] && ! grep -q '@vitest/coverage-v8' package.json 2>/dev/null; then
-        echo "  hint: vitest coverage thresholds require @vitest/coverage-v8."
-        echo "        run: npm install --save-dev @vitest/coverage-v8"
-      fi
-    else
-      echo "No package.json detected — skipping JS/TS tooling configs. /riff:start will install them later if a JS/TS stack is chosen."
-    fi
-    ```
-
-12. **Initial commit + push.** Establish the `main` branch so `/riff:start` and `/riff:next` can branch cleanly. Without this step, the first `/riff:next` run hits a "no commits on main" error and stalls.
-
-    ```bash
-    if [ -z "$(git log --oneline 2>/dev/null)" ]; then
-      git add -A
-      git -c commit.gpgsign=false commit -m "chore: riff init scaffold" >/dev/null
-      printf '\033[32m●\033[0m Initial commit created on main\n'
-      if git remote get-url origin >/dev/null 2>&1; then
-        git push -u origin main && printf '\033[32m●\033[0m Pushed to %s\n' "$(git remote get-url origin)"
-      fi
-    fi
-    ```
-
-13. **Show banner:** `bash .riff/templates/banner.sh`
+13. **Show summary:** report project path, framework path, installed runtime files, executor default, git status, scope/profile/settings status, and the next command.
 
 ```
 RIFF installed. Next:

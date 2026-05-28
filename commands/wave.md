@@ -6,7 +6,7 @@ model: opus
 
 # /riff:wave [W{N} | --resume W{N}]
 
-Group wave-eligible phases into a Codex wave run. Opus plans, Codex executes, browser-check proves it works.
+Group wave-eligible phases into a Codex wave run. Opus plans, Codex executes, opt-in smoke/browser checks prove it works.
 
 **Prerequisite:** `executors.available` includes `codex` in profile. Otherwise the command errors and points to `/riff:onboard`.
 
@@ -18,7 +18,7 @@ Group wave-eligible phases into a Codex wave run. Opus plans, Codex executes, br
 | `/riff:wave W3` | Build wave `W3` explicitly (must reference an existing wave id or phase set) |
 | `/riff:wave --solo P12` | Single-phase Codex delegation (no parallel, but same prompt machinery) |
 | `/riff:wave --resume W3` | Read `.planning/waves/W3.RESULT.md`, reconcile, update ROADMAP |
-| `/riff:wave --status` | List active/pending/completed waves |
+| `/riff:wave --status` | List active/pending/done waves |
 | `/riff:wave --scratch` | Run the wave with security gates downgraded to warnings. See § Scratch mode below |
 
 ## Step 1: Eligibility scan
@@ -28,7 +28,7 @@ Read ROADMAP.yaml. A phase is **wave-eligible** when ALL of:
 - `status: todo`
 - `mode: AFK` (HITL phases never enter a wave)
 - `provider_mode != production` (sandbox or unset OK)
-- No unmet `depends_on` (all upstream phases `status: completed`)
+- No unmet `depends_on` (all upstream phases `status: done`)
 - No `wave_eligible: false` override
 
 Group eligible phases by absence of `depends_on` between them. Phases with a mutual `depends_on` chain cannot share a wave.
@@ -52,7 +52,7 @@ Read [`protocols/WAVE-BUNDLE.md`](../protocols/WAVE-BUNDLE.md). Write `.planning
 - Bundle header: set `scratch_mode: true` when `--scratch` was passed, `false` otherwise
 - Goal (one paragraph, what the wave delivers as a user-facing outcome)
 - Per-phase PLAN.md, acceptance criteria, files touched, risks
-- Browser-check contract per UI phase
+- Smoke/browser-check contract per opted-in phase
 - Final contract (atomic commits per phase, RESULT.md output, stop-conditions)
 
 If any phase lacks a PLAN.md, run `agents/planner.md` inline for that phase first. Do not skip.
@@ -100,7 +100,7 @@ Output: .planning/waves/W{N}.RESULT.md
 W{N}.RESULT.md must contain:
 
 - **Header**: wave number, goal, date, executor model
-- **Per-phase block**: phase id, slug, status (pass|fail|partial), commit hash, acceptance criteria (each with pass/fail), browser-check (pass/fail/skipped/N/A), deviations (if any), files touched, duration
+- **Per-phase block**: phase id, slug, status (pass|fail|partial), commit hash, acceptance criteria (each with pass/fail), smoke/browser-check (pass/fail/skipped/N/A), deviations (if any), files touched, duration
 - **Wave notes**: cross-cutting learnings, patterns for taste.md, follow-up phases needed
 
 `{{env_prefix}}` is empty when the bundle's `scratch_mode: false`, and
@@ -127,12 +127,12 @@ protocol drives the verification matrix based on
 `profile.yaml § wave.reconcile_mode` (default `both`):
 
 - `hooks` — re-run the four PostToolUse security hooks against the wave
-  diff via `.riff/hooks/lib/reconcile-diff.sh`, plus `scope-checker` per
+  diff via `.riff/hooks/lib/reconcile-diff.sh`, plus mechanical scope-check per
   phase
-- `sonnet` — spawn `security-reviewer` per phase, plus `scope-checker`
+- `sonnet` — spawn `security-reviewer` per phase, plus mechanical scope-check
   per phase
-- `both` — hooks + sonnet + scope-checker, verdicts merged
-- `off` — `scope-checker` only
+- `both` — hooks + sonnet + mechanical scope-check, verdicts merged
+- `off` — mechanical scope-check only
 
 Output: `.planning/waves/W{N}.RECONCILE.md` from
 [`templates/RECONCILE.md`](../templates/RECONCILE.md). Verdict is one of
@@ -142,13 +142,13 @@ Output: `.planning/waves/W{N}.RECONCILE.md` from
 
 - `FAIL` → mark wave `status: needs_human_review`, surface verdict + top
   3 blocking findings inline, stop
-- `PASS-WITH-WARNINGS` → mark phases `completed`, surface warnings in
+- `PASS-WITH-WARNINGS` → mark phases `done`, surface warnings in
   Step 7 output, continue
-- `PASS` → mark phases `completed`, no friction
+- `PASS` → mark phases `done`, no friction
 
-If a phase reports browser-check FAIL or the reconcile is FAIL → mark
+If a phase reports smoke/browser-check FAIL or the reconcile is FAIL → mark
 `status: needs_human_review`, surface to user. Otherwise mark
-`status: completed`, update ROADMAP.yaml, run
+`status: done`, update ROADMAP.yaml, run
 [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) once per phase
 (compressed).
 
@@ -158,7 +158,7 @@ Write `.planning/waves/W{N}.SUMMARY.md` (one consolidated post-mortem, not N sep
 
 ```
 Wave W{N} complete. {{N}} phases shipped. {{M}} commits.
-Browser-check: {{passed}}/{{total}} green.
+Smoke/browser-check: {{passed}}/{{total}} green.
 Scope-check: {{clean | drifted}}.
 Next: /riff:next or /riff:wave for the next eligible group.
 ```
@@ -168,7 +168,7 @@ Next: /riff:next or /riff:wave for the next eligible group.
 | Symptom | Action |
 |---|---|
 | Codex aborts mid-wave | RESULT.md has partial results. Reconcile what completed, mark rest as `status: todo` with `notes: wave-W{N}-partial` |
-| Browser-check fails on a phase | Phase marked `status: needs_human_review`. User decides: re-queue in next wave, or hand-fix |
+| Smoke/browser-check fails on a phase | Phase marked `status: needs_human_review`. User decides: re-queue in next wave, or hand-fix |
 | Scope drift detected | Same as failure: `needs_human_review`. Do not auto-rollback |
 | Reconcile verdict `FAIL` | Wave marked `status: needs_human_review`. Surface top 3 findings, no auto-rollback. User fixes, re-runs `/riff:wave --resume W{N}` |
 | `wave_W{N}_base_sha` missing in STATE.md | Fallback to parent of first wave commit via `git log --grep="<first_phase_slug>"`. Warn in reconcile Notes section |
@@ -220,7 +220,7 @@ section), then promote.
 
 ## Anti-patterns
 
-- Don't bundle a phase whose `depends_on` is not yet `completed`
+- Don't bundle a phase whose `depends_on` is not yet `done`
 - Don't mix HITL phases into a wave (they require human verification, period)
 - Don't override `provider_mode: production` to fit a phase into a wave
 - Don't write the bundle yourself, always go through `protocols/WAVE-BUNDLE.md`

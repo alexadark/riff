@@ -7,10 +7,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/riff/voice-rules-inject.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/riff/compaction-checkpoint.sh"
           }
         ]
       }
@@ -21,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/riff/voice-rules-inject.sh"
+            "command": "bash .claude/hooks/riff/compaction-checkpoint.sh"
           }
         ]
       }

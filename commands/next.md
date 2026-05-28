@@ -99,7 +99,7 @@ mkdir -p .planning/phases/N-slug
 [[ ! -f .planning/phases/N-slug/GATES.md ]] && node scripts/gates-update.mjs --init .planning/phases/N-slug
 ```
 
-PROMPTS.md captures substantive sub-agent prompts (Steps 4, 4b, 5, 5b, 6, 7, auto-debug). Read by `riff-pr-metadata.sh` at Step 8 → injected into PR body as a collapsible block. Convention (what to keep vs drop, finalize-on-PR rules): [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Prompt capture convention.
+PROMPTS.md captures substantive sub-agent prompts (Steps 4, 4b, 5, 5b, 6, 7, auto-debug). It is included in the PR body only when `metadata.pr_body: full`. Convention (what to keep vs drop, finalize-on-PR rules): [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Prompt capture convention.
 
 ### Step 3: Confidence gate (inline)
 
@@ -113,12 +113,12 @@ Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. In
 
 0. **Resolve planner_model** from ROADMAP entry (`opus` default).
    - `opus` or missing → continue inline.
-   - `codex` AND `codex` in `executors.available` → print `Run from Codex: $riff:plan {{N}}`, mark loop paused, exit without writing PLAN.md.
+   - `codex` AND `codex` in `executors.available` → print `Run from Codex: node .riff/scripts/riff-codex.mjs plan --phase {{N}} --run`, mark loop paused, exit without writing PLAN.md.
    - `codex` requested but absent from `executors.available` → log warning, fall back to inline Opus.
 1. Re-read if not in context: `agents/planner.md` (goal-backward, AC rules, HITL/AFK, TDD mode, anti-patterns), `taste.md`, `.planning/expertise/planner.md`, previous SUMMARY.md. If PLAN-REVIEW.md exists (revision cycle), read it and address every `BLOCKER` before rewriting PLAN.md.
 2. [KEYWORD] Draft the plan. Break into waves. Mark independent tasks `parallel: [task-A, task-B]` (independent = zero shared files).
 3. Write PLAN.md. Do NOT update STATE.md or ROADMAP.yaml.
-4. Include `## Model Recommendation`: default `executor_model: sonnet`. Recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs.
+4. Include `## Model Recommendation`: default `executor_model: codex`. Recommend `sonnet` only when Codex is unavailable or a phase needs Claude-specific tools; recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs.
 
 **Prompt capture:** one-line note of inputs + brief → PROMPTS.md § Planner (inline — no sub-agent).
 
@@ -204,11 +204,17 @@ Agent prompt (give paths, do NOT paste file contents):
 
 ---
 
-### Step 5c: Scope check (inline)
+### Step 5c: Scope check — mechanical (inline)
 
-Before review, verify executor honored the plan. Run scope-checker sub-agent.
+Before review, verify executor honored the plan. Source of truth: [`protocols/SCOPE-CHECK.md`](../protocols/SCOPE-CHECK.md). Do not spawn a sub-agent by default.
 
-**Agent:** Agent tool, model: haiku. Prompt: _"Read agents/scope-checker.md. Branch: riff/phase-N-slug. Read .planning/phases/N-slug/PLAN.md and SUMMARY.md. Diff task lists. Write `.planning/phases/N-slug/SCOPE-CHECK.json` per the schema in scope-checker.md. Return nothing to stdout."_
+Run:
+
+```bash
+node .riff/scripts/scope-check.mjs --phase .planning/phases/N-slug
+```
+
+The script writes `.planning/phases/N-slug/SCOPE-CHECK.json` and exits non-zero unless the verdict is `MATCH`.
 
 **Read the verdict from SCOPE-CHECK.json:**
 
@@ -345,7 +351,11 @@ Auto-debug on `BLOCKED` → `failure_type: security_fail`, `artifact: SECURITY.m
 Do NOT update ROADMAP.yaml or STATE.md on the feature branch. Full procedure: [`protocols/PR-CREATION.md`](../protocols/PR-CREATION.md).
 
 - **8a Documentation + README check (BLOCKING).** Compare SUMMARY.md against `.claude/references/project-details.md`, `docs/architecture.md`, `taste.md`. Stale → spawn Haiku to update before PR. If `README.md` is absent at project root, write one (seed from PROJECT.md or CLAUDE.md, per `start.md` Stage 5 production spec) before proceeding.
-- **8b Push + PR.** `git push -u`, compose PR body (human summary + `riff-pr-metadata.sh <phase-id>` stdout), finalize PROMPTS.md (replace any leftover `{{prompt verbatim}}` placeholders with `_(not invoked)_`, else metadata script hard-fails), `PR_URL=$(gh pr create ...)`. Then branch on `profile.yaml` `git.merge_strategy` (default `github_button`):
+- **8b Push + PR.** `git push -u`, compose PR body from the human summary plus optional metadata controlled by resolved profile `metadata.pr_body` (`off | standard | full`, default `standard`):
+  - `off` → skip `riff-pr-metadata.sh`.
+  - `standard` → run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and append stdout; PROMPTS.md/USAGE.md are not required.
+  - `full` → write `.planning/phases/N-slug/USAGE.md` from accumulated Agent results, finalize PROMPTS.md (replace leftover `{{prompt verbatim}}` placeholders with `_(not invoked)_`), then run the metadata script. The script hard-fails on unfilled PROMPTS.md placeholders only in `full` mode.
+  Then `PR_URL=$(gh pr create ...)` and branch on `profile.yaml` `git.merge_strategy` (default `github_button`):
   - **`github_button`** → print report ending `PR open at $PR_URL. Click Merge on GitHub when ready.` STOP, skip 8c. Step 0 of next run reconciles.
   - **`local_no_ff`** → print report ending `Review on GitHub, then tell me 'merge'.` Stay alive, run 8c on user's "merge" cue.
 - **8c Update state after merge.** Only fires on `local_no_ff`. Checkout main, `pull --ff-only`, `merge --no-ff`, capture merge SHA into `SUMMARY.md` `> Merge commit:` line, clear sidecars (`.planning/active-phase.txt` + STATE.md `## Active Phase`), update ROADMAP.yaml + STATE.md, commit + push, delete branches.
@@ -357,7 +367,7 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch. Full procedure: [`
 
 ### Step 10: Report + usage (inline)
 
-Collect `total_tokens`, `tool_uses`, `duration_ms` from each Agent result. Write `.planning/phases/N-slug/USAGE.md` using `templates/usage.md`. USAGE.md + PROMPTS.md are read by `riff-pr-metadata.sh` at Step 8 to enrich the PR body.
+Collect `total_tokens`, `tool_uses`, `duration_ms` from each Agent result. If `metadata.pr_body: full` did not already write `.planning/phases/N-slug/USAGE.md` at Step 8b, write it now using `templates/usage.md`. USAGE.md + PROMPTS.md are included in PR metadata only when `metadata.pr_body: full`.
 
 Append a row to `.planning/usage-log.csv` via `.riff/scripts/csv-append.sh` (flock-protected, child-bash invocation). Full schema: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Usage CSV logging.
 

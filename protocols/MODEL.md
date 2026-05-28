@@ -240,9 +240,9 @@ RIFF uses Haiku for:
 
 Planning quality is the single biggest leverage point in the pipeline. A bad plan = wasted execution tokens downstream. Parent already loaded all context in Steps 1–3 → inline is cheaper _and_ better than spawning. Forced via `model: opus` in `/riff:next` frontmatter.
 
-#### Step 5 (Executor) — Sonnet sub-agent
+#### Step 5 (Executor) — Codex runtime by default
 
-Plan is already written — execution is mostly mechanical (write code per PLAN.md, commit, write SUMMARY). Sonnet is fast and sufficient for typical CRUD / schema / service / UI work. Opus opt-in for: novel architecture, 10+ tightly coupled files, unfamiliar external APIs. Thinking: none by default, `think hard` only if `complex_execution:`.
+Plan is already written — execution is mostly mechanical (write code per PLAN.md, commit, write SUMMARY). Codex is the default executor runtime via `codex:codex-rescue` / CLI. Sonnet is a fallback or explicit override (`executor_model: sonnet`) when Codex is unavailable or the phase needs Claude-specific tools. Opus opt-in remains for novel architecture, 10+ tightly coupled files, unfamiliar external APIs. Thinking: none by default, `think hard` only if `complex_execution:`.
 
 #### Step 6 (Adversarial reviewer) — Codex
 

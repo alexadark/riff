@@ -2,7 +2,7 @@
 # RIFF Route Auth Guard - PostToolUse hook for Edit/Write/apply_patch
 # Checks that route/API handler files include auth checks
 # Rule: "Auth checks on every protected route"
-# Wired in .claude/settings.json (Claude) and ~/.codex/hooks.json (Codex).
+# Wired in project .claude/settings.json.
 # Reads JSON payload on stdin; falls back to $1 for legacy invocation.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

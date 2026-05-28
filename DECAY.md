@@ -72,4 +72,4 @@ The 30 minutes per quarter saves multiple debugging sessions later.
 - **Multi-instance Octopus search** — rejected 2026-04-07. Reason: overkill for solo.
 - **Branch-per-phase optional (`merge_strategy: direct`)** — rejected 2026-04-07. Reason: current branch-per-phase already works.
 - **CostSentinel hook (token budget limit)** — rejected 2026-04-07. Reason: user on $200 Claude plan, never hit limits.
-- **lint-gate as default** — moved to cautious-only 2026-05-28. Reason: formatting wars between Biome/ESLint/Prettier cause more friction than value. Typecheck catches real bugs; lint catches style.
+- **lint/format gates as RIFF defaults** — rejected 2026-05-28. Reason: formatting wars and tool churn cause more friction than value. Typecheck, tests, smoke checks, and security review catch the failures RIFF should gate by default. Projects can add lint/format explicitly.

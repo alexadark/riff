@@ -20,6 +20,9 @@ user:
   artifact_language: en
   narrative_language: en
 
+executors:
+  available: [claude, codex]
+
 risk:
   sensitive_task_preference: balanced
 
@@ -35,18 +38,19 @@ budget:
 notifications:
   channel: none
 
+metadata:
+  # PR body metadata detail: off | standard | full.
+  # standard excludes token tables and captured prompts; full includes them.
+  pr_body: standard
+
 wave:
   # Reconcile pass run by /riff:wave --resume Step 6.
   # Valid: hooks | sonnet | both | off. See protocols/WAVE-RECONCILE.md § Modes.
   reconcile_mode: both
 
 git:
-  # Valid values: github_button | local_no_ff | auto_merge
+  # Valid values: github_button | local_no_ff
   merge_strategy: github_button
-  # auto_merge_blocking_labels: ["do-not-merge", "wip", "hold"]
-
-loop:
-  # merge_wait_timeout_min: 30    # Default 30. Only used when merge_strategy: auto_merge.
 
 dashboard:
   projects: []

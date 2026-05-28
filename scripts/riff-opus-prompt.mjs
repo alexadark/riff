@@ -29,7 +29,6 @@ const MAX_CHANGED_FILE_CHARS = 20000;
 const MAX_GIT_DIFF_CHARS = 12000;
 const UNTRACKED_CONTEXT_PREFIXES = [
   '.planning/',
-  'adapters/',
   'docs/',
   'scripts/',
 ];
@@ -391,7 +390,7 @@ function phaseArtifactContract(command) {
   return `## RIFF Artifact Templates\n\n${excerpts}`;
 }
 
-function adapterEscalationContract() {
+function escalationContract() {
   const text = readText(FRAMEWORK_ROOT, 'protocols/CODEX-DELEGATION.md');
   const excerpt = [
     'Manual Opus prompt generation is an escalation path. It produces artifact-ready markdown or YAML; it does not bypass RIFF gates or create provider-specific durable artifacts.',
@@ -399,6 +398,22 @@ function adapterEscalationContract() {
     extractSection(text, '## Execution skill resolution'),
   ].filter(Boolean).join('\n\n');
   return `## protocols/CODEX-DELEGATION.md\n\n\`\`\`markdown\n${excerpt}\n\`\`\`\n`;
+}
+
+function capabilityPrompt(capability, phase) {
+  if (capability.prompt === 'start.md') {
+    return 'Draft RIFF start artifacts from the project context. Produce artifact-ready PROJECT/ROADMAP/STATE/PLAN-compatible content only.';
+  }
+  if (capability.prompt === 'phase-plan.md') {
+    return `Draft or revise the PLAN.md for phase ${phase?.id || '<phase>'}. Follow agents/planner.md and templates/PLAN.md.`;
+  }
+  if (capability.prompt === 'architecture-review.md') {
+    return `Review architecture risk for phase ${phase?.id || '<phase>'}. Return findings and PLAN.md-compatible revision guidance.`;
+  }
+  if (capability.prompt === 'improver.md') {
+    return 'Synthesize reusable project learnings into .planning/expertise/.pending proposal markdown.';
+  }
+  return 'Return the requested RIFF artifact-ready content.';
 }
 
 function listMarkdownFiles(relativeDir) {
@@ -539,10 +554,7 @@ function renderContextPack(args) {
   const capability = CAPABILITIES[args.command];
   const phase = args.phase ? normalizePhase(args.phase) : undefined;
   const scope = detectScope(PROJECT_ROOT, args.scope);
-  const prompt = renderTemplate(
-    readText(FRAMEWORK_ROOT, path.join('adapters', 'opus', 'prompts', capability.prompt)),
-    phase,
-  );
+  const prompt = renderTemplate(capabilityPrompt(capability, phase), phase);
   const expectedOutput = phase
     ? capability.expectedOutput.replaceAll('<phase>', phase.id)
     : capability.expectedOutput;
@@ -565,7 +577,7 @@ Repository branch hint: \`${gitBranchHint()}\`
 
 This prompt may be pasted into Opus manually or sent through an explicit local programmatic command. Opus should return artifact-ready markdown or YAML only; it must not require hidden state or provider-specific commands in RIFF core artifacts.
 
-After Opus responds, a human or calling adapter applies the result to the expected RIFF artifact and runs normal RIFF gates. This escalation does not bypass plan review, execution smoke, scope check, code review, security review, docs check, hooks, dashboard metadata, or finalization.
+After Opus responds, a human or caller applies the result to the expected RIFF artifact and runs normal RIFF gates. This escalation does not bypass plan review, execution smoke, scope check, code review, security review, docs check, hooks, dashboard metadata, or finalization.
 
 ## Stop Conditions
 
@@ -580,7 +592,7 @@ ${readContract('agents/planner.md')}
 
 ${phaseArtifactContract(args.command)}
 
-${adapterEscalationContract()}
+${escalationContract()}
 
 ## Source Artifact Snapshot
 
@@ -590,7 +602,7 @@ ${sourceArtifactSnapshot(args.command, phase)}
 
 ${workingTreeSnapshot(args.command)}
 
-## Adapter Prompt
+## Runtime Prompt
 
 ${prompt}
 

@@ -1,14 +1,12 @@
-# Browser-check
+# Browser-Backed Smoke Test
 
-The "prove the feature actually works" contract Codex (or Claude) must honor during wave / solo execution.
+The runtime smoke-test contract Codex (or Claude) must honor during `/riff:next` Step 5e and wave / solo execution when a phase opts in with `smoke_test: true`.
 
-**Not the same as smoke test.** Smoke test = "the page loads, no 500". Browser-check = "the user can do the thing the feature promises".
-
-**Not the same as sandbox-HITL.** Sandbox-HITL = a specific protocol for sandbox provider flows (test Stripe, Auth0 dev). Browser-check is broader: any UI feature, any flow.
+**Not the same as sandbox-HITL.** Sandbox-HITL = a specific protocol for sandbox provider flows (test Stripe, Auth0 dev). The browser-backed smoke test is broader: any UI feature, any flow.
 
 ## The contract
 
-When a phase has `browser_check: true`, the executing agent (Codex or Claude) accepts this contract:
+When a phase has `smoke_test: true`, the executing agent (Codex or Claude) accepts this contract:
 
 > You do not stop until the feature provably works in the browser. "Compiled" is not "works". "Tests pass" is not "works". "Looks right in the diff" is not "works".
 >
@@ -18,7 +16,7 @@ This is the Melvyn pattern: "Frérot, tu dois toi-même me prouver que ça fonct
 
 ## Auto-enable rule
 
-`/riff:wave` Step 3 (bundle construction) sets `browser_check: true` on a phase when ANY:
+`/riff:wave` Step 3 (bundle construction) may propose `smoke_test: true` on a phase when ANY:
 
 - Phase touches `app/`, `src/`, `routes/`, `pages/`, or any path under a route directory
 - Phase tags include `ui`, `frontend`, `ux`, `e2e`
@@ -27,16 +25,16 @@ This is the Melvyn pattern: "Frérot, tu dois toi-même me prouver que ça fonct
 
 Skip when:
 
-- Phase is pure backend (no UI surface, no public route) — `browser_check: false` explicit, or auto-detect from diff (no client files)
+- Phase is pure backend (no UI surface, no public route) — `smoke_test: false` explicit, or auto-detect from diff (no client files)
 - Phase is pure CLI / skill / content / automation project — `taste/frontend.md` absent
-- User override: `browser_check: false` in ROADMAP.yaml
+- User override: `smoke_test: false` in ROADMAP.yaml
 
 ## Per-phase block (in wave bundle)
 
-When enabled, the bundle's per-phase section includes a `**Browser-check:**` block that Codex reads. Format:
+When enabled, the bundle's per-phase section includes a `**Runtime smoke:**` block that Codex reads. Format:
 
 ```markdown
-**Browser-check:** enabled
+**Runtime smoke:** enabled
 
 User journey to verify:
 1. Start the app: `pnpm dev` (or detected dev command)
@@ -52,7 +50,7 @@ Logs to read on failure:
 - DB (if relevant): `{{convex dev / drizzle studio / supabase logs}}`
 
 Stop conditions for this phase:
-- All observable outcomes match → mark browser-check PASS in RESULT.md
+- All observable outcomes match → mark runtime smoke PASS in RESULT.md
 - Bug found → fix, retest, repeat until pass
 - After 3 fix-retest cycles still failing → log blocker, mark FAIL in RESULT.md, continue to next phase
 ```

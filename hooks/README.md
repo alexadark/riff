@@ -2,14 +2,14 @@
 
 ## Buckets
 
-Hooks are organized in three buckets. `/riff:init` picks the right set based on `risk.sensitive_task_preference` in `profile.yaml`.
+Claude Code hooks are selected by `riff init` from `risk.sensitive_task_preference` in `profile.yaml`. Git pre-commit helpers are invoked by `security-scan.sh` when their file/staged-change conditions match.
 
 | Bucket | Content | Wired when |
 | ------ | ------- | ---------- |
 | **A** — Universal discipline | destructive-guard, boundary-check, typecheck-gate, test-gate | Always, regardless of profile. |
-| **B** — Security/caution-adaptable | route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard, lint-gate | `cautious` → all of B; `balanced` → route-auth-guard + idor-detector; `fast` → none. |
-| **C** — Stack/convention | registry-reminder, migration-gate (Drizzle/Prisma), notify-human | Installed per-project at `/riff:init` based on detected stack. |
-| **D** — Session voice (SessionStart + PreCompact) | voice-rules-inject, compaction-checkpoint | Always wired in all three templates. Reads `profile.yaml` and injects language + explanation-depth rules at session start (and after compaction) so every session honors the user's preferences, not just RIFF agents. |
+| **B** — Security/caution-adaptable | route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard | `cautious` → all of B; `balanced` → route-auth-guard + idor-detector; `fast` → none. |
+| **C** — Stack/convention | registry-reminder, migration-gate (Drizzle/Prisma), notify-human | `registry-reminder` and `migration-gate` run from `security-scan.sh` when relevant files are staged; `notify-human` is called manually by agents. |
+| **D** — Session context | voice-rules-inject on SessionStart, compaction-checkpoint on PreCompact | Always wired in all three templates. Reads `profile.yaml` at session start and writes a compact checkpoint before compaction. |
 
 Templates: `templates/settings.json` (fast / Bucket A only), `templates/settings-balanced.json`, `templates/settings-cautious.json`. `/riff:init` copies the right one into `.claude/settings.json`.
 
@@ -17,6 +17,7 @@ Templates: `templates/settings.json` (fast / Bucket A only), `templates/settings
 
 | Hook | Event | Purpose |
 | ---- | ----- | ------- |
+| voice-rules-inject.sh | SessionStart | Injects language + explanation-depth rules from the resolved profile |
 | compaction-checkpoint.sh | PreCompact | Writes a checkpoint summary to compacted context so the session can resume without manual HANDOFF |
 
 Git hooks (pre-commit / commit-msg) are separate: installed once by `/riff:init` into `.git/hooks/`, not profile-driven.
@@ -84,10 +85,6 @@ After any file edit, check if the modified file is in the current task's boundar
 
 After editing .ts/.tsx files, run `tsc --noEmit` if available. Catch type errors before they accumulate.
 
-### Lint Gate (PostToolUse: Edit, Write)
-
-After editing .ts/.tsx/.js/.jsx files, run the project's linter if configured. Auto-detects Biome or ESLint from project config. Skips test/config files. Informational only (does not block). Cautious template only.
-
 ### TODO Orphan Guard (PostToolUse: Edit, Write)
 
 Checks that `// TODO` comments include a seed or issue reference. Rule: "No TODO without a matching seed or issue."
@@ -134,9 +131,9 @@ Run this once before picking `channel: telegram`:
 
 Test with: `bash hooks/notify-human.sh "test from RIFF"`. You should receive the message in Telegram within a second.
 
-### Voice Rules Inject (SessionStart, PreCompact)
+### Voice Rules Inject (SessionStart)
 
-Reads `.riff/profile.yaml` at session start (and after compaction so rules survive the summary) and injects three rules:
+Reads the resolved profile at session start and injects three rules:
 
 1. **Chat language** — defaults to `user.conversational_language` from the profile. The agent should reply in that language from the first sentence and not drift mid-conversation. Written artifacts (code, commits, docs) stay in `user.artifact_language`.
 2. **Explanation depth** — defaults to `style.terminal_explanation_level`, falling back to `style.explanation_level`, falling back to `simple`. Each level (`simple` / `technical` / `eli5`) gets its own behavioral guidance baked into the injected rule.
@@ -148,4 +145,4 @@ This is what lets non-RIFF interactions (ad-hoc questions, debugging, exploratio
 
 **To pick up profile changes:** the hook reads `profile.yaml` on every session start, so editing the profile takes effect on the next session — no re-init needed.
 
-**Upgrade path for existing projects:** `/riff:resync` updates the symlink for `voice-rules-inject.sh` automatically (the hook script itself), but it does NOT modify `.claude/settings.json`. To wire the SessionStart entry, either (a) re-run `/riff:init` (it merges the current template into `.claude/settings.json`) or (b) manually add the `SessionStart` and `PreCompact` blocks from `templates/settings*.json` to your `.claude/settings.json`.
+**Upgrade path for existing projects:** `/riff:resync` updates hook symlinks automatically, but it does NOT modify `.claude/settings.json`. To wire the SessionStart and PreCompact entries, either re-run `/riff:init` or manually copy the blocks from `templates/settings*.json` to your `.claude/settings.json`.

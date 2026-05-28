@@ -19,11 +19,7 @@ import { stdin as input, stdout as output } from 'node:process';
 
 const SCRIPT_DIR = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
 const FRAMEWORK_ROOT = path.resolve(SCRIPT_DIR, '..');
-const VALID_HARNESSES = new Set(['claude', 'codex', 'commandcode', 'all']);
-const CLAUDE_ALIASES = new Set(['claude-code', 'codeable']);
-const COMMANDCODE_ALIASES = new Set(['command', 'command-code']);
 const PRESET_NAMES = new Set(['expert', 'neutre', 'apprentissage', 'alex']);
-const CODEX_SKILLS_SOURCE_PATH = 'adapters/codex/skills';
 
 const USE_COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
 const ANSI = USE_COLOR
@@ -74,7 +70,7 @@ const PRESETS = {
       artifact_language: 'en',
       narrative_language: 'en',
     },
-    executors: { available: ['claude'] },
+    executors: { available: ['claude', 'codex'] },
     risk: { sensitive_task_preference: 'fast' },
     style: {
       length: 'terse',
@@ -84,6 +80,7 @@ const PRESETS = {
     },
     budget: { default_quality: 'balanced' },
     notifications: { channel: 'none' },
+    metadata: { pr_body: 'standard' },
     git: { merge_strategy: 'github_button' },
     dashboard: { language: 'en' },
   },
@@ -98,7 +95,7 @@ const PRESETS = {
       artifact_language: 'en',
       narrative_language: 'en',
     },
-    executors: { available: ['claude'] },
+    executors: { available: ['claude', 'codex'] },
     risk: { sensitive_task_preference: 'balanced' },
     style: {
       length: 'standard',
@@ -108,6 +105,7 @@ const PRESETS = {
     },
     budget: { default_quality: 'balanced' },
     notifications: { channel: 'none' },
+    metadata: { pr_body: 'standard' },
     git: { merge_strategy: 'github_button' },
     dashboard: { language: 'en' },
   },
@@ -122,7 +120,7 @@ const PRESETS = {
       artifact_language: 'en',
       narrative_language: 'fr',
     },
-    executors: { available: ['claude'] },
+    executors: { available: ['claude', 'codex'] },
     risk: { sensitive_task_preference: 'cautious' },
     style: {
       length: 'detailed',
@@ -132,6 +130,7 @@ const PRESETS = {
     },
     budget: { default_quality: 'balanced' },
     notifications: { channel: 'none' },
+    metadata: { pr_body: 'standard' },
     git: { merge_strategy: 'github_button' },
     dashboard: { language: 'fr' },
   },
@@ -157,6 +156,7 @@ const PRESETS = {
     },
     budget: { default_quality: 'max' },
     notifications: { channel: 'telegram' },
+    metadata: { pr_body: 'standard' },
     git: { merge_strategy: 'local_no_ff' },
     dashboard: { language: 'fr' },
   },
@@ -175,8 +175,6 @@ ${color('cyan', 'Usage:')}
   node scripts/riff-init.mjs [options]
 
 ${color('cyan', 'Options:')}
-  --harness <claude|codex|commandcode|all>   Harness files to install; default claude
-                                             aliases: claude-code, codeable, command
   --scope <production|scratch>               Project scope; preserves existing config when present
   --project-root <path>                      Target project root; default current directory
   --force                                    Replace existing RIFF symlinks that point elsewhere
@@ -187,16 +185,8 @@ ${color('cyan', 'Options:')}
   process.exit(exitCode);
 }
 
-function normalizeHarness(value) {
-  if (CLAUDE_ALIASES.has(value)) return 'claude';
-  if (COMMANDCODE_ALIASES.has(value)) return 'commandcode';
-  if (VALID_HARNESSES.has(value)) return value;
-  return undefined;
-}
-
 function parseArgs(argv) {
   const args = {
-    harness: 'claude',
     projectRoot: process.cwd(),
     scope: undefined,
     force: false,
@@ -215,11 +205,6 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     if (token === '-h' || token === '--help') usage(0);
-    if (token === '--harness') {
-      args.harness = normalizeHarness(readOptionValue(token, index));
-      index += 1;
-      continue;
-    }
     if (token === '--project-root') {
       args.projectRoot = path.resolve(readOptionValue(token, index));
       index += 1;
@@ -244,17 +229,9 @@ function parseArgs(argv) {
       args.profile = 'skip';
       continue;
     }
-    const positionalHarness = normalizeHarness(token);
-    if (positionalHarness) {
-      args.harness = positionalHarness;
-      continue;
-    }
     fail(`Unknown argument: ${token}`);
   }
 
-  if (!VALID_HARNESSES.has(args.harness)) {
-    fail('--harness must be claude, codex, commandcode, all, claude-code, codeable, or command');
-  }
   if (args.profile && args.profile !== 'skip' && args.profile !== 'custom' && !PRESET_NAMES.has(args.profile)) {
     fail('--profile must be custom, skip, expert, neutre, apprentissage, or alex');
   }
@@ -353,11 +330,11 @@ function ensurePlanning(scope) {
 
   const existingConfig = readJsonIfExists('.planning/config.json');
   if (existingConfig?.scope) return false;
-  writeJson('.planning/config.json', { scope: scope ?? 'production' });
+  writeJson('.planning/config.json', { ...(existingConfig || {}), scope: scope ?? 'production' });
   return true;
 }
 
-function installClaudeHarness() {
+function installClaudeRuntime() {
   ensureDir('.claude/commands/riff');
   ensureDir('.claude/agents/riff');
   ensureDir('.claude/hooks/riff');
@@ -377,7 +354,7 @@ function installClaudeHarness() {
     }
   }
   for (const file of readdirSync(path.join(FRAMEWORK_ROOT, 'hooks'))) {
-    if (file.endsWith('.sh') && file !== 'security-scan.sh' && file !== 'commit-msg.sh') {
+    if (file.endsWith('.sh') && !['security-scan.sh', 'commit-msg.sh'].includes(file)) {
       symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks', file), path.join('.claude/hooks/riff', file), {
         viaRiff: true,
       });
@@ -388,58 +365,6 @@ function installClaudeHarness() {
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'templates/banner.sh'), '.claude/hooks/riff/banner.sh', { viaRiff: true });
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks/security-scan.sh'), '.git/hooks/pre-commit', { viaRiff: true });
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks/commit-msg.sh'), '.git/hooks/commit-msg', { viaRiff: true });
-}
-
-function installCommandCodeHarness() {
-  ensureDir('.commandcode/commands/riff');
-  ensureDir('.commandcode/hooks');
-  for (const file of readdirSync(path.join(FRAMEWORK_ROOT, 'adapters/commandcode/commands/riff'))) {
-    if (file.endsWith('.md')) {
-      symlinkRelative(
-        path.join(FRAMEWORK_ROOT, 'adapters/commandcode/commands/riff', file),
-        path.join('.commandcode/commands/riff', file),
-        { viaRiff: true },
-      );
-    }
-  }
-  symlinkRelative(
-    path.join(FRAMEWORK_ROOT, 'adapters/commandcode/settings.template.json'),
-    '.commandcode/settings.json',
-    { viaRiff: true },
-  );
-  symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks/destructive-guard.sh'), '.commandcode/hooks/destructive-guard.sh', {
-    viaRiff: true,
-  });
-  symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks/boundary-check.sh'), '.commandcode/hooks/boundary-check.sh', {
-    viaRiff: true,
-  });
-  for (const file of readdirSync(path.join(FRAMEWORK_ROOT, 'hooks/examples'))) {
-    if (file.endsWith('.sh')) {
-      symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks/examples', file), path.join('.commandcode/hooks', file), {
-        viaRiff: true,
-      });
-    }
-  }
-}
-
-function installCodexRepoSkills() {
-  const sourceRoot = path.join(FRAMEWORK_ROOT, CODEX_SKILLS_SOURCE_PATH);
-  ensureDir('.agents/skills');
-  for (const name of readdirSync(sourceRoot)) {
-    const source = path.join(sourceRoot, name);
-    if (!lstatSync(source).isDirectory()) continue;
-    if (!existsSync(path.join(source, 'SKILL.md'))) continue;
-    symlinkRelative(source, path.join('.agents/skills', `riff-${name}`), { viaRiff: true });
-  }
-}
-
-function installCodexHarness() {
-  ensureDir('.codex/riff');
-  symlinkRelative(path.join(FRAMEWORK_ROOT, 'adapters/codex/README.md'), '.codex/riff/README.md', { viaRiff: true });
-  symlinkRelative(path.join(FRAMEWORK_ROOT, 'adapters/codex/context-pack.md'), '.codex/riff/context-pack.md', {
-    viaRiff: true,
-  });
-  installCodexRepoSkills();
 }
 
 function yamlScalar(value) {
@@ -520,7 +445,7 @@ async function customProfile(rl) {
   const conversationalLanguage = await askChoice(rl, 'Conversational language', ['en', 'fr', 'mix', 'other'], 'fr');
   const artifactLanguage = await askChoice(rl, 'Artifact language for commits/docs/code', ['en', 'fr', 'other'], 'en');
   const narrativeLanguage = await askChoice(rl, 'Dashboard narrative language', ['en', 'fr', 'other'], conversationalLanguage === 'fr' ? 'fr' : 'en');
-  const executorsChoice = await askChoice(rl, 'Which executors do you have installed?', ['claude', 'claude+codex'], 'claude');
+  const executorsChoice = await askChoice(rl, 'Which executors do you have installed?', ['claude+codex', 'claude'], 'claude+codex');
   const notificationsChannel = await askChoice(rl, 'AFK notifications', ['none', 'telegram', 'email'], 'none');
   const notifications = { channel: notificationsChannel };
   if (notificationsChannel === 'telegram') {
@@ -557,6 +482,9 @@ async function customProfile(rl) {
       default_quality: await askChoice(rl, 'Budget and quality', ['frugal', 'balanced', 'max'], 'max'),
     },
     notifications,
+    metadata: {
+      pr_body: await askChoice(rl, 'PR metadata detail', ['standard', 'off', 'full'], 'standard'),
+    },
     git: {
       merge_strategy: await askChoice(rl, 'Merge strategy', ['github_button', 'local_no_ff'], 'github_button'),
     },
@@ -605,24 +533,91 @@ async function runProfileOnboarding(profileMode) {
   }
 }
 
-function selectedHarnesses(harness) {
-  if (harness === 'all') return ['claude', 'codex', 'commandcode'];
-  return [harness];
+function profileScalar(profileText, section, key) {
+  let inSection = false;
+  for (const rawLine of profileText.split('\n')) {
+    const line = rawLine.replace(/\s+#.*$/, '');
+    if (new RegExp(`^${section}:\\s*$`).test(line)) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && /^[A-Za-z_][A-Za-z0-9_]*:/.test(line)) {
+      return undefined;
+    }
+    const match = inSection ? line.match(new RegExp(`^\\s+${key}:\\s*([^#]+?)\\s*$`)) : undefined;
+    if (match) return match[1].replace(/^["']|["']$/g, '').trim();
+  }
+  return undefined;
 }
 
-function nextStepsFor(harnesses) {
-  const steps = [];
-  if (harnesses.includes('claude')) {
-    steps.push(`  ${color('cyan', 'Claude:')} restart Claude Code, then ${color('green', '/riff:start')}`);
+function resolvedProfileText() {
+  const projectProfile = path.join(args.projectRoot, '.planning/profile.yaml');
+  const frameworkProfile = path.join(FRAMEWORK_ROOT, 'profile.yaml');
+  const neutreProfile = path.join(FRAMEWORK_ROOT, 'templates/profile.neutre.yaml');
+  for (const candidate of [projectProfile, frameworkProfile, neutreProfile]) {
+    if (existsSync(candidate)) return readFileSync(candidate, 'utf8');
   }
-  if (harnesses.includes('codex')) {
-    steps.push(`  ${color('cyan', 'Codex:')} restart Codex, then type ${color('green', '$riff:start')} in the composer (or ${color('green', '/skills')} then pick riff:start)`);
+  return '';
+}
+
+function settingsTemplateForProfile() {
+  const risk = profileScalar(resolvedProfileText(), 'risk', 'sensitive_task_preference');
+  if (risk === 'cautious') return 'settings-cautious.json';
+  if (risk === 'balanced') return 'settings-balanced.json';
+  return 'settings.json';
+}
+
+function installClaudeSettings() {
+  const settingsPath = path.join(args.projectRoot, '.claude/settings.json');
+  if (existsSync(settingsPath)) return 'preserved';
+  const template = settingsTemplateForProfile();
+  const content = readFileSync(path.join(FRAMEWORK_ROOT, 'templates', template), 'utf8');
+  mkdirSync(path.dirname(settingsPath), { recursive: true });
+  writeFileSync(settingsPath, content, 'utf8');
+  return `created from ${template}`;
+}
+
+function appendMissingLines(relativePath, lines) {
+  const absolute = path.join(args.projectRoot, relativePath);
+  const current = existsSync(absolute) ? readFileSync(absolute, 'utf8') : '';
+  const existing = new Set(current.split('\n'));
+  const missing = lines.filter((line) => !existing.has(line));
+  if (missing.length === 0) return false;
+  const prefix = current && !current.endsWith('\n') ? '\n' : '';
+  writeFileSync(absolute, `${current}${prefix}${missing.join('\n')}\n`, 'utf8');
+  return true;
+}
+
+function ensureProjectClaudeSection() {
+  const absolute = path.join(args.projectRoot, 'CLAUDE.md');
+  const current = existsSync(absolute) ? readFileSync(absolute, 'utf8') : '';
+  if (current.includes('<!-- RIFF-INSTALL:START -->')) return false;
+  const section = `\n<!-- RIFF-INSTALL:START -->\n## RIFF\n\nThis project uses RIFF via the local \`.riff/\` symlink. Use \`/riff:start\`, \`/riff:map\`, and \`/riff:next\` from Claude Code. The framework source of truth lives under \`.riff/commands/\`, \`.riff/protocols/\`, and \`.riff/CLAUDE.md\`.\n<!-- RIFF-INSTALL:END -->\n`;
+  writeFileSync(absolute, `${current}${current.endsWith('\n') || current === '' ? '' : '\n'}${section}`, 'utf8');
+  return true;
+}
+
+async function resolveScope() {
+  const existingConfig = readJsonIfExists('.planning/config.json');
+  if (existingConfig?.scope) return existingConfig.scope;
+  if (args.scope) return args.scope;
+  if (input.isTTY && output.isTTY) {
+    const rl = createInterface({ input, output });
+    try {
+      return await askChoice(rl, 'Project scope', ['production', 'scratch'], 'production');
+    } finally {
+      rl.close();
+    }
   }
-  if (harnesses.includes('commandcode')) {
-    steps.push(`  ${color('cyan', 'CommandCode:')} run ${color('green', 'riff/start')}`);
-  }
-  if (steps.length === 0) return `  ${color('yellow', 'No harness selected')}`;
-  return steps.join('\n');
+  output.write('No --scope provided and terminal is non-interactive; defaulting scope to production.\n');
+  return 'production';
+}
+
+function nextSteps() {
+  return [
+    `  ${color('cyan', 'Claude:')} restart Claude Code, then ${color('green', '/riff:start')}`,
+    `  ${color('cyan', 'Codex executor:')} no project install needed; RIFF calls Codex through the configured skill/CLI when available`,
+  ].join('\n');
 }
 
 const args = parseArgs(process.argv.slice(process.argv[1]?.endsWith('riff') ? 3 : 2));
@@ -631,16 +626,13 @@ if (USE_COLOR) printBanner();
 
 const gitInitialized = ensureGitRepo();
 const riffLinked = installRiffSymlink();
-const configWritten = ensurePlanning(args.scope);
-const harnesses = selectedHarnesses(args.harness);
-
-for (const harness of harnesses) {
-  if (harness === 'claude') installClaudeHarness();
-  if (harness === 'codex') installCodexHarness();
-  if (harness === 'commandcode') installCommandCodeHarness();
-}
-
+const scope = await resolveScope();
+const configWritten = ensurePlanning(scope);
+installClaudeRuntime();
 const profileStatus = await runProfileOnboarding(args.profile);
+const settingsStatus = installClaudeSettings();
+const gitignoreUpdated = appendMissingLines('.gitignore', ['.riff/', '.planning/debug/']);
+const claudeSectionUpdated = ensureProjectClaudeSection();
 
 function statusValue(flagText, condition) {
   return condition ? color('green', flagText) : color('dim', flagText);
@@ -650,12 +642,16 @@ process.stdout.write(`
 ${color('bold', 'RIFF installed')}
 ${color('cyan', 'project:')}         ${args.projectRoot}
 ${color('cyan', 'framework:')}       ${FRAMEWORK_ROOT}
-${color('cyan', 'harnesses:')}       ${color('green', harnesses.join(', '))}
+${color('cyan', 'runtime files:')}   ${color('green', 'claude')}
+${color('cyan', 'executor default:')} ${color('green', 'codex')}
 ${color('cyan', 'git initialized:')} ${statusValue(gitInitialized ? 'yes' : 'no', gitInitialized)}
 ${color('cyan', '.riff linked:')}    ${statusValue(riffLinked ? 'yes' : 'already correct', riffLinked)}
 ${color('cyan', 'config:')}          ${statusValue(configWritten ? 'created' : 'preserved', configWritten)}
 ${color('cyan', 'profile:')}         ${profileStatus}
+${color('cyan', 'settings:')}        ${settingsStatus}
+${color('cyan', '.gitignore:')}      ${statusValue(gitignoreUpdated ? 'updated' : 'already correct', gitignoreUpdated)}
+${color('cyan', 'CLAUDE.md:')}       ${statusValue(claudeSectionUpdated ? 'updated' : 'already correct', claudeSectionUpdated)}
 
 ${color('bold', 'Next:')}
-${nextStepsFor(harnesses)}
+${nextSteps()}
 `);

@@ -27,7 +27,7 @@ scratch_mode: false  # set to `true` when /riff:wave --scratch was invoked
 
 A green wave means:
 - Each phase below ships its commit with all acceptance criteria GREEN
-- Browser-check passes on every phase that has `browser_check: true`
+- Smoke/browser-check passes on every phase that has `smoke_test: true`
 - No phase deviates from the planned file list without an explicit `## Deviation` note in RESULT.md
 - Final RESULT.md exists at `.planning/waves/W{N}.RESULT.md`
 

@@ -25,7 +25,7 @@ findings logged, no CRITICAL/HIGH. Sonnet review clean."}}
 
 - `hooks` ran: {{yes | no, with reason}}
 - `sonnet` ran: {{yes | no, with reason}}
-- `scope-checker` ran per phase: {{yes | no}}
+- `scope-check.mjs` ran per phase: {{yes | no}}
 
 ## Scope-check
 
@@ -86,7 +86,7 @@ finding here for fast scan.}}
 
 - `FAIL` → wave status flips to `needs_human_review`. `/riff:promote` is
   blocked until the underlying issues are fixed and reconcile is re-run.
-- `PASS-WITH-WARNINGS` → wave status remains `completed`. Promote allowed,
+- `PASS-WITH-WARNINGS` → wave status remains `done`. Promote allowed,
   but the warnings surface in the promote pre-flight summary.
 - `PASS` → no friction. Wave is fully shipped.
 

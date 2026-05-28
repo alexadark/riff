@@ -120,7 +120,7 @@ Triangulation is the step most agents skip. It catches the bugs that happy-path 
 
 Before writing SUMMARY.md, you MUST run every command in PLAN.md's `## Smoke` section. This runs in EVERY scope (production AND scratch). It is the project-agnostic safety net that catches "feature works on the path the executor tried, broken on every other path."
 
-**Backward compatibility:** if PLAN.md has NO `## Smoke` heading at all, it is a legacy plan written before the smoke contract existed. Log a one-line warning (`Smoke skipped — legacy PLAN.md has no Smoke section`) and continue without running smoke. Do NOT fabricate smoke entries on your own. The scope-checker handles legacy plans gracefully.
+**Backward compatibility:** if PLAN.md has NO `## Smoke` heading at all, it is a legacy plan written before the smoke contract existed. Log a one-line warning (`Smoke skipped — legacy PLAN.md has no Smoke section`) and continue without running smoke. Do NOT fabricate smoke entries on your own. The mechanical scope check handles legacy plans gracefully.
 
 ### Steps (when `## Smoke` heading is present)
 
@@ -149,7 +149,7 @@ Add a `## Smoke Results` section in SUMMARY.md with one row per PLAN.md smoke li
 | `uv run kp --help` | exit 0, groups listed | exit 0, groups present | pass |
 ```
 
-Status values: `pass`, `fail` (you must NOT reach here — see step 5), `skipped`. Order MUST match PLAN.md `## Smoke` order so the scope-checker can pair lines.
+Status values: `pass`, `fail` (you must NOT reach here — see step 5), `skipped`. Order MUST match PLAN.md `## Smoke` order so `scripts/scope-check.mjs` can pair lines.
 
 ### Why mandatory in scratch too
 

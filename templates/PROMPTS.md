@@ -1,7 +1,7 @@
 # Phase {{N}} — Agent Prompts
 
 > Captures the prompts sent to each sub-agent by the orchestrator during this phase.
-> Used by `riff-pr-metadata.sh` to inject prompts into the PR body for stakeholder review.
+> Used by `riff-pr-metadata.sh` only when `metadata.pr_body: full`.
 
 ## Planner
 

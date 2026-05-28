@@ -7,6 +7,11 @@ tools: Read, Write
 
 # scope-checker
 
+Legacy fallback only. The default RIFF scope gate is the mechanical script
+documented in `protocols/SCOPE-CHECK.md` and implemented by
+`scripts/scope-check.mjs`. If this file disagrees with that protocol or
+script, the protocol/script wins.
+
 Compare planned vs completed tasks for a phase. Flag silently dropped tasks so the executor cannot quietly reduce scope.
 
 ## Inputs
@@ -48,7 +53,7 @@ If SUMMARY.md contains `## Status`, verify:
 
 PLAN.md files written before the Smoke contract existed have no `## Smoke` heading. For those, set `planned_smokes: []`, `smoke_results: []`, `unmatched_smokes: []`, `failed_smokes: []`, `smoke_too_thin: false`. The smoke-related DROPPED triggers do NOT fire when the heading is absent. The task-list check still applies. This grandfathers in-flight phases that were planned before the contract took effect.
 
-Forward-only: every NEW plan written by the current planner.md is required to include `## Smoke`. The planner spec enforces this; the scope-checker tolerates absence only for legacy plans.
+Forward-only: every NEW plan written by the current planner.md is required to include `## Smoke`. The planner spec enforces this; the mechanical scope gate tolerates absence only for legacy plans.
 
 ## Output: SCOPE-CHECK.json
 

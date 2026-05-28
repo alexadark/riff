@@ -15,7 +15,7 @@ Cross-references (shared state touched by other steps):
 
 ## Step 0 — Sync main + reconcile stale bookkeeping
 
-Step 8c of the previous run only fires if the same Claude session is alive when the user clicks Merge (and the user is on `merge_strategy: github_button`). If the session was cleared/closed between PR creation and merge, the previous phase is shipped on main but still `status: todo` in ROADMAP.yaml. Step 0 catches that drift before picking the next phase, and also guarantees Step 2b branches from a clean main.
+When `merge_strategy: github_button`, the previous session stops after opening the PR. If the user merges later on GitHub, the previous phase is shipped on main but still `status: todo` in ROADMAP.yaml. Step 0 catches that drift before picking the next phase, and also guarantees Step 2b branches from a clean main.
 
 ### Session sidecar reset (do FIRST)
 
@@ -88,37 +88,7 @@ If the section already exists, reset all four field values to `-`.
 
      Ask the user how they want to proceed. Do not run any destructive command without explicit confirmation.
 
-2. **Merge-wait (`auto_merge` strategy only).** Skip this sub-step entirely unless `git.merge_strategy` resolves to `auto_merge`. For `github_button` and `local_no_ff`, the stale-todo detection below already handles all reconciliation needed. This inner check guards the case where `/riff:next` is re-invoked before the prior PR merges.
-
-   Read `git.merge_wait_timeout_min` from the resolved profile (default `30`). Compute `deadline = now + timeout_min * 60`.
-
-   Enumerate open RIFF PRs by branch prefix:
-
-   ```bash
-   gh pr list --author @me --state open \
-     --json number,headRefName,title \
-     --jq '[.[] | select(.headRefName | startswith("riff/phase-"))]'
-   ```
-
-   If the result is empty, continue to sub-step 3 (stale-todo detection). Otherwise, poll each PR every 30 seconds:
-
-   ```bash
-   gh pr view <number> \
-     --json state,mergeStateStatus,labels \
-     --jq '{state: .state, mergeStateStatus: .mergeStateStatus, labels: [.labels[].name]}'
-   ```
-
-   For each poll result, branch:
-
-   - `state == "MERGED"`: mark this PR done in the poll list. When all polled PRs are MERGED, continue to sub-step 3 (stale-todo detection will formalize the ROADMAP/STATE update via Tier 2 lookup).
-   - `state == "CLOSED"`: append `LOOP_STOP[$LOOP_ID]: PR #<number> closed without merge — CI failure or manual close` to STATE.md and STOP.
-   - Any label in the resolved `git.auto_merge_blocking_labels` list appears (default `["do-not-merge", "wip", "hold"]`): append `LOOP_STOP[$LOOP_ID]: blocking label on PR #<number> — human must resolve` to STATE.md and STOP.
-   - `now >= deadline`: append `LOOP_STOP[$LOOP_ID]: merge timeout on PR #<number> after <timeout_min> min` to STATE.md and STOP.
-   - Otherwise (`state == "OPEN"`, mergeStateStatus `BLOCKED` / `CLEAN` / `UNSTABLE` / `UNKNOWN`): sleep 30s and poll again.
-
-   The 30s sleep runs inside the agent's synchronous invocation.
-
-3. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
+2. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
 
    **Tier 1 — SHA ancestry (canonical).** Read `.planning/phases/<id>-<slug>/SUMMARY.md`. Look for a line matching `^> Merge commit: ([0-9a-f]{7,40})$`. If found, run:
 
@@ -144,7 +114,7 @@ If the section already exists, reset all four field values to `-`.
 
    A match means the PR was merged with the canonical RIFF subject. If none of the three tiers detect a merge, the phase is genuinely still todo.
 
-4. **If a stale-todo phase is found:**
+3. **If a stale-todo phase is found:**
    - Read `.planning/phases/<id>-<slug>/SUMMARY.md` to get the shipped scope, file/test counts, and PR number.
    - Set `status: done` for that phase in ROADMAP.yaml.
    - Update STATE.md: rewrite the `## Current Phase` prose to describe the shipped phase, append a row to the `## Phases Completed` table, refresh `## Next Action` to drop the now-shipped phase from "eligible".
@@ -157,9 +127,9 @@ If the section already exists, reset all four field values to `-`.
 
    The SUMMARY.md is included in the commit when Tier 2 just back-filled the merge SHA, so the durable artifact catches up to reality.
 
-5. **No stale phase found:** continue to the dirty-tree preflight (below).
+4. **No stale phase found:** continue to the dirty-tree preflight (below).
 
-6. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
+5. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
 
    - **All dirty files are inside `.planning/` only:** auto-skip. These are RIFF artifact residue (interrupted hook writes, etc.) safe to leave; Step 5's executor will overwrite them. Print a one-line notice and continue.
    - **Any dirty file is outside `.planning/`:** AskUserQuestion:

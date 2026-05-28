@@ -33,7 +33,6 @@ For each item: when did I last use it, what real problem does it solve, can it b
 | planner | | keep | |
 | executor | | keep | |
 | simplifier | | ? | |
-| scope-checker | | ? | |
 | adversarial-reviewer | | ? | |
 | security-reviewer | | keep | |
 | improver | | ? | |
@@ -44,7 +43,6 @@ For each item: when did I last use it, what real problem does it solve, can it b
 | Hook | Last useful fire | Verdict | Notes |
 | ---- | ---------------- | ------- | ----- |
 | security-scan.sh | | keep | |
-| lint-gate.sh | | ? | |
 | typecheck-gate.sh | | ? | |
 | test-gate.sh | | ? | |
 | boundary-check.sh | | ? | |
@@ -59,6 +57,7 @@ For each item: when did I last use it, what real problem does it solve, can it b
 | Script | Last used | Verdict | Notes |
 | ------ | --------- | ------- | ----- |
 | `scripts/riff-pr-metadata.sh` | | ? | |
+| `scripts/scope-check.mjs` | | keep | |
 | `scripts/csv-append.sh` | | ? | |
 
 ## Protocols / References

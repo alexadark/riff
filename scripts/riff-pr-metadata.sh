@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generates the "Generation metadata" section appended to RIFF PR descriptions.
+# Generates the configurable "Generation metadata" section appended to RIFF PR descriptions.
 # Reads tracked artifacts only (PLAN.md, SUMMARY.md, GATES.md, ROADMAP.yaml, codex-usage.csv,
 # git timestamps, commit trailers). Never writes Claude estimates.
 #
@@ -11,6 +11,9 @@
 #   gh pr create --body "$body"
 
 set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+framework_root="$(dirname "$script_dir")"
 
 phase_id="${1:-}"
 if [[ -z "$phase_id" ]]; then
@@ -29,6 +32,43 @@ summary="$phase_dir/SUMMARY.md"
 gates="$phase_dir/GATES.md"
 codex_csv=".planning/codex-usage.csv"
 roadmap="ROADMAP.yaml"
+
+profile_yaml() {
+	if [[ -x "$framework_root/lib/resolve-profile.sh" ]]; then
+		bash "$framework_root/lib/resolve-profile.sh" "$PWD" "$framework_root" 2>/dev/null || true
+	fi
+}
+
+get_profile_field() {
+	local section="$1"
+	local field="$2"
+	profile_yaml | awk -v section="$section" -v field="$field" '
+		$0 ~ "^" section ":[[:space:]]*$" { in_section=1; next }
+		in_section && $0 ~ "^[A-Za-z_][A-Za-z0-9_]*:" { exit }
+		in_section && $0 ~ "^[[:space:]]+" field ":" {
+			val=$0
+			sub("^[[:space:]]+" field ":[[:space:]]*", "", val)
+			sub(/[[:space:]]+#.*$/, "", val)
+			gsub(/^["'\''"]|["'\''"]$/, "", val)
+			print val
+			exit
+		}
+	'
+}
+
+metadata_mode=$(get_profile_field "metadata" "pr_body")
+case "$metadata_mode" in
+	off|standard|full) ;;
+	"") metadata_mode="standard" ;;
+	*)
+		echo "[riff-pr-metadata] warning: metadata.pr_body '$metadata_mode' is invalid; using standard" >&2
+		metadata_mode="standard"
+		;;
+esac
+
+if [[ "$metadata_mode" == "off" ]]; then
+	exit 0
+fi
 
 get_yaml_field() {
 	local field="$1"
@@ -59,7 +99,7 @@ if [[ -z "$phase_slug" ]]; then
 fi
 
 executor_model=$(get_yaml_field "executor_model" || true)
-[[ -z "$executor_model" ]] && executor_model="sonnet"
+[[ -z "$executor_model" ]] && executor_model="codex"
 
 codex_model=$(get_yaml_field "codex_model" || true)
 [[ -z "$codex_model" ]] && codex_model="gpt-5.5"
@@ -71,7 +111,7 @@ debug_model=$(get_yaml_field "debug_model" || true)
 [[ -z "$debug_model" ]] && debug_model="opus"
 
 commits_count=$(git rev-list --count main..HEAD 2>/dev/null || echo "0")
-files_changed=$(git diff --name-only main...HEAD 2>/dev/null | wc -l | tr -d ' ')
+files_changed=$( { git diff --name-only main...HEAD 2>/dev/null || true; } | wc -l | tr -d ' ')
 
 first_ts=$(git log --format=%aI main..HEAD --reverse 2>/dev/null | head -1 || true)
 last_ts=$(git log --format=%aI main..HEAD 2>/dev/null | head -1 || true)
@@ -125,53 +165,6 @@ if [[ "$commits_count" -gt 0 ]]; then
 	[[ -n "$matched" ]] && trailer_agents="$matched"
 fi
 
-# Token usage per agent (parsed from USAGE.md)
-usage_md="$phase_dir/USAGE.md"
-tokens_block="_(USAGE.md not yet written)_"
-if [[ -f "$usage_md" ]]; then
-	# Extract the markdown table: lines starting with `|` after the first `|` line.
-	# Keep header, separator, and data rows verbatim. Stop at first blank line after table.
-	parsed=$(awk '
-		/^\|/ { in_table=1; print; next }
-		in_table && !/^\|/ { exit }
-	' "$usage_md" 2>/dev/null || true)
-	if [[ -n "$parsed" ]]; then
-		tokens_block="$parsed"
-	fi
-fi
-
-# Agent prompts (verbatim from PROMPTS.md, wrapped in collapsible <details>)
-#
-# Strict mode: if PROMPTS.md still contains the template placeholder
-# `{{prompt verbatim}}` in any section, the orchestrator forgot to capture
-# at least one sub-agent's prompt. Fail loud — the PR body would otherwise
-# leak template tokens to stakeholders.
-#
-# To opt out of a section (e.g. Debugger when no failure occurred), the
-# orchestrator must replace the placeholder with `_(not invoked)_`.
-prompts_md="$phase_dir/PROMPTS.md"
-if [[ -f "$prompts_md" ]]; then
-	if grep -q "{{prompt verbatim}}" "$prompts_md"; then
-		unfilled=$(awk '
-			/^## / { current=$0 }
-			/{{prompt verbatim}}/ && current != "" { print "  " current; current="" }
-		' "$prompts_md" | sort -u)
-		echo "ERROR: $prompts_md still contains template placeholders." >&2
-		echo "The orchestrator did not capture every sub-agent's prompt for this phase." >&2
-		echo "Sections with unfilled placeholders:" >&2
-		echo "$unfilled" >&2
-		echo "" >&2
-		echo "Fix: open $prompts_md and replace each remaining '{{prompt verbatim}}' with" >&2
-		echo "either the actual prompt sent to that agent, or '_(not invoked)_' if the" >&2
-		echo "agent did not fire during this phase. Then re-run /riff:next Step 8." >&2
-		exit 1
-	fi
-	prompts_contents=$(cat "$prompts_md")
-	prompts_block=$(printf '<details>\n<summary>Agent prompts (click to expand)</summary>\n\n%s\n\n</details>' "$prompts_contents")
-else
-	prompts_block="_(PROMPTS.md not yet written; this phase predates the prompt-capture directive)_"
-fi
-
 cat <<EOF
 
 ---
@@ -191,7 +184,7 @@ cat <<EOF
 | Plan adversarial review | plan-adversarial-reviewer | $codex_model (Codex, effort=$codex_effort) |
 | Execute | executor | $executor_model |
 | Simplify | simplifier | haiku |
-| Scope check | scope-checker | haiku |
+| Scope check | scope-check.mjs | mechanical |
 | Code review | adversarial-reviewer | $codex_model (Codex, effort=$codex_effort) |
 | Security review | security-reviewer | sonnet |
 | Debugger (on failure) | debugger | $debug_model |
@@ -206,6 +199,45 @@ $gates_block
 
 **Agents observed in commit trailers**:
 $trailer_agents
+EOF
+
+if [[ "$metadata_mode" == "full" ]]; then
+	# Token usage per agent (parsed from USAGE.md)
+	usage_md="$phase_dir/USAGE.md"
+	tokens_block="_(USAGE.md not yet written)_"
+	if [[ -f "$usage_md" ]]; then
+		parsed=$(awk '
+			/^\|/ { in_table=1; print; next }
+			in_table && !/^\|/ { exit }
+		' "$usage_md" 2>/dev/null || true)
+		if [[ -n "$parsed" ]]; then
+			tokens_block="$parsed"
+		fi
+	fi
+
+	# Agent prompts (verbatim from PROMPTS.md, wrapped in collapsible <details>).
+	prompts_md="$phase_dir/PROMPTS.md"
+	if [[ -f "$prompts_md" ]]; then
+		if grep -q "{{prompt verbatim}}" "$prompts_md"; then
+			unfilled=$(awk '
+				/^## / { current=$0 }
+				/{{prompt verbatim}}/ && current != "" { print "  " current; current="" }
+			' "$prompts_md" | sort -u)
+			echo "ERROR: $prompts_md still contains template placeholders." >&2
+			echo "metadata.pr_body is full, so prompt capture must be finalized before PR creation." >&2
+			echo "Sections with unfilled placeholders:" >&2
+			echo "$unfilled" >&2
+			echo "" >&2
+			echo "Fix: replace each remaining '{{prompt verbatim}}' with the actual prompt or '_(not invoked)_', then rerun." >&2
+			exit 1
+		fi
+		prompts_contents=$(cat "$prompts_md")
+		prompts_block=$(printf '<details>\n<summary>Agent prompts (click to expand)</summary>\n\n%s\n\n</details>' "$prompts_contents")
+	else
+		prompts_block="_(PROMPTS.md not yet written; this phase predates the prompt-capture directive)_"
+	fi
+
+	cat <<EOF
 
 ## Token usage per agent
 
@@ -215,3 +247,4 @@ $tokens_block
 
 $prompts_block
 EOF
+fi
