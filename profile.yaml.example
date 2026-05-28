@@ -40,10 +40,15 @@ user:
                                      # Lets you keep public artifacts in EN while reading dashboard summaries in your native language.
 
 executors:
-  available: [claude]              # which executors the planner may recommend
-                                   # missing → [claude] (backward compatible, existing profiles keep working)
-                                   # allowed: [claude] | [claude, codex]
-                                   # the alex preset uses [claude, codex] — enable only if Codex CLI is installed
+  available: [claude, codex]       # which executors the planner may recommend
+                                   # missing → [claude, codex] (Codex is the default executor runtime)
+                                   # set to [claude] to force Claude Sonnet as executor
+                                   # requires Codex CLI installed + codex:codex-rescue skill
+
+codex:
+  execution_skill: /apex           # skill invoked by CODEX-DELEGATION.md prompt templates
+                                   # must accept flags: -a -x -v -m -bundle <path>
+                                   # default: /apex. Set to any skill that honors the same flag contract.
 
 risk:
   sensitive_task_preference: balanced  # cautious | balanced | fast

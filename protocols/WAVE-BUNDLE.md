@@ -2,7 +2,7 @@
 
 How `/riff:wave` Step 3 assembles `.planning/waves/W{N}.bundle.md`.
 
-The bundle is the **single contract** Codex Apex reads. Everything Codex needs to one-shot the wave must be in it — Codex does not navigate the wider RIFF docs.
+The bundle is the **single contract** the Codex wave executor reads. Everything Codex needs to one-shot the wave must be in it, Codex does not navigate the wider RIFF docs.
 
 ## File location
 

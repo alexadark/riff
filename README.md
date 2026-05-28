@@ -77,7 +77,7 @@ Or, from inside Claude Code in the project directory, run the wrapper:
 
 > Most projects keep the framework profile. The per-project override is for genuinely divergent setups (stricter client work, different artifact language, workshop demo). Resolution order and edge cases: [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
 
-Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let Codex Apex execute them while you're away. Run `/riff:dashboard` to watch progress in a browser.
+Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let Codex execute them while you're away. Run `/riff:dashboard` to watch progress in a browser.
 
 ## Key concepts
 

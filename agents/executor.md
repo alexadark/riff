@@ -71,7 +71,7 @@ Resolution:
 
 - `<phase-id>` — phase number from PLAN.md path (e.g. `96.7`)
 - `<wave-id>` — the wave the current task belongs to in PLAN.md (e.g. `5`, `0a`). If the commit covers a non-wave fix, use `post-wave-N` or `hardening`
-- `<executor_model>` — read the phase entry in ROADMAP.yaml. Use `executor_model:` if set; otherwise `sonnet`
+- `<executor_model>` — read the phase entry in ROADMAP.yaml. Use `executor_model:` if set; otherwise `codex`
 - `<N-slug>` — the phase folder name (e.g. `96.7-pipeline-coherence-and-budget-gate-hardening`)
 
 This trailer applies to all scopes (production and scratch). Do not omit it.

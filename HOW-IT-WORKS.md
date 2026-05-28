@@ -110,7 +110,7 @@ After `/riff:init`:
 /riff:dashboard    # open the local web dashboard (kanban + plain-language explanations)
 ```
 
-Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let Codex Apex execute them while you're away.
+Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let Codex execute them while you're away.
 
 ---
 
@@ -169,7 +169,7 @@ All grouped in [`commands/INDEX.md`](./commands/INDEX.md). Summary:
 | Command          | When to run                                                                                              |
 | ---------------- | -------------------------------------------------------------------------------------------------------- |
 | `/riff:next`     | The main command. Plans, executes, reviews, opens PR for the next phase.                                 |
-| `/riff:wave`     | Bundle N parallel-eligible phases (tagged `mode: AFK`) and delegate execution to Codex Apex AXV. Opus plans, Codex executes, browser-check proves it works. |
+| `/riff:wave`     | Bundle N parallel-eligible phases (tagged `mode: AFK`) and delegate execution to Codex. Opus plans, Codex executes, browser-check proves it works. |
 | `/riff:status`   | "Where am I?" — current phase, next phase, blocked phases, pending expertise patches.                    |
 
 ### Off-loop
@@ -268,7 +268,7 @@ Builds `PLAN.md` from a phase goal. Goal-backward planning: start from the AC (a
 
 ### Executor (`agents/executor.md`)
 
-Implements `PLAN.md` tasks one by one, atomic commits. Reads the wave grouping and parallelizes within a wave. Applies the R1-R4 deviation protocol. Default model: Sonnet. Configurable via `executor_model:`.
+Implements `PLAN.md` tasks one by one, atomic commits. Reads the wave grouping and parallelizes within a wave. Applies the R1-R4 deviation protocol. Default runtime: Codex (via `codex:codex-rescue`). Falls back to Claude Sonnet when `executor_model: sonnet` is set or Codex is unavailable.
 
 ### Simplifier (`agents/simplifier.md`)
 
@@ -416,7 +416,7 @@ Details: `hooks/README.md` § Buckets.
 
 ## Unattended runs: /riff:wave
 
-`/riff:wave` bundles N parallel-eligible phases and delegates execution to Codex Apex AXV. Opus plans, Codex executes, browser-check proves it works.
+`/riff:wave` bundles N parallel-eligible phases and delegates execution to Codex. Opus plans, Codex executes, browser-check proves it works.
 
 Eligibility: phase has `status: todo`, `mode: AFK`, `provider_mode != production`, all upstream `depends_on` are completed.
 
@@ -541,7 +541,7 @@ RIFF dispatches across 3 model families. Each has a job it's good at.
 | Step 4: Plan                     | Inline (frontmatter)  | Opus                 | `planner_model:` per phase in `ROADMAP.yaml`              |
 | Step 4b: Plan adversarial        | Sub-agent (Codex)     | Codex CLI            | Falls back to Opus if Codex unavailable                   |
 | Step 4c: Pre-exec explanation    | Sub-agent             | Haiku                | (none)                                                    |
-| Step 5: Execute                  | Sub-agent             | Sonnet               | `executor_model:` per phase                                |
+| Step 5: Execute                  | Codex (in-process)    | Codex CLI (default)  | `executor_model: sonnet` falls back to Claude sub-agent    |
 | Step 5b: Simplify                | Sub-agent             | Haiku                | `simplify_model:` per phase                                |
 | Step 6: Adversarial review       | Sub-agent (Codex)     | Codex CLI            | Falls back to Opus                                        |
 | Step 7: Security review          | Sub-agent             | Sonnet               | `security_model:` per phase                                |

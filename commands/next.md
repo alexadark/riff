@@ -160,9 +160,22 @@ If `--plan-only`: STOP here. PLAN.md, PLAN-REVIEW.md, EXPLAIN.{{LEVEL}}.md are t
 
 ---
 
-### Step 5: Execute — sub-agent
+### Step 5: Execute
 
-**Model:** `sonnet` default (ROADMAP `executor_model:` wins over PLAN.md recommendation). **Thinking:** none by default, `think hard` if `complex_execution: true`. **Parallel tasks** marked `parallel:` MUST launch as separate sub-agents in a single message; sequential tasks stay inline within the executor.
+**Runtime resolution:** see [`protocols/MODEL.md`](../protocols/MODEL.md) § Executor runtime resolution. Default: **Codex** (via `codex:codex-rescue` in-process). Falls back to Claude sub-agent (Sonnet) when `executor_model: sonnet` or `codex` not in `executors.available`.
+
+**Thinking:** none by default, `think hard` if `complex_execution: true`. **Parallel tasks** marked `parallel:` MUST launch as separate sub-agents in a single message; sequential tasks stay inline within the executor.
+
+#### Route A: Codex executor (default)
+
+Invoke `codex:codex-rescue` with the configured execution skill (profile.yaml `codex.execution_skill`). Prompt uses CODEX-DELEGATION Template B (solo) or Template C (solo-strict when `complex_execution: true`):
+- Branch: `riff/phase-N-slug`
+- PLAN.md path: `.planning/phases/N-slug/PLAN.md`
+- Model + effort: resolved per MODEL.md § Codex model + effort
+
+Record `phase_base_sha: $(git rev-parse HEAD)` in STATE.md before invocation.
+
+#### Route B: Claude sub-agent (fallback)
 
 Agent prompt (give paths, do NOT paste file contents):
 - Branch: `riff/phase-N-slug`
