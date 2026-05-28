@@ -80,6 +80,18 @@ When ROADMAP.yaml will feed `/riff:wave`, the planner sets two optional flags pe
 
 The full wave-eligibility rule is owned by `/riff:wave` Step 1; the planner does not re-implement it here, only sets the per-phase opt-out / opt-in.
 
+## Consequence check (critical phases only)
+
+Run this check ONLY on phases that match ANY of: `priority: P0`, touches auth/payments/migrations, introduces a new data model, or changes a public API surface. Skip on all other phases — speed matters more than exhaustive analysis on routine work.
+
+For qualifying phases, before finalizing PLAN.md:
+
+1. **2nd order scan** — list every downstream phase (from `ROADMAP.yaml` `depends_on` graph) that consumes this phase's output. For each: does the task list and AC set account for the shape they expect? If not → add an AC or task.
+2. **3rd order scan** — does this phase's design decision create a structural constraint that compounds? (e.g. "choosing a JSON column now means no SQL queries on this data later"). If yes → add a `risk_focus` note to the ROADMAP entry or seed a future phase.
+3. **Cross-reference** `.planning/CONSEQUENCE-ANALYSIS.md` if it exists (written by `/riff:start` Stage 4). The analysis for this phase may list specific 2nd/3rd order risks — ensure the plan addresses them or explicitly documents why they're deferred.
+
+This is a 30-second mental check, not a full analysis. If it doesn't surface anything → move on. Don't add it to PLAN.md unless it changed a task or AC.
+
 ## Security awareness (every plan)
 
 Security-aware ACs are mandatory on EVERY plan that touches the relevant surface — independent of HITL/AFK:

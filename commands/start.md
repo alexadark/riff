@@ -119,7 +119,24 @@ Architecture-stage fixes cost ~10x more once the roadmap chases the wrong shape,
 
 Write `ROADMAP.yaml`. Required fields per phase: `id`, `slug` (kebab-case), `title` (human-readable), `status: todo`, `priority`, `mode`, `depends_on`. Never use a phase-level `name:` field. After writing, run `bash .riff/lib/validate-roadmap.sh ROADMAP.yaml` and fix any reported error before continuing. Self-critique: ordering, dependencies, gaps, sizing, vertical slices, first phase.
 
-**scratch scope:** Decompose features into simple sequential phases (no waves, no `depends_on` graph, no `parallel:` markers). Each phase still ships a usable slice. All phases default `mode: AFK`. No tracer-bullet requirement — first phase can be whatever lands fastest. Write `ROADMAP.yaml` with minimal fields per phase: `id`, `slug` (kebab-case), `title`, `priority`, `status: todo`, `mode: AFK`. Skip `complex_execution`, `adversarial`, `plan_adversarial`, `simplify` flags (the gates are off for scratch anyway). After writing, run `bash .riff/lib/validate-roadmap.sh ROADMAP.yaml` and fix any reported error before continuing.
+### Consequence analysis (production only, mandatory)
+
+After self-critique, run a 3-level consequence scan across the full roadmap. For each phase, ask:
+
+- **1st order** (direct): What does this phase produce? What breaks if it fails or ships late?
+- **2nd order** (cascade): Which downstream phases depend on this phase's output? What implicit assumptions do they make about its shape, API surface, or data model?
+- **3rd order** (structural): What emerges at scale from this phase's design decisions? (perf bottlenecks, security surface growth, maintenance burden, data migration needs)
+
+**Actions from the scan:**
+
+1. **Missing `depends_on`** — if phase B assumes phase A's output but has no dependency, add it.
+2. **Missing phases** — if a 2nd/3rd order consequence reveals work nobody owns (e.g. "auth flow needs rate limiting but no phase covers it"), seed a new phase with `priority: P2` and a description noting the source consequence.
+3. **Ordering risks** — if phase A's 2nd order consequences would force a rewrite of phase B, reorder or split.
+4. **`risk_focus` annotations** — if a phase has non-obvious 2nd/3rd order risks, add `risk_focus: "..."` so the adversarial reviewers know where to look.
+
+Write the analysis to `.planning/CONSEQUENCE-ANALYSIS.md` (one section per phase, only phases with 2nd/3rd order findings). This file feeds the plan-preview skill and the adversarial reviewers. Phases with no findings beyond 1st order → omit from the file.
+
+**scratch scope:** Decompose features into simple sequential phases (no waves, no `depends_on` graph, no `parallel:` markers). Each phase still ships a usable slice. All phases default `mode: AFK`. No tracer-bullet requirement — first phase can be whatever lands fastest. Write `ROADMAP.yaml` with minimal fields per phase: `id`, `slug` (kebab-case), `title`, `priority`, `status: todo`, `mode: AFK`. Skip `complex_execution`, `adversarial`, `plan_adversarial`, `simplify` flags (the gates are off for scratch anyway). Skip consequence analysis. After writing, run `bash .riff/lib/validate-roadmap.sh ROADMAP.yaml` and fix any reported error before continuing.
 
 **Planner-model annotation:** After each phase entry is drafted, append a `planner_model:` field:
 
