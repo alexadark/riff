@@ -38,6 +38,12 @@ Apply in order; first match wins:
    - Any `## Smoke Results` row has `status: fail` (smoke regressions block the phase even if every other check passes).
 3. **MATCH** otherwise.
 
+### Structured fields check
+If SUMMARY.md contains `## Status`, verify:
+- Status = `completed` AND all smokes pass → consistent
+- Status = `completed` BUT any smoke failed → flag as MALFORMED (executor lied about status)
+- Status = `partial` or `blocked` → acceptable if explanation exists
+
 ### Backward compatibility (pre-Smoke plans)
 
 PLAN.md files written before the Smoke contract existed have no `## Smoke` heading. For those, set `planned_smokes: []`, `smoke_results: []`, `unmatched_smokes: []`, `failed_smokes: []`, `smoke_too_thin: false`. The smoke-related DROPPED triggers do NOT fire when the heading is absent. The task-list check still applies. This grandfathers in-flight phases that were planned before the contract took effect.

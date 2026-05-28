@@ -49,6 +49,17 @@ Contradiction on resume (re-asked question, new answer ≠ STATE.md) → STOP, s
 
 **`/riff:wave`** — 2 checkpoints / wave: after Step 3 (bundle written, before Codex launch), after Step 6 (reconcile complete). Codex execution itself runs in its own session, not subject to Claude's context budget.
 
+## Automatic compaction checkpoint
+
+The `compaction-checkpoint.sh` hook (Bucket D, PreCompact) injects a checkpoint summary into the compacted context automatically. This covers the most common case: context grows past the compaction threshold during a `/riff:next` phase.
+
+The hook reads STATE.md for the active phase, captures branch + last commit + tool count, and emits a resume block. This does NOT replace the full handoff protocol (which writes STATE.md with decisions, blockers, and bootstrap files). It provides a safety net for unplanned compactions.
+
+After compaction, the agent should:
+1. Read the checkpoint block (injected into the compacted context)
+2. Read STATE.md for full state
+3. Continue the current step
+
 ## Don'ts
 
 - Mid-step checkpoint → wait for artifact, never abort sub-agent.

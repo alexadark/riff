@@ -136,6 +136,11 @@ Scratch skips the heavy gates (security, adversarial, simplify, fallow, smoke-br
 
 Write `.planning/phases/N-slug/SUMMARY.md` (artifacts, R1-R4 deviations, decisions, test output, **Smoke Results table**).
 
+The SUMMARY.md template includes three structured fields at the top:
+- **Status**: `completed`, `partial`, or `blocked`. Must match reality (smoke pass = completed, smoke fail with workaround = partial, R3 stop = blocked).
+- **Risks**: bullet list of risks discovered during execution. Empty is fine.
+- **Recommendations**: what should happen next. Helps the orchestrator route without re-reading everything.
+
 ### Side-activities suggestion (chat reply only)
 
 After the SUMMARY.md write, optionally append ONE single-line suggestion to the bottom of your chat reply (NOT in SUMMARY.md). Skip entirely if `scope: scratch`. Read `user.side_activities` from `profile.yaml` and check each entry against its trigger:

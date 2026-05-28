@@ -9,9 +9,15 @@ Hooks are organized in three buckets. `/riff:init` picks the right set based on 
 | **A** — Universal discipline | destructive-guard, boundary-check, typecheck-gate, test-gate | Always, regardless of profile. |
 | **B** — Security/caution-adaptable | route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard, lint-gate | `cautious` → all of B; `balanced` → route-auth-guard + idor-detector; `fast` → none. |
 | **C** — Stack/convention | registry-reminder, migration-gate (Drizzle/Prisma), notify-human | Installed per-project at `/riff:init` based on detected stack. |
-| **D** — Session voice (SessionStart + PreCompact) | voice-rules-inject | Always wired in all three templates. Reads `profile.yaml` and injects language + explanation-depth rules at session start (and after compaction) so every session honors the user's preferences, not just RIFF agents. |
+| **D** — Session voice (SessionStart + PreCompact) | voice-rules-inject, compaction-checkpoint | Always wired in all three templates. Reads `profile.yaml` and injects language + explanation-depth rules at session start (and after compaction) so every session honors the user's preferences, not just RIFF agents. |
 
 Templates: `templates/settings.json` (fast / Bucket A only), `templates/settings-balanced.json`, `templates/settings-cautious.json`. `/riff:init` copies the right one into `.claude/settings.json`.
+
+### Bucket D hooks
+
+| Hook | Event | Purpose |
+| ---- | ----- | ------- |
+| compaction-checkpoint.sh | PreCompact | Writes a checkpoint summary to compacted context so the session can resume without manual HANDOFF |
 
 Git hooks (pre-commit / commit-msg) are separate: installed once by `/riff:init` into `.git/hooks/`, not profile-driven.
 

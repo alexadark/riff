@@ -19,6 +19,26 @@
 | -------- | ------ | ----- |
 |          |        |       |
 
+## Status
+
+<!-- One of: completed | partial | blocked. Do NOT write "completed" if any smoke failed or any AC is unmet. -->
+
+**completed**
+
+## Risks
+
+<!-- Risks discovered during execution that the next phase or reviewer should know about.
+     Empty list is fine if nothing surfaced. Format: one bullet per risk. -->
+
+- (none)
+
+## Recommendations
+
+<!-- What the executor recommends as the next action, based on what was learned during execution.
+     This helps the orchestrator decide the next step without re-reading the full SUMMARY. -->
+
+- Proceed to next phase
+
 ## Deviations
 
 <!-- R1-R4 tracking -->
