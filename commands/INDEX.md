@@ -82,6 +82,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - `protocols/CODEX-DELEGATION.md` — read by `/riff:wave` Steps 4-5 for the in-process vs out-of-process routing and the three prompt templates (wave, solo, solo-strict).
 - `protocols/HOOKS.md` — Claude Code project hook contract, installed events, templates, and test workflow.
 - `protocols/BROWSER-CHECK.md` — read by `/riff:wave` Step 3 (auto-enable rules) and by Codex during execution. The "prove the feature actually works" contract for wave and solo execution.
+- `protocols/FALLOW.md` — read by `/riff:next` Step 5d for the deterministic fallow static audit on the phase diff (dead code, duplication, complexity, boundaries).
 - `protocols/DISCOVERY-DETECTION.md` — read by `/riff:start` Stage 0 to branch greenfield / starter / brownfield and route the brownfield audit-codebase prompt.
 - `protocols/DISCOVERY-DETECTION.md` § Stack Source Gate — read by `/riff:start` Stage 1 to capture how the stack decision is made (`starter-local | starter-clone | known | discussed`) so Stage 5 knows whether to run the starter clone.
 - `protocols/ADVERSARIAL-REVIEW.md` — shared protocol for `/riff:start` Stages 2.5 (architecture) and 4.5 (roadmap). Codex invocation, REVISE/PROCEED loop, 2-cycle cap, skip-safely fallback. Each stage supplies its 5 parameters.
@@ -95,6 +96,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - `agents/planner.md` — read inline by `/riff:next` Step 4 (goal-backward planning policy, AC rules, HITL/AFK criteria, TDD mode, anti-patterns).
 - `agents/adversarial-reviewer.md` — read by the Codex sub-agent invoked at `/riff:next` Step 6 (review contract, severity scale, REVIEW.md format).
 - `protocols/SCOPE-CHECK.md` + `scripts/scope-check.mjs` — invoked by `/riff:next` Step 5c to diff PLAN.md vs SUMMARY.md and flag silently dropped tasks before review.
+- `protocols/FALLOW.md` — invoked by `/riff:next` Step 5d to run fallow against `main...HEAD` and block only on `fail`.
 - `agents/architecture-adversarial-reviewer.md` — invoked by `/riff:start` Stage 2.5 to challenge the System Architecture before scope and roadmap lock.
 - `agents/roadmap-adversarial-reviewer.md` — invoked by `/riff:start` Stage 4.5 to challenge `ROADMAP.yaml` before bootstrap.
 - `agents/plan-adversarial-reviewer.md` — invoked by `/riff:next` Step 4b to challenge `PLAN.md` before execution.

@@ -220,24 +220,9 @@ On `MATCH`, proceed. On any non-`MATCH` verdict, follow [`protocols/SCOPE-CHECK.
 
 ### Step 5d: Fallow audit — inline (gated)
 
-Mechanical codebase intelligence on the phase diff via [`fallow`](https://github.com/fallow-rs/fallow): dead code, duplication, complexity, boundary violations. Sub-second, deterministic, no LLM.
+Mechanical static audit on the phase diff: dead code, duplication, complexity, boundary violations. Full procedure: [`protocols/FALLOW.md`](../protocols/FALLOW.md).
 
-**Skip conditions** (all log via `gates-update.mjs --gate fallow --status skipped --reason "<reason>"`):
-- `scope: scratch`
-- No `package.json` at project root → reason `not TS/JS`
-- `command -v fallow` fails → reason `fallow not installed` (`/riff:start` adds it as devDep for new TS/JS production projects)
-
-**Run inline:**
-1. Detect runner: `pnpm-lock.yaml` → `pnpm exec`, `bun.lock` → `bunx`, `yarn.lock` → `yarn`, otherwise `npx`.
-2. `<runner> fallow audit --changed-since main --format json > .planning/phases/N-slug/FALLOW.json`
-3. Parse `verdict`: `pass` | `warn` | `fail`.
-
-**Verdict behavior** (fail-on-fail only, warn does not block):
-- `pass` → gate `pass`, continue.
-- `warn` → gate `warn` with count, continue, surfaced in Step 10 report.
-- `fail` → STOP. Prompt **Fix in place** (re-run executor with FALLOW.json input, max 2 cycles) / **Accepted exception** (`status: pass --reason "accepted-exception: <reason>"`) / **One-time override** (`status: skipped --reason "override"`).
-
-**Runtime error** (non-zero exit other than `command not found`): surface stderr, AskUserQuestion `skip and continue | halt`. Default skip on no answer.
+Skip if `scope: scratch`, not TS/JS, or `fallow` is unavailable. `fail` blocks; `warn` does not.
 
 ---
 
