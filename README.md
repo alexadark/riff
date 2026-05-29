@@ -33,14 +33,17 @@ When Claude Code ships a native feature that replaces one of your hooks or comma
 
 ## Install
 
+**1. In your terminal**, clone the repo and link the commands:
+
 ```bash
 git clone <this-repo-url> ~/your/path/riff
 cd ~/your/path/riff
+./riff resync
 ```
 
-Clone wherever you like. The path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
+`./riff resync` creates the `/riff:*` slash commands. You run it once: a fresh clone has none yet, so without it the commands will not show up in Claude Code. Clone wherever you like. The framework path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
 
-Open Claude Code in the framework directory and run:
+**2. In Claude Code**, open that folder and run:
 
 ```
 /riff:onboard
