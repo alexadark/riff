@@ -15,6 +15,9 @@ fail() {
 
 [[ -L "$WORK_DIR/.riff" ]] || fail ".riff symlink missing"
 [[ -d "$WORK_DIR/.claude/commands/riff" ]] || fail ".claude commands missing"
+[[ -d "$WORK_DIR/.claude/skills" ]] || fail ".claude skills missing"
+[[ -L "$WORK_DIR/.claude/skills/incident" ]] || fail "incident skill symlink missing"
+[[ "$(readlink "$WORK_DIR/.claude/skills/incident")" == "../../.riff/skills/incident" ]] || fail "incident skill symlink target wrong"
 [[ -f "$WORK_DIR/.claude/settings.json" ]] || fail ".claude/settings.json missing"
 [[ -f "$WORK_DIR/.planning/config.json" ]] || fail ".planning/config.json missing"
 grep -q '"scope": "scratch"' "$WORK_DIR/.planning/config.json" || fail "scope not scratch"

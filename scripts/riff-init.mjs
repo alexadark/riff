@@ -338,6 +338,7 @@ function installClaudeRuntime() {
   ensureDir('.claude/commands/riff');
   ensureDir('.claude/agents/riff');
   ensureDir('.claude/hooks/riff');
+  ensureDir('.claude/skills');
 
   for (const file of readdirSync(path.join(FRAMEWORK_ROOT, 'commands'))) {
     if (file.endsWith('.md')) {
@@ -356,6 +357,14 @@ function installClaudeRuntime() {
   for (const file of readdirSync(path.join(FRAMEWORK_ROOT, 'hooks'))) {
     if (file.endsWith('.sh') && !['security-scan.sh', 'commit-msg.sh'].includes(file)) {
       symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks', file), path.join('.claude/hooks/riff', file), {
+        viaRiff: true,
+      });
+    }
+  }
+  for (const name of readdirSync(path.join(FRAMEWORK_ROOT, 'skills'))) {
+    if (lstatSync(path.join(FRAMEWORK_ROOT, 'skills', name)).isDirectory()) {
+      symlinkRelative(path.join(FRAMEWORK_ROOT, 'skills', name), path.join('.claude/skills', name), {
+        force: true,
         viaRiff: true,
       });
     }

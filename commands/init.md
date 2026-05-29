@@ -63,7 +63,7 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
 
    ```
    .planning/{phases,expertise,seeds,debug,quick,specs}
-   .claude/{commands/riff,agents/riff,hooks/riff}
+   .claude/{commands/riff,agents/riff,hooks/riff,skills}
    ```
 
 3b. **Project scope.** If `.planning/config.json` already has `scope`, skip this prompt (re-running init keeps the existing scope). Otherwise AskUserQuestion:
@@ -105,6 +105,11 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
      name=$(basename "$f")
      [ "$name" = "security-scan.sh" ] || [ "$name" = "commit-msg.sh" ] && continue
      ln -sf "../../../.riff/hooks/$name" ".claude/hooks/riff/$name"
+   done
+   mkdir -p .claude/skills
+   for d in .riff/skills/*/; do
+     name=$(basename "$d")
+     ln -sfn "../../.riff/skills/$name" ".claude/skills/$name"
    done
    ```
 
