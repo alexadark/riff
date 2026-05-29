@@ -28,6 +28,43 @@ Score these 4 dimensions before proceeding. **Any dimension < 0.7 → STOP** and
 - Confident / Likely → proceed
 - Unclear → STOP the loop, notify via Telegram
 
+## Step 4 planner orchestration
+
+Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. Inject thinking keyword per MODEL.md § Planner selection.
+
+0. **Resolve planner_model** from ROADMAP entry (`opus` default).
+   - `opus` or missing → continue inline.
+   - `codex` AND `codex` in `executors.available` → print `Run from Codex: node .riff/scripts/riff-codex.mjs plan --phase {{N}} --run`, mark loop paused, exit without writing PLAN.md.
+   - `codex` requested but absent from `executors.available` → log warning, fall back to inline Opus.
+1. Re-read if not in context: `agents/planner.md` (goal-backward, AC rules, HITL/AFK, TDD mode, anti-patterns), `taste.md`, `.planning/expertise/planner.md`, previous SUMMARY.md. If PLAN-REVIEW.md exists (revision cycle), read it and address every `BLOCKER` before rewriting PLAN.md.
+2. [KEYWORD] Draft the plan. Break into waves. Mark independent tasks `parallel: [task-A, task-B]` (independent = zero shared files).
+3. Write PLAN.md. Do NOT update STATE.md or ROADMAP.yaml.
+4. Include `## Model Recommendation`: default `executor_model: codex`. Recommend `sonnet` only when Codex is unavailable or a phase needs Claude-specific tools; recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs.
+
+**Prompt capture:** one-line note of inputs + brief → PROMPTS.md § Planner (inline — no sub-agent).
+
+## Step 4b plan adversarial review
+
+**Skip if `scope: scratch`.** Runs before execution so the planner can revise before code is written (plan-stage fixes cost ~10x less than code-stage).
+
+**Gate:** `plan_adversarial:` from the phase's ROADMAP.yaml entry. `false` → skip. `true` → always run (skip overrides ignored). `auto` (default) → check [`AUTO-TRIGGERS.md#plan-adversarial-auto`](./AUTO-TRIGGERS.md#plan-adversarial-auto) skip overrides; if any fires, log `gates-update.mjs --gate plan-review --status skipped --reason "<reason>"` and continue.
+
+**Model + effort** per [`MODEL.md`](./MODEL.md) § Codex model + effort. Default Step 4b: `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
+
+**`risk_focus`** from phase ROADMAP entry (optional free text, e.g. `"concurrency, idempotency"`). When set, append to prompt: _"Pressure-test these specific risks first: {{RISK_FOCUS}}. Any other material findings still report, but lead with these."_
+
+**Pre-spawn:** soft-cap warning (see POST-PHASE.md § Codex usage tracking) if >5 Codex calls in last 5h.
+
+**If running:** Agent tool → skill `codex:codex-rescue`. Prompt: phase goal (one line), branch, _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/plan-adversarial-reviewer.md`. Read PLAN.md, PROJECT.md, ROADMAP entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write PLAN-REVIEW.md with PROCEED or REVISE verdict."_
+
+**Post-completion:** `gates-update.mjs --gate plan-review --status pass --reason "model={{MODEL}} effort={{EFFORT}}"`. Append row to `.planning/codex-usage.csv` (step=4b, outcome=proceed|revise|error, duration_sec).
+
+**Prompt capture:** PROMPTS.md § Plan adversarial reviewer (Codex). Keep distinct from § Adversarial reviewer (Codex) if both Steps 4b and 6 ran.
+
+**On REVISE:** surface Findings section to user. Re-run Step 4 inline with PLAN-REVIEW.md input — planner addresses each `BLOCKER`, optionally `WARNING`/`NOTE`, rewrites PLAN.md in place. Re-run Step 4b. Loop until PROCEED. Max 2 cycles, then STOP and escalate.
+
+**On PROCEED:** continue.
+
 ---
 
 ## 2. R1–R4 Deviation Rules
@@ -66,6 +103,46 @@ If `profile.yaml` is missing, fall back to `neutre` preset defaults (see `comman
 4. **Previous SUMMARY.md** — if wave 2+, read what wave 1 built
 5. **profile.yaml** (resolved per `.riff/references/PROFILE-RESOLUTION.md`): always, for user calibration. Fall back to `neutre` defaults if missing.
 6. **If exists:** `.planning/expertise/executor.md`
+
+## Step 5 executor orchestration
+
+**Runtime resolution:** see [`MODEL.md`](./MODEL.md) § Executor runtime resolution. Default: **Codex** (via `codex:codex-rescue` in-process). Falls back to Claude sub-agent (Sonnet) when `executor_model: sonnet` or `codex` not in `executors.available`.
+
+**Thinking:** none by default, `think hard` if `complex_execution: true`. **Parallel tasks** marked `parallel:` MUST launch as separate sub-agents in a single message; sequential tasks stay inline within the executor.
+
+#### Route A: Codex executor (default)
+
+Invoke `codex:codex-rescue` with the configured execution skill (profile.yaml `codex.execution_skill`). Prompt uses CODEX-DELEGATION Template B (solo) or Template C (solo-strict when `complex_execution: true`):
+- Branch: `riff/phase-N-slug`
+- PLAN.md path: `.planning/phases/N-slug/PLAN.md`
+- Model + effort: resolved per MODEL.md § Codex model + effort
+
+Record `phase_base_sha: $(git rev-parse HEAD)` in STATE.md before invocation.
+
+#### Route B: Claude sub-agent (fallback)
+
+Agent prompt (give paths, do NOT paste file contents):
+- Branch: `riff/phase-N-slug`
+- Read: PLAN.md, `taste.md`, `.planning/expertise/executor.md`, `CLAUDE.md`
+- Instruction: _"FIRST: verify branch `riff/phase-N-slug`. Read PLAN.md and execute all tasks. For `parallel:` tasks, launch separate sub-agents in a single message. Commit after each task (conventional format, stage explicitly). Write SUMMARY.md."_
+
+**Prompt capture:** PROMPTS.md § Executor.
+
+**After the executor sub-agent returns, check for crash residue.** Full procedure (CRASH.json schema + 3 AskUserQuestion sub-cases): [`POST-PHASE.md`](./POST-PHASE.md) § Executor crash residue.
+
+1. **SUMMARY.md absent** → silent crash. Write `CRASH.json` (`crash_type: executor_silent_exit`, `verdict: pending`). Prompt **Trigger auto-debug** (`failure_type: executor_silent_exit`, `artifact: CRASH.json`) / **Resume manually** (halt, Step 0 detects partial state on next run) / **Abort** (set `verdict: abandoned`, STATE.md `## Active Phase` Step → `CRASHED`).
+2. **SUMMARY.md exists with `FAILED` / `ERROR` / `unresolved`** → auto-debug with `failure_type: executor_fail`, `artifact: SUMMARY.md`.
+3. **Successful completion** (incl. after auto-debug RESOLVED) → `rm -f .planning/phases/N-slug/CRASH.json`.
+
+## Step 5b simplifier orchestration
+
+**Skip if `scope: scratch`.** Runs before review so reviewers audit simplified code.
+
+**Gate:** `simplify:` from phase ROADMAP entry. `false` → skip. `true` → always run. `auto` (default) → [`AUTO-TRIGGERS.md#simplifier-auto`](./AUTO-TRIGGERS.md#simplifier-auto).
+
+**If running:** Agent tool, `model: "haiku"`. Prompt: branch, phase N-slug, _"Read `agents/simplifier.md`. Scope: diff of `riff/phase-N-slug` against main only. Apply the protocol. Write REFACTOR.md. Commit simplifications as separate `refactor(phase-N): ...` commits, staging explicitly."_
+
+**Prompt capture:** PROMPTS.md § Simplifier (append the section if absent in template).
 
 ### Verifier reads (for manual re-audits and post-build doc check)
 

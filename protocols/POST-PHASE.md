@@ -73,6 +73,12 @@ Confirm with one more AskUserQuestion ("Wipe all {{N}} patches? This is irrevers
 
 Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected, E edited, D deferred.`
 
+## Improver invocation (Step 7b)
+
+**Gate:** skip by default. Run conditions: [`AUTO-TRIGGERS.md#improver-heuristic`](./AUTO-TRIGGERS.md#improver-heuristic).
+
+**If running:** Agent tool, `model: "haiku"`, `run_in_background: true`. Prompt: _"Read `agents/improver.md`. Read SUMMARY.md and `.planning/expertise/` files. Write learnings to `.planning/expertise/.pending/`. Do not auto-merge. Use Context7 or Ref MCP for recent libs. As final act, write completion sentinel `.planning/expertise/.pending/.improver-N-slug.done` (lets Step 10 distinguish 'completed with no findings' from 'killed mid-write')."_
+
 ---
 
 ## Auto-debug pattern
