@@ -206,9 +206,7 @@ Agent prompt (give paths, do NOT paste file contents):
 
 ### Step 5c: Scope check — mechanical (inline)
 
-Before review, verify executor honored the plan. Source of truth: [`protocols/SCOPE-CHECK.md`](../protocols/SCOPE-CHECK.md). Do not spawn a sub-agent by default.
-
-Run:
+Before review, verify executor honored the plan. Do not spawn a sub-agent by default. Run:
 
 ```bash
 node .riff/scripts/scope-check.mjs --phase .planning/phases/N-slug
@@ -216,25 +214,7 @@ node .riff/scripts/scope-check.mjs --phase .planning/phases/N-slug
 
 The script writes `.planning/phases/N-slug/SCOPE-CHECK.json` and exits non-zero unless the verdict is `MATCH`.
 
-**Read the verdict from SCOPE-CHECK.json:**
-
-1. Read `.planning/phases/N-slug/SCOPE-CHECK.json`.
-2. If file absent → treat as `MALFORMED` with reason `"file not written"`.
-3. If invalid JSON → treat as `MALFORMED` with reason `"invalid JSON"`.
-4. If `schema_version` is neither `1` nor `2` → surface mismatch to user, halt. (`1` = legacy plans pre-Smoke contract, `2` = current.)
-5. Branch on the `verdict` field.
-
-**On `MATCH`:** proceed to Step 5d.
-
-**On `DROPPED`:** STOP. Triage in three buckets, in order:
-
-1. **Task drops (`unmatched_tasks` non-empty).** For each, AskUserQuestion: "completed (mark done in SUMMARY)" | "defer to new phase (will run /riff:add-phase)" | "rejected (write rationale)". Apply each choice, then re-run Step 5c.
-2. **Smoke section too thin or missing (`smoke_too_thin == true` OR `planned_smokes` empty on a non-legacy plan).** Surface to user with the modified files list. AskUserQuestion: "ask the planner to expand Smoke section (re-run Step 4 with this finding)" | "skip this gate (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`)". On expand → re-run Step 4 inline with the missing-smoke finding as input, then re-run Step 5c.
-3. **Smoke regressions or missing results (`failed_smokes` non-empty OR `unmatched_smokes` non-empty).** For each entry, surface command + observed output (for `failed_smokes`) or "no result row in SUMMARY.md" (for `unmatched_smokes`). AskUserQuestion: "auto-debug (treat as failure_type=smoke_fail, artifact=SCOPE-CHECK.json)" | "fix manually now, then re-run Step 5c" | "skip this gate (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`)". On auto-debug → trigger the auto-debug pattern, on RESOLVED re-run Step 5c.
-
-Loop until `verdict == MATCH`. **Max 3 cycles per bucket**, then STOP and escalate to user with both SCOPE-CHECK.json and PLAN.md, ask whether to skip the remaining gate (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`) or halt for manual fix.
-
-**On `MALFORMED`:** surface `malformed_reason` to user, ask whether to skip (acceptable for unstructured PLAN.md formats) or fix the format and retry.
+On `MATCH`, proceed. On any non-`MATCH` verdict, follow [`protocols/SCOPE-CHECK.md`](../protocols/SCOPE-CHECK.md) § Step 5c orchestration (verdict handling): `DROPPED` stops for triage/re-run loops; `MALFORMED` surfaces the reason and asks skip-or-fix.
 
 ---
 
