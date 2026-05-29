@@ -1,5 +1,5 @@
-last_audited: 2026-05-28
 ---
+last_audited: 2026-05-28
 description: Better Auth UI gotchas (basePaths override, requireEmailVerification wiring, lib internal nav)
 paths:
   - "**/app/components/auth/**/*.{ts,tsx}"

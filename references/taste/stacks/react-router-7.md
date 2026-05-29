@@ -1,5 +1,5 @@
-last_audited: 2026-05-28
 ---
+last_audited: 2026-05-28
 description: React Router 7 framework-mode conventions and anti-Next.js-drift rules
 paths:
   - "**/app/routes/**/*.{ts,tsx}"

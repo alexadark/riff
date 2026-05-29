@@ -1,5 +1,5 @@
-last_audited: 2026-05-28
 ---
+last_audited: 2026-05-28
 description: TanStack Start v1 conventions (entry naming, routeTree.gen.ts, Tailwind 4, husky 9)
 paths:
   - "**/app/router.tsx"

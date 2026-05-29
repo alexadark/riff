@@ -1,5 +1,5 @@
-last_audited: 2026-05-28
 ---
+last_audited: 2026-05-28
 description: shadcn registry install hygiene (dead-code residue, framework-specific pragmas)
 paths:
   - "**/components.json"
