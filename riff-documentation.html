@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RIFF — The Field Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Editorial paper palette */
+  --bg:#f7f4ec;
+  --paper:#fffdf7;
+  --surface:#f1ede2;
+  --surface-2:#ece6d8;
+  --border:#ddd5c4;
+  --rule:#cfc6b2;
+  --ink:#221f1a;
+  --ink-soft:#4a443a;
+  --muted:#867d6c;
+  --accent:#8a2b1f;       /* editorial brick red */
+  --accent-soft:#b5503f;
+  --gold:#9a7b32;
+  --green:#3f6b3a;
+  --amber:#9a6a16;
+  --red:#9c2b22;
+  --blue:#2f5a6b;
+
+  --serif:'Fraunces', Georgia, 'Times New Roman', serif;
+  --body:'Newsreader', Georgia, serif;
+  --mono:'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+
+  --maxw:1180px;
+  --content:68ch;
+}
+[data-theme="dark"]{
+  --bg:#16140f;
+  --paper:#1c1a14;
+  --surface:#23201a;
+  --surface-2:#2a261e;
+  --border:#39342a;
+  --rule:#4a4334;
+  --ink:#efe9da;
+  --ink-soft:#cfc7b6;
+  --muted:#9a917f;
+  --accent:#d97a5f;
+  --accent-soft:#e3917a;
+  --gold:#d4ab5b;
+  --green:#7fb073;
+  --amber:#d9a850;
+  --red:#e08272;
+  --blue:#74a7bd;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  font-family:var(--body);
+  font-size:1.0625rem;
+  line-height:1.65;
+  color:var(--ink);
+  background:var(--bg);
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent);color:#fff;}
+
+/* ---------- Masthead ---------- */
+.masthead{
+  border-bottom:3px double var(--rule);
+  background:var(--paper);
+}
+.masthead-inner{
+  max-width:var(--maxw);
+  margin:0 auto;
+  padding:28px 32px 22px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:24px;
+  flex-wrap:wrap;
+}
+.brand-eyebrow{
+  font-family:var(--mono);
+  font-size:0.72rem;
+  letter-spacing:0.32em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:6px;
+}
+.brand-title{
+  font-family:var(--serif);
+  font-weight:900;
+  font-size:clamp(3rem,9vw,6.5rem);
+  line-height:0.86;
+  letter-spacing:-0.02em;
+  color:var(--ink);
+}
+.brand-title .dot{color:var(--accent);}
+.brand-tag{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:1.25rem;
+  color:var(--accent);
+  margin-top:8px;
+}
+.masthead-meta{
+  text-align:right;
+  font-family:var(--mono);
+  font-size:0.7rem;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+  line-height:1.9;
+}
+.masthead-meta .vol{color:var(--ink);font-weight:600;}
+.theme-toggle{
+  margin-top:10px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  color:var(--ink);
+  width:38px;height:38px;border-radius:50%;
+  cursor:pointer;font-size:1.1rem;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:background .2s;
+}
+.theme-toggle:hover{background:var(--surface-2);}
+
+/* running headline strip */
+.dek{
+  max-width:var(--maxw);
+  margin:0 auto;
+  padding:14px 32px;
+  font-family:var(--serif);
+  font-size:1.18rem;
+  font-style:italic;
+  color:var(--ink-soft);
+  border-bottom:1px solid var(--rule);
+}
+
+/* ---------- Tabs / section index ---------- */
+.tabs{
+  position:sticky;top:0;z-index:20;
+  background:var(--paper);
+  border-bottom:1px solid var(--rule);
+}
+.tabs-inner{
+  max-width:var(--maxw);
+  margin:0 auto;
+  padding:0 24px;
+  display:flex;
+  gap:2px;
+  overflow-x:auto;
+}
+.tab{
+  background:none;border:none;cursor:pointer;
+  font-family:var(--mono);
+  font-size:0.74rem;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:var(--muted);
+  padding:16px 18px;
+  border-bottom:2px solid transparent;
+  white-space:nowrap;
+  transition:color .2s,border-color .2s;
+}
+.tab .num{color:var(--accent);margin-right:6px;font-weight:600;}
+.tab:hover{color:var(--ink);}
+.tab.active{color:var(--ink);border-bottom-color:var(--accent);}
+
+/* ---------- Layout ---------- */
+main{max-width:var(--maxw);margin:0 auto;padding:48px 32px 80px;}
+.panel{display:none;animation:fade .4s ease;}
+.panel.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+.section-head{
+  display:flex;align-items:baseline;gap:16px;
+  border-bottom:2px solid var(--ink);
+  padding-bottom:10px;margin-bottom:28px;
+}
+.section-num{
+  font-family:var(--mono);
+  font-size:0.8rem;letter-spacing:0.2em;
+  color:var(--accent);font-weight:600;
+}
+.section-title{
+  font-family:var(--serif);
+  font-weight:700;
+  font-size:clamp(1.8rem,4vw,2.6rem);
+  line-height:1.05;
+  letter-spacing:-0.01em;
+}
+.lede{
+  font-family:var(--serif);
+  font-size:1.3rem;
+  line-height:1.5;
+  color:var(--ink-soft);
+  max-width:var(--content);
+  margin-bottom:32px;
+}
+.lede .dropcap{
+  float:left;
+  font-family:var(--serif);
+  font-weight:900;
+  font-size:4.6rem;
+  line-height:0.74;
+  padding:6px 12px 0 0;
+  color:var(--accent);
+}
+p{max-width:var(--content);margin-bottom:16px;}
+.subhead{
+  font-family:var(--serif);
+  font-weight:600;
+  font-size:1.5rem;
+  margin:40px 0 14px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--rule);
+}
+.kicker{
+  font-family:var(--mono);
+  font-size:0.72rem;letter-spacing:0.22em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:8px;
+}
+code{font-family:var(--mono);font-size:0.86em;background:var(--surface-2);padding:1px 6px;border-radius:3px;color:var(--accent);}
+
+/* ---------- Stat band ---------- */
+.stats{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:0;
+  border:1px solid var(--rule);
+  margin:32px 0 40px;
+  background:var(--paper);
+}
+.stat{
+  padding:22px 16px;
+  text-align:center;
+  border-right:1px solid var(--rule);
+}
+.stat:last-child{border-right:none;}
+.stat-num{
+  font-family:var(--serif);font-weight:900;
+  font-size:2.6rem;line-height:1;color:var(--accent);
+}
+.stat-label{
+  font-family:var(--mono);font-size:0.66rem;
+  letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--muted);margin-top:8px;
+}
+
+/* ---------- Pull quote ---------- */
+.pullquote{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:1.7rem;
+  line-height:1.35;
+  color:var(--ink);
+  border-left:4px solid var(--accent);
+  padding:6px 0 6px 28px;
+  margin:36px 0;
+  max-width:calc(var(--content) + 4ch);
+}
+.pullquote cite{
+  display:block;
+  font-style:normal;
+  font-family:var(--mono);
+  font-size:0.74rem;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--muted);margin-top:12px;
+}
+
+/* ---------- Tables ---------- */
+.table-wrap{overflow-x:auto;margin:8px 0 32px;border:1px solid var(--rule);}
+table{border-collapse:collapse;width:100%;background:var(--paper);font-size:1rem;}
+caption{
+  caption-side:top;text-align:left;
+  font-family:var(--mono);font-size:0.7rem;letter-spacing:0.16em;
+  text-transform:uppercase;color:var(--muted);
+  padding:12px 14px;background:var(--surface);
+  border-bottom:1px solid var(--rule);
+}
+th{
+  text-align:left;
+  font-family:var(--mono);font-size:0.7rem;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--ink);font-weight:600;
+  padding:12px 14px;
+  background:var(--surface-2);
+  border-bottom:2px solid var(--rule);
+  vertical-align:top;
+}
+td{
+  padding:12px 14px;
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+  line-height:1.5;
+}
+tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:var(--surface);}
+td code,th code{background:none;padding:0;color:var(--accent);font-size:0.84em;}
+td strong{font-family:var(--serif);font-weight:600;}
+
+/* ---------- Cards ---------- */
+.grid{display:grid;gap:18px;margin:8px 0 32px;}
+.grid-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));}
+.grid-3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));}
+.card{
+  background:var(--paper);
+  border:1px solid var(--rule);
+  border-top:3px solid var(--accent);
+  padding:20px 22px;
+}
+.card h4{
+  font-family:var(--serif);font-weight:700;font-size:1.25rem;
+  margin-bottom:4px;
+}
+.card .role{
+  font-family:var(--mono);font-size:0.66rem;letter-spacing:0.12em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:12px;
+}
+.card p{font-size:0.98rem;color:var(--ink-soft);max-width:none;margin-bottom:10px;}
+.card .meta{
+  font-family:var(--mono);font-size:0.72rem;
+  color:var(--muted);border-top:1px solid var(--border);
+  padding-top:10px;margin-top:4px;
+}
+.card .meta b{color:var(--ink);}
+
+.card--alt{border-top-color:var(--blue);}
+.card--gate{border-top-color:var(--gold);}
+
+/* ---------- Badges ---------- */
+.badge{
+  display:inline-block;
+  font-family:var(--mono);font-size:0.66rem;font-weight:600;
+  letter-spacing:0.06em;text-transform:uppercase;
+  padding:3px 9px;border-radius:2px;border:1px solid;
+  white-space:nowrap;
+}
+.b-opus{color:var(--accent);border-color:var(--accent);}
+.b-sonnet{color:var(--blue);border-color:var(--blue);}
+.b-haiku{color:var(--green);border-color:var(--green);}
+.b-codex{color:var(--gold);border-color:var(--gold);}
+.b-gate{color:var(--muted);border-color:var(--rule);}
+
+/* ---------- Pipeline timeline ---------- */
+.pipeline{margin:24px 0 32px;border-left:2px solid var(--rule);padding-left:0;}
+.step{
+  position:relative;
+  padding:14px 0 14px 56px;
+  border-bottom:1px dashed var(--border);
+}
+.step:last-child{border-bottom:none;}
+.step::before{
+  content:attr(data-step);
+  position:absolute;left:-1px;top:14px;
+  transform:translateX(-50%);
+  font-family:var(--mono);font-size:0.62rem;font-weight:600;
+  background:var(--accent);color:#fff;
+  width:auto;min-width:34px;height:22px;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 6px;letter-spacing:0.04em;
+}
+.step.parallel::before{background:var(--blue);}
+.step.skip::before{background:var(--muted);}
+.step h5{
+  font-family:var(--serif);font-weight:600;font-size:1.15rem;
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+}
+.step p{font-size:0.95rem;color:var(--ink-soft);margin:4px 0 0;max-width:var(--content);}
+.parallel-tag{
+  font-family:var(--mono);font-size:0.66rem;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--blue);
+  border:1px solid var(--blue);padding:1px 7px;border-radius:2px;
+}
+
+/* ---------- Deviation cards (R1-R4) ---------- */
+.dev-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:8px 0 32px;}
+.dev{
+  border:1px solid var(--rule);padding:18px 18px;background:var(--paper);
+  border-left:4px solid;
+}
+.dev.r1{border-left-color:var(--green);}
+.dev.r2{border-left-color:var(--blue);}
+.dev.r3{border-left-color:var(--red);}
+.dev.r4{border-left-color:var(--amber);}
+.dev .tag{
+  font-family:var(--serif);font-weight:900;font-size:1.6rem;
+  line-height:1;display:block;margin-bottom:6px;
+}
+.dev.r1 .tag{color:var(--green);}
+.dev.r2 .tag{color:var(--blue);}
+.dev.r3 .tag{color:var(--red);}
+.dev.r4 .tag{color:var(--amber);}
+.dev h5{font-family:var(--serif);font-size:1.1rem;margin-bottom:6px;}
+.dev p{font-size:0.92rem;color:var(--ink-soft);max-width:none;margin:0;}
+
+/* ---------- Code / ASCII blocks ---------- */
+pre{
+  background:var(--surface);
+  border:1px solid var(--rule);
+  border-left:3px solid var(--ink-soft);
+  padding:18px 20px;
+  overflow-x:auto;
+  font-family:var(--mono);font-size:0.82rem;line-height:1.6;
+  margin:8px 0 32px;
+  color:var(--ink-soft);
+  white-space:pre;
+}
+pre b{color:var(--accent);font-weight:600;}
+
+/* CSS flow diagram */
+.diagram-frame{
+  background:var(--paper);
+  border:1px solid var(--rule);
+  border-left:3px solid var(--accent);
+  padding:28px 20px;
+  margin:8px 0 32px;
+  overflow-x:auto;
+}
+.flow{display:flex;flex-direction:column;align-items:center;gap:0;}
+.fnode{
+  font-family:var(--mono);font-size:0.82rem;
+  background:var(--surface);border:1px solid var(--rule);
+  border-left:3px solid var(--accent);
+  padding:10px 18px;text-align:center;color:var(--ink);
+  min-width:200px;
+}
+.fnode small{display:block;color:var(--muted);font-size:0.7rem;margin-top:3px;letter-spacing:0.04em;}
+.fnode--codex{border-left-color:var(--gold);}
+.fnode--sonnet{border-left-color:var(--blue);}
+.fnode--mech{border-left-color:var(--muted);}
+.fnode--start{border-left-color:var(--ink-soft);}
+.fnode--end{border-left-color:var(--green);background:var(--paper);font-weight:600;}
+.farrow{
+  color:var(--rule);font-family:var(--mono);font-size:1.1rem;
+  padding:5px 0;line-height:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.farrow span{font-size:0.64rem;color:var(--accent);letter-spacing:0.08em;}
+.frow{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;}
+.fnote{
+  font-family:var(--mono);font-size:0.7rem;color:var(--muted);
+  margin-top:14px;text-align:center;letter-spacing:0.06em;
+}
+/* ER diagram */
+.erd{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px;}
+.entity{border:1px solid var(--rule);background:var(--paper);align-self:start;}
+.entity-name{
+  background:var(--surface-2);font-family:var(--mono);font-weight:600;font-size:0.8rem;
+  letter-spacing:0.08em;padding:9px 12px;border-bottom:1px solid var(--rule);color:var(--accent);
+}
+.entity-field{
+  padding:5px 12px;font-family:var(--mono);font-size:0.74rem;
+  display:flex;justify-content:space-between;gap:12px;
+  border-bottom:1px solid var(--border);color:var(--ink-soft);
+}
+.entity-field:last-child{border-bottom:none;}
+.entity-field .ftype{color:var(--muted);}
+.erd-legend{
+  margin-top:18px;font-family:var(--mono);font-size:0.74rem;color:var(--ink-soft);
+  display:flex;flex-direction:column;gap:5px;
+}
+.erd-legend b{color:var(--accent);}
+
+/* ---------- Two-path split ---------- */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--rule);margin:8px 0 32px;}
+.split > div{padding:26px 28px;}
+.split > div:first-child{border-right:1px solid var(--rule);}
+.split h4{font-family:var(--serif);font-weight:700;font-size:1.5rem;margin-bottom:4px;}
+.split .path-cmd{font-family:var(--mono);color:var(--accent);font-size:0.9rem;margin-bottom:14px;display:block;}
+.split p{font-size:0.98rem;max-width:none;}
+.split ol{margin:10px 0 0 18px;font-size:0.95rem;color:var(--ink-soft);}
+.split li{margin-bottom:6px;}
+
+/* ---------- Callout ---------- */
+.note{
+  background:var(--surface);
+  border:1px solid var(--rule);
+  border-left:4px solid var(--gold);
+  padding:18px 22px;margin:8px 0 32px;
+}
+.note .kicker{color:var(--gold);}
+.note p{margin:0;max-width:none;font-size:0.98rem;}
+
+/* ---------- Footer / colophon ---------- */
+footer{
+  border-top:3px double var(--rule);
+  background:var(--paper);
+  margin-top:40px;
+}
+.colophon{
+  max-width:var(--maxw);margin:0 auto;padding:32px;
+  display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:0.72rem;letter-spacing:0.08em;
+  color:var(--muted);text-transform:uppercase;
+}
+.colophon .big{
+  font-family:var(--serif);font-weight:900;font-size:1.6rem;
+  letter-spacing:0;text-transform:none;color:var(--ink);
+}
+
+/* ---------- Responsive ---------- */
+@media(max-width:760px){
+  main{padding:32px 20px 60px;}
+  .masthead-inner,.dek,.tabs-inner{padding-left:20px;padding-right:20px;}
+  .split{grid-template-columns:1fr;}
+  .split > div:first-child{border-right:none;border-bottom:1px solid var(--rule);}
+  .masthead-meta{text-align:left;}
+  .lede .dropcap{font-size:3.4rem;}
+}
+@media print{
+  .tabs,.theme-toggle{display:none;}
+  .panel{display:block!important;page-break-before:always;}
+  body{background:#fff;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ MASTHEAD ============ -->
+<header class="masthead">
+  <div class="masthead-inner">
+    <div>
+      <div class="brand-eyebrow">A field manual for solo agentic development</div>
+      <div class="brand-title">RIFF<span class="dot">.</span></div>
+      <div class="brand-tag">Build like a band of six. Ship like one.</div>
+    </div>
+    <div class="masthead-meta">
+      <div class="vol">Vol. 1 — The Loop</div>
+      <div>Framework for Claude Code</div>
+      <div>~60KB · 13 agents · fully editable</div>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light / dark">◐</button>
+    </div>
+  </div>
+  <div class="dek">
+    A lean, profile-driven kit that turns <em>“I want to build X”</em> into a repeatable loop: plan, build, verify, commit. One phase at a time, in a fresh context, with all state on disk.
+  </div>
+</header>
+
+<!-- ============ TABS ============ -->
+<nav class="tabs">
+  <div class="tabs-inner" role="tablist">
+    <button class="tab active" data-panel="overview"><span class="num">01</span>The Idea</button>
+    <button class="tab" data-panel="paths"><span class="num">02</span>The Two Paths</button>
+    <button class="tab" data-panel="commands"><span class="num">03</span>Commands</button>
+    <button class="tab" data-panel="pipeline"><span class="num">04</span>The Pipeline</button>
+    <button class="tab" data-panel="agents"><span class="num">05</span>The Band</button>
+    <button class="tab" data-panel="machinery"><span class="num">06</span>Hooks &amp; Models</button>
+    <button class="tab" data-panel="reference"><span class="num">07</span>Reference</button>
+    <button class="tab" data-panel="discovery"><span class="num">08</span>Discovery Output</button>
+  </div>
+</nav>
+
+<main>
+
+<!-- ============ 01 OVERVIEW ============ -->
+<section class="panel active" id="panel-overview" role="tabpanel">
+  <div class="section-head">
+    <span class="section-num">№ 01</span>
+    <h1 class="section-title">What RIFF actually is</h1>
+  </div>
+
+  <p class="lede"><span class="dropcap">R</span>IFF is not a framework you adopt and then maintain forever. It is a kit: a small universal core, modular pieces you can delete, and a single <code>profile.yaml</code> that wires only what fits the way you work.</p>
+
+  <p>Most agent frameworks are a trap. You adopt 40KB agent definitions, pay a token tax on every call, and accumulate maintenance debt while Claude Code ships native features that replace half of what you installed. The 13 RIFF agents total roughly 60KB, between 1.4KB and 6KB each. Every piece is reviewable in under ten minutes. When Claude Code ships something that replaces one of your hooks or commands, you delete the piece. No framework-wide migration.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-num">13</div><div class="stat-label">Agents</div></div>
+    <div class="stat"><div class="stat-num">14</div><div class="stat-label">Commands</div></div>
+    <div class="stat"><div class="stat-num">18</div><div class="stat-label">Hooks</div></div>
+    <div class="stat"><div class="stat-num">~20</div><div class="stat-label">Protocols</div></div>
+    <div class="stat"><div class="stat-num">4</div><div class="stat-label">Model families</div></div>
+    <div class="stat"><div class="stat-num">~60K</div><div class="stat-label">Total weight</div></div>
+  </div>
+
+  <h2 class="subhead">The loop, in one breath</h2>
+  <p>RIFF turns intent into a repeatable cycle. Each phase runs in a fresh Claude Code context with full state written to disk, so you can stay in the loop and correct as you go, or walk away and let it run unattended. It works on any project, new or existing.</p>
+
+  <div class="table-wrap">
+    <table>
+      <caption>The four beats</caption>
+      <thead><tr><th>Beat</th><th>What happens</th><th>Who runs it</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Plan</strong></td><td>Goal-backward decomposition into tasks, grouped into parallel waves, one model picked per task</td><td><span class="badge b-opus">Opus</span></td></tr>
+        <tr><td><strong>Build</strong></td><td>Tasks implemented one by one, atomic commits, deviations handled by the R1–R4 rules</td><td><span class="badge b-codex">Codex</span> <span class="badge b-sonnet">Sonnet</span></td></tr>
+        <tr><td><strong>Verify</strong></td><td>Scope check, dead-code audit, adversarial pass, security pass, optional browser smoke test</td><td><span class="badge b-codex">Codex</span> <span class="badge b-sonnet">Sonnet</span></td></tr>
+        <tr><td><strong>Commit</strong></td><td>One PR per phase, learnings harvested into project taste files</td><td>Pipeline</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <blockquote class="pullquote">
+    The creator of Claude Code runs on roughly 100 lines of CLAUDE.md, a handful of terminals, plan mode, and a small set of slash commands. That is the target.
+    <cite>— RIFF, Philosophy</cite>
+  </blockquote>
+
+  <h2 class="subhead">Who it is for</h2>
+  <p>Solo developers using Claude Code who want structure, quality, and the ability to walk away from the keyboard without the project falling apart. RIFF gives you the scaffolding to reach the minimal-setup ideal without reinventing the planner, the security reviewer, or hook discipline from scratch.</p>
+
+  <div class="grid grid-3">
+    <div class="card card--gate">
+      <h4>Inspect before adopting</h4>
+      <div class="role">Principle 01</div>
+      <p>Every file is meant to be edited. Agents are markdown, the file <em>is</em> the instruction. Commands are markdown with YAML frontmatter. Hooks are bash. No black boxes.</p>
+    </div>
+    <div class="card card--gate">
+      <h4>Delete when redundant</h4>
+      <div class="role">Principle 02</div>
+      <p>When Claude Code ships a native feature that replaces a piece, remove it. The framework is a kit, not a contract you are locked into.</p>
+    </div>
+    <div class="card card--gate">
+      <h4>Prune quarterly</h4>
+      <div class="role">Principle 03</div>
+      <p>Walk through <code>DECAY.md</code> and strip what is not earning its keep. Your framework stays yours, and stays small.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 TWO PATHS ============ -->
+<section class="panel" id="panel-paths" role="tabpanel">
+  <div class="section-head">
+    <span class="section-num">№ 02</span>
+    <h1 class="section-title">Greenfield or brownfield</h1>
+  </div>
+
+  <p class="lede"><span class="dropcap">E</span>very project enters RIFF through one of two doors. A blank slate gets a guided discovery. An existing codebase gets read, understood, and seeded with a roadmap of the work RIFF can already see.</p>
+
+  <div class="split">
+    <div>
+      <div class="kicker">The blank slate</div>
+      <h4>Greenfield</h4>
+      <code class="path-cmd">/riff:start</code>
+      <p>Five gated stages of discovery that define the product before a single line is written.</p>
+      <ol>
+        <li><strong>Problem definition</strong> — what, for whom, why now, and the scope choice</li>
+        <li><strong>System architecture</strong> — design, stack, risks. Adversarial review gate</li>
+        <li><strong>MVP scope</strong> — what ships in v1 versus later</li>
+        <li><strong>Research</strong> — competitive landscape, prior art, tooling</li>
+        <li><strong>Roadmap</strong> — ordered phases. Adversarial review gate</li>
+      </ol>
+    </div>
+    <div>
+      <div class="kicker">The existing repo</div>
+      <h4>Brownfield</h4>
+      <code class="path-cmd">/riff:map</code>
+      <p>RIFF reads the code, infers the stack, and seeds a roadmap of work it can see: bugs, missing tests, security gaps, refactors.</p>
+      <p style="margin-top:16px;"><strong>Outputs:</strong></p>
+      <ol>
+        <li><code>PROJECT.md</code> — inferred product definition</li>
+        <li><code>taste.md</code> — conventions read from the code</li>
+        <li><code>ROADMAP.yaml</code> — a seeded, ordered backlog</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2 class="subhead">Scope: scratch versus production</h2>
+  <p>Set once at Stage 1 of <code>/riff:start</code> (or at init). Scope decides which gates run and how much discipline RIFF imposes.</p>
+
+  <div class="table-wrap">
+    <table>
+      <caption>Two scopes, two levels of discipline</caption>
+      <thead><tr><th style="width:18%">Scope</th><th>Meaning</th><th>What runs</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="badge" style="color:var(--red);border-color:var(--red)">Production</span></td>
+          <td>Others will use it, it is deployed, or it touches auth, payments, or personal data.</td>
+          <td>Full discipline: security review on every phase, R3 architecture gates, all hooks wired.</td>
+        </tr>
+        <tr>
+          <td><span class="badge" style="color:var(--amber);border-color:var(--amber)">Scratch</span></td>
+          <td>Personal or local script, no auth, no public exposure.</td>
+          <td>Skips adversarial and security review. Only the “no hardcoded secrets” rule applies.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <div class="kicker">Promotion path</div>
+    <p>When a scratch project gets serious, say <em>“promote to production.”</em> RIFF runs the skipped discovery stages and flips the scope. Once the app is deployed, say <em>“set up monitoring”</em> to wire error tracking, uptime checks, and scheduled smoke tests.</p>
+  </div>
+
+  <h2 class="subhead">Discovery outputs</h2>
+  <p>A greenfield run leaves behind a small set of living documents: <code>PROJECT.md</code>, <code>ROADMAP.yaml</code>, <code>STATE.md</code>, and <code>.planning/config.json</code> for scope. In production scope it adds <code>taste.md</code>, <code>INCIDENTS.md</code>, and <code>CONTEXT.md</code>.</p>
+</section>
+
+<!-- ============ 03 COMMANDS ============ -->
+<section class="panel" id="panel-commands" role="tabpanel">
+  <div class="section-head">
+    <span class="section-num">№ 03</span>
+    <h1 class="section-title">The fourteen commands</h1>
+  </div>
+
+  <p class="lede"><span class="dropcap">F</span>ourteen slash commands cover the whole lifecycle, from first install to the daily build loop. Rare lifecycle actions live as protocol files you trigger by simply saying a phrase.</p>
+
+  <h2 class="subhead">Framework — global</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
+      <tbody>
+        <tr><td><code>/riff:onboard</code></td><td>First-time setup, or to override the profile for one specific project.</td></tr>
+        <tr><td><code>/riff:learn-stack</code></td><td>Teach RIFF a new stack (Rust, Go, FastAPI…). Writes a taste rule file.</td></tr>
+        <tr><td><code>/riff:dashboard</code></td><td>Open the local web dashboard: kanban, plain-language explanations, metadata.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="subhead">Setup — project lifecycle</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
+      <tbody>
+        <tr><td><code>/riff:init</code></td><td>Install RIFF into the current project: symlinks, hooks, scope, profile.</td></tr>
+        <tr><td><code>/riff:resync</code></td><td>Re-link symlinks after the framework adds or removes files. Idempotent.</td></tr>
+        <tr><td><code>/riff:start</code></td><td>Greenfield five-stage discovery: problem → users → MVP → research → roadmap.</td></tr>
+        <tr><td><code>/riff:map</code></td><td>Brownfield: point at an existing codebase to onboard RIFF onto it.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="subhead">Core loop — daily</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
+      <tbody>
+        <tr><td><code>/riff:next</code></td><td><strong>The main command.</strong> Plans, executes, reviews, opens a PR for the next phase.</td></tr>
+        <tr><td><code>/riff:wave</code></td><td>Bundle N parallel-eligible phases and delegate to Codex. Opus plans, Codex executes, browser-check proves it works.</td></tr>
+        <tr><td><code>/riff:status</code></td><td>“Where am I?” — current phase, next phase, blocked phases, pending patches.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="subhead">Off-loop</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
+      <tbody>
+        <tr><td><code>/riff:add-phase</code></td><td>Append a new phase to <code>ROADMAP.yaml</code>.</td></tr>
+        <tr><td><code>/riff:quick &lt;task&gt;</code></td><td>A one-off that does not deserve a phase: config tweak, copy fix, dependency bump.</td></tr>
+        <tr><td><code>/riff:debug &lt;bug&gt;</code></td><td>Manual debug invocation outside the auto-debug pipeline.</td></tr>
+        <tr><td><code>/riff:improver</code></td><td>Batch the improver across recent phases to harvest learnings into expertise files.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="subhead">Conversational triggers — no slash command</h2>
+  <p>Rare lifecycle actions are protocol files. You trigger them by saying a phrase, in plain language.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:34%">You say…</th><th>RIFF does</th></tr></thead>
+      <tbody>
+        <tr><td><em>“log incident”</em></td><td>Append an entry to <code>INCIDENTS.md</code>.</td></tr>
+        <tr><td><em>“incident review”</em></td><td>Quarterly review, runs the incident adversarial reviewer.</td></tr>
+        <tr><td><em>“promote to production”</em></td><td>Flip scope, run skipped discovery, wire post-deploy monitoring.</td></tr>
+        <tr><td><em>“re-audit phase N”</em></td><td>Re-run scope-check, adversarial, and security against a phase.</td></tr>
+        <tr><td><em>“deep audit” / “milestone review”</em></td><td>The deep-auditor runs across phases at a milestone boundary.</td></tr>
+        <tr><td><em>“resync riff”</em></td><td>Run the resync script and surface CLAUDE.md drift.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 04 PIPELINE ============ -->
+<section class="panel" id="panel-pipeline" role="tabpanel">
+  <div class="section-head">
+    <span class="section-num">№ 04</span>
+    <h1 class="section-title">Inside /riff:next</h1>
+  </div>
+
+  <p class="lede"><span class="dropcap">O</span>ne invocation equals one phase equals one pull request. The pipeline runs as a sequence of inline steps and sub-agent calls. This is the heart of RIFF.</p>
+
+  <div class="pipeline">
+    <div class="step" data-step="0"><h5>Sync &amp; reconcile</h5><p>Sync main, reconcile stale bookkeeping.</p></div>
+    <div class="step" data-step="1–2"><h5>Read state &amp; pick the phase</h5><p>Read <code>STATE.md</code> and <code>ROADMAP.yaml</code>, choose the next phase, create the phase branch, ensure <code>PROMPTS.md</code> exists.</p></div>
+    <div class="step" data-step="3"><h5>Confidence gate</h5><p>The planner self-rates its confidence 1–10 against the acceptance criteria. Below the profile threshold (default 7), the pipeline pauses and asks you to clarify.</p></div>
+    <div class="step" data-step="4"><h5>Plan <span class="badge b-opus">Opus</span></h5><p>Goal-backward plan built inline by the planner.</p></div>
+    <div class="step" data-step="4b"><h5>Plan adversarial review <span class="badge b-codex">Codex</span> <span class="badge b-gate">gated</span></h5><p>Challenge optimistic plans, missing edge cases, ambiguous task boundaries.</p></div>
+    <div class="step" data-step="4c"><h5>Pre-exec explanation <span class="badge b-haiku">Haiku</span></h5><p>Plain-language summary for the dashboard. Fail-silent.</p></div>
+    <div class="step" data-step="5"><h5>Execute <span class="badge b-codex">Codex</span></h5><p>Implement tasks one by one, atomic commits, parallelize within a wave, apply R1–R4 deviations.</p></div>
+    <div class="step" data-step="5b"><h5>Simplify <span class="badge b-haiku">Haiku</span> <span class="badge b-gate">gated</span></h5><p>Structural smell pass on the diff: premature abstraction, misnaming, dead branches.</p></div>
+    <div class="step" data-step="5c"><h5>Scope check <span class="badge b-gate">mechanical</span></h5><p><code>scope-check.mjs</code> diffs the plan against the summary. No LLM. Flags silently dropped tasks.</p></div>
+    <div class="step" data-step="5d"><h5>Fallow audit <span class="badge b-gate">mechanical</span></h5><p>Dead code, duplication, complexity, boundary violations on the diff. Sub-second, deterministic.</p></div>
+    <div class="step" data-step="5e"><h5>Smoke test <span class="badge b-gate">browser</span></h5><p>Boot the dev server, load changed routes in a headless browser. Gated.</p></div>
+    <div class="step parallel" data-step="6"><h5>Adversarial review <span class="badge b-codex">Codex</span> <span class="parallel-tag">runs in parallel with 7</span></h5><p>Hunts logic bugs, races, edge cases, off-by-one, bad assumptions. Different model family catches Claude’s blind spots.</p></div>
+    <div class="step parallel" data-step="7"><h5>Security review <span class="badge b-sonnet">Sonnet</span> <span class="parallel-tag">runs in parallel with 6</span></h5><p>OWASP top-10 scan. CRITICAL/HIGH findings auto-trigger the debugger.</p></div>
+    <div class="step skip" data-step="↯"><h5>Scratch shortcut</h5><p>If scope is scratch, steps 6 and 7 are skipped entirely. Straight to PR.</p></div>
+    <div class="step" data-step="8–10"><h5>PR, learn, report</h5><p>Open the PR, append learnings to <code>taste.md</code> and expertise files, report with usage tracking.</p></div>
+  </div>
+
+  <h2 class="subhead">The R1–R4 deviation rules</h2>
+  <p>When the executor hits something outside the plan, it picks one of four behaviors. R1 and R2 keep things moving without bothering you. R3 and R4 protect you from drift.</p>
+
+  <div class="dev-grid">
+    <div class="dev r1">
+      <span class="tag">R1</span>
+      <h5>Minor bug</h5>
+      <p>Fix it, log the deviation in <code>SUMMARY.md</code>.</p>
+    </div>
+    <div class="dev r2">
+      <span class="tag">R2</span>
+      <h5>Obvious missing piece</h5>
+      <p>Add it, log it in <code>SUMMARY.md</code>.</p>
+    </div>
+    <div class="dev r3">
+      <span class="tag">R3</span>
+      <h5>Architecture change</h5>
+      <p>Stop. Ask the human before touching it.</p>
+    </div>
+    <div class="dev r4">
+      <span class="tag">R4</span>
+      <h5>Out of scope</h5>
+      <p>Seed a new phase, do not build it now.</p>
+    </div>
+  </div>
+
+  <h2 class="subhead">Auto-debug</h2>
+  <p>If any step fails (executor crash, scope-check FAIL, adversarial FAIL, security BLOCKED, smoke fail), the pipeline routes to the debugger. It reads the failing artifact, opens the failing route in a browser if relevant, attaches screenshots, writes <code>DEBUG.md</code>, and proposes a fix. On RESOLVED, the failed step re-runs.</p>
+  <div class="note">
+    <div class="kicker">Hard limit</div>
+    <p>Two debug attempts per phase. After that, the pipeline pauses for you. Re-run with <code>/riff:debug &lt;bug&gt;</code> for a manual third attempt.</p>
+  </div>
+
+  <h2 class="subhead">Waves: parallel inside a phase</h2>
+  <p>The planner groups independent tasks into waves. Tasks in the same wave have no dependencies on each other and run in parallel. The planner’s real job is to detect when two tasks touch the same file and serialize them into separate waves.</p>
+  <pre>wave 1:
+  - task 1: add User schema to schema.ts
+  - task 2: add Product schema to schema.ts   <b># SAME FILE — not parallel-safe</b>
+wave 2:
+  - task 3: add users.test.ts                  # depends on wave 1
+  - task 4: add products.test.ts               # depends on wave 1</pre>
+</section>
+
+<!-- ============ 05 AGENTS ============ -->
+<section class="panel" id="panel-agents" role="tabpanel">
+  <div class="section-head">
+    <span class="section-num">№ 05</span>
+    <h1 class="section-title">The band of six (and more)</h1>
+  </div>
+
+  <p class="lede"><span class="dropcap">E</span>ach agent lives as a single markdown file in <code>agents/</code>. The file <em>is</em> the instruction, fully editable. Thirteen specialists, plus one mechanical gate that runs with no LLM at all.</p>
+
+  <h2 class="subhead">Build &amp; review</h2>
+  <div class="grid grid-2">
+    <div class="card">
+      <h4>Planner</h4>
+      <div class="role">Builds PLAN.md · default Opus</div>
+      <p>Goal-backward planning from the acceptance criteria. Decomposes into tasks, groups them into parallel waves, picks a model per task. Reads the profile and taste files.</p>
+      <div class="meta">model · <b>Opus</b> &nbsp;|&nbsp; configurable per phase</div>
+    </div>
+    <div class="card">
+      <h4>Executor</h4>
+      <div class="role">Implements tasks · default Codex</div>
+      <p>Implements the plan task by task with atomic commits, parallelizes within a wave, applies the R1–R4 deviation protocol. Falls back to Sonnet when Codex is unavailable.</p>
+      <div class="meta">runtime · <b>Codex</b> → Sonnet fallback</div>
+    </div>
+    <div class="card">
+      <h4>Adversarial reviewer</h4>
+      <div class="role">Hunts bugs · Codex CLI</div>
+      <p>Logic bugs, race conditions, edge cases, missing error handling, off-by-one, bad assumptions. A different model family catches Claude’s blind spots. Writes <code>REVIEW.md</code>.</p>
+      <div class="meta">verdict · <b>PASS / FAIL</b></div>
+    </div>
+    <div class="card">
+      <h4>Security reviewer</h4>
+      <div class="role">OWASP scan · default Sonnet</div>
+      <p>Auth, input validation, injection, IDOR, secrets, error handling on every production phase. Writes <code>SECURITY.md</code>. CRITICAL/HIGH findings auto-trigger the debugger.</p>
+      <div class="meta">verdict · <b>PASS / WARN / BLOCKED</b></div>
+    </div>
+  </div>
+
+  <h2 class="subhead">Pre-artifact adversaries</h2>
+  <p>Four reviewers that challenge a document <em>before</em> it locks in, each at a different gate.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:32%">Agent</th><th>Challenges</th><th>Where</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Plan-adversarial</strong></td><td>Optimistic plans, missing AC edge cases, ambiguous task boundaries</td><td>next, Step 4b</td></tr>
+        <tr><td><strong>Architecture-adversarial</strong></td><td>The system architecture, before scope and roadmap lock</td><td>start, Stage 2.5</td></tr>
+        <tr><td><strong>Roadmap-adversarial</strong></td><td>Ordering, dependencies, phase granularity</td><td>start, Stage 4.5</td></tr>
+        <tr><td><strong>Incident-adversarial</strong></td><td>The synthesis draft of a quarterly incident review</td><td>incident review</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="subhead">Quality &amp; learning</h2>
+  <div class="grid grid-2">
+    <div class="card card--alt">
+      <h4>Simplifier</h4>
+      <div class="role">Structural smell · Haiku</div>
+      <p>Looks for premature abstraction, misnaming, dead branches, copy-pasted code that should be a function. Budget-gated.</p>
+    </div>
+    <div class="card card--alt">
+      <h4>Debugger</h4>
+      <div class="role">Auto-triggered on FAIL · Opus</div>
+      <p>Reads the failing artifact, opens the failing route in a headless browser, screenshots it, writes <code>DEBUG.md</code> with root cause and fix.</p>
+    </div>
+    <div class="card card--alt">
+      <h4>Improver</h4>
+      <div class="role">Harvests learnings · Haiku</div>
+      <p>Turns recent phases into patch proposals for <code>taste.md</code> and stack files. Reviewed, then merged, deferred, or rejected.</p>
+    </div>
+    <div class="card card--alt">
+      <h4>Deep-auditor</h4>
+      <div class="role">Cross-phase · milestone boundary</div>
+      <p>Reads all phases in a milestone, finds systemic issues, contradictions, and decay. Triggered conversationally or at a milestone tag.</p>
+    </div>
+  </div>
+
+  <h2 class="subhead">The mechanical gate</h2>
+  <div class="card card--gate" style="max-width:var(--content);">
+    <h4>Scope check <span class="badge b-gate">no LLM</span></h4>
+    <div class="role">scripts/scope-check.mjs</div>
+    <p>Diffs <code>PLAN.md</code> against <code>SUMMARY.md</code>. Flags tasks that were silently dropped and smoke commands that were never reported. Runs inline, deterministic, instant. The cheapest reviewer in the band.</p>
+  </div>
+</section>
+
+<!-- ============ 06 HOOKS & MODELS ============ -->
+<section class="panel" id="panel-machinery" role="tabpanel">
+  <div class="section-head">
+    <span class="section-num">№ 06</span>
+    <h1 class="section-title">Hooks &amp; model dispatch</h1>
+  </div>
+
+  <p class="lede"><span class="dropcap">H</span>ooks are small scripts that fire on an event, like a commit. They come in three buckets, and your profile decides which ones wire. Below them, RIFF dispatches work across four model families, each with a job it is good at.</p>
+
+  <h2 class="subhead">The three buckets</h2>
+  <div class="grid grid-3">
+    <div class="card">
+      <h4>Bucket A</h4>
+      <div class="role">Always wired · universal discipline</div>
+      <p><code>destructive-guard</code> — block <code>rm -rf</code>, force-push to main, hard resets.<br>
+      <code>boundary-check</code> — block cross-boundary imports.<br>
+      <code>typecheck-gate</code> — block commits that break <code>tsc</code>.<br>
+      <code>test-gate</code> — block commits that break the suite.</p>
+    </div>
+    <div class="card card--alt">
+      <h4>Bucket B</h4>
+      <div class="role">Security-adaptable · risk-driven</div>
+      <p><code>route-auth-guard</code> — protect auth-sensitive routes.<br>
+      <code>idor-detector</code> — flag queries not scoped to the user.<br>
+      <code>input-validation-guard</code> — flag unvalidated input.<br>
+      <code>todo-orphan-guard</code> — block <code>// TODO</code> without a phase.</p>
+      <div class="meta">all-on for <b>cautious</b> · partial for <b>balanced</b> · off for <b>fast</b></div>
+    </div>
+    <div class="card card--gate">
+      <h4>Bucket C</h4>
+      <div class="role">Stack / convention helpers</div>
+      <p><code>registry-reminder</code> — nudge to update the registry.<br>
+      <code>migration-gate</code> — block migration changes not yet run.<br>
+      <code>notify-human</code> — ping you via the configured channel.</p>
+    </div>
+  </div>
+
+  <h2 class="subhead">Model selection</h2>
+  <p>RIFF dispatches across three Claude families plus the Codex CLI. Each family is used where it is strongest.</p>
+  <div class="table-wrap">
+    <table>
+      <caption>Four families, one job each</caption>
+      <thead><tr><th style="width:18%">Family</th><th>When used</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-opus">Opus</span></td><td>Planning (default). Debug (default). Adversarial fallback when Codex is unavailable.</td></tr>
+        <tr><td><span class="badge b-sonnet">Sonnet</span></td><td>Claude fallback execution. Security review. Debug cost override. General-purpose work.</td></tr>
+        <tr><td><span class="badge b-haiku">Haiku</span></td><td>Simplifier. Pre-exec and post-mortem explanations for the dashboard.</td></tr>
+        <tr><td><span class="badge b-codex">Codex</span></td><td>Adversarial review (different model family, catches Claude’s blind spots).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="subhead">Where each decision lives</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Step</th><th>Default</th><th>Override</th></tr></thead>
+      <tbody>
+        <tr><td>Plan</td><td><span class="badge b-opus">Opus</span></td><td><code>planner_model:</code> per phase</td></tr>
+        <tr><td>Plan adversarial</td><td><span class="badge b-codex">Codex</span></td><td>Opus fallback</td></tr>
+        <tr><td>Pre-exec explanation</td><td><span class="badge b-haiku">Haiku</span></td><td>—</td></tr>
+        <tr><td>Execute</td><td><span class="badge b-codex">Codex</span></td><td><code>executor_model: sonnet</code></td></tr>
+        <tr><td>Simplify</td><td><span class="badge b-haiku">Haiku</span></td><td><code>simplify_model:</code></td></tr>
+        <tr><td>Adversarial review</td><td><span class="badge b-codex">Codex</span></td><td>Opus fallback</td></tr>
+        <tr><td>Security review</td><td><span class="badge b-sonnet">Sonnet</span></td><td><code>security_model:</code></td></tr>
+        <tr><td>Improver</td><td><span class="badge b-haiku">Haiku</span></td><td>gated</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <div class="kicker">Codex is optional</div>
+    <p>The Codex CLI (<code>@openai/codex</code>) is not required. If it is missing, adversarial and plan-adversarial reviews fall back to Opus, and the fallback is announced in the pipeline output. To get the cross-family pass, install it and run <code>codex auth</code> once.</p>
+  </div>
+</section>
+
+<!-- ============ 07 REFERENCE ============ -->
+<section class="panel" id="panel-reference" role="tabpanel">
+  <div class="section-head">
+    <span class="section-num">№ 07</span>
+    <h1 class="section-title">Reference shelf</h1>
+  </div>
+
+  <p class="lede"><span class="dropcap">T</span>he profile that tunes everything, the default that skips the questions, the budget chain, the unattended-run rules, and the file layout on both sides of the symlink.</p>
+
+  <h2 class="subhead">The default profile</h2>
+  <p>Onboarding has two paths: <code>default</code> (zero questions, writes a safe baseline) or <code>custom</code> (the full question set). The same baseline is the tier-3 fallback at the bottom of the resolution chain, shipped as <code>templates/profile.default.yaml</code>.</p>
+  <div class="table-wrap">
+    <table>
+      <caption>The default baseline — safe middle ground</caption>
+      <thead><tr><th style="width:34%">Field</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>programming_level</td><td>intermediate</td></tr>
+        <tr><td>risk.sensitive_task_preference</td><td>balanced</td></tr>
+        <tr><td>style.length</td><td>standard</td></tr>
+        <tr><td>style.allow_jargon</td><td>first_mention</td></tr>
+        <tr><td>style.when_uncertain</td><td>important_only</td></tr>
+        <tr><td>budget.default_quality</td><td>balanced</td></tr>
+        <tr><td>languages</td><td>English (conversational, artifact, narrative)</td></tr>
+        <tr><td>notifications.channel</td><td>none</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="subhead">Budget resolution</h2>
+  <p>A four-level fallback chain decides every model choice and whether to run optional steps. First match wins.</p>
+  <div class="pipeline">
+    <div class="step" data-step="1"><h5>Per-phase override</h5><p>In <code>ROADMAP.yaml</code>: <code>executor_model:</code>, <code>simplify:</code>, etc.</p></div>
+    <div class="step" data-step="2"><h5>Per-project override</h5><p>In <code>ROADMAP.yaml</code>: top-level <code>budget_quality:</code>.</p></div>
+    <div class="step" data-step="3"><h5>Profile default</h5><p>In <code>profile.yaml</code>: <code>budget.default_quality</code>.</p></div>
+    <div class="step" data-step="4"><h5>Hardcoded default</h5><p><code>balanced</code>.</p></div>
+  </div>
+
+  <h2 class="subhead">Unattended runs &amp; HITL</h2>
+  <p><code>/riff:wave</code> bundles parallel-eligible phases and lets Codex execute while you are away. A phase qualifies when it is <code>todo</code>, tagged <code>mode: AFK</code>, not in production provider mode, and all its dependencies are done.</p>
+  <div class="dev-grid">
+    <div class="dev r1">
+      <span class="tag" style="font-size:1.1rem;">AFK</span>
+      <h5>Autonomous</h5>
+      <p>Default. Even code-only auth and payment work qualifies; the reviewers are the safety net.</p>
+    </div>
+    <div class="dev r3">
+      <span class="tag" style="font-size:1.1rem;">HITL</span>
+      <h5>You present</h5>
+      <p>Real OAuth against a prod IdP, real checkout, MFA, DNS cutover, irreversible migrations.</p>
+    </div>
+    <div class="dev r2">
+      <span class="tag" style="font-size:1.1rem;">SANDBOX</span>
+      <h5>Sandbox HITL</h5>
+      <p>Provider flows in sandbox mode. Verified through the headless browser protocol instead of pausing.</p>
+    </div>
+  </div>
+
+  <h2 class="subhead">File structure</h2>
+  <div class="split">
+    <div>
+      <div class="kicker">Framework root</div>
+      <pre>riff/
+├── README.md
+├── HOW-IT-WORKS.md
+├── CLAUDE.md          <b># always loaded</b>
+├── DECAY.md           # pruning protocol
+├── profile.yaml       <b># YOUR config</b>
+├── agents/            # 13 agents
+├── commands/          # 14 commands
+├── hooks/             # 18 hooks
+├── protocols/         # ~20 contracts
+├── references/        # taste, resolution
+├── templates/         # PROJECT, ROADMAP…
+├── scripts/           # init, codex, gates
+└── dashboard/         # Bun + React</pre>
+    </div>
+    <div>
+      <div class="kicker">Project side, after init</div>
+      <pre>project/
+├── .riff/             <b># symlink to repo</b>
+├── .claude/
+│   ├── commands/riff/ # symlinks
+│   └── agents/riff/   # symlinks
+├── .planning/
+│   ├── config.json    # scope
+│   ├── phases/        # PLAN, SUMMARY…
+│   ├── expertise/     # improver patches
+│   └── seeds/         # R4 out-of-scope
+├── PROJECT.md
+├── ROADMAP.yaml
+├── STATE.md
+└── taste.md</pre>
+    </div>
+  </div>
+
+  <h2 class="subhead">The dashboard</h2>
+  <p><code>/riff:dashboard</code> boots a local web server (Bun, port 4000): a kanban view of all phases, plain-language explanations at your declared level, and generation metadata per phase: real duration from git timestamps, file diff stats, gate outcomes, Codex usage, and the agents seen in commit trailers. Read-only. Driving still happens in the terminal.</p>
+
+  <blockquote class="pullquote">
+    Your framework is yours.
+    <cite>— RIFF, the last line of the manual</cite>
+  </blockquote>
+</section>
+
+<!-- ============ 08 DISCOVERY OUTPUT ============ -->
+<section class="panel" id="panel-discovery" role="tabpanel">
+  <div class="section-head">
+    <span class="section-num">№ 08</span>
+    <h1 class="section-title">What discovery leaves behind</h1>
+  </div>
+
+  <p class="lede"><span class="dropcap">B</span>efore a single line of code, <code>/riff:start</code> turns a conversation into design artifacts: user stories, ASCII wireframes for the key screens, a system diagram, and a data model. Everything below is generated, then committed to disk.</p>
+
+  <div class="note">
+    <div class="kicker">Scope caveat</div>
+    <p>The wireframes and diagrams belong to <strong>Stage 2</strong>, which is <em>skipped entirely when <code>scope: scratch</code></em>. Personal and local scripts get user stories but no page maps, data models, or architecture diagrams. Wireframes are never skipped for web projects in production scope.</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <caption>The four design outputs and where they land</caption>
+      <thead><tr><th>Output</th><th>File</th><th>Stage</th></tr></thead>
+      <tbody>
+        <tr><td><strong>User stories</strong></td><td><code>PROJECT.md</code> → <code>## User Stories</code></td><td>Stage 1 — always</td></tr>
+        <tr><td><strong>ASCII wireframes</strong></td><td><code>.planning/design/pages.md</code> + <code>PROJECT.md</code></td><td>Stage 2 — 3 to 8 screens</td></tr>
+        <tr><td><strong>System diagram</strong></td><td><code>.planning/design/architecture.md</code></td><td>Stage 2 — Mermaid</td></tr>
+        <tr><td><strong>Data model</strong></td><td><code>PROJECT.md</code> → <code>## Data Model</code></td><td>Stage 2 — Mermaid erDiagram</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="subhead">User stories</h2>
+  <p>Extracted in Stage 1 as one of the nine extraction axes (“Key User Stories”). Written in the classic As-a / I-want / so-that form, each with its own acceptance criteria.</p>
+  <div class="card" style="max-width:var(--content);border-top-color:var(--green);">
+    <div class="role">Story — Plan a phase</div>
+    <p style="font-family:var(--serif);font-size:1.15rem;color:var(--ink);">
+      <strong>As a</strong> solo developer, <strong>I want to</strong> run one command that plans, builds, and reviews the next phase, <strong>so that</strong> I can stay in the loop without orchestrating each step by hand.
+    </p>
+    <div class="meta">Acceptance · ☐ one PR per phase &nbsp; ☐ confidence gate honored &nbsp; ☐ review before merge</div>
+  </div>
+
+  <h2 class="subhead">ASCII wireframes</h2>
+  <p>Three to eight key screens, grouped by user flow. Plain text, preserved verbatim inside the page map so they live in version control next to the code.</p>
+  <pre>+----------------------------------------------------+
+|  RIFF Dashboard            [light/dark]  port 4000 |
++----------------------------------------------------+
+|  TODO        | IN PROGRESS  | DONE      | BLOCKED   |
+|  +--------+  | +---------+  | +------+  | +------+  |
+|  | <b>P-03</b>   |  | | <b>P-02</b>    |  | | P-01 |  | | P-00 |  |
+|  | auth   |  | | wave    |  | | init |  | | spec |  |
+|  +--------+  | | <b>Opus·plan</b> |  | +------+  | +------+  |
+|  +--------+  | +---------+  |           |           |
+|  | P-04   |  |              |  gates: ✓✓✓✓          |
+|  +--------+  |              |                       |
++----------------------------------------------------+
+|  click a card → plain-language pre / post explainer |
++----------------------------------------------------+</pre>
+
+  <h2 class="subhead">System architecture — Mermaid</h2>
+  <p>Components and their connections, rendered as a real diagram. In a project this is paired with an external-services table: purpose, provider, risk, and failure mode for each dependency.</p>
+  <div class="diagram-frame">
+    <div class="flow">
+      <div class="fnode fnode--start">You — terminal</div>
+      <div class="farrow"><span>/riff:next</span>↓</div>
+      <div class="fnode">Planner<small>Opus</small></div>
+      <div class="farrow">↓</div>
+      <div class="fnode fnode--codex">Plan adversarial<small>Codex · gated</small></div>
+      <div class="farrow"><span>pass</span>↓</div>
+      <div class="fnode fnode--codex">Executor<small>Codex</small></div>
+      <div class="farrow">↓</div>
+      <div class="fnode fnode--mech">Scope check<small>mechanical · no LLM</small></div>
+      <div class="farrow"><span>splits — parallel</span>↓</div>
+      <div class="frow">
+        <div class="fnode fnode--codex">Adversarial review<small>Codex</small></div>
+        <div class="fnode fnode--sonnet">Security review<small>Sonnet</small></div>
+      </div>
+      <div class="farrow"><span>both pass</span>↓</div>
+      <div class="fnode fnode--end">Pull request</div>
+      <div class="fnote">on FAIL or BLOCKED → Debugger (Opus) → retry · max 2 attempts</div>
+    </div>
+  </div>
+
+  <h2 class="subhead">Data model — Mermaid erDiagram</h2>
+  <p>The entity-relationship sketch that anchors the schema before any migration is written. Here, a simplified view of how RIFF tracks its own work on disk.</p>
+  <div class="diagram-frame">
+    <div class="erd">
+      <div class="entity">
+        <div class="entity-name">PROJECT</div>
+        <div class="entity-field"><span>slug</span><span class="ftype">string PK</span></div>
+        <div class="entity-field"><span>scope</span><span class="ftype">enum</span></div>
+        <div class="entity-field"><span>stack</span><span class="ftype">string</span></div>
+      </div>
+      <div class="entity">
+        <div class="entity-name">PHASE</div>
+        <div class="entity-field"><span>id</span><span class="ftype">int PK</span></div>
+        <div class="entity-field"><span>slug</span><span class="ftype">string</span></div>
+        <div class="entity-field"><span>status</span><span class="ftype">enum</span></div>
+        <div class="entity-field"><span>mode</span><span class="ftype">AFK / HITL</span></div>
+      </div>
+      <div class="entity">
+        <div class="entity-name">PLAN</div>
+        <div class="entity-field"><span>goal</span><span class="ftype">string</span></div>
+        <div class="entity-field"><span>wave_count</span><span class="ftype">int</span></div>
+      </div>
+      <div class="entity">
+        <div class="entity-name">REVIEW</div>
+        <div class="entity-field"><span>kind</span><span class="ftype">adv / sec</span></div>
+        <div class="entity-field"><span>verdict</span><span class="ftype">pass / fail</span></div>
+      </div>
+    </div>
+    <div class="erd-legend">
+      <div>PROJECT <b>1 ──&lt; N</b> PHASE &nbsp;·&nbsp; a project owns many phases</div>
+      <div>PHASE <b>1 ── 1</b> PLAN &nbsp;·&nbsp; each phase produces one plan</div>
+      <div>PHASE <b>1 ──&lt; N</b> REVIEW &nbsp;·&nbsp; a phase is checked by several reviews</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <div class="kicker">Both gated before lock-in</div>
+    <p>The architecture diagram is challenged by the <strong>architecture-adversarial-reviewer</strong> at Stage 2.5, and the roadmap by the <strong>roadmap-adversarial-reviewer</strong> at Stage 4.5, before scope and ordering are committed.</p>
+  </div>
+</section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="colophon">
+    <div>
+      <div class="big">RIFF<span style="color:var(--accent)">.</span></div>
+      <div style="margin-top:6px;">Build like a band of six · Ship like one</div>
+    </div>
+    <div style="text-align:right;line-height:2;">
+      <div>Sources · README.md · HOW-IT-WORKS.md</div>
+      <div>A field manual · set in Fraunces &amp; Newsreader</div>
+      <div>Self-contained · light &amp; dark · print-ready</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Tabs
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-'+tab.dataset.panel).classList.add('active');
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+});
+// Theme
+function toggleTheme(){
+  const h=document.documentElement;
+  const next=h.getAttribute('data-theme')==='light'?'dark':'light';
+  h.setAttribute('data-theme',next);
+  localStorage.setItem('riff-theme',next);
+}
+const saved=localStorage.getItem('riff-theme');
+if(saved)document.documentElement.setAttribute('data-theme',saved);
+// Keyboard nav
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+    if(/input|textarea/i.test(document.activeElement.tagName))return;
+    const tabs=[...document.querySelectorAll('.tab')];
+    const i=tabs.findIndex(t=>t.classList.contains('active'));
+    const n=e.key==='ArrowRight'?(i+1)%tabs.length:(i-1+tabs.length)%tabs.length;
+    tabs[n].click();tabs[n].focus();
+  }
+});
+</script>
+</body>
+</html>
