@@ -504,6 +504,12 @@ footer{
   padding:9px 14px;transition:border-color .2s,color .2s;
 }
 .gh-link:hover{border-color:var(--accent);color:var(--accent);}
+.byline{
+  color:var(--ink);text-decoration:none;
+  border-bottom:1px solid var(--accent);
+  padding-bottom:1px;transition:color .2s;
+}
+.byline:hover{color:var(--accent);}
 
 /* ---------- Responsive ---------- */
 @media(max-width:760px){
@@ -1225,6 +1231,7 @@ wave 2:
     <div>
       <div class="big">RIFF<span style="color:var(--accent)">.</span></div>
       <div style="margin-top:6px;">Build like a band of six · Ship like one</div>
+      <div style="margin-top:12px;">By <a class="byline" href="https://www.spalatoconsulting.com/" target="_blank" rel="noopener">Alexandra Spalato</a></div>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end;">
       <a class="gh-link" href="https://github.com/alexadark/riff" target="_blank" rel="noopener">
