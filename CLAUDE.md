@@ -26,15 +26,13 @@ Calibrate from `style.terminal_explanation_level` (override) → `style.explanat
 
 These actions are NOT slash commands. Read the listed protocol or just do the thing inline when the user says one of these:
 
+Incident, promotion, and deep-audit flows are project-scoped skills (auto-triggered by phrase); the rows below are the remaining inline triggers.
+
 The triggers below are matched by the FULL phrase, not by isolated words. If the user says only "review" (with no qualifier like "incident", "milestone", "phase N"), do NOT silently load DEEP-AUDIT or INCIDENT — ask which one they mean.
 
 | User says...                                                                            | Do                                                                                                       |
 | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| "log incident", "log this as an incident", "production bug"                             | Read `protocols/INCIDENT.md` § Part 1, run logging flow                                                  |
-| "incident review", "quarterly incident review"                                          | Read `protocols/INCIDENT.md` § Part 2, run quarterly review flow                                          |
-| "promote to production", "this app is going public"                                     | Read `protocols/PROMOTE.md`, run promotion flow (always confirm at Step 1)                                |
 | "re-audit phase N", "re-run security on this branch", "verify phase N before merge"     | Mirror `/riff:next` Steps 5c, 6, 7: run `scripts/scope-check.mjs`, adversarial Codex, and security-reviewer against the named phase. Write `.planning/phases/N-slug/VERIFICATION.md`. |
-| "deep audit", "audit this module", "milestone review", "full milestone review"          | Read `protocols/DEEP-AUDIT.md`, run flow. **Milestone boundary** = a phase tagged `milestone: <name>` in ROADMAP.yaml; the audit covers all phases in that group. Also auto-triggers at `/riff:next` Step 10 when the just-completed phase has a `milestone:` tag. Frequency: decided by milestone tag placement in roadmap, no fixed cadence. |
 | "audit codebase", "health check", "assess this project"                                 | Read skill `audit-codebase` SKILL.md, run mode `bug` / `ai` / `full` based on user phrasing (default `full`). Skip silently if `scope=scratch`. |
 | "resync riff", "sync framework", "re-link riff symlinks"                                | Run `bash .riff/riff-resync.sh` from the project root, paste output back. Surfaces CLAUDE.md drift; never auto-patches. |
 | "set up monitoring", "configure post-deploy", "wire sentry", "post-deploy"               | Read `protocols/POST-DEPLOY.md`, run the one-shot monitoring setup (Sentry, health endpoint, scheduled smoke). User-triggered when the app is deployed.  |
