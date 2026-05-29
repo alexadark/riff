@@ -13,7 +13,7 @@ End of Stage / Step (never mid-step). 2+ fire since last `/clear` → propose ha
 - Tool calls > ~150
 - 3+ substantial files written / edited
 
-Single fire ≠ enough. Phases < 25 files / 4 sub-agent passes rarely need handoff.
+Single fire ≠ enough. Phases < 25 files / 4 sub-agent passes rarely need handoff. 50+ file phases should checkpoint.
 
 ## Action
 
@@ -45,7 +45,7 @@ Contradiction on resume (re-asked question, new answer ≠ STATE.md) → STOP, s
 |---|---|---|
 | **next-A** Plan validated | Step 4b PROCEED | PLAN.md, PLAN-REVIEW.md, ROADMAP entry |
 | **next-B** Code shipped | Step 5 SUMMARY.md, tests green | SUMMARY.md, `git diff main...HEAD`, PLAN.md |
-| **next-C** Review passed | Step 7 PASS / RESOLVED | SUMMARY.md, REVIEW.md, SECURITY.md, DEBUG.md if any |
+| **next-C** Review passed | Step 7 PASS / RESOLVED | SUMMARY.md, REVIEW.md, SECURITY.md, DEBUG.md if any, AUTHORIZATION-MATRIX.md if any |
 
 **`/riff:wave`** — 2 checkpoints / wave: after Step 3 (bundle written, before Codex launch), after Step 6 (reconcile complete). Codex execution itself runs in its own session, not subject to Claude's context budget.
 
