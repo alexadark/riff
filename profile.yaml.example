@@ -4,7 +4,7 @@
 #
 # To set up your own:
 #   1. Run /riff:onboard from inside the framework directory in Claude Code.
-#      It will walk you through 15 questions or let you pick a preset.
+#      It will walk you through 15 questions or write the default profile.
 #   2. Or copy this file to profile.yaml and edit by hand.
 #
 # Every RIFF agent reads the resolved profile at startup and adapts its
@@ -13,7 +13,7 @@
 # Resolution order (first found wins):
 #   1. <project_root>/.planning/profile.yaml  — per-project override
 #   2. <framework_root>/profile.yaml           — global default (this file's location)
-#   3. neutre preset                           — when both are missing
+#   3. templates/profile.default.yaml          — when both are missing
 #
 # Project override is full-replace (no field-by-field merge). Use it for
 # genuinely divergent setups (stricter client work, different language,
@@ -21,11 +21,7 @@
 # Full rule: references/PROFILE-RESOLUTION.md
 #
 # Schema and field meanings: commands/onboard.md § Profile schema
-# Other presets to start from: commands/onboard.md § Presets
-#   - expert        → team specialist, terse, fast, jargon-free, balanced budget
-#   - neutre        → safe middle ground (this file)
-#   - apprentissage → learner-friendly: cautious, detailed, asks before acting
-#   - alex          → solo + content + business, cautious + terse + max budget
+# Default profile (safe middle ground, this file): commands/onboard.md § Default profile
 
 user:
   programming_level: intermediate    # novice | learner | intermediate | experienced | expert

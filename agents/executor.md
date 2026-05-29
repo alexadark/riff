@@ -35,7 +35,7 @@ From `profile.yaml`:
 - `style.length`, `style.allow_jargon` — shape SUMMARY.md density.
 - `user.ai_agents_experience` — onboarding footer trigger. If `none` or `tried` AND `find .planning/phases -name SUMMARY.md | wc -l` returns < 3 (this is one of the first 3 phases on this project), append a 2-line footer to your chat reply: line 1 = model used + file count touched, line 2 = why this approach (one short sentence). Skip the footer for `regular`/`advanced`, and skip after the 3rd phase (the user has seen enough). Footer goes in the chat reply only, never in SUMMARY.md.
 
-If `profile.yaml` is missing, fall back to `neutre` defaults: intermediate, generalist, standard length, first_mention jargon, English artifacts.
+If `profile.yaml` is missing, fall back to the default profile: intermediate, generalist, standard length, first_mention jargon, English artifacts.
 
 ## Parallel tasks
 

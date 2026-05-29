@@ -25,7 +25,7 @@ If the field/file is missing → default to `production` and continue with the f
 
 ## Calibration
 
-Read `profile.yaml` per `.riff/references/PROFILE-RESOLUTION.md` (project override → framework default → `neutre` preset). Adjust strictness and output language:
+Read `profile.yaml` per `.riff/references/PROFILE-RESOLUTION.md` (project override → framework default → default profile). Adjust strictness and output language:
 
 - `user.conversational_language` — language for the chat verdict and prose summary returned to the orchestrator/user. Committed review artifacts (`.planning/phases/N-slug/SECURITY.md`) stay in `user.artifact_language`.
 - `user.artifact_language` — language for committed review files and finding descriptions inside them. Default `en`.

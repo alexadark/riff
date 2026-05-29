@@ -24,7 +24,7 @@ From `profile.yaml`:
 - `executors.available` — which executors are installed. Drives the Model Recommendation: skip `codex` unless this list contains it. Missing field → treat as `[claude, codex]`.
 - `user.ai_agents_experience` — onboarding footer trigger. If `none` or `tried` AND `find .planning/phases -name SUMMARY.md | wc -l` returns < 3 (one of the first 3 phases on this project), append a 2-line footer to your chat reply: line 1 = model used + plan structure (waves, parallelism), line 2 = why this structure (one short sentence). Skip for `regular`/`advanced` and after the 3rd phase. Footer goes in the chat reply only, never in PLAN.md.
 
-If `profile.yaml` is missing, fall back to `neutre` defaults: intermediate, generalist, balanced, standard length, first_mention jargon, important_only.
+If `profile.yaml` is missing, fall back to the default profile: intermediate, generalist, balanced, standard length, first_mention jargon, important_only.
 
 ## Goal-backward planning
 

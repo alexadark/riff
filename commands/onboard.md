@@ -15,7 +15,7 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
 ## How it works
 
-- Two paths: **preset** (0 extra questions) or **custom** (17 questions, ~5 min).
+- Two paths: **default** (0 extra questions) or **custom** (15 questions, ~5 min).
 - Re-running `/riff:onboard` backs up the previous profile to `<file>.bak` before overwriting.
 - Flag `--no-register`: in framework context, skip writing `~/.config/riff/config.yaml`. Use this for workshop demos or testing on a throwaway clone, so the global registry keeps pointing at your real RIFF.
 
@@ -59,10 +59,10 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 2. **Check existing profile.** If the target file exists, AskUserQuestion: `replace` / `keep and exit` / `abort`. On `replace`, copy current to `<target>.bak` first.
 
 3. **Entry choice.** AskUserQuestion:
-   - `preset` — quick start, 0 extra questions
-   - `custom` — 17 questions, ~5 min
+   - `default` — quick start, 0 extra questions, writes the neutral baseline profile
+   - `custom` — 15 questions, ~5 min
 
-4. **Preset path.** AskUserQuestion with the 4 presets (descriptions in the "Presets" section below). Pick one, grab its full answer map, jump to step 6.
+4. **Default path.** Write the `default` profile (the map in the "Default profile" section below), jump to step 6.
 
 5. **Custom path.** Walk the questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect. Note: Q6 was removed (parallel_projects is handled by the dashboard project dropdown), so the numbering jumps from Q5 to Q7a — leave the gap, do not renumber downstream questions.
 
@@ -321,42 +321,9 @@ dashboard:
 
 > Legacy: `dashboard.level` and `dashboard.language` are still read by the dashboard parser as a fallback for older profiles. New profiles should use `style.explanation_level` and `user.narrative_language`.
 
-## Presets
+## Default profile
 
-### expert — team specialist, knows security, values speed
-
-```yaml
-user:
-  programming_level: expert
-  ai_agents_experience: regular
-  domains: [backend]
-  work_mode: team
-  side_activities: [none]
-  conversational_language: en
-  artifact_language: en
-  narrative_language: en
-executors:
-  available: [claude, codex]
-risk:
-  sensitive_task_preference: fast
-style:
-  length: terse
-  allow_jargon: free
-  when_uncertain: initiative
-  explanation_level: technical
-budget:
-  default_quality: balanced
-notifications:
-  channel: none
-metadata:
-  pr_body: standard
-git:
-  merge_strategy: github_button
-dashboard:
-  language: en
-```
-
-### neutre — safe defaults, no personality assumed
+The single quick-start map. Written verbatim on the `default` entry path, and the canonical baseline at the bottom of the profile-resolution chain (`references/PROFILE-RESOLUTION.md`). Safe middle ground, no personality assumed. Mirrored in `templates/profile.default.yaml`.
 
 ```yaml
 user:
@@ -389,76 +356,9 @@ dashboard:
   language: en
 ```
 
-### apprentissage — non-tech curious, wants to understand what happens
-
-```yaml
-user:
-  programming_level: learner
-  ai_agents_experience: none
-  domains: [generalist]
-  work_mode: solo
-  side_activities: [none]
-  conversational_language: fr
-  artifact_language: en
-  narrative_language: fr
-executors:
-  available: [claude, codex]
-risk:
-  sensitive_task_preference: cautious
-style:
-  length: detailed
-  allow_jargon: never
-  when_uncertain: always_ask
-  explanation_level: eli5
-budget:
-  default_quality: balanced
-notifications:
-  channel: none
-metadata:
-  pr_body: standard
-git:
-  merge_strategy: github_button
-dashboard:
-  language: fr
-```
-
-### alex — validated against actual setup
-
-```yaml
-user:
-  programming_level: intermediate
-  ai_agents_experience: advanced
-  domains: [frontend, fullstack]
-  work_mode: solo_plus_clients
-  side_activities: [content, business]
-  conversational_language: fr
-  artifact_language: en
-  narrative_language: fr
-executors:
-  available: [claude, codex]
-risk:
-  sensitive_task_preference: cautious
-style:
-  length: terse
-  allow_jargon: never
-  when_uncertain: important_only
-  explanation_level: simple
-  terminal_explanation_level: technical
-budget:
-  default_quality: max
-notifications:
-  channel: telegram
-metadata:
-  pr_body: standard
-git:
-  merge_strategy: local_no_ff
-dashboard:
-  language: fr
-```
-
 ## Notes
 
 - Onboarding writes only the resolved profile file: framework `profile.yaml` in framework mode, or `.planning/profile.yaml` in project mode. Project hook wiring is handled by `riff init`, which chooses the Claude settings template from the resolved profile.
 - User edits the resolved profile file by hand anytime. Agents re-read it on every run.
 - For a re-answer flow limited to one or more questions, edit the resolved profile file directly or ask Claude to update specific fields conversationally.
-- The 4 presets are starting points — users are expected to tweak the resolved profile after picking one.
+- The default profile is a starting point — users are expected to tweak the resolved profile after the quick-start path.

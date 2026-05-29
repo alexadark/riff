@@ -16,7 +16,7 @@ Reply in `user.conversational_language` from `profile.yaml`. Write artifacts in 
 
 ## Profile resolution
 
-Every reference to "`profile.yaml`" in this framework resolves per `references/PROFILE-RESOLUTION.md`: project override (`.planning/profile.yaml`) → framework default (`<framework_root>/profile.yaml`) → `neutre` preset.
+Every reference to "`profile.yaml`" in this framework resolves per `references/PROFILE-RESOLUTION.md`: project override (`.planning/profile.yaml`) → framework default (`<framework_root>/profile.yaml`) → default profile (`templates/profile.default.yaml`).
 
 ## Explanation level
 

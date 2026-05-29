@@ -30,6 +30,7 @@ The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF reso
 
 | Step                                       | Budget   | Model           | Effort    |
 | ------------------------------------------ | -------- | --------------- | --------- |
+| Step 5 executor                            | any      | `gpt-5.5`       | `high`    |
 | Step 4b plan adversarial                   | any      | `gpt-5.5`       | `medium`  |
 | Step 6 post-build adversarial              | frugal   | `gpt-5.4-mini`  | `minimal` |
 | Step 6 post-build adversarial              | balanced | `gpt-5.4`       | `medium`  |
@@ -40,6 +41,7 @@ The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF reso
 
 ### § Codex model+effort rationale
 
+- **Step 5 executor:** Codex is strong at guided execution and the Codex quota is generous (Plus $100 plan, not rationed). Run the frontier model at high effort on every phase — `gpt-5.5 high`. This is the asymmetric-budget policy: spend freely on Codex, stay conservative on Claude (Opus only on the planner, Sonnet as the executor fallback, Haiku for mechanical steps). Per-phase `executor_model: sonnet|opus` still forces the Claude fallback when a phase needs Claude-specific tools.
 - **Step 4b:** the `auto` gate already filters for complex phases. Once it fires, you're in expensive-correction territory — `gpt-5.5 medium` is justified. Frequency is low (~1-2/day on a typical roadmap) so Plus quota is fine.
 - **Step 6:** highest-frequency Codex call. Default `gpt-5.4 medium` is the sweet spot ($2.50/$15 MTok, 20-100 msg/5h). `frugal` drops to `gpt-5.4-mini minimal`, `max` bumps to `gpt-5.5 medium`.
 - **Stage 2.5:** architecture findings cost ~100x to fix later — `high` effort is justified.
@@ -109,7 +111,7 @@ Gates which executor models the planner may recommend.
 - **Allowed values:** `[claude, codex]` (default) | `[claude]`
 - **Default when missing:** treated as `[claude, codex]` — Codex is the default executor runtime.
 - **Effect:** if `codex` is not present in the list, the planner must never emit `executor_model: codex` in PLAN.md's Model Recommendation. If only `[claude]`, executor falls back to Sonnet sub-agent.
-- **Cross-reference:** see `commands/onboard.md` § Questions for setup guidance; `scripts/riff-init.mjs` presets for per-preset defaults.
+- **Cross-reference:** see `commands/onboard.md` § Questions for setup guidance; `scripts/riff-init.mjs` `PRESETS.default` for the baseline profile defaults.
 
 Every decision (model choice, whether to run optional pipeline steps) resolves through this chain. Highest wins:
 

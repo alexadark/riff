@@ -10,7 +10,7 @@
 > **Build like a band of six. Ship like one.**
 > Solo dev framework for Claude Code.
 
-Lean, profile-driven coding agent framework for Claude Code. Clone, answer the onboarding questions (or pick a preset), build your own version.
+Lean, profile-driven coding agent framework for Claude Code. Clone, answer the onboarding questions (or take the default profile), build your own version.
 
 ## Why this exists
 
@@ -46,7 +46,7 @@ Open Claude Code in the framework directory and run:
 /riff:onboard
 ```
 
-This walks you through the profile questions (or picks a preset) and writes `profile.yaml` at the framework root. Every agent reads it on startup.
+This walks you through the profile questions (or writes the default profile) and writes `profile.yaml` at the framework root. Every agent reads it on startup.
 
 > Your `profile.yaml` is gitignored — it stays local, never gets committed when you contribute back. See [`profile.yaml.example`](./profile.yaml.example) for the schema with field comments if you'd rather edit by hand.
 
@@ -57,7 +57,7 @@ cd ~/my-project
 riff init
 ```
 
-`riff init` symlinks this RIFF clone into the project as `.riff/`, then installs Claude Code runtime files (commands, agents, hooks, settings). Codex remains the default executor runtime through the configured skill/CLI; it is not installed as a project harness. After installing files, init starts profile onboarding when the terminal is interactive. Use `--profile alex`, `--profile custom`, or `--no-onboard` for scripted runs.
+`riff init` symlinks this RIFF clone into the project as `.riff/`, then installs Claude Code runtime files (commands, agents, hooks, settings). Codex remains the default executor runtime through the configured skill/CLI; it is not installed as a project harness. After installing files, init starts profile onboarding when the terminal is interactive. Use `--profile default`, `--profile custom`, or `--no-onboard` for scripted runs.
 
 Or, from inside Claude Code in the project directory, run the wrapper:
 
@@ -96,14 +96,9 @@ Fields (full schema in `commands/onboard.md` § Profile schema):
 
 Edit by hand anytime, or ask Claude conversationally to update specific fields (e.g. "set my notification channel to slack").
 
-### 4 presets
+### Default profile
 
-0-question shortcuts. Pick one during onboarding, or start from one and tweak `profile.yaml` later.
-
-- **`expert`**: team specialist, terse, free jargon, takes initiative, balanced budget. Closest to vanilla Claude Code.
-- **`neutre`**: safe middle, standard length, first-mention jargon, balanced budget, no notifications.
-- **`apprentissage`**: cautious, detailed explanations, no jargon, always asks, balanced budget. Learner-friendly.
-- **`alex`**: cautious, terse, no jargon, important-only asks, max budget. Full pipeline.
+0-question shortcut. Pick `default` during onboarding for a safe baseline (intermediate, generalist, standard length, first-mention jargon, balanced budget, no notifications), then tweak `profile.yaml` by hand. The custom path asks the full question set instead. The default profile is also the tier-3 fallback at the bottom of the resolution chain.
 
 ### Budget resolution
 
@@ -133,7 +128,7 @@ Each agent has a `## Calibration` section that spells out which profile fields i
 - `style.*`: PLAN.md density and whether to surface questions
 - `budget.default_quality`: Model Recommendation bias
 
-If `profile.yaml` is missing, agents fall back to `neutre` preset defaults.
+If `profile.yaml` is missing, agents fall back to the default profile.
 
 ## Commands
 

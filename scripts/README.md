@@ -146,7 +146,7 @@ riff init --profile alex
 - `.claude/commands/riff`, `.claude/agents/riff`, `.claude/hooks/riff`, `.claude/settings.json`, and git hooks
 - `.gitignore` entries and a RIFF section in project `CLAUDE.md`
 
-When the terminal is interactive, `riff init` continues into profile onboarding and writes `.planning/profile.yaml`. Use `--profile <expert|neutre|apprentissage|alex>`, `--profile custom`, or `--no-onboard` to control this explicitly.
+When the terminal is interactive, `riff init` continues into profile onboarding and writes `.planning/profile.yaml`. Use `--profile default`, `--profile custom`, or `--no-onboard` to control this explicitly.
 
 Installed Claude files are symlinked through the project-local `.riff/` link so the RIFF framework clone remains the source of truth.
 

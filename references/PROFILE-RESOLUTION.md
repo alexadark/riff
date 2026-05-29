@@ -6,7 +6,7 @@ Single rule for every RIFF agent and command that needs to read the user profile
 
 1. `<project_root>/.planning/profile.yaml` — per-project override, if it exists
 2. `<framework_root>/profile.yaml` — global default
-3. `<framework_root>/templates/profile.neutre.yaml` — canonical baseline (mirrors the `neutre` preset in `commands/onboard.md`)
+3. `<framework_root>/templates/profile.default.yaml` — canonical baseline (mirrors the default profile in `commands/onboard.md`)
 
 The first existing file wins. No field-by-field merge — if the project file exists, it fully replaces the framework file for that project.
 

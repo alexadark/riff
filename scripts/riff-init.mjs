@@ -19,7 +19,7 @@ import { stdin as input, stdout as output } from 'node:process';
 
 const SCRIPT_DIR = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
 const FRAMEWORK_ROOT = path.resolve(SCRIPT_DIR, '..');
-const PRESET_NAMES = new Set(['expert', 'neutre', 'apprentissage', 'alex']);
+const PRESET_NAMES = new Set(['default']);
 
 const USE_COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
 const ANSI = USE_COLOR
@@ -59,32 +59,7 @@ function printBanner() {
 }
 
 const PRESETS = {
-  expert: {
-    user: {
-      programming_level: 'expert',
-      ai_agents_experience: 'regular',
-      domains: ['backend'],
-      work_mode: 'team',
-      side_activities: ['none'],
-      conversational_language: 'en',
-      artifact_language: 'en',
-      narrative_language: 'en',
-    },
-    executors: { available: ['claude', 'codex'] },
-    risk: { sensitive_task_preference: 'fast' },
-    style: {
-      length: 'terse',
-      allow_jargon: 'free',
-      when_uncertain: 'initiative',
-      explanation_level: 'technical',
-    },
-    budget: { default_quality: 'balanced' },
-    notifications: { channel: 'none' },
-    metadata: { pr_body: 'standard' },
-    git: { merge_strategy: 'github_button' },
-    dashboard: { language: 'en' },
-  },
-  neutre: {
+  default: {
     user: {
       programming_level: 'intermediate',
       ai_agents_experience: 'tried',
@@ -109,57 +84,6 @@ const PRESETS = {
     git: { merge_strategy: 'github_button' },
     dashboard: { language: 'en' },
   },
-  apprentissage: {
-    user: {
-      programming_level: 'learner',
-      ai_agents_experience: 'none',
-      domains: ['generalist'],
-      work_mode: 'solo',
-      side_activities: ['none'],
-      conversational_language: 'fr',
-      artifact_language: 'en',
-      narrative_language: 'fr',
-    },
-    executors: { available: ['claude', 'codex'] },
-    risk: { sensitive_task_preference: 'cautious' },
-    style: {
-      length: 'detailed',
-      allow_jargon: 'never',
-      when_uncertain: 'always_ask',
-      explanation_level: 'eli5',
-    },
-    budget: { default_quality: 'balanced' },
-    notifications: { channel: 'none' },
-    metadata: { pr_body: 'standard' },
-    git: { merge_strategy: 'github_button' },
-    dashboard: { language: 'fr' },
-  },
-  alex: {
-    user: {
-      programming_level: 'intermediate',
-      ai_agents_experience: 'advanced',
-      domains: ['frontend', 'fullstack'],
-      work_mode: 'solo_plus_clients',
-      side_activities: ['content', 'business'],
-      conversational_language: 'fr',
-      artifact_language: 'en',
-      narrative_language: 'fr',
-    },
-    executors: { available: ['claude', 'codex'] },
-    risk: { sensitive_task_preference: 'cautious' },
-    style: {
-      length: 'terse',
-      allow_jargon: 'never',
-      when_uncertain: 'important_only',
-      explanation_level: 'simple',
-      terminal_explanation_level: 'technical',
-    },
-    budget: { default_quality: 'max' },
-    notifications: { channel: 'telegram' },
-    metadata: { pr_body: 'standard' },
-    git: { merge_strategy: 'local_no_ff' },
-    dashboard: { language: 'fr' },
-  },
 };
 
 function fail(message) {
@@ -178,7 +102,7 @@ ${color('cyan', 'Options:')}
   --scope <production|scratch>               Project scope; preserves existing config when present
   --project-root <path>                      Target project root; default current directory
   --force                                    Replace existing RIFF symlinks that point elsewhere
-  --profile <preset|custom|skip>             Run terminal onboarding; presets: expert, neutre, apprentissage, alex
+  --profile <default|custom|skip>            Run terminal onboarding; default writes the neutral baseline profile
   --no-onboard                               Skip terminal profile onboarding
   -h, --help                                 Show help
 `);
@@ -233,7 +157,7 @@ function parseArgs(argv) {
   }
 
   if (args.profile && args.profile !== 'skip' && args.profile !== 'custom' && !PRESET_NAMES.has(args.profile)) {
-    fail('--profile must be custom, skip, expert, neutre, apprentissage, or alex');
+    fail('--profile must be default, custom, or skip');
   }
   if (args.scope && args.scope !== 'production' && args.scope !== 'scratch') {
     fail('--scope must be production or scratch');
@@ -510,7 +434,7 @@ async function runProfileOnboarding(profileMode) {
   if (!input.isTTY || !output.isTTY) {
     if (PRESET_NAMES.has(profileMode)) {
       writeProfile(profilePath, PRESETS[profileMode]);
-      return `wrote ${profilePath} from ${profileMode} preset`;
+      return `wrote ${profilePath} from ${profileMode} profile`;
     }
     return 'skipped (non-interactive terminal)';
   }
@@ -525,18 +449,15 @@ async function runProfileOnboarding(profileMode) {
 
     let mode = profileMode;
     if (!mode) {
-      mode = await askChoice(rl, 'Profile setup', ['preset', 'custom', 'skip'], 'preset');
+      mode = await askChoice(rl, 'Profile setup', ['default', 'custom', 'skip'], 'default');
     }
     if (mode === 'skip') return 'skipped';
     if (mode === 'custom') {
       writeProfile(profilePath, await customProfile(rl));
       return `wrote ${profilePath} from custom answers`;
     }
-    if (mode === 'preset') {
-      mode = await askChoice(rl, 'Choose a preset', [...PRESET_NAMES], 'alex');
-    }
-    writeProfile(profilePath, PRESETS[mode]);
-    return `wrote ${profilePath} from ${mode} preset`;
+    writeProfile(profilePath, PRESETS.default);
+    return `wrote ${profilePath} from default profile`;
   } finally {
     rl.close();
   }
@@ -562,8 +483,8 @@ function profileScalar(profileText, section, key) {
 function resolvedProfileText() {
   const projectProfile = path.join(args.projectRoot, '.planning/profile.yaml');
   const frameworkProfile = path.join(FRAMEWORK_ROOT, 'profile.yaml');
-  const neutreProfile = path.join(FRAMEWORK_ROOT, 'templates/profile.neutre.yaml');
-  for (const candidate of [projectProfile, frameworkProfile, neutreProfile]) {
+  const defaultProfile = path.join(FRAMEWORK_ROOT, 'templates/profile.default.yaml');
+  for (const candidate of [projectProfile, frameworkProfile, defaultProfile]) {
     if (existsSync(candidate)) return readFileSync(candidate, 'utf8');
   }
   return '';

@@ -1,12 +1,12 @@
-# profile.neutre.yaml — canonical "no preferences set" baseline
+# profile.default.yaml — canonical "no preferences set" baseline
 #
 # This is the tier-3 fallback in the profile resolution chain:
 #   1. <project_root>/.planning/profile.yaml   — per-project override
 #   2. <framework_root>/profile.yaml            — global default
-#   3. <framework_root>/templates/profile.neutre.yaml  — this file
+#   3. <framework_root>/templates/profile.default.yaml  — this file
 #
-# Mirrors the `neutre` preset documented in commands/onboard.md § Presets.
-# Edit the preset there first, then sync this file. Resolvers
+# Mirrors the default profile documented in commands/onboard.md § Default profile.
+# Edit that map there first, then sync this file. Resolvers
 # (lib/resolve-profile.sh, dashboard/lib/resolveProfile.ts) load this
 # verbatim when neither user profile exists.
 

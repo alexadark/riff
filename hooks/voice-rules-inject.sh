@@ -2,11 +2,11 @@
 
 # voice-rules-inject.sh
 # RIFF SessionStart + PreCompact hook.
-# Resolves the active profile (project override → framework default → neutre baseline)
+# Resolves the active profile (project override → framework default → default baseline)
 # via lib/resolve-profile.sh, then injects language + explanation-depth rules tailored to it.
 #
 # Fail-safe: if no .riff/ symlink, no resolver, or no parseable profile, exits silently
-# (no rules injected). Defaults baked into templates/profile.neutre.yaml.
+# (no rules injected). Defaults baked into templates/profile.default.yaml.
 
 PROJECT_ROOT="${PWD}"
 FRAMEWORK_ROOT="$(cd "$PROJECT_ROOT/.riff" 2>/dev/null && pwd -P || true)"
@@ -15,7 +15,7 @@ FRAMEWORK_ROOT="$(cd "$PROJECT_ROOT/.riff" 2>/dev/null && pwd -P || true)"
 RESOLVER="$FRAMEWORK_ROOT/lib/resolve-profile.sh"
 [ -x "$RESOLVER" ] || exit 0
 
-# Resolver stderr ("source: project|framework|neutre (...)") flows through unsuppressed
+# Resolver stderr ("source: project|framework|default (...)") flows through unsuppressed
 # so the hook log shows which tier supplied the profile. Only suppress on error path.
 PROFILE_YAML="$("$RESOLVER" "$PROJECT_ROOT" "$FRAMEWORK_ROOT")" || exit 0
 [ -z "$PROFILE_YAML" ] && exit 0

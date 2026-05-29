@@ -83,7 +83,7 @@ interface ProjectContext {
 
 /**
  * Build a per-project DashboardConfig. Level + language come from the
- * project override (if any), framework profile, or neutre baseline.
+ * project override (if any), framework profile, or default baseline.
  * `projects` stays empty because the registry is framework-scoped.
  *
  * Called per request so that edits to `.planning/profile.yaml` (or to the

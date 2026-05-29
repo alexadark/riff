@@ -88,7 +88,7 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
    > - 🟢 **use my default profile** — agents read the framework `profile.yaml`. Same persona, strictness, and language as your other projects. (Recommended)
    > - 🔵 **customize for this project** — write a project-local profile at `.planning/profile.yaml`. Useful for stricter client work, a different language, or a workshop demo. Replaces the global default in this project only (full override, no merge).
 
-   On `customize`: invoke `/riff:onboard` inline. It detects the project context (because `.planning/` now exists) and writes `.planning/profile.yaml`. The user runs through the standard preset/custom flow.
+   On `customize`: invoke `/riff:onboard` inline. It detects the project context (because `.planning/` now exists) and writes `.planning/profile.yaml`. The user runs through the standard default/custom flow.
 
    On `use my default profile`: do nothing. Agents fall through to the framework default per `references/PROFILE-RESOLUTION.md`.
 

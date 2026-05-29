@@ -57,7 +57,7 @@ Open Claude Code in the framework directory and run:
 /riff:onboard
 ```
 
-This walks you through 13 questions (or picks a preset) and writes `profile.yaml` at the framework root. The path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
+This walks you through 13 questions (or writes the default profile) and writes `profile.yaml` at the framework root. The path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
 
 Then, in any project directory:
 
@@ -339,7 +339,7 @@ The planner's job is to detect cases like task 1+2 above (same file = serialize)
 
 ### profile.yaml
 
-One file at the framework root by default, optionally overridden per project at `<project>/.planning/profile.yaml`. Resolution order: project override → framework default → `neutre` preset.
+One file at the framework root by default, optionally overridden per project at `<project>/.planning/profile.yaml`. Resolution order: project override → framework default → default profile (`templates/profile.default.yaml`).
 
 Fields (full schema in `commands/onboard.md` § Profile schema):
 
@@ -353,14 +353,9 @@ Fields (full schema in `commands/onboard.md` § Profile schema):
 
 Edit by hand anytime, or ask Claude conversationally to update specific fields.
 
-### 4 presets
+### Default profile
 
-0-question shortcuts during onboarding:
-
-- **`expert`** — team specialist, terse, free jargon, takes initiative, balanced budget.
-- **`neutre`** — safe middle, standard length, first-mention jargon, balanced budget.
-- **`apprentissage`** — cautious, detailed explanations, no jargon, always asks. Learner-friendly.
-- **`alex`** — cautious, terse, no jargon, important-only asks, max budget.
+`default` is the 0-question shortcut during onboarding: a safe baseline (intermediate, generalist, standard length, first-mention jargon, balanced budget, no notifications). The `custom` path asks the full question set instead. The same map is the tier-3 fallback at the bottom of the resolution chain, shipped as `templates/profile.default.yaml`.
 
 ### Budget resolution
 

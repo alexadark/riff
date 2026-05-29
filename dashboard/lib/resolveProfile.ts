@@ -4,7 +4,7 @@ import YAML from "yaml";
 
 /**
  * Loose Profile shape. Keys mirror profile.yaml.example. All sections
- * optional so the type accepts partial overrides and the neutre fallback.
+ * optional so the type accepts partial overrides and the default fallback.
  */
 export interface Profile {
   user?: {
@@ -27,7 +27,7 @@ export interface Profile {
   [key: string]: unknown;
 }
 
-export type ProfileSource = "project" | "framework" | "neutre";
+export type ProfileSource = "project" | "framework" | "default";
 
 export interface ResolveOptions {
   /** Absolute path to a project root. When provided, .planning/profile.yaml is checked first. */
@@ -64,11 +64,11 @@ function readYaml(path: string): Profile | null {
  * Chain (first hit wins, no field-by-field merge):
  *   1. <projectRoot>/.planning/profile.yaml  — when projectRoot is provided
  *   2. <frameworkRoot>/profile.yaml          — global default
- *   3. <frameworkRoot>/templates/profile.neutre.yaml — canonical baseline
+ *   3. <frameworkRoot>/templates/profile.default.yaml — canonical baseline
  *
  * If none of the three files parse to an object, returns an empty profile
- * with source "neutre" and path null. Callers should treat that as a
- * broken install (the neutre template ships with the framework).
+ * with source "default" and path null. Callers should treat that as a
+ * broken install (the default template ships with the framework).
  *
  * Mirrors the behavior of lib/resolve-profile.sh — both helpers must
  * produce identical merged output for identical inputs.
@@ -90,12 +90,12 @@ export function resolveProfile(opts: ResolveOptions): ResolvedProfile {
     return { profile: frameworkProfile, source: "framework", path: frameworkPath };
   }
 
-  const neutrePath = join(frameworkRoot, "templates", "profile.neutre.yaml");
-  const neutreProfile = readYaml(neutrePath);
-  if (neutreProfile) {
-    return { profile: neutreProfile, source: "neutre", path: neutrePath };
+  const defaultPath = join(frameworkRoot, "templates", "profile.default.yaml");
+  const defaultProfile = readYaml(defaultPath);
+  if (defaultProfile) {
+    return { profile: defaultProfile, source: "default", path: defaultPath };
   }
 
   console.warn("[resolve-profile] no profile found — returning empty object");
-  return { profile: {}, source: "neutre", path: null };
+  return { profile: {}, source: "default", path: null };
 }

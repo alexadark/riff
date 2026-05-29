@@ -71,7 +71,7 @@ function normalizeProjects(value: unknown): string[] {
  * Language values are any ISO 639-1 lowercase 2-letter code (or the legacy
  * "other" sentinel). Unrecognized values are dropped (treated as absent) so the
  * next tier wins. If nothing valid is found, returns `null` for that field —
- * the caller substitutes the neutre baseline.
+ * the caller substitutes the default baseline.
  */
 function pickLevelAndLanguage(profile: Profile): { level: DashboardLevel | null; language: DashboardLanguage | null } {
   const styleSection = profile.style ?? {};
@@ -110,14 +110,14 @@ function pickLevelAndLanguage(profile: Profile): { level: DashboardLevel | null;
  *
  * Resolution chain (via resolveProfile, no projectRoot supplied):
  *   1. <frameworkRoot>/profile.yaml         — user's framework profile
- *   2. <frameworkRoot>/templates/profile.neutre.yaml — canonical baseline
+ *   2. <frameworkRoot>/templates/profile.default.yaml — canonical baseline
  *
  * The registry (`dashboard.projects`) is framework-scoped by design: per-project
  * overrides do not carry their own registry. For per-project level/language
  * resolution, use `resolveProjectConfig` instead.
  *
  * The "?? simple" / "?? en" fallbacks are a broken-install safety net: in a
- * healthy install, neutre.yaml supplies those values via the resolver chain.
+ * healthy install, profile.default.yaml supplies those values via the resolver chain.
  */
 export function loadProfile(frameworkRoot: string): { profile: Profile; config: DashboardConfig } {
   const resolved = resolveProfile({ frameworkRoot });
