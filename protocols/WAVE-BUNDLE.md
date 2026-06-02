@@ -169,6 +169,8 @@ At the end, write `.planning/waves/W{N}.RESULT.md` with this structure:
 For each wave-eligible phase identified in `/riff:wave` Step 1:
 
 1. **Verify PLAN.md exists** at `.planning/phases/{id}-{slug}/PLAN.md`. If missing, run `agents/planner.md` inline (use Opus). Do NOT delegate planning to Codex — Opus plans, Codex executes.
+
+   **Scope-check parseability:** each per-phase PLAN.md must expose its tasks in a shape `scripts/scope-check.mjs` can read during reconcile. Ideally a `## Tasks` section whose tasks are `### Task N:` headings; wave-style PLANs may instead place `### Task N` / `### NN-NN` task headings directly under `## Wave N` group headers. Any `## Wave N` / `### Wave N` group header must carry its task IDs in square brackets (e.g. `### Wave 1 — parallel [NN-01, NN-02]`) so they survive even when the underlying tasks are bold lines rather than headings — the parser treats wave headers as transparent containers, never as tasks.
 2. **Extract goal** from ROADMAP.yaml `title:` + first paragraph of PLAN.md.
 3. **Extract acceptance criteria** from ROADMAP.yaml `acceptance:` field. If absent, infer from PLAN.md `## Acceptance criteria` section. If still absent, prompt the planner to add them — never ship a wave without criteria.
 4. **Compute browser-check enable** — see [`BROWSER-CHECK.md`](./BROWSER-CHECK.md) § Auto-enable.
