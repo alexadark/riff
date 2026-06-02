@@ -103,16 +103,74 @@ function section(lines, headingPattern) {
   return { exists: true, lines: body };
 }
 
+// A "group header" is a wave/phase grouping heading like
+// `### Wave 1 — parallel [36-01a, 36-01b]`, `## Wave 2 — sequential`, or
+// `#### Wave 1 (parallel: [40-01, 40-02])`. These are containers, not tasks:
+// they must never become a task. Instead we lift any task IDs out of the title.
+function groupHeaderTaskIds(headingText) {
+  if (!/^\s*wave\s*\d/i.test(stripMarkdown(headingText))) return null;
+  // Task IDs look like `40-01`, `36-01a`, `39-02` (with optional letter suffix),
+  // whether bracketed (`[40-01, 40-02]`) or bare in the title (`Wave 2 — 39-02 ...`).
+  const ids = stripMarkdown(headingText).match(/\b\d{1,3}-\d{1,3}[a-z]?\b/gi) || [];
+  return ids.map((id) => id.toLowerCase());
+}
+
 function parsePlannedTasks(planText) {
   const lines = linesWithNumbers(planText);
+  // Source selection: prefer `## Tasks`; else `## Wave(s)` / `## Steps`; else
+  // scan the whole document so wave-bundle PLANs (tasks under `## Wave N`) still parse.
   const taskSection = section(lines, /^##\s+Tasks\b/i);
-  const source = taskSection.exists ? taskSection.lines : section(lines, /^##\s+(Waves|Steps)\b/i).lines;
+  let source;
+  // `wholeDoc`: no explicit task section exists, so we scan every line. In that
+  // mode ONLY headings count as tasks (numbered lists / checkboxes elsewhere —
+  // "Truths when done", browser-check journeys, AC lists — must NOT be tasks).
+  let wholeDoc = false;
+  if (taskSection.exists) {
+    source = taskSection.lines;
+  } else {
+    // Match the canonical overview section `## Waves` / `## Steps`, but NOT a
+    // wave group header like `## Wave 1 — ...` (no trailing number / extra words).
+    const waveSection = section(lines, /^##\s+(Waves?|Steps)\s*$/i);
+    if (waveSection.exists) {
+      source = waveSection.lines;
+    } else {
+      source = lines;
+      wholeDoc = true;
+    }
+  }
   const tasks = [];
 
   for (const entry of source) {
-    const heading = entry.text.match(/^#{3,6}\s+(.+?)\s*$/);
+    const heading = entry.text.match(/^#{2,6}\s+(.+?)\s*$/);
     if (heading) {
+      // Group headers (`Wave N ...`) are transparent: lift bracketed/bare task
+      // IDs out of the title and never treat the header itself as a task. Real
+      // task sub-headings under the group are still collected on later iterations.
+      const groupIds = groupHeaderTaskIds(heading[1]);
+      if (groupIds) {
+        for (const id of groupIds) {
+          const normalizedId = normalize(id);
+          if (normalizedId) tasks.push({ id: normalizedId, source_line: entry.line });
+        }
+        continue;
+      }
+      // Canonical task heading (`### Task N: ...`), wave-style ID heading
+      // (`### NN-NN ...` / `#### NN-NN ...`). H2 non-group headings are ignored
+      // when scanning the whole doc (only `#{3,6}` are real tasks).
+      if (headingLevel(entry.text) < 3) continue;
       const id = normalize(heading[1]);
+      if (id) tasks.push({ id, source_line: entry.line });
+      continue;
+    }
+    // In whole-doc fallback mode, only headings are tasks. Numbered lists and
+    // checkboxes are only task forms inside an explicit `## Tasks`/`## Waves` section.
+    if (wholeDoc) continue;
+    // Wave-style bold task definition: `**36-01a — Schema + consent service ...**`
+    // (a whole-line bold span starting with an `NN-NN` task ID). Captures the full
+    // descriptive title so token matching against the SUMMARY works.
+    const boldTask = entry.text.match(/^\s*\*\*\s*(\d{1,3}-\d{1,3}[a-z]?\b.*?)\s*\*\*\s*$/);
+    if (boldTask) {
+      const id = normalize(boldTask[1]);
       if (id) tasks.push({ id, source_line: entry.line });
       continue;
     }
@@ -130,10 +188,19 @@ function parsePlannedTasks(planText) {
   }
 
   const seen = new Set();
-  return tasks.filter((task) => {
+  const deduped = tasks.filter((task) => {
     if (seen.has(task.id)) return false;
     seen.add(task.id);
     return true;
+  });
+
+  // Drop bare-ID tasks (e.g. `40 01` lifted from a group header) when a richer
+  // task heading already covers the same ID (e.g. `40 01 landing route ...`).
+  // Keeps wave-only IDs (like `39 02`, with no sub-heading) intact.
+  return deduped.filter((task) => {
+    if (!/^\d{1,3} \d{1,3}[a-z]?$/.test(task.id)) return true;
+    const prefix = `${task.id} `;
+    return !deduped.some((other) => other !== task && other.id.startsWith(prefix));
   });
 }
 
