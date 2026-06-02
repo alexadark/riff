@@ -60,3 +60,13 @@ The session ID is reported by the codex-rescue skill in its output. Read it from
 Severity: BLOCKER (must fix) > WARNING (should fix) > NOTE (consider)
 
 FAIL = any BLOCKER finding, or tests/typecheck fail.
+
+## Return to orchestrator
+
+Your full review lives in `.planning/phases/N-slug/REVIEW.md`. The orchestrator and auto-debug read the verdict and findings from that file, not from your reply. Keep the message you return to the parent to ≤10 lines:
+
+- `Verdict: PASS | FAIL`
+- `Artifact: .planning/phases/N-slug/REVIEW.md`
+- One line per BLOCKER as `[BLOCKER] <title>` — titles only
+
+Do not repeat finding bodies, fixes, test/typecheck output, or the session footer in the returned message — they are already in the artifact. This keeps the parent context lean across the 4-6 sub-agent returns per phase.

@@ -58,6 +58,16 @@ Severity: `BLOCKER` (architecture must be revised) > `WARNING` (architect should
 
 `REVISE` = any `BLOCKER` finding. `WARNING`/`NOTE` alone = `PROCEED`.
 
+## Return to orchestrator
+
+Your full review lives in `.planning/design/ARCHITECTURE-REVIEW.md`. The orchestrator reads the verdict and findings from that file, not from your reply. Keep the message you return to the parent to ≤10 lines:
+
+- `Verdict: PROCEED | REVISE`
+- `Artifact: .planning/design/ARCHITECTURE-REVIEW.md`
+- One line per BLOCKER as `[BLOCKER] <title>` — titles only
+
+Do not repeat finding bodies, suggestions, or the session footer in the returned message — they are already in the artifact. This keeps the parent context lean.
+
 ## Anti-Patterns
 
 - Don't flag every imaginable concern — only the ones that change the architecture if wrong

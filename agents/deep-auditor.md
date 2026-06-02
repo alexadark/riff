@@ -54,6 +54,16 @@ Resume in Codex with: `codex resume <session-id>`
 
 The session ID is reported by the codex-rescue skill. Paste it into the footer; if unavailable, write `unknown` with a one-line reason. Severity: `BLOCKER` > `WARNING` > `NOTE`. `FINDINGS` = any `BLOCKER` or `WARNING`. `NOTE`-only or no findings = `PROCEED`.
 
+## Return to orchestrator
+
+Your full audit lives in `.planning/audits/AUDIT-<milestone>-<YYYY-MM-DD>.md`. The orchestrator and the human triage read findings from that file, not from your reply. Keep the message you return to the parent to ≤12 lines:
+
+- `Verdict: PROCEED | FINDINGS`
+- `Artifact: .planning/audits/AUDIT-<milestone>-<YYYY-MM-DD>.md`
+- One line per BLOCKER or WARNING as `[SEVERITY] <title>` — titles only
+
+Do not repeat finding bodies, suggestions, test/typecheck output, or the session footer in the returned message — they are already in the artifact. This keeps the parent context lean.
+
 ## Anti-Patterns
 
 - Don't repeat findings the per-phase REVIEW.md files already flagged

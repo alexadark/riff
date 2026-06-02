@@ -103,6 +103,16 @@ The orchestrator greps for `^### \[CRITICAL\]` and `^### \[HIGH\]` to decide whe
 - For each CRITICAL/HIGH finding present in the previous file but absent in the new scan, add a row to the `## Resolved Findings` table with the resolution context and the most recent commit SHA on the branch.
 - Then overwrite SECURITY.md with the fresh scan + the resolved-findings table.
 
+## Return to orchestrator
+
+Your full scan lives in `.planning/phases/N-slug/SECURITY.md`. The orchestrator parses the verdict from that file's frontmatter and greps it for CRITICAL/HIGH headings — it does not read your reply. Keep the message you return to the parent to ≤10 lines:
+
+- `Verdict: PASS | PASS-WITH-WARNINGS | BLOCKED`
+- `Artifact: .planning/phases/N-slug/SECURITY.md`
+- One line per CRITICAL or HIGH finding as `[SEVERITY] <title>` — titles only
+
+Do not repeat finding descriptions, proofs, or fixes in the returned message — they are already in the artifact. This keeps the parent context lean across the 4-6 sub-agent returns per phase.
+
 ## Pre-Commit Mode (fast)
 
 Scan only: hardcoded secrets, `console.log` with sensitive data, `any` types, missing auth on new routes, unvalidated input to DB. CRITICAL/HIGH → block commit.

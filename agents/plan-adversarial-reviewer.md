@@ -63,6 +63,16 @@ Severity: `BLOCKER` (plan must be revised before execution) > `WARNING` (planner
 
 `REVISE` = any `BLOCKER` finding. `WARNING`/`NOTE` alone = `PROCEED`.
 
+## Return to orchestrator
+
+Your full review lives in `.planning/phases/N-slug/PLAN-REVIEW.md`. The orchestrator surfaces findings and the planner reads them from that file on `REVISE`, not from your reply. Keep the message you return to the parent to ≤10 lines:
+
+- `Verdict: PROCEED | REVISE`
+- `Artifact: .planning/phases/N-slug/PLAN-REVIEW.md`
+- One line per BLOCKER as `[BLOCKER] <title>` — titles only
+
+Do not repeat finding bodies, suggestions, or the session footer in the returned message — they are already in the artifact. This keeps the parent context lean across the 4-6 sub-agent returns per phase.
+
 ## Anti-Patterns
 
 - Don't flag every unstated assumption — only the ones that change the plan if wrong

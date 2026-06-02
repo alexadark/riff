@@ -56,6 +56,16 @@ Severity: `BLOCKER` (proposal won't prevent the next occurrence) > `WARNING` (Al
 
 `REVISE` = any `BLOCKER` finding. `WARNING`/`NOTE` alone = `ACCEPT`.
 
+## Return to orchestrator
+
+Your full review is appended to `.planning/incident-review-YYYY-MM-DD.md` (the draft path passed in the prompt). The orchestrator reads the verdict and findings from that file, not from your reply. Keep the message you return to the parent to ≤10 lines:
+
+- `Verdict: ACCEPT | REVISE`
+- `Artifact: <draft path>`
+- One line per BLOCKER as `[BLOCKER] <title>` — titles only
+
+Do not repeat finding bodies, suggestions, or the session footer in the returned message — they are already in the artifact. This keeps the parent context lean.
+
 ## Anti-Patterns
 
 - Don't flag every imaginable concern — only the ones that change which rules Alex applies
