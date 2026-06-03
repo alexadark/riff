@@ -31,7 +31,14 @@ Read ROADMAP.yaml. A phase is **wave-eligible** when ALL of:
 - No unmet `depends_on` (all upstream phases `status: done`)
 - No `wave_eligible: false` override
 
-Group eligible phases by absence of `depends_on` between them. Phases with a mutual `depends_on` chain cannot share a wave.
+Group eligible phases into two shapes:
+
+- **Parallel group**: phases with no `depends_on` between them. These can execute concurrently (flag `-m` in the prompt).
+- **Sequential chain**: phases where A→B→C forms a `depends_on` chain AND all are AFK-eligible. These execute in order within a single Codex session (no `-m` flag). This avoids running N solo delegations for what is logically one body of work (e.g., a content track where each phase builds on the previous).
+
+A wave can contain one parallel group, one sequential chain, or a mix (e.g., two parallel phases followed by a sequential finisher). The bundle's Execution rules section specifies the execution order explicitly.
+
+Phases with a mutual `depends_on` chain **can** share a wave as a sequential chain, provided every upstream phase in the chain is either `status: done` or included earlier in the same wave.
 
 Skip phases marked `planner_model: opus` AND `complex_execution: true` — those need Opus-strict execution, not Codex autonomy. Surface them separately as "solo-eligible only".
 
@@ -106,6 +113,11 @@ W{N}.RESULT.md must contain:
 `{{env_prefix}}` is empty when the bundle's `scratch_mode: false`, and
 `RIFF_SCRATCH_MODE=1 RIFF_WAVE_ID=W{N} ` (single line, trailing space) when
 `scratch_mode: true`. See `protocols/CODEX-DELEGATION.md` § Out-of-process.
+
+Save the rendered Codex prompt to `.planning/waves/W{N}.prompt.md` (launch
+command + full `/goal` block + metadata). This is the audit trail for what
+instructions the executor received. See `protocols/WAVE-BUNDLE.md` § Prompt
+preservation.
 
 Update STATE.md:
 - `wave_pending: W{N}`

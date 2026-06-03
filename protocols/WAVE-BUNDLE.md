@@ -33,9 +33,12 @@ A green wave means:
 
 ## Execution rules
 
-- One atomic commit per phase. Conventional commit (`feat:`, `fix:`, `refactor:`...). Never `git add .`.
-- Phases listed below have no `depends_on` between them. Execute in any order.
-- If a phase blocks (test failure, ambiguous spec), do NOT skip silently. Write a `## Blocker` block in RESULT.md and continue the next phase.
+- One atomic commit per phase. Conventional commit (`feat:`, `fix:`, `refactor:`, `content:`...). Never `git add .`.
+- **Execution order** is specified per wave:
+  - **Parallel waves** (phases have no `depends_on` between them): "Execute in any order" + use `-m` flag.
+  - **Sequential waves** (phases form a `depends_on` chain): "SEQUENTIAL execution: PA → PB → PC" + do NOT use `-m`. Complete each phase fully (commit + browser-check) before starting the next.
+  - The bundle's Execution rules section is the source of truth for which shape applies.
+- If a phase blocks (test failure, ambiguous spec), do NOT skip silently. Write a `## Blocker` block in RESULT.md and continue the next phase if possible.
 - Browser-check is non-negotiable on UI phases. Read `.riff/protocols/BROWSER-CHECK.md` for the contract.
 - Stop only when ALL phases reach a terminal state (commit + criteria green, OR blocker logged).
 
@@ -182,6 +185,19 @@ For each wave-eligible phase identified in `/riff:wave` Step 1:
 - Bundle file size cap: 50 KB. If larger, the wave is too big — propose splitting.
 - Total phases per wave cap: 5. More than 5 = Codex context overflow risk.
 - Each phase's PLAN.md cap: 200 lines. Larger plans must be compressed by the planner before bundling.
+
+## Prompt preservation
+
+After rendering the Codex prompt (Template A/B/C from `CODEX-DELEGATION.md`), write it
+to `.planning/waves/W{N}.prompt.md` containing:
+
+- The exact launch command (`cd`, `git switch`, `codex ...`)
+- The full `/goal` prompt block (verbatim)
+- Metadata: orchestrator model, executor model + effort, routing (in/out-of-process),
+  base SHA, branch, phases list, scratch_mode
+
+This file is the audit trail for what instructions the executor received. Saved
+alongside the bundle (spec) and the RESULT (outcome). Required on every wave.
 
 ## Cross-references
 
