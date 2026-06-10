@@ -57,7 +57,7 @@ Open Claude Code in the framework directory and run:
 /riff:onboard
 ```
 
-This walks you through 13 questions (or writes the default profile) and writes `profile.yaml` at the framework root. The path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
+This walks you through 15 questions (or writes the default profile) and writes `profile.yaml` at the framework root. The path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
 
 Then, in any project directory:
 

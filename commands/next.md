@@ -116,7 +116,7 @@ On `REVISE`, surface findings, re-run Step 4 with PLAN-REVIEW.md input, then re-
 
 Plain-language description of the plan for `/riff:dashboard`. Level + language from `profile.yaml`. Never blocks the pipeline. Full prompt + resolution: [`protocols/DASHBOARD-EXPLAIN.md`](../protocols/DASHBOARD-EXPLAIN.md) § Step 4c — Pre-exec explanation.
 
-**Skip if** neither `style.explanation_level` nor `dashboard.level` is set in profile.yaml.
+**Skip if** neither `style.explanation_level` nor `user.narrative_language` is set in profile.yaml.
 
 Agent tool, `model: "haiku"`. Reads PLAN.md + ROADMAP entry, writes `EXPLAIN.{{LEVEL}}.md`. On error: log a one-line warning, continue.
 
@@ -172,7 +172,7 @@ Skip if scope/package/opt-in/tooling/dev-script/route derivation conditions fail
 
 Plain-language post-mortem of what was built + metadata block, for `/riff:dashboard`. Never blocks the pipeline. Full prompt + style rules: [`protocols/DASHBOARD-EXPLAIN.md`](../protocols/DASHBOARD-EXPLAIN.md) § Step 5f — Post-mortem explanation.
 
-**Skip if** `dashboard:` is missing from profile.yaml.
+**Skip if** neither `style.explanation_level` nor `user.narrative_language` is set in profile.yaml.
 
 ---
 

@@ -26,7 +26,7 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 
 ## Codex model + effort
 
-The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF resolves both at the call site and includes them in the rescue prompt. Mapping below replaces the generic "Codex (GPT)" rows in the dispatch table.
+The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF resolves both at the call site and includes them in the rescue prompt. Accepted effort values: `minimal | medium | high | xhigh`. Mapping below replaces the generic "Codex (GPT)" rows in the dispatch table.
 
 | Step                                       | Budget   | Model           | Effort    |
 | ------------------------------------------ | -------- | --------------- | --------- |

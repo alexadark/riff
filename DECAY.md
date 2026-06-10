@@ -28,8 +28,6 @@ For each component below, answer:
 - [ ] protocols/PROMOTE.md (conversational trigger)
 - [ ] agents/planner.md
 - [ ] agents/executor.md
-- [ ] agents/verifier.md
-- [ ] agents/explorer.md
 - [ ] agents/debugger.md
 - [ ] agents/security-reviewer.md
 - [ ] hooks/\* (each individually)
