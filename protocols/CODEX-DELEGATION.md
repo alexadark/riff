@@ -14,7 +14,7 @@ How RIFF hands work to Codex, for both **waves** (N phases) and **solo** (1 phas
 
 User overrides: `--in-process` or `--out-of-process` flag on `/riff:wave`.
 
-If Codex CLI is not installed locally (`which codex` fails), fall back to in-process via the `codex:codex-rescue` skill (which uses Anthropic's Codex API wrapper). Surface a one-line warning so the user knows performance will differ.
+If Codex CLI is not installed locally (`which codex` fails): for review steps (Steps 4b, 6), log a warning to GATES.md and skip the step; for execution steps, fall back to the Claude sub-agent route (Sonnet) per `protocols/MODEL.md` § Executor runtime resolution. Surface a one-line warning either way so the user knows the route changed.
 
 ## Execution skill resolution
 
