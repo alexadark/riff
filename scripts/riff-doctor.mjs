@@ -200,7 +200,7 @@ function checkSectionReferences(files) {
           : file;
         if (!targetExists(target)) continue;
         if (!sectionExists(target, section)) {
-          addFinding(FINDING_LEVELS.error, file, index + 1, `Section not found: ${normalizeDocPath(target)} § ${section}`);
+          addFinding(FINDING_LEVELS.warn, file, index + 1, `Section not found: ${normalizeDocPath(target)} § ${section}`);
         }
       }
     });

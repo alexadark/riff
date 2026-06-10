@@ -6,7 +6,7 @@ model: fable
 
 # /riff:wave [W{N} | --resume W{N}]
 
-Group wave-eligible phases into a Codex wave run. Opus plans, Codex executes, opt-in smoke/browser checks prove it works.
+Group wave-eligible phases into a Codex wave run. Fable plans, Codex executes, opt-in smoke/browser checks prove it works.
 
 **Prerequisite:** `executors.available` includes `codex` in profile. Otherwise the command errors and points to `/riff:onboard`.
 
