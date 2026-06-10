@@ -28,7 +28,7 @@ Read ROADMAP.yaml. A phase is **wave-eligible** when ALL of:
 - `status: todo`
 - `mode: AFK` (HITL phases never enter a wave)
 - `provider_mode != production` (sandbox or unset OK)
-- No unmet `depends_on` (all upstream phases `status: done`)
+- No unmet `depends_on`: every upstream phase is `status: done` OR included earlier in this same wave as part of a sequential chain
 - No `wave_eligible: false` override
 
 Group eligible phases into two shapes:
@@ -41,6 +41,8 @@ A wave can contain one parallel group, one sequential chain, or a mix (e.g., two
 Phases with a mutual `depends_on` chain **can** share a wave as a sequential chain, provided every upstream phase in the chain is either `status: done` or included earlier in the same wave.
 
 Skip phases marked `planner_model: opus` AND `complex_execution: true` — those need Opus-strict execution, not Codex autonomy. Surface them separately as "solo-eligible only".
+
+A wave with ZERO parallelism (a pure sequential chain) is a valid wave. Do not refuse or downgrade it to solo runs.
 
 ## Step 2: Propose the wave
 
@@ -232,7 +234,7 @@ section), then promote.
 
 ## Anti-patterns
 
-- Don't bundle a phase whose `depends_on` is not yet `done`
+- Don't bundle a phase whose `depends_on` is neither `done` nor included earlier in the same wave's sequential chain
 - Don't mix HITL phases into a wave (they require human verification, period)
 - Don't override `provider_mode: production` to fit a phase into a wave
 - Don't write the bundle yourself, always go through `protocols/WAVE-BUNDLE.md`
