@@ -184,7 +184,7 @@ Step 6 FAIL or Step 7 BLOCKED triggers auto-debug and re-runs the originating st
 
 ### Step 7b: Improver — sub-agent (background, gated)
 
-Skip by default. Run conditions and background prompt: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Improver invocation (Step 7b).
+Skip by default. Run conditions and background prompt: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Improver invocation (Step 7b). The skip reason is logged to GATES.md as `Step 7b: skipped — <reason>`; if this line is absent from recent GATES.md files, the logging call was dropped and must be restored.
 
 ---
 
