@@ -4,7 +4,7 @@ Path patterns, tag matches, and string searches that drive `auto` gate decisions
 
 Design rationale → [`DECISIONS.md`](../DECISIONS.md) (D25, D26, D27).
 
-**Priority vocabulary.** Accepted values for `priority:` in ROADMAP.yaml entries are `P0` | `P1` | `P2` | `critical` | `high` | `medium` | `low`. The first four are treated as "high-stakes" and trigger heavier auto-gates (plan adversarial, Step 6 Codex). The last three are "routine".
+**Priority vocabulary.** Accepted values for `priority:` in ROADMAP.yaml entries are `P0` | `P1` | `P2` | `P3` | `critical` | `high` | `medium` | `low`. Numeric aliases: P0↔critical, P1↔high, P2↔medium, P3↔low. High-stakes = {P0, P1, critical, high} — these trigger heavier auto-gates (plan adversarial, Step 6 Codex). Routine = {P2, P3, medium, low}.
 
 ---
 
@@ -45,7 +45,7 @@ Triggers read from PLAN.md and the phase's ROADMAP.yaml entry (no diff exists ye
 **Skip overrides (apply even if a run condition fires).** Skip Codex when ANY of:
 
 - PLAN.md task list has fewer than 3 tasks
-- Phase tagged `trivial: true` or `bug_fix: true` in ROADMAP.yaml
+- Phase `tags` list contains `trivial` or `bug_fix` in ROADMAP.yaml (boolean fields `trivial: true` / `bug_fix: true` are accepted as legacy aliases)
 - PLAN.md is shorter than 50 lines
 
 Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 4b: skipped — <reason>`).
@@ -107,8 +107,8 @@ Triggers read from `ROADMAP.yaml` and PROJECT.md.
 
 **Skip overrides (apply even if a run condition fires).** Skip Codex when EITHER:
 
-- ALL of: diff is fewer than 100 lines AND no diff path matches `*auth*|*api*|*payment*|*security*` AND phase is NOT tagged `security_critical: true`
-- OR: phase tagged `bug_fix: true` AND tests pass AND diff is fewer than 50 lines
+- ALL of: diff is fewer than 100 lines AND no diff path matches `*auth*|*api*|*payment*|*security*` AND phase `tags` does not contain `security_critical` AND `security_critical: true` boolean field is not set
+- OR: phase `tags` contains `bug_fix` (or legacy `bug_fix: true`) AND tests pass AND diff is fewer than 50 lines
 
 Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 6: skipped — <reason>`).
 

@@ -21,7 +21,7 @@ phases:
     slug: "phase-slug"
     title: "Phase Title"
     status: todo
-    priority: P0    # P0|P1|P2|critical|high|medium|low — see protocols/AUTO-TRIGGERS.md
+    priority: P0    # P0|P1|P2|P3|critical|high|medium|low — see protocols/AUTO-TRIGGERS.md
     mode: AFK
     depends_on: []
     description: "What this phase delivers"
@@ -31,4 +31,5 @@ phases:
     # debug_model: sonnet  # sonnet | opus — override debugger model (default: opus)
     # planner_model: opus  # codex | opus — model used to PLAN this phase (default: opus)
     # risk_focus: "concurrency, idempotency"  # free text — adversarial reviewers (Step 4b, Step 6) lead with these risks
+    # tags: []  # recognized: architecture, novel, security_critical, migration, payment, auth, adversarial-plan, trivial, bug_fix
     # milestone: payment-flow-complete  # tag this phase as a milestone closer; /riff:next prompts to run a Codex deep audit across all phases sharing this milestone (see protocols/DEEP-AUDIT.md)
