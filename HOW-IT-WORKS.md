@@ -537,7 +537,7 @@ RIFF dispatches across 3 model families. Each has a job it's good at.
 | Step 4b: Plan adversarial        | Sub-agent (Codex)     | Codex CLI            | Falls back to Opus if Codex unavailable                   |
 | Step 4c: Pre-exec explanation    | Sub-agent             | Haiku                | (none)                                                    |
 | Step 5: Execute                  | Codex (in-process)    | Codex CLI (default)  | `executor_model: sonnet` forces Claude fallback            |
-| Step 5b: Simplify                | Sub-agent             | Haiku                | `simplify_model:` per phase                                |
+| Step 5b: Simplify                | Sub-agent             | Haiku                | (none)                                                    |
 | Step 6: Adversarial review       | Sub-agent (Codex)     | Codex CLI            | Falls back to Opus                                        |
 | Step 7: Security review          | Sub-agent             | Sonnet               | `security_model:` per phase                                |
 | Step 7b: Improver                | Sub-agent             | Haiku                | (gated, see AUTO-TRIGGERS.md)                             |

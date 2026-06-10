@@ -150,6 +150,7 @@ phases:
     executor_model: opus        # force Opus for execution (default: codex, fallback: sonnet)
     complex_execution: true     # inject `think hard` into executor prompt
     security_critical: true     # force `think harder` in security review
+    security_model: sonnet      # sonnet (default) | fable — opt-in Fable for security-critical phases
     auto_debug: false           # disable auto-debug triggers for this phase
     debug_model: sonnet         # use Sonnet instead of Opus for the debugger
     planner_model: codex        # codex | opus — which model plans this phase (default: opus)
