@@ -290,6 +290,14 @@ user:
 executors:
   available: [<claude> | <claude, codex>]  # default [claude, codex] when missing
 
+codex:
+  execution_skill: /apex  # skill invoked by CODEX-DELEGATION.md prompt templates
+                          # must accept flags: -a -x -v -m -bundle <path>
+                          # default: /apex
+
+wave:
+  reconcile_mode: <hooks | sonnet | both | off>  # default: both — see protocols/WAVE-RECONCILE.md § Modes
+
 risk:
   sensitive_task_preference: <cautious | balanced | fast>
 
