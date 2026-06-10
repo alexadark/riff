@@ -1,0 +1,332 @@
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, test } from 'vitest';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scopeCheckScript = path.join(repoRoot, 'scripts', 'scope-check.mjs');
+const gatesUpdateScript = path.join(repoRoot, 'scripts', 'gates-update.mjs');
+const csvAppendScript = path.join(repoRoot, 'scripts', 'csv-append.sh');
+const { buildDashboardMetadata } = await import(pathToFileURL(path.join(repoRoot, 'scripts', 'lib', 'dashboard.mjs')));
+
+function tempRoot(prefix = 'riff-test-') {
+  return mkdtempSync(path.join(tmpdir(), prefix));
+}
+
+function withTempRoot(fn) {
+  const root = tempRoot();
+  try {
+    return fn(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function writePhase(root, { plan, summary, name = '1-demo' }) {
+  const phaseDir = path.join(root, '.planning', 'phases', name);
+  mkdirSync(phaseDir, { recursive: true });
+  writeFileSync(path.join(phaseDir, 'PLAN.md'), plan, 'utf8');
+  if (summary !== undefined) writeFileSync(path.join(phaseDir, 'SUMMARY.md'), summary, 'utf8');
+  return phaseDir;
+}
+
+function runScope(root, phase = '1-demo') {
+  const result = spawnSync('node', [
+    scopeCheckScript,
+    '--project-root',
+    root,
+    '--phase',
+    phase,
+  ], { encoding: 'utf8' });
+  const report = JSON.parse(readFileSync(path.join(root, '.planning', 'phases', phase, 'SCOPE-CHECK.json'), 'utf8'));
+  return { result, report };
+}
+
+const matchingPlan = `# Plan
+
+## Tasks
+
+### Task 1: Add CLI guard
+### Task 2: Update lib/parser.js
+
+## Smoke
+
+- \`npm test\` -> exits 0
+- \`node lib/parser.js --check\` -> exits 0
+`;
+
+const matchingSummary = `# Summary
+
+## What Was Built
+
+- Added CLI guard.
+- Updated lib/parser.js.
+
+## Status
+
+**completed**
+
+## Smoke Results
+
+| Command | Expected | Observed | Status |
+| --- | --- | --- | --- |
+| \`npm test\` | exits 0 | exits 0 | pass |
+| \`node lib/parser.js --check\` | exits 0 | exits 0 | pass |
+`;
+
+describe('scope-check mechanical contract', () => {
+  test('writes schema v2 MATCH reports and exits 0 when tasks and smoke rows pair', () => withTempRoot((root) => {
+    writePhase(root, { plan: matchingPlan, summary: matchingSummary });
+
+    const { result, report } = runScope(root);
+
+    expect(result.status).toBe(0);
+    expect(report.schema_version).toBe(2);
+    expect(report.verdict).toBe('MATCH');
+    expect(report.planned_tasks).toHaveLength(2);
+    expect(report.completed_tasks).toHaveLength(2);
+    expect(report.planned_smokes.map((smoke) => smoke.command)).toEqual([
+      'npm test',
+      'node lib/parser.js --check',
+    ]);
+    expect(report.smoke_results.map((smoke) => smoke.command)).toEqual([
+      'npm test',
+      'node lib/parser.js --check',
+    ]);
+    expect(report.unmatched_tasks).toEqual([]);
+    expect(report.unmatched_smokes).toEqual([]);
+    expect(report.malformed_reason).toBeNull();
+  }));
+
+  test('returns DROPPED and exits 1 for unacknowledged tasks or missing smoke results', () => withTempRoot((root) => {
+    const summary = `# Summary
+
+## What Was Built
+
+- Added CLI guard.
+
+## Status
+
+**partial**
+
+## Smoke Results
+
+| Command | Expected | Observed | Status |
+| --- | --- | --- | --- |
+| \`npm test\` | exits 0 | exits 0 | pass |
+`;
+    writePhase(root, { plan: matchingPlan, summary });
+
+    const { result, report } = runScope(root);
+
+    expect(result.status).toBe(1);
+    expect(report.verdict).toBe('DROPPED');
+    expect(report.unmatched_tasks).toHaveLength(1);
+    expect(report.unmatched_tasks[0].id).toContain('parser');
+    expect(report.unmatched_smokes).toHaveLength(1);
+    expect(report.unmatched_smokes[0].command).toBe('node lib/parser.js --check');
+  }));
+
+  test('returns MALFORMED and exits 1 for broken plan or impossible completed summary', () => withTempRoot((root) => {
+    writePhase(root, {
+      name: '1-no-tasks',
+      plan: '# Plan\n\n## Notes\n\nNo task section here.\n',
+      summary: '# Summary\n\n## Status\n\n**completed**\n',
+    });
+    const malformedPlan = runScope(root, '1-no-tasks');
+
+    writePhase(root, {
+      name: '2-failed-smoke',
+      plan: matchingPlan,
+      summary: `# Summary
+
+## What Was Built
+
+- Added CLI guard.
+- Updated lib/parser.js.
+
+## Status
+
+**completed**
+
+## Smoke Results
+
+| Command | Expected | Observed | Status |
+| --- | --- | --- | --- |
+| \`npm test\` | exits 0 | assertion failed | fail |
+| \`node lib/parser.js --check\` | exits 0 | exits 0 | pass |
+`,
+    });
+    const failedCompleted = runScope(root, '2-failed-smoke');
+
+    expect(malformedPlan.result.status).toBe(1);
+    expect(malformedPlan.report.verdict).toBe('MALFORMED');
+    expect(malformedPlan.report.malformed_reason).toMatch(/no parseable Tasks section/);
+    expect(failedCompleted.result.status).toBe(1);
+    expect(failedCompleted.report.verdict).toBe('MALFORMED');
+    expect(failedCompleted.report.failed_smokes).toHaveLength(1);
+  }));
+
+  test('tolerates legacy plans with no Smoke section when tasks are acknowledged', () => withTempRoot((root) => {
+    const plan = `# Plan
+
+## Tasks
+
+### Task 1: Update documentation
+`;
+    const summary = `# Summary
+
+## What Was Built
+
+- Updated documentation.
+
+## Status
+
+**completed**
+`;
+    writePhase(root, { plan, summary });
+
+    const { result, report } = runScope(root);
+
+    expect(result.status).toBe(0);
+    expect(report.verdict).toBe('MATCH');
+    expect(report.planned_smokes).toEqual([]);
+    expect(report.unmatched_smokes).toEqual([]);
+    expect(report.smoke_too_thin).toBe(false);
+  }));
+});
+
+function createGatesProject(root) {
+  writeFileSync(path.join(root, 'ROADMAP.yaml'), 'phases: []\n', 'utf8');
+  const phaseDir = path.join(root, '.planning', 'phases', '7-hardening');
+  mkdirSync(phaseDir, { recursive: true });
+  return phaseDir;
+}
+
+function runGates(args, cwd) {
+  return spawnSync('node', [gatesUpdateScript, ...args], { cwd, encoding: 'utf8' });
+}
+
+describe('gates-update mechanical contract', () => {
+  test('initializes a GATES.md ledger compatible with the dashboard parser', () => withTempRoot((root) => {
+    const phaseDir = createGatesProject(root);
+    const init = runGates(['--init', phaseDir], root);
+
+    expect(init.status).toBe(0);
+    expect(JSON.parse(init.stdout)).toMatchObject({
+      ok: true,
+      phaseDir: '.planning/phases/7-hardening',
+      scope: 'production',
+    });
+
+    const gatesPath = path.join(phaseDir, 'GATES.md');
+    const gates = readFileSync(gatesPath, 'utf8');
+    expect(gates).toContain('| Gate | Status | Required | Command | Exit Code | Artifact | Updated At | Reason |');
+    expect(gates).toContain('| plan-review | pending | yes |');
+    expect(gates).toContain('| dashboard-explain | skipped | no |');
+
+    const metadata = buildDashboardMetadata({
+      root,
+      phase: { id: 7, dir: '.planning/phases/7-hardening' },
+      scope: 'production',
+    });
+    expect(metadata.gates['plan-review']).toMatchObject({ status: 'pending', required: true });
+    expect(metadata.gates['dashboard-explain']).toMatchObject({ status: 'skipped', required: false });
+    expect(metadata.blockingStatus).toBe('blocked');
+  }));
+
+  test('updates every documented status and summarizes non-pending gates', () => withTempRoot((root) => {
+    const phaseDir = createGatesProject(root);
+    runGates(['--init', phaseDir], root);
+
+    for (const status of ['pending', 'running', 'pass', 'warn', 'fail', 'skipped']) {
+      const result = runGates([
+        '--phase',
+        phaseDir,
+        '--gate',
+        'scope-check',
+        '--status',
+        status,
+        '--reason',
+        `status is ${status}`,
+        '--command',
+        `command-${status}`,
+        '--exit-code',
+        status === 'pass' ? '0' : '1',
+        '--artifact',
+        'SCOPE-CHECK.json',
+      ], root);
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        gate: 'scope-check',
+        status,
+        reason: `status is ${status}`,
+        command: `command-${status}`,
+        exitCode: status === 'pass' ? '0' : '1',
+        artifact: 'SCOPE-CHECK.json',
+      });
+    }
+
+    const summarize = runGates(['--summarize', phaseDir], root);
+    const summarizeAll = runGates(['--summarize', phaseDir, '--all'], root);
+
+    expect(summarize.status).toBe(0);
+    expect(summarize.stdout).toContain('scope-check: skipped — status is skipped');
+    expect(summarize.stdout).not.toContain('plan-review: pending');
+    expect(summarizeAll.status).toBe(0);
+    expect(summarizeAll.stdout).toContain('plan-review: pending');
+    expect(summarizeAll.stdout).toContain('scope-check: skipped — status is skipped');
+  }));
+
+  test('rejects statuses outside pending|running|pass|warn|fail|skipped', () => withTempRoot((root) => {
+    const phaseDir = createGatesProject(root);
+    runGates(['--init', phaseDir], root);
+
+    const result = runGates([
+      '--phase',
+      phaseDir,
+      '--gate',
+      'scope-check',
+      '--status',
+      'done',
+    ], root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Invalid status');
+  }));
+});
+
+describe('csv-append mechanical contract', () => {
+  test('appends rows only and leaves header ownership to the caller', () => withTempRoot((root) => {
+    const csvPath = path.join(root, 'usage.csv');
+    writeFileSync(csvPath, 'date,total\n', 'utf8');
+
+    execFileSync('/bin/bash', [csvAppendScript, csvPath, '2026-06-10,42']);
+    execFileSync('/bin/bash', [csvAppendScript, csvPath, '2026-06-11,43']);
+
+    expect(readFileSync(csvPath, 'utf8')).toBe('date,total\n2026-06-10,42\n2026-06-11,43\n');
+  }));
+
+  test('does not synthesize a header when creating a new csv file', () => withTempRoot((root) => {
+    const csvPath = path.join(root, 'new.csv');
+
+    execFileSync('/bin/bash', [csvAppendScript, csvPath, 'first,row']);
+
+    expect(readFileSync(csvPath, 'utf8')).toBe('first,row\n');
+  }));
+
+  test('falls back to plain append when flock is unavailable on PATH', () => withTempRoot((root) => {
+    const csvPath = path.join(root, 'fallback.csv');
+
+    const result = spawnSync('/bin/bash', [csvAppendScript, csvPath, 'fallback,row'], {
+      env: { ...process.env, PATH: root },
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(csvPath, 'utf8')).toBe('fallback,row\n');
+  }));
+});
