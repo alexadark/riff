@@ -341,7 +341,7 @@ The planner's job is to detect cases like task 1+2 above (same file = serialize)
 
 One file at the framework root by default, optionally overridden per project at `<project>/.planning/profile.yaml`. Resolution order: project override → framework default → default profile (`templates/profile.default.yaml`).
 
-Fields (full schema in `commands/onboard.md` § Profile schema):
+Fields (full schema in [`references/PROFILE-SCHEMA.md`](./references/PROFILE-SCHEMA.md)):
 
 - `user.*` — programming level, AI agents experience, domains, work mode, side activities, conversational vs artifact vs narrative language
 - `risk.sensitive_task_preference` — `cautious` / `balanced` / `fast`

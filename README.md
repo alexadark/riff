@@ -88,7 +88,7 @@ Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N pa
 
 One file at the framework root by default, optionally overridden per project at `<project>/.planning/profile.yaml`. Holds your user context, risk appetite, style, budget, notification channel. Every agent reads the resolved profile on startup and adapts. Resolution order: [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
 
-Fields (full schema in `commands/onboard.md` § Profile schema):
+Fields (full schema in [`references/PROFILE-SCHEMA.md`](./references/PROFILE-SCHEMA.md)):
 
 - `user.*`: programming level, AI agents experience, domains, work mode, side activities, conversational vs artifact language
 - `risk.sensitive_task_preference`: `cautious` / `balanced` / `fast`
