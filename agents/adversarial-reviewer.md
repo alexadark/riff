@@ -61,6 +61,10 @@ Severity: BLOCKER (must fix) > WARNING (should fix) > NOTE (consider)
 
 FAIL = any BLOCKER finding, or tests/typecheck fail.
 
+## Verdict rules
+
+FAIL only when at least one finding has concrete evidence: a failing command output, a failing test, or a file:line trace of a reachable defect. Suspicions, style opinions, and unverifiable hypotheticals go in a `## Notes` section under a PASS verdict. Every FAIL finding must include its reproduction command.
+
 ## Return to orchestrator
 
 Your full review lives in `.planning/phases/N-slug/REVIEW.md`. The orchestrator and auto-debug read the verdict and findings from that file, not from your reply. Keep the message you return to the parent to ≤10 lines:

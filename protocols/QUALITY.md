@@ -83,7 +83,9 @@ After every agent-generated code, check:
 
 **Prompt capture:** PROMPTS.md § Adversarial reviewer (Codex).
 
-Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
+**Before triggering auto-debug on FAIL:** validate each FAIL finding against the diff — findings without concrete evidence (no failing command, no file:line trace, no failing test) are downgraded to notes and logged to GATES.md as `Step 6: finding downgraded — unevidenced`. If no finding survives, treat as PASS and record `Step 6: PASS — downgraded N unevidenced findings` in GATES.md.
+
+Auto-debug on confirmed FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 
 **Step 7 (Security):** Agent tool, model from `security_model:` if set in `ROADMAP.yaml` (project root) phase entry, else `sonnet`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, _"Read `agents/security-reviewer.md`. Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on changed files. Write SECURITY.md per agent spec (frontmatter `verdict: PASS | PASS-WITH-WARNINGS | BLOCKED`). CRITICAL/HIGH → `BLOCKED`."_
 
