@@ -32,7 +32,7 @@ Score these 4 dimensions before proceeding. **Any dimension < 0.7 → STOP** and
 
 Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. Inject thinking keyword per MODEL.md § Planner selection.
 
-0. **Resolve planner_model** from ROADMAP entry (`opus` default).
+0. **Resolve planner_model** from `ROADMAP.yaml` (project root) entry (`opus` default).
    - `opus` or missing → continue inline.
    - `codex` AND `codex` in `executors.available` → print `Run from Codex: node .riff/scripts/riff-codex.mjs plan --phase {{N}} --run`, mark loop paused, exit without writing PLAN.md.
    - `codex` requested but absent from `executors.available` → log warning, fall back to inline Opus.
@@ -55,7 +55,7 @@ Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. In
 
 **Pre-spawn:** soft-cap warning (see POST-PHASE.md § Codex usage tracking) if >5 Codex calls in last 5h.
 
-**If running:** Agent tool → skill `codex:codex-rescue`. Prompt: phase goal (one line), branch, _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/plan-adversarial-reviewer.md`. Read PLAN.md, PROJECT.md, ROADMAP entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write PLAN-REVIEW.md with PROCEED or REVISE verdict."_
+**If running:** Agent tool → skill `codex:codex-rescue`. Prompt: phase goal (one line), branch, _"Run with `--model {{MODEL}} --effort {{EFFORT}}`. Read `agents/plan-adversarial-reviewer.md`. Read PLAN.md, PROJECT.md, `ROADMAP.yaml` (project root) entry for phase N, and `taste.md` sections relevant to the phase surface. Apply the protocol. Write PLAN-REVIEW.md with PROCEED or REVISE verdict."_
 
 **Post-completion:** `gates-update.mjs --gate plan-review --status pass --reason "model={{MODEL}} effort={{EFFORT}}"`. Append row to `.planning/codex-usage.csv` (step=4b, outcome=proceed|revise|error, duration_sec).
 

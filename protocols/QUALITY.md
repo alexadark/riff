@@ -73,7 +73,7 @@ After every agent-generated code, check:
 
 **Resolve model + effort** per [`MODEL.md`](./MODEL.md) § Codex model + effort. Defaults by `budget_quality`: `frugal` → `gpt-5.4-mini minimal`; `balanced` → `gpt-5.4 medium`; `max` → `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
-**`risk_focus`** from phase ROADMAP entry (optional). When set, append to prompt: _"Pressure-test these risks first: {{RISK_FOCUS}}. Other material findings still report, but lead with these."_
+**`risk_focus`** from phase `ROADMAP.yaml` (project root) entry (optional). When set, append to prompt: _"Pressure-test these risks first: {{RISK_FOCUS}}. Other material findings still report, but lead with these."_
 
 **Pre-spawn:** soft-cap warning (see POST-PHASE.md § Codex usage tracking) if >5 Codex calls in last 5h.
 
@@ -85,7 +85,7 @@ After every agent-generated code, check:
 
 Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
 
-**Step 7 (Security):** Agent tool, model from `security_model:` if set in ROADMAP.yaml phase entry, else `sonnet`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, _"Read `agents/security-reviewer.md`. Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on changed files. Write SECURITY.md per agent spec (frontmatter `verdict: PASS | PASS-WITH-WARNINGS | BLOCKED`). CRITICAL/HIGH → `BLOCKED`."_
+**Step 7 (Security):** Agent tool, model from `security_model:` if set in `ROADMAP.yaml` (project root) phase entry, else `sonnet`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, _"Read `agents/security-reviewer.md`. Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on changed files. Write SECURITY.md per agent spec (frontmatter `verdict: PASS | PASS-WITH-WARNINGS | BLOCKED`). CRITICAL/HIGH → `BLOCKED`."_
 
 **Prompt capture:** PROMPTS.md § Security reviewer.
 
