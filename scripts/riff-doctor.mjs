@@ -160,6 +160,8 @@ function checkFrameworkPathCitations(files) {
     const lines = readText(file).split(/\r?\n/);
     lines.forEach((line, index) => {
       for (const citation of extractFrameworkPaths(line)) {
+        const precedingText = line.slice(0, citation.index);
+        if (/\.claude\//.test(precedingText) || /\.claude\//.test(citation.raw)) continue;
         if (!targetExists(citation.raw)) {
           addFinding(FINDING_LEVELS.error, file, index + 1, `Missing referenced path: ${citation.raw}`);
         }
