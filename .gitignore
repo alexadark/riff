@@ -19,6 +19,11 @@ RIFF-EXPLAINER.md
 .riff-private/
 private/
 
+# Secrets - never commit
+.env
+.env.*
+!.env.example
+
 # User-specific config (written by /riff:onboard)
 profile.yaml
 profile.yaml.bak
