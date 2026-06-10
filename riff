@@ -14,11 +14,13 @@ if (!command || command === '-h' || command === '--help') {
 Usage:
   riff init [options]
   riff resync
+  riff doctor
   riff linear <setup>
 
 Commands:
   init      Install RIFF into the current project
   resync    Re-link the /riff:* slash commands (run once after cloning the framework, or after it adds/removes commands)
+  doctor    Lint RIFF framework references and profile schema reads
   linear    Sync the roadmap with Linear (run "riff linear" for subcommands)
 
 Options for init:
@@ -33,6 +35,11 @@ Options for init:
 
 if (command === 'resync') {
   const result = spawnSync('bash', [resolve(frameworkRoot, 'riff-resync.sh')], { stdio: 'inherit' });
+  process.exit(result.status ?? 1);
+}
+
+if (command === 'doctor') {
+  const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-doctor.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
   process.exit(result.status ?? 1);
 }
 
