@@ -111,7 +111,7 @@ Gates which executor models the planner may recommend.
 - **Allowed values:** `[claude, codex]` (default) | `[claude]`
 - **Default when missing:** treated as `[claude, codex]` — Codex is the default executor runtime.
 - **Effect:** if `codex` is not present in the list, the planner must never emit `executor_model: codex` in PLAN.md's Model Recommendation. If only `[claude]`, executor falls back to Sonnet sub-agent.
-- **Cross-reference:** see `commands/onboard.md` § Questions for setup guidance; `scripts/riff-init.mjs` `PRESETS.default` for the baseline profile defaults.
+- **Cross-reference:** see `commands/onboard.md` § Questions for setup guidance; `.riff/scripts/riff-init.mjs` `PRESETS.default` for the baseline profile defaults.
 
 Every decision (model choice, whether to run optional pipeline steps) resolves through this chain. Highest wins:
 

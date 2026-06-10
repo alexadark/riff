@@ -83,4 +83,4 @@ Loop until `verdict == MATCH`. **Max 3 cycles per bucket**, then STOP and escala
 
 ## Legacy Fallback
 
-`agents/scope-checker.md` remains as a human-readable fallback spec for older runs or manual recovery, but it is not the default Step 5c path. When this protocol and the agent file disagree, this protocol and `scripts/scope-check.mjs` win.
+`agents/scope-checker.md` remains as a human-readable fallback spec for older runs or manual recovery, but it is not the default Step 5c path. When this protocol and the agent file disagree, this protocol and `.riff/scripts/scope-check.mjs` win.

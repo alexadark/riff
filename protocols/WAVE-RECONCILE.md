@@ -154,6 +154,6 @@ fixing the underlying issue.
 - `commands/wave.md` Step 6 invokes this protocol
 - `templates/RECONCILE.md` defines the output schema
 - `protocols/PROMOTE.md` Step 1.6 reads the verdict
-- `protocols/SCOPE-CHECK.md` + `scripts/scope-check.mjs` write per-phase SCOPE-CHECK.json
+- `protocols/SCOPE-CHECK.md` + `.riff/scripts/scope-check.mjs` write per-phase SCOPE-CHECK.json
 - `agents/security-reviewer.md` writes per-phase SECURITY.md
 - `hooks/lib/reconcile-diff.sh` runs the hook re-run pass

@@ -246,6 +246,7 @@ function checkProfileReads(files) {
         if (!field || field === 'profile.yaml') continue;
         if (field.startsWith('planning.') || field.startsWith('riff.')) continue;
         if (field.startsWith('dashboard.')) continue;
+        if (/\.(md|yaml|yml|mjs|sh|js|ts|json)$/.test(field)) continue;
         if (!schemaFields.has(field)) {
           addFinding(FINDING_LEVELS.error, file, index + 1, `Profile field missing from references/PROFILE-SCHEMA.md: ${field}`);
         }
