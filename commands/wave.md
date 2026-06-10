@@ -1,7 +1,7 @@
 ---
 description: Bundle N parallel-eligible phases and delegate execution to Codex (or run solo)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Agent
-model: opus
+model: fable
 ---
 
 # /riff:wave [W{N} | --resume W{N}]

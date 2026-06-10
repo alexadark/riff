@@ -10,10 +10,10 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 
 | Step                                                   | Where                  | Model                                | Thinking                                                      |
 | ------------------------------------------------------ | ---------------------- | ------------------------------------ | ------------------------------------------------------------- |
-| `/riff:next` orchestration (state read, pick, git, PR) | Inline (parent)        | **Opus** (forced via frontmatter)    | none                                                          |
+| `/riff:next` orchestration (state read, pick, git, PR) | Inline (parent)        | **Fable** (forced via frontmatter)   | none                                                          |
 | `/riff:start` Stage 2.5: Architecture adversarial      | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
 | `/riff:start` Stage 4.5: Roadmap adversarial           | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
-| Step 4: Planner                                        | **Inline** (parent)    | **Opus** (parent)                    | Dynamic per phase                                             |
+| Step 4: Planner                                        | **Inline** (parent)    | **Fable** (parent)                   | Dynamic per phase                                             |
 | Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
 | Step 5: Executor                                       | Sub-agent              | **Codex** (default), Sonnet/Opus on opt-in | none, `think hard` if `complex_execution:`               |
 | Step 5b: Simplifier                                    | Sub-agent              | **Haiku**                            | none                                                          |
@@ -22,7 +22,7 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 | Step 7b: Improver                                      | Sub-agent (background) | **Haiku**                            | none                                                          |
 | Step 8a: Doc updater                                   | Sub-agent              | **Haiku**                            | none                                                          |
 | Quarterly incident review adversarial pass             | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
-| Debugger (auto-trigger or `/riff:debug`)               | Sub-agent              | **Opus** (default), Sonnet opt-in    | Dynamic per triage tier                                       |
+| Debugger (auto-trigger or `/riff:debug`)               | Sub-agent              | **Fable** (default), Sonnet opt-in   | Dynamic per triage tier                                       |
 
 ## Codex model + effort
 
@@ -41,7 +41,7 @@ The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF reso
 
 ### § Codex model+effort rationale
 
-- **Step 5 executor:** Codex is strong at guided execution and the Codex quota is generous (Plus $100 plan, not rationed). Run the frontier model at high effort on every phase — `gpt-5.5 high`. This is the asymmetric-budget policy: spend freely on Codex, stay conservative on Claude (Opus only on the planner, Sonnet as the executor fallback, Haiku for mechanical steps). Per-phase `executor_model: sonnet|opus` still forces the Claude fallback when a phase needs Claude-specific tools.
+- **Step 5 executor:** Codex is strong at guided execution and the Codex quota is generous (Plus $100 plan, not rationed). Run the frontier model at high effort on every phase — `gpt-5.5 high`. This is the asymmetric-budget policy: spend freely on Codex, stay conservative on Claude (Fable for the planner, Sonnet as the executor fallback, Haiku for mechanical steps). Per-phase `executor_model: sonnet|opus` still forces the Claude fallback when a phase needs Claude-specific tools.
 - **Step 4b:** the `auto` gate already filters for complex phases. Once it fires, you're in expensive-correction territory — `gpt-5.5 medium` is justified. Frequency is low (~1-2/day on a typical roadmap) so Plus quota is fine.
 - **Step 6:** highest-frequency Codex call. Default `gpt-5.4 medium` is the sweet spot ($2.50/$15 MTok, 20-100 msg/5h). `frugal` drops to `gpt-5.4-mini minimal`, `max` bumps to `gpt-5.5 medium`.
 - **Stage 2.5:** architecture findings cost ~100x to fix later — `high` effort is justified.
@@ -73,7 +73,7 @@ If the Codex skill is missing or returns an error: log a warning, skip the step,
 
 ## Thinking keywords
 
-Inject at the start of the agent's prompt.
+Inject at the start of the agent's prompt. Fable 5 uses adaptive thinking; the keywords below remain accepted but the model self-regulates depth.
 
 | Keyword        | Budget | When                                   |
 | -------------- | ------ | -------------------------------------- |
@@ -93,9 +93,9 @@ Inject at the start of the agent's prompt.
 ### planner_model resolution
 
 1. Phase's `planner_model:` in ROADMAP.yaml if present.
-2. Default: `opus`.
+2. Default: `fable`.
 
-If `planner_model: codex` but `codex` is not in `executors.available`, fall back to `opus` and log a one-line warning. Per-phase override beats the default.
+If `planner_model: codex` but `codex` is not in `executors.available`, fall back to `fable` and log a one-line warning. A legacy value of `opus` is treated as an alias for the session model (runs inline on Fable, same as the default). Per-phase override beats the default.
 
 ### Security (Step 7) selection
 
@@ -124,9 +124,9 @@ Every decision (model choice, whether to run optional pipeline steps) resolves t
 
 | Budget | Optional pipeline steps (defaults) | Model defaults |
 | ------ | ---------------------------------- | -------------- |
-| `frugal` | `simplify: false`, `arch_adversarial: false`, `plan_adversarial: false`, `roadmap_adversarial: false`, `adversarial: false`, improver off | Codex for execution (default), Haiku/Sonnet for lightweight steps, never Opus by default |
-| `balanced` | `simplify: auto`, `arch_adversarial: auto`, `plan_adversarial: auto`, `roadmap_adversarial: auto`, `adversarial: auto`, improver per existing heuristic | Codex for execution (default), Sonnet on `executor_model: sonnet` override, Opus only on per-phase flag |
-| `max` | `simplify: auto`, `arch_adversarial: auto` (bias toward running), `plan_adversarial: auto` (bias toward running), `roadmap_adversarial: auto` (bias toward running), `adversarial: auto` (bias toward running), improver per heuristic | Codex for execution (default), Opus for planner and security-critical execution |
+| `frugal` | `simplify: false`, `arch_adversarial: false`, `plan_adversarial: false`, `roadmap_adversarial: false`, `adversarial: false`, improver off | Codex for execution (default), Haiku/Sonnet for lightweight steps, never Fable/Opus by default |
+| `balanced` | `simplify: auto`, `arch_adversarial: auto`, `plan_adversarial: auto`, `roadmap_adversarial: auto`, `adversarial: auto`, improver per existing heuristic | Codex for execution (default), Sonnet on `executor_model: sonnet` override, Fable for planner (default) |
+| `max` | `simplify: auto`, `arch_adversarial: auto` (bias toward running), `plan_adversarial: auto` (bias toward running), `roadmap_adversarial: auto` (bias toward running), `adversarial: auto` (bias toward running), improver per heuristic | Codex for execution (default), Fable for planner and security-critical execution |
 
 Per-phase flags always win over budget defaults.
 
@@ -147,13 +147,13 @@ phases:
 ```yaml
 phases:
   - id: 42
-    executor_model: opus        # force Opus for execution (default: codex, fallback: sonnet)
+    executor_model: fable       # force Fable for execution (novel architecture only; default: codex, fallback: sonnet)
     complex_execution: true     # inject `think hard` into executor prompt
     security_critical: true     # force `think harder` in security review
     security_model: sonnet      # sonnet (default) | fable — opt-in Fable for security-critical phases
     auto_debug: false           # disable auto-debug triggers for this phase
     debug_model: sonnet         # use Sonnet instead of Opus for the debugger
-    planner_model: codex        # codex | opus — which model plans this phase (default: opus)
+    planner_model: codex        # codex | fable — which model plans this phase (default: fable; opus accepted as legacy alias)
     simplify: true              # force simplifier on (or false to skip)
     plan_adversarial: true      # force plan adversarial on (or false to skip)
     adversarial: true           # force adversarial on (or false to skip)
@@ -172,7 +172,7 @@ Within the resolved budget (highest wins):
 3. `model:` in the sub-agent's frontmatter
 4. Parent session model (default: `model: inherit`)
 
-For `/riff:next` parent session: `model: opus` in the command frontmatter forces Opus regardless of the user's current `/model`.
+For `/riff:next` parent session: `model: fable` in the command frontmatter forces Fable 5 regardless of the user's current `/model`. A legacy `model: opus` value also works (accepted) and resolves to Opus.
 
 ## Sources
 
@@ -239,9 +239,9 @@ RIFF uses Haiku for:
 
 ### Per-step rationale
 
-#### Parent session + Step 4 (Planner) — Opus inline
+#### Parent session + Step 4 (Planner) — Fable inline
 
-Planning quality is the single biggest leverage point in the pipeline. A bad plan = wasted execution tokens downstream. Parent already loaded all context in Steps 1–3 → inline is cheaper _and_ better than spawning. Forced via `model: opus` in `/riff:next` frontmatter.
+Planning quality is the single biggest leverage point in the pipeline. A bad plan = wasted execution tokens downstream. Parent already loaded all context in Steps 1–3 → inline is cheaper _and_ better than spawning. Forced via `model: fable` in `/riff:next` frontmatter.
 
 #### Step 5 (Executor) — Codex runtime by default
 

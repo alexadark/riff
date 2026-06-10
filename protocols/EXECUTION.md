@@ -32,14 +32,14 @@ Score these 4 dimensions before proceeding. **Any dimension < 0.7 → STOP** and
 
 Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. Inject thinking keyword per MODEL.md § Planner selection.
 
-0. **Resolve planner_model** from `ROADMAP.yaml` (project root) entry (`opus` default).
-   - `opus` or missing → continue inline.
+0. **Resolve planner_model** from `ROADMAP.yaml` (project root) entry (`fable` default).
+   - `fable`, `opus`, or missing → continue inline.
    - `codex` AND `codex` in `executors.available` → print `Run from Codex: node .riff/scripts/riff-codex.mjs plan --phase {{N}} --run`, mark loop paused, exit without writing PLAN.md.
-   - `codex` requested but absent from `executors.available` → log warning, fall back to inline Opus.
+   - `codex` requested but absent from `executors.available` → log warning, fall back to inline Fable.
 1. Re-read if not in context: `agents/planner.md` (goal-backward, AC rules, HITL/AFK, TDD mode, anti-patterns), `taste.md`, `.planning/expertise/planner.md`, previous SUMMARY.md. If PLAN-REVIEW.md exists (revision cycle), read it and address every `BLOCKER` before rewriting PLAN.md.
 2. [KEYWORD] Draft the plan. Break into waves. Mark independent tasks `parallel: [task-A, task-B]` (independent = zero shared files).
 3. Write PLAN.md. Do NOT update STATE.md or ROADMAP.yaml.
-4. Include `## Model Recommendation`: default `executor_model: codex`. Recommend `sonnet` only when Codex is unavailable or a phase needs Claude-specific tools; recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs.
+4. Include `## Model Recommendation`: default `executor_model: codex`. Recommend `sonnet` only when Codex is unavailable or a phase needs Claude-specific tools; recommend `fable` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs.
 
 **Prompt capture:** one-line note of inputs + brief → PROMPTS.md § Planner (inline — no sub-agent).
 

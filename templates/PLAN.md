@@ -27,7 +27,7 @@
 
 ### Task 1: {{TASK_TITLE}}
 
-**Model:** `{{MODEL}}` <!-- sonnet | opus -->
+**Model:** `{{MODEL}}` <!-- sonnet | fable | opus -->
 
 **File(s):** `{{FILE_PATH}}`
 

@@ -56,7 +56,7 @@ End PLAN.md with `## Model Recommendation`:
 
 - `executor_model: codex` (default) — most phases: schema, service wiring, UI, tests, CRUD, refactors, test writing
 - `executor_model: sonnet` — when Codex is unavailable, or when the phase needs tight Claude sub-agent integration (e.g. MCP tools, Claude-specific skills)
-- `executor_model: opus` — ONLY for novel architecture, complex refactoring across 10+ tightly coupled files, unfamiliar external API integration
+- `executor_model: fable` — ONLY for novel architecture, complex refactoring across 10+ tightly coupled files, unfamiliar external API integration
 
 If `executors.available` does not contain `codex`, fall back to `sonnet` as default.
 
@@ -65,8 +65,8 @@ If `executors.available` does not contain `codex`, fall back to `sonnet` as defa
 When adding a new phase to ROADMAP.yaml, also set a `planner_model:` for that phase:
 
 - `planner_model: codex` — Simple phases: CRUD on a typed schema, copy fix, refactor under 5 files, UI tweak.
-- `planner_model: opus` — Risky phases: auth, payments, architecture, migration, public API, novel module.
-- Default to `planner_model: opus` when unsure.
+- `planner_model: fable` — Risky phases: auth, payments, architecture, migration, public API, novel module.
+- Default to `planner_model: fable` when unsure.
 
 Never emit `planner_model: codex` if `executors.available` does not contain `codex` — log a one-line note in the chat reply instead. The canonical heuristic and resolution rules live in `protocols/MODEL.md` § planner_model resolution.
 
