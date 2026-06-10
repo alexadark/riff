@@ -80,12 +80,12 @@ Sidecar read by `hooks/boundary-check.sh` to identify the active PLAN.md. STATE.
 
 ### Step 2c: Ensure PROMPTS.md exists (inline)
 
-Seed `.planning/phases/N-slug/PROMPTS.md` from `.riff/templates/PROMPTS.md` if missing, init `GATES.md` via `node scripts/gates-update.mjs --init` if missing:
+Seed `.planning/phases/N-slug/PROMPTS.md` from `.riff/templates/PROMPTS.md` if missing, init `GATES.md` via `node .riff/scripts/gates-update.mjs --init` if missing:
 
 ```bash
 mkdir -p .planning/phases/N-slug
 [[ ! -f .planning/phases/N-slug/PROMPTS.md ]] && cp .riff/templates/PROMPTS.md .planning/phases/N-slug/PROMPTS.md
-[[ ! -f .planning/phases/N-slug/GATES.md ]] && node scripts/gates-update.mjs --init .planning/phases/N-slug
+[[ ! -f .planning/phases/N-slug/GATES.md ]] && node .riff/scripts/gates-update.mjs --init .planning/phases/N-slug
 ```
 
 PROMPTS.md captures substantive sub-agent prompts (Steps 4, 4b, 5, 5b, 6, 7, auto-debug). It is included in the PR body only when `metadata.pr_body: full`. Convention (what to keep vs drop, finalize-on-PR rules): [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Prompt capture convention.

@@ -65,11 +65,11 @@ After every agent-generated code, check:
 
 **Gate:** `adversarial:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
 
-- `false` → skip (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "gate=false"`)
+- `false` → skip (run `node .riff/scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "gate=false"`)
 - `true` → run (skip overrides do NOT apply when gate is explicit `true`)
 - `auto` → see [`AUTO-TRIGGERS.md#adversarial-auto`](./AUTO-TRIGGERS.md#adversarial-auto)
 
-**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#adversarial-auto`](./AUTO-TRIGGERS.md#adversarial-auto). If any fires, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "<reason>"` and continue without spawning Codex (security review still runs in parallel).
+**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#adversarial-auto`](./AUTO-TRIGGERS.md#adversarial-auto). If any fires, run `node .riff/scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "<reason>"` and continue without spawning Codex (security review still runs in parallel).
 
 **Resolve model + effort** per [`MODEL.md`](./MODEL.md) § Codex model + effort. Defaults by `budget_quality`: `frugal` → `gpt-5.4-mini minimal`; `balanced` → `gpt-5.4 medium`; `max` → `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
