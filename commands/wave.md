@@ -1,14 +1,16 @@
 ---
-description: Bundle N parallel-eligible phases and delegate execution to Codex (or run solo)
+description: Bundle N parallel-eligible phases and delegate execution to Codex or parallel Sonnet workers (or run solo)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Agent
 model: fable
 ---
 
 # /riff:wave [W{N} | --resume W{N}]
 
-Group wave-eligible phases into a Codex wave run. Fable plans, Codex executes, opt-in smoke/browser checks prove it works.
+Group wave-eligible phases into a wave run. The session frontier model plans, the configured executor builds, opt-in smoke/browser checks prove it works.
 
-**Prerequisite:** `executors.available` includes `codex` in profile. Otherwise the command errors and points to `/riff:onboard`.
+**Executor resolution:** `--executor codex|sonnet` flag → `profile.yaml § wave.executor` → default `codex`. `codex` delegates to the Codex CLI (Steps 4-5b). `sonnet` runs parallel Claude sub-agent workers (Step 5c) — no Codex required.
+
+**Prerequisite (codex executor only):** `executors.available` includes `codex` in profile. Otherwise the command errors and points to `/riff:onboard` — or suggests `--executor sonnet`.
 
 ## Modes
 
@@ -20,6 +22,7 @@ Group wave-eligible phases into a Codex wave run. Fable plans, Codex executes, o
 | `/riff:wave --resume W3` | Read `.planning/waves/W3.RESULT.md`, reconcile, update ROADMAP |
 | `/riff:wave --status` | List active/pending/done waves |
 | `/riff:wave --scratch` | Run the wave with security gates downgraded to warnings. See § Scratch mode below |
+| `/riff:wave --executor sonnet\|codex` | Override the wave executor for this wave. Combinable with the other modes |
 
 ## Step 1: Eligibility scan
 
@@ -67,6 +70,8 @@ Read [`protocols/WAVE-BUNDLE.md`](../protocols/WAVE-BUNDLE.md). Write `.planning
 If any phase lacks a PLAN.md, run `agents/planner.md` inline for that phase first. Do not skip.
 
 ## Step 4: Decide in-process vs out-of-process
+
+If the executor resolves to `sonnet`, skip this step and go to Step 5c.
 
 Read [`protocols/CODEX-DELEGATION.md`](../protocols/CODEX-DELEGATION.md) § Routing. Heuristic:
 
@@ -127,12 +132,39 @@ Update STATE.md:
 
 Stop. User runs Codex, comes back with `/riff:wave --resume W{N}`.
 
+## Step 5c: Sonnet workers route (`--executor sonnet`)
+
+Claude-native alternative when Codex is unavailable or the user prefers Claude executors. Same bundle, same RESULT.md contract, same reconcile.
+
+1. **Usage guard first** — see § Usage guard. Do not launch workers above the threshold.
+2. Record `wave_W{N}_base_sha: $(git rev-parse HEAD)` in STATE.md (same as Step 5a).
+3. Spawn one sub-agent per phase with `model: sonnet`, in dependency order:
+   - **Parallel group** → all Agent calls in a single message, they run concurrently.
+   - **Sequential chain** → one at a time; each worker receives the previous phase's per-phase RESULT block.
+4. Each worker prompt is a self-contained handoff packet: the bundle's per-phase block (goal, full plan, acceptance criteria, files, browser-check, digested rules, stack rules) + the bundle's Execution rules including stop conditions. Workers never navigate the wider RIFF docs.
+5. Workers return their per-phase RESULT block as final output. The orchestrator assembles `.planning/waves/W{N}.RESULT.md` (executor model: sonnet), saves the worker prompts to `W{N}.prompt.md`, and jumps to Step 6.
+
+The orchestrator (session frontier model) never writes phase code on this route — it plans, dispatches, vets, reconciles. That keeps expensive tokens on judgment and cheap tokens on volume.
+
+## Usage guard (Claude-side routes only)
+
+Out-of-process Codex runs spend Codex quota, not Claude — no guard needed there (asymmetric-budget policy, `protocols/MODEL.md`). Guard the Claude-side routes: Step 5a in-process, Step 5c Sonnet workers, and any session chaining multiple waves.
+
+Before launching, and again between waves:
+
+1. Run `npx -y ccusage@latest blocks --active --json`.
+2. If the active 5-hour block or the weekly window is at or above **95%**, do NOT launch. Tell the user which window is hot and the observed usage.
+3. If a wakeup/resume tool is available, schedule a self-contained resume at `min(3600, secondsUntilWindowClears)`; chain wakeups for longer waits. The wake prompt must carry: the remaining wave plan, the 95% rule, the exact usage command, and the previous block start timestamp.
+4. On resume, re-check usage before continuing. A new block start timestamp is stronger evidence than "enough time passed".
+5. Never interrupt in-flight workers to save budget — finish the running wave, gate the next one.
+
 ## Step 6: Reconcile (--resume path)
 
 Read `.planning/waves/W{N}.RESULT.md`. For each phase in the wave:
 
 1. Verify the commit exists (`git log --grep="<phase_slug>"`)
 2. Read the per-phase block: pass/fail per acceptance criterion, browser-check verdict, any deviation note
+3. Vet, don't trust: RESULT.md claims are leads, not facts. Spot-check `git show <hash> --stat` against the planned file list, and reopen the riskiest cited file before marking the phase done
 
 ### Step 6.1: Security and scope reconcile
 
@@ -182,6 +214,8 @@ Next: /riff:next or /riff:wave for the next eligible group.
 | Symptom | Action |
 |---|---|
 | Codex aborts mid-wave | RESULT.md has partial results. Reconcile what completed, mark rest as `status: todo` with `notes: wave-W{N}-partial` |
+| Sonnet worker dies mid-phase | Same as Codex abort: assemble partial RESULT.md from returned blocks, re-queue the dead phase |
+| Usage guard fires mid-session (≥95%) | Finish in-flight workers, do NOT launch the next wave. Schedule a wakeup or tell the user when the window clears |
 | Smoke/browser-check fails on a phase | Phase marked `status: needs_human_review`. User decides: re-queue in next wave, or hand-fix |
 | Scope drift detected | Same as failure: `needs_human_review`. Do not auto-rollback |
 | Reconcile verdict `FAIL` | Wave marked `status: needs_human_review`. Surface top 3 findings, no auto-rollback. User fixes, re-runs `/riff:wave --resume W{N}` |

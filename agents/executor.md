@@ -56,6 +56,18 @@ These are guidelines, not hard blocks. A trivial 4-file rename doesn't need dele
 
 Inline is fine when: the change is local (1-2 files), you already have the context, and the task is mechanical.
 
+### Handoff packet (every delegated prompt)
+
+Write the prompt as if the sub-agent has zero chat context:
+
+- Objective + repo path.
+- In-scope files/surfaces + what is explicitly out of scope.
+- Expected return: files, line refs, commands run, diffs, uncertainties.
+- Verification command(s) + what success looks like.
+- Stop conditions: live code contradicts the prompt, a verification command fails twice, work needs out-of-scope files → stop and report, do not improvise.
+
+Treat sub-agent returns as leads, not facts. Before acting on a high-impact finding, reopen the cited file and confirm the line refs yourself.
+
 ## Per task
 
 1. Read task + acceptance criteria

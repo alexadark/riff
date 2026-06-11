@@ -2,7 +2,7 @@
 
 How `/riff:wave` Step 3 assembles `.planning/waves/W{N}.bundle.md`.
 
-The bundle is the **single contract** the Codex wave executor reads. Everything Codex needs to one-shot the wave must be in it, Codex does not navigate the wider RIFF docs.
+The bundle is the **single contract** the wave executor reads — Codex by default, Sonnet workers when the wave runs with `--executor sonnet` (see `commands/wave.md` § Step 5c). Everything the executor needs to one-shot the wave must be in it; the executor does not navigate the wider RIFF docs.
 
 ## File location
 
@@ -39,6 +39,11 @@ A green wave means:
   - **Sequential waves** (phases form a `depends_on` chain): "SEQUENTIAL execution: PA → PB → PC" + do NOT use `-m`. Complete each phase fully (commit + browser-check) before starting the next.
   - The bundle's Execution rules section is the source of truth for which shape applies.
 - If a phase blocks (test failure, ambiguous spec), do NOT skip silently. Write a `## Blocker` block in RESULT.md and continue the next phase if possible.
+- Stop conditions — any of these fires → write the `## Blocker` block and move on, never improvise:
+  - The live code contradicts an assumption in this bundle (stale plan)
+  - An acceptance or smoke command fails twice after a reasonable fix attempt
+  - The task needs files outside the phase's planned file list
+  - You cannot produce concrete evidence (command output, diff) for a claim
 - Browser-check is non-negotiable on UI phases. Read `.riff/protocols/BROWSER-CHECK.md` for the contract.
 - Stop only when ALL phases reach a terminal state (commit + criteria green, OR blocker logged).
 
@@ -71,10 +76,10 @@ If no skills are relevant to a phase, omit the section entirely. Do not add empt
 
 A typical SKILL.md is 100-300 lines. 3 phases × 200 lines = 600 lines of skills alone, eating 30%+ of the 50KB bundle cap. Digestion compresses this to ~20 lines total while preserving the rules Codex actually needs.
 
-## Effort
+## Effort (Codex route only)
 
 Default: `--model gpt-5.5 --effort high`.
-Per-phase override below if set.
+Per-phase override below if set. Ignored on the Sonnet workers route.
 
 ## Stack rules to honor
 
@@ -145,6 +150,7 @@ At the end, write `.planning/waves/W{N}.RESULT.md` with this structure:
 ### Phase P{X} — {{slug}}
 - Commit: {{hash}} {{message}}
 - Criteria: [{{n}}/{{total}} green]
+- Evidence: {{commands run + key output line per criterion}}
 - Browser-check: PASS | FAIL | skipped (reason)
 - Deviation: none | {{description}}
 - Files touched: {{actual list, may differ from planned}}
