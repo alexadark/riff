@@ -42,3 +42,6 @@ profile.yaml.bak
 
 # Local-only plan files (handoff briefs for separate execution windows)
 plans/
+
+# Internal borrowings analysis docs (not shipped with the framework)
+borrowings/
