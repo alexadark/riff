@@ -20,7 +20,7 @@
 # workshop demo). Most projects keep the global default.
 # Full rule: references/PROFILE-RESOLUTION.md
 #
-# Schema and field meanings: commands/onboard.md § Profile schema
+# Schema and field meanings: references/PROFILE-SCHEMA.md
 # Default profile (safe middle ground, this file): commands/onboard.md § Default profile
 
 user:

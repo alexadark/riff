@@ -57,7 +57,7 @@ Open Claude Code in the framework directory and run:
 /riff:onboard
 ```
 
-This walks you through 13 questions (or writes the default profile) and writes `profile.yaml` at the framework root. The path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
+This walks you through 15 questions (or writes the default profile) and writes `profile.yaml` at the framework root. The path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
 
 Then, in any project directory:
 
@@ -341,7 +341,7 @@ The planner's job is to detect cases like task 1+2 above (same file = serialize)
 
 One file at the framework root by default, optionally overridden per project at `<project>/.planning/profile.yaml`. Resolution order: project override → framework default → default profile (`templates/profile.default.yaml`).
 
-Fields (full schema in `commands/onboard.md` § Profile schema):
+Fields (full schema in [`references/PROFILE-SCHEMA.md`](./references/PROFILE-SCHEMA.md)):
 
 - `user.*` — programming level, AI agents experience, domains, work mode, side activities, conversational vs artifact vs narrative language
 - `risk.sensitive_task_preference` — `cautious` / `balanced` / `fast`
@@ -520,38 +520,9 @@ Project side (after `/riff:init`):
 
 ## Model selection
 
-RIFF dispatches across 3 model families. Each has a job it's good at.
+RIFF dispatches across 4 model families. Fable plans and debugs inline (cheapest — parent context already loaded). Codex reviews adversarially (different model family catches Claude blind spots). Sonnet handles security review and is the Claude executor fallback. Haiku covers mechanical background work (simplifier, doc updater, improver). The Codex CLI is optional; if missing, adversarial steps fall back to Sonnet and a warning is logged.
 
-| Family    | When used                                                                                  |
-| --------- | ------------------------------------------------------------------------------------------ |
-| **Opus**  | Planning (default). Debug (default). Adversarial fallback when Codex CLI is unavailable.   |
-| **Sonnet**| Claude fallback execution. Security review. Debug cost override. Most general-purpose work. |
-| **Haiku** | Simplifier. Pre-exec + post-mortem explanations for the dashboard.                         |
-| **Codex** | Adversarial review (different model family, catches Claude's blind spots).                 |
-
-### Where the decision lives
-
-| Step                             | Mechanism             | Default model        | Override                                                  |
-| -------------------------------- | --------------------- | -------------------- | --------------------------------------------------------- |
-| Step 4: Plan                     | Inline (frontmatter)  | Opus                 | `planner_model:` per phase in `ROADMAP.yaml`              |
-| Step 4b: Plan adversarial        | Sub-agent (Codex)     | Codex CLI            | Falls back to Opus if Codex unavailable                   |
-| Step 4c: Pre-exec explanation    | Sub-agent             | Haiku                | (none)                                                    |
-| Step 5: Execute                  | Codex (in-process)    | Codex CLI (default)  | `executor_model: sonnet` forces Claude fallback            |
-| Step 5b: Simplify                | Sub-agent             | Haiku                | `simplify_model:` per phase                                |
-| Step 6: Adversarial review       | Sub-agent (Codex)     | Codex CLI            | Falls back to Opus                                        |
-| Step 7: Security review          | Sub-agent             | Sonnet               | `security_model:` per phase                                |
-| Step 7b: Improver                | Sub-agent             | Haiku                | (gated, see AUTO-TRIGGERS.md)                             |
-
-### Codex CLI fallback
-
-The Codex CLI (`@openai/codex`) is optional. If unavailable, RIFF falls back automatically:
-
-- Adversarial review → Opus with the adversarial prompt.
-- Plan adversarial → Opus with the plan-adversarial prompt.
-
-The fallback is announced in the pipeline output. To get the Codex pass, install `@openai/codex` and run `codex auth` once.
-
-Full spec: `protocols/MODEL.md`.
+Full dispatch table, per-phase overrides, and budget implications: [`protocols/MODEL.md`](./protocols/MODEL.md).
 
 ---
 

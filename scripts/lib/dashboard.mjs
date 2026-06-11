@@ -45,7 +45,7 @@ function readVerdict(root, phaseDir, file) {
 function readRoadmapPhase(root, phaseId) {
   const roadmap = readIfExists(root, 'ROADMAP.yaml');
   if (!roadmap.exists) return undefined;
-  const escaped = phaseId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escaped = String(phaseId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = roadmap.text.match(new RegExp(`id:\\s*["']?${escaped}["']?[\\s\\S]{0,500}`));
   return match ? match[0].split('\n').slice(0, 8).join('\n') : undefined;
 }

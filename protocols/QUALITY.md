@@ -65,15 +65,15 @@ After every agent-generated code, check:
 
 **Gate:** `adversarial:` from the phase's ROADMAP.yaml entry (`true` | `false` | `auto`; default `auto`).
 
-- `false` → skip (run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "gate=false"`)
+- `false` → skip (run `node .riff/scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "gate=false"`)
 - `true` → run (skip overrides do NOT apply when gate is explicit `true`)
 - `auto` → see [`AUTO-TRIGGERS.md#adversarial-auto`](./AUTO-TRIGGERS.md#adversarial-auto)
 
-**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#adversarial-auto`](./AUTO-TRIGGERS.md#adversarial-auto). If any fires, run `node scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "<reason>"` and continue without spawning Codex (security review still runs in parallel).
+**Skip overrides (only when gate resolves to `auto`):** before spawning, check the skip overrides in [`AUTO-TRIGGERS.md#adversarial-auto`](./AUTO-TRIGGERS.md#adversarial-auto). If any fires, run `node .riff/scripts/gates-update.mjs --phase .planning/phases/N-slug --gate code-review --status skipped --reason "<reason>"` and continue without spawning Codex (security review still runs in parallel).
 
 **Resolve model + effort** per [`MODEL.md`](./MODEL.md) § Codex model + effort. Defaults by `budget_quality`: `frugal` → `gpt-5.4-mini minimal`; `balanced` → `gpt-5.4 medium`; `max` → `gpt-5.5 medium`. Per-phase `codex_model:` / `codex_effort:` override.
 
-**`risk_focus`** from phase ROADMAP entry (optional). When set, append to prompt: _"Pressure-test these risks first: {{RISK_FOCUS}}. Other material findings still report, but lead with these."_
+**`risk_focus`** from phase `ROADMAP.yaml` (project root) entry (optional). When set, append to prompt: _"Pressure-test these risks first: {{RISK_FOCUS}}. Other material findings still report, but lead with these."_
 
 **Pre-spawn:** soft-cap warning (see POST-PHASE.md § Codex usage tracking) if >5 Codex calls in last 5h.
 
@@ -83,9 +83,11 @@ After every agent-generated code, check:
 
 **Prompt capture:** PROMPTS.md § Adversarial reviewer (Codex).
 
-Auto-debug on FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
+**Before triggering auto-debug on FAIL:** validate each FAIL finding against the diff — findings without concrete evidence (no failing command, no file:line trace, no failing test) are downgraded to notes and logged to GATES.md as `Step 6: finding downgraded — unevidenced`. If no finding survives, treat as PASS and record `Step 6: PASS — downgraded N unevidenced findings` in GATES.md.
 
-**Step 7 (Security — Sonnet):** Agent tool, `model: "sonnet"`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, _"Read `agents/security-reviewer.md`. Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on changed files. Write SECURITY.md per agent spec (frontmatter `verdict: PASS | PASS-WITH-WARNINGS | BLOCKED`). CRITICAL/HIGH → `BLOCKED`."_
+Auto-debug on confirmed FAIL → `failure_type: adversarial_fail`, `artifact: REVIEW.md`. On RESOLVED, re-run Step 6.
+
+**Step 7 (Security):** Agent tool, model from `security_model:` if set in `ROADMAP.yaml` (project root) phase entry, else `sonnet`. Thinking keyword per MODEL.md § Security selection. Prompt: `[KEYWORD]`, phase goal, _"Read `agents/security-reviewer.md`. Run `git diff main...HEAD`. Read SUMMARY.md. OWASP scan on changed files. Write SECURITY.md per agent spec (frontmatter `verdict: PASS | PASS-WITH-WARNINGS | BLOCKED`). CRITICAL/HIGH → `BLOCKED`."_
 
 **Prompt capture:** PROMPTS.md § Security reviewer.
 

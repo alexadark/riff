@@ -24,7 +24,7 @@ If a session file exists for the same issue: note its path — you will pass it 
 
 ## Step 3: Spawn debugger — sub-agent
 
-Agent tool, `model: "opus"`.
+Agent tool, `model: "fable"`.
 
 Prompt MUST include:
 

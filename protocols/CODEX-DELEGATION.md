@@ -14,7 +14,7 @@ How RIFF hands work to Codex, for both **waves** (N phases) and **solo** (1 phas
 
 User overrides: `--in-process` or `--out-of-process` flag on `/riff:wave`.
 
-If Codex CLI is not installed locally (`which codex` fails), fall back to in-process via the `codex:codex-rescue` skill (which uses Anthropic's Codex API wrapper). Surface a one-line warning so the user knows performance will differ.
+If Codex CLI is not installed locally (`which codex` fails): for review steps (Steps 4b, 6), log a warning to GATES.md and skip the step; for execution steps, fall back to the Claude sub-agent route (Sonnet) per `protocols/MODEL.md` § Executor runtime resolution. Surface a one-line warning either way so the user knows the route changed.
 
 ## Execution skill resolution
 
@@ -30,23 +30,29 @@ The skill must accept flags `-a`, `-x`, `-v`, `-m`, and `-bundle <path>`.
 
 Three flavors. The bundle file is the same in all three — only the wrapper prompt changes.
 
-### Template A: Wave (N parallel phases)
+### Template A: Wave (N phases, parallel or sequential)
 
 The `/goal` framing convention (per nowstack-saas / Melvynx pattern). First line is the high-level outcome, body is the detailed contract. Codex CLI accepts `/goal <text>` directly in the REPL.
+
+Two shapes:
+- **Parallel**: phases have no `depends_on` between them → include `-m` flag, "Execute in any order".
+- **Sequential**: phases form a `depends_on` chain → omit `-m` flag, "SEQUENTIAL: PA → PB → PC".
+
+The bundle's Execution rules section specifies which shape applies. The orchestrator picks the right variant when rendering.
 
 ```text
 /goal Deliver Wave W{N}: {{one-line outcome statement, user-facing}}.
 
-Read .planning/waves/W{N}.bundle.md first. It contains {{N}} independent phases, all wave-eligible (no depends_on between them, all AFK, no production providers).
+Read .planning/waves/W{N}.bundle.md first. It contains {{N}} {{independent | sequential}} phases, all wave-eligible (all AFK, no production providers).
 
 Invoke the configured execution skill (profile.yaml `codex.execution_skill`, default `/apex`):
   {{execution_skill}} -a -x -v -m -bundle .planning/waves/W{N}.bundle.md
 
-Flag meanings (do not skip any):
-  -a  autonomous, no confirmations
-  -x  examine, multi-agent adversarial review (security + logic + clean code) after execution
-  -v  verify, browser-check per phase per the contract in .riff/protocols/BROWSER-CHECK.md
-  -m  teams, run independent phases in parallel agents
+Flag meanings:
+  -a  autonomous, no confirmations (always)
+  -x  examine, multi-agent adversarial review (security + logic + clean code) after execution (always)
+  -v  verify, browser-check per phase per the contract in .riff/protocols/BROWSER-CHECK.md (always)
+  -m  teams, run independent phases in parallel agents (PARALLEL waves only, omit for SEQUENTIAL)
 
 Execution rules:
   - One atomic commit per phase. Conventional commit message. NEVER `git add .`, stage explicit files.

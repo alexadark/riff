@@ -23,6 +23,9 @@ user:
 executors:
   available: [claude, codex]
 
+codex:
+  execution_skill: /apex  # skill invoked by CODEX-DELEGATION.md prompt templates; must accept -a -x -v -m -bundle <path>
+
 risk:
   sensitive_task_preference: balanced
 

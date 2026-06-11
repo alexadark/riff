@@ -44,7 +44,7 @@ If `--plan-only` was passed: STOP here. The PLAN.md, PLAN-REVIEW.md, and EXPLAIN
 **Compute metadata before spawning:**
 - `DURATION` = SUMMARY.md `{{DURATION}}` field (or wall-clock from first/last commit timestamps if missing)
 - `FILES_STAT` = output of `git diff --stat main...HEAD | tail -1` (e.g., `12 files changed, 234 insertions(+), 56 deletions(-)`)
-- `GATES_SUMMARY` = run `node scripts/gates-update.mjs --summarize .planning/phases/N-slug`; capture stdout (empty string if file does not exist)
+- `GATES_SUMMARY` = run `node .riff/scripts/gates-update.mjs --summarize .planning/phases/N-slug`; capture stdout (empty string if file does not exist)
 
 Agent tool, `model: "haiku"`. Prompt:
 

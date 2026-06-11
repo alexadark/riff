@@ -32,7 +32,7 @@ The triggers below are matched by the FULL phrase, not by isolated words. If the
 
 | User says...                                                                            | Do                                                                                                       |
 | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| "re-audit phase N", "re-run security on this branch", "verify phase N before merge"     | Mirror `/riff:next` Steps 5c, 6, 7: run `scripts/scope-check.mjs`, adversarial Codex, and security-reviewer against the named phase. Write `.planning/phases/N-slug/VERIFICATION.md`. |
+| "re-audit phase N", "re-run security on this branch", "verify phase N before merge"     | Mirror `/riff:next` Steps 5c, 6, 7: run `.riff/scripts/scope-check.mjs`, adversarial Codex, and security-reviewer against the named phase. Write `.planning/phases/N-slug/VERIFICATION.md`. |
 | "audit codebase", "health check", "assess this project"                                 | Read skill `audit-codebase` SKILL.md, run mode `bug` / `ai` / `full` based on user phrasing (default `full`). Skip silently if `scope=scratch`. |
 | "resync riff", "sync framework", "re-link riff symlinks"                                | Run `bash .riff/riff-resync.sh` from the project root, paste output back. Surfaces CLAUDE.md drift; never auto-patches. |
 | "set up monitoring", "configure post-deploy", "wire sentry", "post-deploy"               | Read `protocols/POST-DEPLOY.md`, run the one-shot monitoring setup (Sentry, health endpoint, scheduled smoke). User-triggered when the app is deployed.  |

@@ -1,12 +1,12 @@
 ---
 description: Bundle N parallel-eligible phases and delegate execution to Codex (or run solo)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Agent
-model: opus
+model: fable
 ---
 
 # /riff:wave [W{N} | --resume W{N}]
 
-Group wave-eligible phases into a Codex wave run. Opus plans, Codex executes, opt-in smoke/browser checks prove it works.
+Group wave-eligible phases into a Codex wave run. Fable plans, Codex executes, opt-in smoke/browser checks prove it works.
 
 **Prerequisite:** `executors.available` includes `codex` in profile. Otherwise the command errors and points to `/riff:onboard`.
 
@@ -28,12 +28,21 @@ Read ROADMAP.yaml. A phase is **wave-eligible** when ALL of:
 - `status: todo`
 - `mode: AFK` (HITL phases never enter a wave)
 - `provider_mode != production` (sandbox or unset OK)
-- No unmet `depends_on` (all upstream phases `status: done`)
+- No unmet `depends_on`: every upstream phase is `status: done` OR included earlier in this same wave as part of a sequential chain
 - No `wave_eligible: false` override
 
-Group eligible phases by absence of `depends_on` between them. Phases with a mutual `depends_on` chain cannot share a wave.
+Group eligible phases into two shapes:
+
+- **Parallel group**: phases with no `depends_on` between them. These can execute concurrently (flag `-m` in the prompt).
+- **Sequential chain**: phases where A→B→C forms a `depends_on` chain AND all are AFK-eligible. These execute in order within a single Codex session (no `-m` flag). This avoids running N solo delegations for what is logically one body of work (e.g., a content track where each phase builds on the previous).
+
+A wave can contain one parallel group, one sequential chain, or a mix (e.g., two parallel phases followed by a sequential finisher). The bundle's Execution rules section specifies the execution order explicitly.
+
+Phases with a mutual `depends_on` chain **can** share a wave as a sequential chain, provided every upstream phase in the chain is either `status: done` or included earlier in the same wave.
 
 Skip phases marked `planner_model: opus` AND `complex_execution: true` — those need Opus-strict execution, not Codex autonomy. Surface them separately as "solo-eligible only".
+
+A wave with ZERO parallelism (a pure sequential chain) is a valid wave. Do not refuse or downgrade it to solo runs.
 
 ## Step 2: Propose the wave
 
@@ -106,6 +115,11 @@ W{N}.RESULT.md must contain:
 `{{env_prefix}}` is empty when the bundle's `scratch_mode: false`, and
 `RIFF_SCRATCH_MODE=1 RIFF_WAVE_ID=W{N} ` (single line, trailing space) when
 `scratch_mode: true`. See `protocols/CODEX-DELEGATION.md` § Out-of-process.
+
+Save the rendered Codex prompt to `.planning/waves/W{N}.prompt.md` (launch
+command + full `/goal` block + metadata). This is the audit trail for what
+instructions the executor received. See `protocols/WAVE-BUNDLE.md` § Prompt
+preservation.
 
 Update STATE.md:
 - `wave_pending: W{N}`
@@ -220,7 +234,7 @@ section), then promote.
 
 ## Anti-patterns
 
-- Don't bundle a phase whose `depends_on` is not yet `done`
+- Don't bundle a phase whose `depends_on` is neither `done` nor included earlier in the same wave's sequential chain
 - Don't mix HITL phases into a wave (they require human verification, period)
 - Don't override `provider_mode: production` to fit a phase into a wave
 - Don't write the bundle yourself, always go through `protocols/WAVE-BUNDLE.md`

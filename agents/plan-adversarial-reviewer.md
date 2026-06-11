@@ -63,6 +63,10 @@ Severity: `BLOCKER` (plan must be revised before execution) > `WARNING` (planner
 
 `REVISE` = any `BLOCKER` finding. `WARNING`/`NOTE` alone = `PROCEED`.
 
+## Verdict rules
+
+REVISE only for findings that would change tasks or acceptance criteria. Findings that would NOT change any task (code style, naming, hypothetical future risk) go in a `## Notes` section under a PROCEED verdict. REVISE findings must cite file:line or a plan section with the specific defect.
+
 ## Return to orchestrator
 
 Your full review lives in `.planning/phases/N-slug/PLAN-REVIEW.md`. The orchestrator surfaces findings and the planner reads them from that file on `REVISE`, not from your reply. Keep the message you return to the parent to ≤10 lines:

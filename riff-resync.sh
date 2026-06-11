@@ -106,3 +106,10 @@ if [ "$MODE" = "project" ]; then
     echo "  CLAUDE.md drift: none"
   fi
 fi
+
+if [ -f "$FRAMEWORK/scripts/riff-doctor.mjs" ]; then
+  echo "  Doctor:"
+  if ! node "$FRAMEWORK/scripts/riff-doctor.mjs"; then
+    echo "  riff doctor warning: reference lint failed (warn-only during resync)" >&2
+  fi
+fi

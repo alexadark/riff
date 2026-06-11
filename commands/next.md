@@ -2,7 +2,7 @@
 description: The core loop - plan, build, verify the next phase
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion
 args: "[--plan-only] [phase-number]"
-model: opus
+model: fable
 ---
 
 # /riff:next
@@ -80,12 +80,12 @@ Sidecar read by `hooks/boundary-check.sh` to identify the active PLAN.md. STATE.
 
 ### Step 2c: Ensure PROMPTS.md exists (inline)
 
-Seed `.planning/phases/N-slug/PROMPTS.md` from `.riff/templates/PROMPTS.md` if missing, init `GATES.md` via `node scripts/gates-update.mjs --init` if missing:
+Seed `.planning/phases/N-slug/PROMPTS.md` from `.riff/templates/PROMPTS.md` if missing, init `GATES.md` via `node .riff/scripts/gates-update.mjs --init` if missing:
 
 ```bash
 mkdir -p .planning/phases/N-slug
 [[ ! -f .planning/phases/N-slug/PROMPTS.md ]] && cp .riff/templates/PROMPTS.md .planning/phases/N-slug/PROMPTS.md
-[[ ! -f .planning/phases/N-slug/GATES.md ]] && node scripts/gates-update.mjs --init .planning/phases/N-slug
+[[ ! -f .planning/phases/N-slug/GATES.md ]] && node .riff/scripts/gates-update.mjs --init .planning/phases/N-slug
 ```
 
 PROMPTS.md captures substantive sub-agent prompts (Steps 4, 4b, 5, 5b, 6, 7, auto-debug). It is included in the PR body only when `metadata.pr_body: full`. Convention (what to keep vs drop, finalize-on-PR rules): [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Prompt capture convention.
@@ -116,7 +116,7 @@ On `REVISE`, surface findings, re-run Step 4 with PLAN-REVIEW.md input, then re-
 
 Plain-language description of the plan for `/riff:dashboard`. Level + language from `profile.yaml`. Never blocks the pipeline. Full prompt + resolution: [`protocols/DASHBOARD-EXPLAIN.md`](../protocols/DASHBOARD-EXPLAIN.md) § Step 4c — Pre-exec explanation.
 
-**Skip if** neither `style.explanation_level` nor `dashboard.level` is set in profile.yaml.
+**Skip if** neither `style.explanation_level` nor `user.narrative_language` is set in profile.yaml.
 
 Agent tool, `model: "haiku"`. Reads PLAN.md + ROADMAP entry, writes `EXPLAIN.{{LEVEL}}.md`. On error: log a one-line warning, continue.
 
@@ -172,7 +172,7 @@ Skip if scope/package/opt-in/tooling/dev-script/route derivation conditions fail
 
 Plain-language post-mortem of what was built + metadata block, for `/riff:dashboard`. Never blocks the pipeline. Full prompt + style rules: [`protocols/DASHBOARD-EXPLAIN.md`](../protocols/DASHBOARD-EXPLAIN.md) § Step 5f — Post-mortem explanation.
 
-**Skip if** `dashboard:` is missing from profile.yaml.
+**Skip if** neither `style.explanation_level` nor `user.narrative_language` is set in profile.yaml.
 
 ---
 
@@ -184,7 +184,7 @@ Step 6 FAIL or Step 7 BLOCKED triggers auto-debug and re-runs the originating st
 
 ### Step 7b: Improver — sub-agent (background, gated)
 
-Skip by default. Run conditions and background prompt: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Improver invocation (Step 7b).
+Skip by default. Run conditions and background prompt: [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) § Improver invocation (Step 7b). The skip reason is logged to GATES.md as `Step 7b: skipped — <reason>`; if this line is absent from recent GATES.md files, the logging call was dropped and must be restored.
 
 ---
 

@@ -25,7 +25,7 @@ When Claude Code ships a native feature that replaces one of your hooks or comma
 - **Agents + mechanical gates**: planner, executor, security-reviewer, adversarial-reviewer (post-build, runs on Codex as a different model family), plan / architecture / roadmap / incident adversarial reviewers (pre-artifact passes), debugger, simplifier, improver, deep-auditor, plus mechanical scope-check via `scripts/scope-check.mjs`.
 - **14 slash commands**: framework (onboard, learn-stack, dashboard), project lifecycle (init, start, map, resync), daily loop (next, wave, status), off-loop (add-phase, quick, debug, improver). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
 - **Claude Code hooks** in profile-selected buckets: A (universal discipline), B (security-adaptable), C (stack-specific). Your profile picks which ones wire.
-- **~20 protocols**: EXECUTION (confidence gates, R1-R4 deviations, waves), MODEL (dispatch and budget resolution), QUALITY (post-build checks), browser verification, wave bundling, promotion, incident review, and related workflow contracts.
+- **23 protocols**: EXECUTION (confidence gates, R1-R4 deviations, waves), MODEL (dispatch and budget resolution), QUALITY (post-build checks), browser verification, wave bundling, promotion, incident review, and related workflow contracts.
 - **Mechanical-quality gate** via [`fallow`](https://github.com/fallow-rs/fallow) on every TS/JS phase: dead code, duplication, complexity, and boundary violations on the diff. Sub-second, deterministic, no LLM. Auto-installed as a devDep at `/riff:start`.
 - **Browser-based verification** for TS/JS: opt-in smoke test gate (`smoke_test: true`) boots the dev server and loads changed routes in a headless browser; sandbox provider flows (`provider_mode: sandbox`) verify autonomously via the framework-native browser verification protocol (`references/BROWSER-VERIFICATION.md` — Lightpanda + chrome-devtools-mcp) instead of pausing for human OAuth or test-checkout; the `debugger` agent opens the failing route and attaches screenshots to `DEBUG.md` for frontend failures.
 - **Local web dashboard** (`/riff:dashboard`): kanban view of phases, plain-language pre/post explanations at the level your `profile.yaml` declares, generation metadata (models, durations, gates) per phase. Read-only — driving still happens in the terminal.
@@ -88,7 +88,7 @@ Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N pa
 
 One file at the framework root by default, optionally overridden per project at `<project>/.planning/profile.yaml`. Holds your user context, risk appetite, style, budget, notification channel. Every agent reads the resolved profile on startup and adapts. Resolution order: [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
 
-Fields (full schema in `commands/onboard.md` § Profile schema):
+Fields (full schema in [`references/PROFILE-SCHEMA.md`](./references/PROFILE-SCHEMA.md)):
 
 - `user.*`: programming level, AI agents experience, domains, work mode, side activities, conversational vs artifact language
 - `risk.sensitive_task_preference`: `cautious` / `balanced` / `fast`

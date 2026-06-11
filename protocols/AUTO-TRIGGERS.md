@@ -4,7 +4,7 @@ Path patterns, tag matches, and string searches that drive `auto` gate decisions
 
 Design rationale → [`DECISIONS.md`](../DECISIONS.md) (D25, D26, D27).
 
-**Priority vocabulary.** Accepted values for `priority:` in ROADMAP.yaml entries are `P0` | `P1` | `P2` | `critical` | `high` | `medium` | `low`. The first four are treated as "high-stakes" and trigger heavier auto-gates (plan adversarial, Step 6 Codex). The last three are "routine".
+**Priority vocabulary.** Accepted values for `priority:` in ROADMAP.yaml entries are `P0` | `P1` | `P2` | `P3` | `critical` | `high` | `medium` | `low`. Numeric aliases: P0↔critical, P1↔high, P2↔medium, P3↔low. High-stakes = {P0, P1, critical, high} — these trigger heavier auto-gates (plan adversarial, Step 6 Codex). Routine = {P2, P3, medium, low}.
 
 ---
 
@@ -45,7 +45,7 @@ Triggers read from PLAN.md and the phase's ROADMAP.yaml entry (no diff exists ye
 **Skip overrides (apply even if a run condition fires).** Skip Codex when ANY of:
 
 - PLAN.md task list has fewer than 3 tasks
-- Phase tagged `trivial: true` or `bug_fix: true` in ROADMAP.yaml
+- Phase `tags` list contains `trivial` or `bug_fix` in ROADMAP.yaml (boolean fields `trivial: true` / `bug_fix: true` are accepted as legacy aliases)
 - PLAN.md is shorter than 50 lines
 
 Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 4b: skipped — <reason>`).
@@ -107,8 +107,8 @@ Triggers read from `ROADMAP.yaml` and PROJECT.md.
 
 **Skip overrides (apply even if a run condition fires).** Skip Codex when EITHER:
 
-- ALL of: diff is fewer than 100 lines AND no diff path matches `*auth*|*api*|*payment*|*security*` AND phase is NOT tagged `security_critical: true`
-- OR: phase tagged `bug_fix: true` AND tests pass AND diff is fewer than 50 lines
+- ALL of: diff is fewer than 100 lines AND no diff path matches `*auth*|*api*|*payment*|*security*` AND phase `tags` does not contain `security_critical` AND `security_critical: true` boolean field is not set
+- OR: phase `tags` contains `bug_fix` (or legacy `bug_fix: true`) AND tests pass AND diff is fewer than 50 lines
 
 Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 6: skipped — <reason>`).
 
@@ -123,8 +123,9 @@ Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 6
 - ROADMAP.yaml entry has `improver: true` (explicit opt-in by planner or user — see `agents/planner.md` § Improver opt-in for when the planner sets it)
 - A debug session fired during this phase: either `.planning/phases/N-slug/DEBUG.md` exists, or any `.planning/debug/*.md` was created/modified after the phase's PLAN.md timestamp
 - The adversarial review went through at least one revision cycle: `.planning/phases/N-slug/REVIEW.md` contains either a `## Cycle 2` section or a heading matching `Cycle 1 — FAIL` (executor + reviewer round-tripped)
-- Phase id is a multiple of 3 (gentle baseline cadence — guarantees one in three phases gets retrospective even when nothing else fires)
+- Every 3rd completed phase, counted ordinally from the phase history (`ls .planning/phases | wc -l` modulo 3 == 0) — gentle baseline cadence
 - SUMMARY.md contains any of: `"new pattern"`, `"first use of"`, `"novel"`, `"surprised"`, `"unexpected"`, `"discovered"`, `"learned that"`, `"had to retry"`, `"deviated"` (executor or reviewer flagged something worth extracting)
+- `budget_quality: max` (resolved) → bias toward running: when no other condition fires, still run on every 2nd completed phase (`ls .planning/phases | wc -l` modulo 2 == 0)
 
 **Skip otherwise.** Even with the broader heuristic, you can always batch on demand with `/riff:improver [N]`.
 

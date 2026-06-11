@@ -14,10 +14,14 @@ if (!command || command === '-h' || command === '--help') {
 Usage:
   riff init [options]
   riff resync
+  riff doctor
+  riff linear <setup>
 
 Commands:
   init      Install RIFF into the current project
   resync    Re-link the /riff:* slash commands (run once after cloning the framework, or after it adds/removes commands)
+  doctor    Lint RIFF framework references and profile schema reads
+  linear    Sync the roadmap with Linear (run "riff linear" for subcommands)
 
 Options for init:
   --scope <production|scratch>
@@ -34,9 +38,19 @@ if (command === 'resync') {
   process.exit(result.status ?? 1);
 }
 
-if (command !== 'init') {
+if (command === 'doctor') {
+  const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-doctor.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
+  process.exit(result.status ?? 1);
+}
+
+if (command === 'linear') {
+  // Drop the `linear` token so linear-sync.mjs sees its subcommand at argv[2].
+  process.argv.splice(2, 1);
+  const linear = await import(resolve(frameworkRoot, 'scripts', 'linear-sync.mjs'));
+  await linear.main();
+} else if (command === 'init') {
+  await import(resolve(frameworkRoot, 'scripts', 'riff-init.mjs'));
+} else {
   process.stderr.write(`Unknown command: ${command}\n`);
   process.exit(1);
 }
-
-await import(resolve(frameworkRoot, 'scripts', 'riff-init.mjs'));
