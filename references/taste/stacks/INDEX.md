@@ -18,14 +18,14 @@ paths:
 
 | File                          | Read when...                                                                |
 | ----------------------------- | --------------------------------------------------------------------------- |
-| `react-router-7.md`           | Touching `app/routes/`, loader, action, form, navigation, RR7 auth          |
-| `tanstack-start-v1.md`        | TanStack Start v1 root route, server fn, entry files, Tailwind 4, husky 9   |
+| `react-router-7.md`           | `routes.ts`, `root`, entry files, or `react-router.config` (RR7-only files) — loaders, actions, forms, RR7 auth. `app/routes/` is shared with TanStack, so not a trigger; the declared stack drives it in-pipeline |
+| `tanstack-start-v1.md`        | `app/router.tsx`, `client`/`server` entry, or `routeTree.gen.ts` (TanStack-only files) — also covers Tailwind 4, husky 9. `app/routes/` is shared with RR7, so not a trigger |
 | `better-auth-ui.md`           | Auth UI work with `@better-auth-ui/react` (basePaths, requireEmailVerification) |
 | `shadcn-registry.md`          | shadcn `add <registry-url>` bulk install hygiene, dead-code residue         |
 | `react-day-picker.md`         | Calendar / date picker (v10 classname renames)                              |
-| `react-router-ssr-query.md`   | Adding `@tanstack/react-router-ssr-query` (version pinning, SSR wiring)     |
-| `drizzle.md`                  | DB schema, queries, migrations, JSONB ops, upserts                          |
-| `zod.md`                      | Writing/modifying Zod schemas, validation, form parsing                     |
+| `react-router-ssr-query.md`   | Editing `router.tsx` when adding `@tanstack/react-router-ssr-query` (version pinning, SSR wiring) |
+| `drizzle.md`                  | `db/schema/`, `db/migrations/`, queries, repositories — JSONB ops, upserts, RLS, external-API-in-tx |
+| `zod.md`                      | `schemas/`, `validators/`, `*.schema.ts` — Zod schema and validation work   |
 | `vitest.md`                   | Writing tests, mocking modules, MSW handlers                                |
 | `node-esm.md`                 | Standalone scripts (`scripts/*.ts`) for seeds, imports, backfills           |
 | `server-utilities.md`         | Editing `app/lib/server/**` in saas-starter / web-starter projects          |

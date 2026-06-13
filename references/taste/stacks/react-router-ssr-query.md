@@ -1,10 +1,12 @@
 ---
 last_audited: 2026-05-28
 description: @tanstack/react-router-ssr-query version pinning protocol (peer dep awareness)
+# router.tsx is where this lib wires up; package.json removed — it matched every
+# project's package.json and auto-loaded this file everywhere. Same TanStack
+# ecosystem as tanstack-start-v1.md, so the router.tsx co-load is intended.
 paths:
   - "**/app/router.tsx"
   - "**/src/router.tsx"
-  - "**/package.json"
 ---
 
 # Taste Reference - @tanstack/react-router-ssr-query

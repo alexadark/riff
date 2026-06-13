@@ -1,13 +1,14 @@
 ---
 last_audited: 2026-05-28
 description: Zod gotchas (z.record arity, superRefine + partial, UUID variant bits, boolean default inference)
+# scoped to schema/validator locations — dropped app/routes/** (owned by
+# react-router-7.md) and app/server/** (owned by deep-module.md); both loaded zod
+# on every route/server file instead of only on validation work.
 paths:
   - "**/schemas/**/*.ts"
   - "**/*.schema.ts"
   - "**/validators/**/*.ts"
   - "**/lib/schemas/**/*.ts"
-  - "**/app/routes/**/*.{ts,tsx}"
-  - "**/app/server/**/*.ts"
 ---
 
 # Taste Reference - Zod

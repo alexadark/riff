@@ -1,16 +1,14 @@
 ---
 last_audited: 2026-05-28
 description: TanStack Start v1 conventions (entry naming, routeTree.gen.ts, Tailwind 4, husky 9)
+# paths discriminate TanStack Start v1 from React Router 7 — both use app/routes/**,
+# vite.config, tailwind.config, .husky. Only the four files below are TanStack-only;
+# do NOT re-add framework-neutral globs (they auto-load this file in RR7 projects).
 paths:
+  - "**/app/routeTree.gen.ts"
   - "**/app/router.tsx"
   - "**/app/client.{ts,tsx}"
   - "**/app/server.{ts,tsx}"
-  - "**/app/routes/**/*.{ts,tsx}"
-  - "**/app/routeTree.gen.ts"
-  - "**/vite.config.{ts,js}"
-  - "**/tailwind.config.{ts,js}"
-  - "**/app/styles.css"
-  - "**/.husky/**"
 ---
 
 # Taste Reference - TanStack Start v1

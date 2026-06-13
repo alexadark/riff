@@ -1,10 +1,16 @@
 ---
 last_audited: 2026-05-28
 description: React Router 7 framework-mode conventions and anti-Next.js-drift rules
+# Only RR7-exclusive files, absent in TanStack Start projects (which also use
+# app/routes/**). app/routes/** is deliberately NOT here — it's shared with
+# TanStack with no per-file discriminator, so claiming it would auto-load RR7
+# rules in TanStack projects. Route-level rules still reach the executor via the
+# project's declared `## Stack:` in taste.md (executor.md reads stack files
+# on-demand); these globs are only the ad-hoc convenience layer.
+# app/components/** also dropped — framework-neutral, collided with
+# shadcn-registry.md (ui/**) and better-auth-ui.md (auth/**).
 paths:
-  - "**/app/routes/**/*.{ts,tsx}"
   - "**/app/routes.ts"
-  - "**/app/components/**/*.{ts,tsx}"
   - "**/app/root.{ts,tsx}"
   - "**/app/entry.*.{ts,tsx}"
   - "**/react-router.config.{ts,js}"

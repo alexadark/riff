@@ -4,7 +4,6 @@ description: Drizzle ORM gotchas (jsonb inference, onConflictDoUpdate constraint
 paths:
   - "**/db/schema/**/*.ts"
   - "**/db/migrations/**"
-  - "**/*.schema.ts"
   - "**/drizzle.config.{ts,js}"
   - "**/queries/**/*.ts"
   - "**/repositories/**/*.ts"
@@ -88,6 +87,24 @@ paths:
 
    Test the constraint shipped by asserting its presence in the migration text from a unit test (`expect(migrationSql).toContain('CHECK (kind IN ...)')`). Re-run `drizzle-kit generate` after a schema change → re-add the constraint manually each time, or maintain a separate `manual/` SQL directory referenced from the numbered migration.
 
+8. **Never call an external API inside a DB transaction.** Pattern: short tx to write local state → commit → vendor call OUTSIDE any tx → second short tx to record the result. A `db.transaction()` wrapping a `fetch`/SDK call holds the connection (and row locks) open for the whole network round-trip, and a rollback *after* the vendor call already succeeded orphans the vendor-side record (charge created, row gone) and duplicates the side effect on retry. Idempotency keys don't save you — the local row still doesn't exist.
+
+   ```ts
+   // ✗ throw after Stripe succeeds → orphaned charge, duplicated on retry
+   await db.transaction(async (tx) => {
+     await tx.insert(orders).values(o);
+     await stripe.charges.create(...);   // external call inside tx
+     await tx.update(orders)...;          // if THIS throws → charge orphaned
+   });
+
+   // ✓ short tx → vendor call outside → short tx for the result
+   const [{ id }] = await db.insert(orders).values({ ...o, status: "pending" }).returning({ id: orders.id });
+   const charge = await stripe.charges.create(...);          // outside any tx
+   await db.update(orders).set({ status: "paid", chargeId: charge.id }).where(eq(orders.id, id));
+   ```
+
+   **`postgres({ max: 1 })` makes this fatal, not just slow.** A single-connection pool + a tx that awaits a network call = the *only* connection is held for the round-trip → every other request blocks until the vendor responds or times out → app-wide stall. Flag any `db.transaction()` whose body contains `fetch(`, an SDK client call, or any `await` on something that isn't `tx.*`.
+
 ## Supabase + Drizzle: RLS belongs in migrations
 
 Drizzle never emits `ENABLE ROW LEVEL SECURITY`. Supabase exposes every table in `public` to the anon role through PostgREST, so a fresh table is world-readable until RLS is on. Don't keep an out-of-band `rls-policies.sql` "to run manually in the SQL Editor" — it WILL drift. Land RLS as a numbered migration so `db:migrate` applies it everywhere it goes.
@@ -137,3 +154,13 @@ Wire-up:
 ```
 
 The daily cron is the safety net: even a table created from a coffee-shop laptop with no RIFF hooks installed shows up as a red CI run within 24h.
+
+### RLS + grants drift test (pins the surface, not just "RLS on")
+
+`check-rls.ts` answers "is RLS on?". It does NOT catch a stray `GRANT SELECT … TO authenticated` that re-exposes a table whose RLS you trusted. Drop `templates/scripts/rls-drift.test.ts` into the suite for that: it asserts (1) every `public` table has `relrowsecurity`, and (2) every `anon`/`authenticated` grant in `information_schema.role_table_grants` is in an explicit `GRANT_ALLOWLIST` you maintain in the file. Any grant outside the allowlist fails the test → drift is visible in the PR, not in prod.
+
+```json
+"test:rls": "vitest run scripts/rls-drift.test.ts"
+```
+
+Needs `// @vitest-environment node` (the file has it) — the default jsdom env has no `postgres` socket. Skips cleanly when `DATABASE_URL` is unset.

@@ -58,6 +58,30 @@ If `profile.yaml` is missing, default to cautious (escalate marginal findings, f
 - **Env vars** — all secrets from env, not hardcoded? Validated at startup?
 - **Transactions** — multi-record mutations wrapped in DB transaction?
 
+## Tenant Isolation — verify engaged, not just declared
+
+Root cause of real incidents: isolation that *looks* on but isn't (RLS enabled but the runtime role bypasses it; a guard helper that's never called). Don't trust the project's claims — probe.
+
+1. **Runtime DB role must not bypass RLS** (when the project claims RLS-based tenant isolation). Verify against the role the app actually connects as:
+
+   ```sql
+   SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;
+   ```
+
+   `rolsuper` or `rolbypassrls` = true → RLS is decorative for that path; policies are silently skipped. Also bypassed: the table **owner** unless `ALTER TABLE … FORCE ROW LEVEL SECURITY`. So: a Drizzle/`postgres.js` direct connection as `postgres`/owner (typical in these projects) does NOT get RLS isolation — RLS only guards the PostgREST `anon`/`authenticated` surface. If the app reads through that bypassing role, tenant isolation rests entirely on explicit org filters (check 4), and any doc/SUMMARY claiming "RLS isolates tenants" for the server path is false → flag the contradiction. CRITICAL if no org filters back it up.
+
+2. **Documented-but-never-called guards.** A `requireOrg()` / `assertTenant()` / `validateAccess()` that exists but is never invoked = security theater. For every exported `require*` / `assert*` / `validate*`, grep call sites; zero → HIGH.
+
+   ```bash
+   rg -n 'export (async )?(function|const) (require|assert|validate)[A-Za-z0-9]*' --glob '*.{ts,tsx}'
+   # per name N, count enforcing call sites (exclude its own def + tests):
+   rg -c "\bN\s*\(" --glob '*.{ts,tsx}' --glob '!**/*.{test,spec}.*'   # 0 → flag
+   ```
+
+3. **Every migration creating a public table pairs RLS + REVOKE in the same file.** `CREATE TABLE` in `public` without both `ENABLE ROW LEVEL SECURITY` and `REVOKE ALL ON … FROM anon, authenticated` in the same migration → table is world-exposed via PostgREST from the moment it lands until some later fix. Grep new/staged migrations; missing pairing → HIGH.
+
+4. **List loaders / service reads carry an explicit org filter.** Every read returning a collection (loaders, `findMany`, service reads) filters by `organization_id`/tenant key *in the query* — never relying on RLS alone (see check 1: the server role likely bypasses it). Unscoped list read on a tenant table → HIGH.
+
 ## Severity: CRITICAL > HIGH > MEDIUM > LOW
 
 ## Output Format
@@ -125,5 +149,5 @@ Write expertise per `.riff/protocols/QUALITY.md` § Expertise Capture. Propose s
 
 - Don't report false positives — be sure before flagging
 - Don't suggest complex patterns for simple cases
-- Don't flag framework-provided security (e.g. Supabase RLS)
+- Don't flag framework-provided security as missing (e.g. an RLS-protected table is not "unauthenticated") — but DO verify it's actually engaged per Tenant Isolation checks (role not bypassing RLS, guards called, grants revoked)
 - Don't skip IDOR check — #1 vulnerability in solo-dev projects
