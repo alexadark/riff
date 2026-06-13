@@ -26,6 +26,13 @@ executors:
 codex:
   execution_skill: /apex  # skill invoked by CODEX-DELEGATION.md prompt templates; must accept -a -x -v -m -bundle <path>
 
+models:
+  # Inline frontier role: orchestration, planner, and the debugger default.
+  # Single knob for the strong reasoning model. Change this one line when the
+  # flagship rotates (e.g. Fable retired). Sub-agents read it at the call site;
+  # the parent-session force in command frontmatter is a static mirror of it.
+  reasoning: opus
+
 risk:
   sensitive_task_preference: balanced
 

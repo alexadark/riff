@@ -520,7 +520,7 @@ Project side (after `/riff:init`):
 
 ## Model selection
 
-RIFF dispatches across 4 model families. Fable plans and debugs inline (cheapest — parent context already loaded). Codex reviews adversarially (different model family catches Claude blind spots). Sonnet handles security review and is the Claude executor fallback. Haiku covers mechanical background work (simplifier, doc updater, improver). The Codex CLI is optional; if missing, adversarial steps fall back to Sonnet and a warning is logged.
+RIFF dispatches across 4 model families. The reasoning model (set by `profile.yaml` `models.reasoning`, ships as Opus 4.8) plans and debugs inline (cheapest — parent context already loaded). Codex reviews adversarially (different model family catches Claude blind spots). Sonnet handles security review and is the Claude executor fallback. Haiku covers mechanical background work (simplifier, doc updater, improver). The Codex CLI is optional; if missing, adversarial steps fall back to Sonnet and a warning is logged.
 
 Full dispatch table, per-phase overrides, and budget implications: [`protocols/MODEL.md`](./protocols/MODEL.md).
 

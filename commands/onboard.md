@@ -294,6 +294,8 @@ user:
   narrative_language: en
 executors:
   available: [claude, codex]
+models:
+  reasoning: opus   # strong inline model: planner, orchestration, debugger default
 risk:
   sensitive_task_preference: balanced
 style:

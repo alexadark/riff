@@ -21,6 +21,13 @@ codex:
                           # must accept flags: -a -x -v -m -bundle <path>
                           # default: /apex
 
+models:
+  reasoning: <opus | sonnet | any model the Agent tool accepts>  # default: opus
+                          # strong inline reasoning model: orchestration, planner,
+                          # debugger default. Single knob to swap when the flagship
+                          # rotates. Sub-agents read it at the call site; the parent
+                          # force in command frontmatter is a static mirror.
+
 wave:
   reconcile_mode: <hooks | sonnet | both | off>  # default: both — see protocols/WAVE-RECONCILE.md § Modes
 

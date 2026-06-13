@@ -24,7 +24,7 @@ If a session file exists for the same issue: note its path — you will pass it 
 
 ## Step 3: Spawn debugger — sub-agent
 
-Agent tool, `model: "fable"`.
+Agent tool, `model:` resolved from `profile.yaml` `models.reasoning` (default `opus`). Per-phase `debug_model: sonnet` overrides it.
 
 Prompt MUST include:
 

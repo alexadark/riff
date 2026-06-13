@@ -28,8 +28,8 @@ phases:
     # Optional overrides (omit to use defaults):
     # simplify: auto       # auto | true | false — controls Step 5b simplifier (default: auto)
     # auto_debug: true     # true | false — auto-debug on executor/review failures (default: true)
-    # debug_model: sonnet  # sonnet | fable — override debugger model (default: fable)
-    # planner_model: fable # codex | fable — model used to PLAN this phase (default: fable; opus accepted as legacy alias)
+    # debug_model: sonnet  # sonnet | opus — override debugger model (default: profile.yaml models.reasoning)
+    # planner_model: opus  # codex | opus — model used to PLAN this phase (default: profile.yaml models.reasoning; fable accepted as legacy alias)
     # risk_focus: "concurrency, idempotency"  # free text — adversarial reviewers (Step 4b, Step 6) lead with these risks
     # tags: []  # recognized: architecture, novel, security_critical, migration, payment, auth, adversarial-plan, trivial, bug_fix
     # milestone: payment-flow-complete  # tag this phase as a milestone closer; /riff:next prompts to run a Codex deep audit across all phases sharing this milestone (see protocols/DEEP-AUDIT.md)

@@ -85,7 +85,7 @@ Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected,
 
 Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 
-**Model:** `fable` (or `sonnet` if `debug_model: sonnet`).
+**Model:** `profile.yaml` `models.reasoning` (default `opus`), or `sonnet` if `debug_model: sonnet`.
 
 **Prompt:**
 
@@ -96,7 +96,7 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 **After completion:**
 
 - DEBUG.md `RESOLVED` → re-run originating step, UNLESS all of these hold:
-  - debugger ran with `fable` (default)
+  - debugger ran with the default reasoning model (not a `debug_model: sonnet` override)
   - debugger's verification block in DEBUG.md reports tests green + tsc clean
   - every finding in the originating artifact has a corresponding new test locking the fix
 

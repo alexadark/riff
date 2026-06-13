@@ -1,7 +1,7 @@
 ---
 description: Bundle N parallel-eligible phases and delegate execution to Codex or parallel Sonnet workers (or run solo)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Agent
-model: fable
+model: opus  # static mirror of profile.yaml models.reasoning (frontmatter can't read config); keep in sync
 ---
 
 # /riff:wave [W{N} | --resume W{N}]

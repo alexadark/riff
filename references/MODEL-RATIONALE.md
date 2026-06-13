@@ -14,7 +14,7 @@ Background and design reasoning behind `protocols/MODEL.md`. Read this when deci
 
 #### 1. Sub-agents inherit the parent model by default
 
-A sub-agent's frontmatter defaults to `model: inherit`, meaning it runs on the same model as the parent session. If RIFF wants Fable for planning and Sonnet for execution regardless of how the user launched the command, it must override at the call site.
+A sub-agent's frontmatter defaults to `model: inherit`, meaning it runs on the same model as the parent session. If RIFF wants the reasoning model for planning and Sonnet for execution regardless of how the user launched the command, it must override at the call site.
 
 RIFF uses the `model:` parameter on the Agent tool call (precedence option 2 — see MODEL.md).
 
@@ -22,15 +22,15 @@ Source: https://code.claude.com/docs/en/subagents.md
 
 #### 2. Slash commands can force a model
 
-A slash command's frontmatter accepts `model:` to force the parent session onto a specific model for the duration of the command. RIFF uses this on `/riff:next` to guarantee the orchestration + inline planner always run on Fable, regardless of the user's current `/model` setting.
+A slash command's frontmatter accepts `model:` to force the parent session onto a specific model for the duration of the command. RIFF uses this on `/riff:next` to guarantee the orchestration + inline planner always run on the reasoning model, regardless of the user's current `/model` setting. The frontmatter value is static (parsed before the command runs, so it can't read `profile.yaml`) — it is a manual mirror of `models.reasoning`.
 
 #### 3. Sub-agents cost ~7x more tokens than inline work
 
 Each sub-agent spins up a **fresh context**: no prompt cache reuse, system prompt + tool definitions re-sent, files re-read from disk, and a result envelope returned to the parent. Anthropic research benchmarks put a 3-agent team at ~7x the token consumption of an equivalent single-agent session.
 
-**Implication for model choice:** a "cheaper" Sonnet sub-agent can end up _more expensive_ than a Fable inline call.
+**Implication for model choice:** a "cheaper" Sonnet sub-agent can end up _more expensive_ than a reasoning-model inline call.
 
-Quick math: Fable is ~5x Sonnet per token. Sub-agent overhead ~7x. Net: **Sonnet sub-agent ≈ 1.4x the cost of Fable inline** for the same work. Inline wins on both cost and quality whenever the parent already has the relevant context loaded.
+Quick math: the reasoning model (Opus) is ~5x Sonnet per token. Sub-agent overhead ~7x. Net: **Sonnet sub-agent ≈ 1.4x the cost of an inline reasoning-model call** for the same work. Inline wins on both cost and quality whenever the parent already has the relevant context loaded.
 
 #### 4. The planner runs inline, not as a sub-agent
 
@@ -41,9 +41,9 @@ Inline wins because:
 - No re-read of state/roadmap/summary
 - No fresh-context overhead (~7x tokens)
 - Better planning quality (richer working context)
-- Parent is already on Fable (forced via frontmatter)
+- Parent is already on the reasoning model (forced via frontmatter)
 
-The previous opt-in `planner_model: sonnet` (downgrade planner to Sonnet sub-agent) was **dropped**: a Sonnet sub-agent would cost ~1.4x a Fable inline call while delivering worse plans. Net loss.
+The previous opt-in `planner_model: sonnet` (downgrade planner to Sonnet sub-agent) was **dropped**: a Sonnet sub-agent would cost ~1.4x an inline reasoning-model call while delivering worse plans. Net loss.
 
 #### 5. Codex (GPT) for adversarial review
 
@@ -65,13 +65,13 @@ RIFF uses Haiku for:
 
 ### Per-step rationale
 
-#### Parent session + Step 4 (Planner) — Fable inline
+#### Parent session + Step 4 (Planner) — reasoning model inline
 
-Planning quality is the single biggest leverage point in the pipeline. A bad plan = wasted execution tokens downstream. Parent already loaded all context in Steps 1–3 → inline is cheaper _and_ better than spawning. Forced via `model: fable` in `/riff:next` frontmatter.
+Planning quality is the single biggest leverage point in the pipeline. A bad plan = wasted execution tokens downstream. Parent already loaded all context in Steps 1–3 → inline is cheaper _and_ better than spawning. Forced via `model: opus` (a mirror of `models.reasoning`) in `/riff:next` frontmatter.
 
 #### Step 5 (Executor) — Codex runtime by default
 
-Plan is already written — execution is mostly mechanical (write code per PLAN.md, commit, write SUMMARY). Codex is the default executor runtime via `codex:codex-rescue` / CLI. Sonnet is a fallback or explicit override (`executor_model: sonnet`) when Codex is unavailable or the phase needs Claude-specific tools. Fable opt-in for novel architecture, 10+ tightly coupled files, unfamiliar external APIs. Thinking: none by default, `think hard` only if `complex_execution:`.
+Plan is already written — execution is mostly mechanical (write code per PLAN.md, commit, write SUMMARY). Codex is the default executor runtime via `codex:codex-rescue` / CLI. Sonnet is a fallback or explicit override (`executor_model: sonnet`) when Codex is unavailable or the phase needs Claude-specific tools. Reasoning model (`executor_model: opus`) opt-in for novel architecture, 10+ tightly coupled files, unfamiliar external APIs. Thinking: none by default, `think hard` only if `complex_execution:`.
 
 #### Step 6 (Adversarial reviewer) — Codex
 
@@ -89,6 +89,6 @@ Pattern extraction from SUMMARY + expertise files → low complexity. Non-blocki
 
 Regenerating file trees, route tables, taste pattern indexes → mechanical pattern work. No reasoning required, just diffing structure against current state.
 
-#### Debugger — Fable, dynamic thinking
+#### Debugger — reasoning model, dynamic thinking
 
-Debug is reasoning-heavy: hypothesis formation, root cause analysis, tracing implicit assumptions in code you didn't write. Failures are high-stakes: a wrong diagnosis produces a wrong fix that may mask the real problem. Fable default; Sonnet opt-in (`debug_model: sonnet`) for cost-sensitive cases where the failure is clearly scoped. Thinking tier is auto-selected from the failure artifact (see `agents/debugger.md` Step 1). Range: `ultrathink` for CRITICAL security or flaky intermittent bugs → no keyword for obvious config errors.
+Debug is reasoning-heavy: hypothesis formation, root cause analysis, tracing implicit assumptions in code you didn't write. Failures are high-stakes: a wrong diagnosis produces a wrong fix that may mask the real problem. Reasoning model (`models.reasoning`) default; Sonnet opt-in (`debug_model: sonnet`) for cost-sensitive cases where the failure is clearly scoped. Thinking tier is auto-selected from the failure artifact (see `agents/debugger.md` Step 1). Range: `ultrathink` for CRITICAL security or flaky intermittent bugs → no keyword for obvious config errors.

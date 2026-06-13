@@ -2,7 +2,7 @@
 description: The core loop - plan, build, verify the next phase
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion
 args: "[--plan-only] [phase-number]"
-model: fable
+model: opus  # static mirror of profile.yaml models.reasoning (frontmatter can't read config); keep in sync
 ---
 
 # /riff:next

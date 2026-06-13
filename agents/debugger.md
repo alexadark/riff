@@ -10,7 +10,7 @@ Invoked in two contexts:
 1. **Auto-trigger** (from `/riff:next`): executor returned an error, adversarial review returned FAIL, or security review found CRITICAL/HIGH
 2. **Manual** (from `/riff:debug`): ad-hoc debugging
 
-**Model:** Fable (reasoning-heavy, high-stakes). Override: `debug_model: sonnet` in ROADMAP.yaml.
+**Model:** the reasoning model from `profile.yaml` `models.reasoning` (default Opus 4.8 — reasoning-heavy, high-stakes). Override: `debug_model: sonnet` in ROADMAP.yaml.
 
 **No interactive questions.** You have the failure context — diagnose from what you receive.
 
@@ -95,7 +95,7 @@ Plan: .planning/phases/<N-slug>/PLAN.md
 Resolution:
 
 - `<phase-id>` — phase number from the phase path (e.g. `96.7`). For `user_reported` debugging without a phase, use `none` and set `Plan:` to `.planning/debug/<dated-slug>.md`
-- `<debug_model>` — from the phase's ROADMAP.yaml entry: `debug_model:` if set, otherwise `fable`
+- `<debug_model>` — from the phase's ROADMAP.yaml entry: `debug_model:` if set, otherwise `profile.yaml` `models.reasoning` (default `opus`)
 - `<N-slug>` — the phase folder name
 
 **Failure-type extras:**

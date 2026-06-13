@@ -1,7 +1,7 @@
 ---
 description: Discovery pipeline - define the product before building it
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, AskUserQuestion, Agent
-model: fable
+model: opus  # static mirror of profile.yaml models.reasoning (frontmatter can't read config); keep in sync
 ---
 
 # /riff:start
@@ -141,10 +141,10 @@ Write the analysis to `.planning/CONSEQUENCE-ANALYSIS.md` (one section per phase
 **Planner-model annotation:** After each phase entry is drafted, append a `planner_model:` field:
 
 - Simple phases (CRUD, copy fix, refactor under 5 files, UI tweak) → `planner_model: codex`
-- Risky phases (auth, payments, architecture, migration, public API, novel module) → `planner_model: fable`
-- Unsure → `planner_model: fable`
+- Risky phases (auth, payments, architecture, migration, public API, novel module) → `planner_model: opus`
+- Unsure → `planner_model: opus`
 
-If `executors.available` does not include `codex`, omit the field entirely (runtime defaults to `fable`). Canonical heuristic: `agents/planner.md` § Planner-model recommendation.
+If `executors.available` does not include `codex`, omit the field entirely (runtime defaults to `profile.yaml` `models.reasoning`). Canonical heuristic: `agents/planner.md` § Planner-model recommendation.
 
 ---
 
