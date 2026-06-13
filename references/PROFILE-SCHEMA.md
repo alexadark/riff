@@ -30,6 +30,18 @@ models:
 
 wave:
   reconcile_mode: <hooks | sonnet | both | off>  # default: both — see protocols/WAVE-RECONCILE.md § Modes
+  executor: <codex | sonnet>  # default: codex — see commands/wave.md § Executor resolution
+  codex_exec:                  # codex sub-mode, applies when executor == codex
+    run_mode: <codex-exec-in-session | paste>  # default: codex-exec-in-session (mode C).
+                          # codex-exec-in-session: the session runs `codex exec` headless in the
+                          # background and auto-reconciles on exit (no manual paste, interrupt only
+                          # on FAIL/HITL). paste: legacy hand-off to a separate Codex terminal.
+    sandbox_bypass: <true | false>   # default: true — codex exec needs network + write
+    background: <true | false>       # default: true — free the session, re-invoke on exit
+    auto_reconcile: <true | false>   # default: true — run Step 6 automatically when the run exits
+    reasoning_effort: <minimal | low | medium | high | xhigh>            # default: high
+    reasoning_effort_security_critical: <... | xhigh>                    # default: xhigh — for security_critical/adversarial phases
+    fallback: <paste>                # what to do if `codex exec` fails to start
 
 risk:
   sensitive_task_preference: <cautious | balanced | fast>

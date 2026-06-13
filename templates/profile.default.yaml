@@ -60,6 +60,17 @@ wave:
   # Wave executor: codex (delegate to Codex CLI) | sonnet (parallel Claude sub-agent workers).
   # Override per wave with /riff:wave --executor. See commands/wave.md § Step 5c.
   executor: codex
+  # Codex sub-mode (mode C, default). codex-exec-in-session: the RIFF session runs
+  # `codex exec` headless in the background and auto-reconciles on exit — no manual
+  # paste, interrupt only on FAIL/HITL. Set run_mode to `paste` for the legacy flow.
+  codex_exec:
+    run_mode: codex-exec-in-session
+    sandbox_bypass: true
+    background: true
+    auto_reconcile: true
+    reasoning_effort: high
+    reasoning_effort_security_critical: xhigh
+    fallback: paste
 
 git:
   # Valid values: github_button | local_no_ff

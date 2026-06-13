@@ -10,6 +10,8 @@ Group wave-eligible phases into a wave run. The session frontier model plans, th
 
 **Executor resolution:** `--executor codex|sonnet` flag → `profile.yaml § wave.executor` → default `codex`. `codex` delegates to the Codex CLI (Steps 4-5b). `sonnet` runs parallel Claude sub-agent workers (Step 5c) — no Codex required.
 
+**Codex sub-mode (mode C is the default):** when the executor is `codex`, the default flow is **codex-exec-in-session** (`profile.yaml § wave.codex_exec.run_mode: codex-exec-in-session`). The RIFF session launches `codex exec` headless in the background and auto-reconciles (Step 6) when it exits, so the user never pastes a prompt and is interrupted only on a FAIL verdict or an HITL phase. The legacy paste flow (open a separate Codex terminal, paste the prompt) is the **fallback** — used when `wave.codex_exec.run_mode` is unset/`paste` or the user passes `--paste`. Both render the same `W{N}.prompt.md`; mode C just runs it for the user instead of handing it over.
+
 **Prerequisite (codex executor only):** `executors.available` includes `codex` in profile. Otherwise the command errors and points to `/riff:onboard` — or suggests `--executor sonnet`.
 
 ## Modes
@@ -73,12 +75,13 @@ If any phase lacks a PLAN.md, run `agents/planner.md` inline for that phase firs
 
 If the executor resolves to `sonnet`, skip this step and go to Step 5c.
 
-Read [`protocols/CODEX-DELEGATION.md`](../protocols/CODEX-DELEGATION.md) § Routing. Heuristic:
+For the `codex` executor, pick the route:
 
-- ≤1 phase AND estimated under 30 min → in-process (`codex:codex-rescue` skill, blocks Claude)
-- ≥2 phases OR estimated over 30 min → out-of-process (Claude prints the command, user runs it in a separate Codex terminal)
+- **codex-exec-in-session (Step 5b, DEFAULT)** — when `wave.codex_exec.run_mode: codex-exec-in-session` (the shipped default). The session runs `codex exec` headless in the background and auto-reconciles. Works for any phase count. This is mode C.
+- **in-process (Step 5a)** — `≤1` phase AND under ~30 min, when you want the `codex:codex-rescue` skill to block the session inline. Force with `--in-process`.
+- **paste / out-of-process (Step 5b-fallback)** — when `run_mode` is unset/`paste` or the user passes `--paste`: render the prompt and hand it to the user to run in a separate Codex terminal.
 
-User can force with `--in-process` or `--out-of-process` flag.
+Read [`protocols/CODEX-DELEGATION.md`](../protocols/CODEX-DELEGATION.md) § Routing for the in-process vs out-of-process details. User can force with `--in-process`, `--out-of-process`, or `--paste`.
 
 ## Step 5a: In-process route
 
@@ -87,27 +90,48 @@ can resolve the diff range without guessing. Spawn Agent → skill
 `codex:codex-rescue` with the bundle. Wait for return. Read RESULT.md.
 Jump to Step 6.
 
-## Step 5b: Out-of-process route
+## Step 5b: codex-exec in-session route (mode C, DEFAULT)
 
-Print the exact two-step sequence to paste in Codex. Format:
+The session runs the wave headless and reconciles it, so the user does nothing
+between launch and result.
 
-```
-─────────────────────────────────────────────────────────────
-WAVE W{N} READY — open a new Codex terminal and run:
+1. **Render the prompt.** Save the rendered Codex prompt to
+   `.planning/waves/W{N}.prompt.md` (launch metadata + full `/goal` block),
+   the audit trail for what the executor received (see `protocols/WAVE-BUNDLE.md`
+   § Prompt preservation). For `codex exec`, **strip the leading `/goal` line** —
+   slash prefixes are interactive-only; the body works as plain instructions.
 
-  cd {{project_root}}
-  {{env_prefix}}codex --dangerously-bypass-approvals-and-sandbox -c model_reasoning_effort="high"
+2. **Capture the base SHA** in STATE.md BEFORE launching, so Step 6 can resolve
+   the diff range:
+   - `wave_pending: W{N}`
+   - `wave_W{N}_base_sha: $(git rev-parse HEAD)`
 
-Then paste this /goal-prefixed prompt (rendered from CODEX-DELEGATION
-Template A):
+3. **Launch headless in the background.** Run via Bash with the OS sandbox
+   disabled (the run needs network + write), backgrounded so the session is
+   freed and re-invoked on exit (no polling):
 
-{{full rendered prompt}}
+   ```
+   {{env_prefix}}codex exec \
+     --dangerously-bypass-approvals-and-sandbox \
+     -C {{project_root}} \
+     -c model_reasoning_effort="{{effort}}" \
+     -o .planning/waves/W{N}.RESULT-codex.md \
+     - < .planning/waves/W{N}.prompt.md
+   ```
 
-Effort: high (override per phase via codex_effort in ROADMAP)
-Expected duration: ~{{eta}}
-Output: .planning/waves/W{N}.RESULT.md
-─────────────────────────────────────────────────────────────
-```
+   `{{effort}}` defaults to `wave.codex_exec.reasoning_effort` (model + effort
+   otherwise come from `~/.codex/config.toml`); bump to
+   `reasoning_effort_security_critical` for `security_critical`/`adversarial`
+   phases. `{{env_prefix}}` is empty when `scratch_mode: false`, and
+   `RIFF_SCRATCH_MODE=1 RIFF_WAVE_ID=W{N} ` (single line, trailing space) when
+   `scratch_mode: true`.
+
+4. **On exit, auto-reconcile.** When the background run returns, proceed to
+   Step 6 automatically (read `W{N}.RESULT.md`, reconcile, summarize, merge).
+   Interrupt the user only on a FAIL verdict or an HITL gate.
+
+5. **Fallback.** If `codex exec` fails to start (auth/env/binary missing), fall
+   back to the paste flow below and tell the user.
 
 ### RESULT.md Schema
 
@@ -117,18 +141,30 @@ W{N}.RESULT.md must contain:
 - **Per-phase block**: phase id, slug, status (pass|fail|partial), commit hash, acceptance criteria (each with pass/fail), smoke/browser-check (pass/fail/skipped/N/A), deviations (if any), files touched, duration
 - **Wave notes**: cross-cutting learnings, patterns for taste.md, follow-up phases needed
 
-`{{env_prefix}}` is empty when the bundle's `scratch_mode: false`, and
-`RIFF_SCRATCH_MODE=1 RIFF_WAVE_ID=W{N} ` (single line, trailing space) when
-`scratch_mode: true`. See `protocols/CODEX-DELEGATION.md` § Out-of-process.
+### Step 5b-fallback: paste / out-of-process route (`--paste` or `run_mode: paste`)
 
-Save the rendered Codex prompt to `.planning/waves/W{N}.prompt.md` (launch
-command + full `/goal` block + metadata). This is the audit trail for what
-instructions the executor received. See `protocols/WAVE-BUNDLE.md` § Prompt
-preservation.
+Print the exact two-step sequence to paste in Codex. Format:
 
-Update STATE.md:
-- `wave_pending: W{N}`
-- `wave_W{N}_base_sha: $(git rev-parse HEAD)` (captured BEFORE the user runs Codex, so Step 6 can resolve the diff range)
+```
+─────────────────────────────────────────────────────────────
+WAVE W{N} READY — open a new Codex terminal and run:
+
+  cd {{project_root}}
+  {{env_prefix}}codex --dangerously-bypass-approvals-and-sandbox -c model_reasoning_effort="{{effort}}"
+
+Then paste this /goal-prefixed prompt (rendered from CODEX-DELEGATION
+Template A):
+
+{{full rendered prompt}}
+
+Effort: {{effort}} (override per phase via codex_effort in ROADMAP)
+Expected duration: ~{{eta}}
+Output: .planning/waves/W{N}.RESULT.md
+─────────────────────────────────────────────────────────────
+```
+
+`{{env_prefix}}` follows the same scratch-mode rule as above. See
+`protocols/CODEX-DELEGATION.md` § Out-of-process.
 
 Stop. User runs Codex, comes back with `/riff:wave --resume W{N}`.
 
