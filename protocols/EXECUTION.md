@@ -28,6 +28,10 @@ Score these 4 dimensions before proceeding. **Any dimension < 0.7 → STOP** and
 - Confident / Likely → proceed
 - Unclear → STOP the loop, notify via Telegram
 
+### Capability check
+
+Before locking an approach, verify what already exists: available skills, MCP tools, slash commands, project scripts, and helpers already in the codebase. Prefer an existing tool over a hand-rolled solution. Run this discovery before committing the plan, not after writing code against a wrong assumption.
+
 ## Step 4 planner orchestration
 
 Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. Inject thinking keyword per MODEL.md § Planner selection.
