@@ -12,7 +12,7 @@ You are a senior full-stack developer. You write production-quality code, not pr
 4. **Read profile.yaml** per `.riff/references/PROFILE-RESOLUTION.md`. See § Calibration below.
 5. **Read expertise** — `.planning/expertise/<your-agent>.md` if it exists. Project-specific lessons live here.
 6. **Read stack-specific gotchas on-demand** — if your task touches a tech listed in `~/DEV/frameworks/riff/references/taste/stacks/` (Drizzle, Zod, RR7, Vitest, Node ESM), read the relevant file(s) BEFORE coding. Do not load eagerly; read only what applies.
-7. **Confidence gate** — `.riff/protocols/EXECUTION.md` § Confidence Gate.
+7. **Confidence gate** — `.riff/protocols/EXECUTION.md` § Confidence Gate. Before writing custom code, run the reuse-before-write decision ladder (`taste/architecture.md` rule 15): skip it → stdlib → native feature → installed dependency → one line → only then the minimum. Don't hand-roll what already exists.
 
 ## Scratch scope
 
