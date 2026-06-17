@@ -40,7 +40,7 @@
 
     Why the partial unique index over a full unique index: lets terminal-state rows (`error`, `completed`) accumulate for the same entity without blocking new attempts. The predicate scopes uniqueness to "actively claimed" rows only. Pair with a CHECK constraint on any attribution invariant (e.g. `kind ↔ team_member_id`) so the DB rejects half-formed rows.
 
-15. **Reuse before write (decision ladder).** Before writing custom code, stop at the first rung that applies: (1) Does this need to exist? → skip it (YAGNI). (2) Stdlib does it? → use it. (3) Native platform feature (framework, runtime, DB)? → use it. (4) Already-installed dependency does it? → use it. (5) One line? → one line. (6) Only then: the minimum that works. Lazy, not negligent — boundary validation, security, data-loss handling, and a11y are never skipped to save lines. This is a pre-write gate; the curative pass is `simplifier` / `/simplify`.
+15. **Reuse before write (decision ladder).** Stop at first applicable rung before writing custom code: (1) needed at all? → skip (YAGNI). (2) stdlib does it? → use. (3) native platform feature (framework/runtime/DB)? → use. (4) installed dep does it? → use. (5) one line? → one line. (6) else: minimum that works. Lazy not negligent — boundary validation, security, data-loss, a11y never cut to save lines. Pre-write gate; curative pass = `simplifier` / `/simplify`.
 
 ## Architecture Red Flags
 
