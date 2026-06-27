@@ -34,7 +34,7 @@ Before locking an approach, verify what already exists: available skills, MCP to
 
 ## Step 4 planner orchestration
 
-Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. Inject thinking keyword per MODEL.md § Planner selection.
+Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. Runs inline at the session effort; add `ultrathink` for architecture/novel phases per MODEL.md § Planner selection.
 
 0. **Resolve planner_model** from `ROADMAP.yaml` (project root) entry (default: `profile.yaml` `models.reasoning`, i.e. `opus`).
    - `opus`, `fable` (legacy alias), or missing → continue inline.
@@ -112,7 +112,7 @@ If `profile.yaml` is missing, fall back to the default profile (see `commands/on
 
 **Runtime resolution:** see [`MODEL.md`](./MODEL.md) § Executor runtime resolution. Default: **Codex** (via `codex:codex-rescue` in-process). Falls back to Claude sub-agent (Sonnet) when `executor_model: sonnet` or `codex` not in `executors.available`.
 
-**Thinking:** none by default, `think hard` if `complex_execution: true`. **Parallel tasks** marked `parallel:` MUST launch as separate sub-agents in a single message; sequential tasks stay inline within the executor.
+**Effort:** Codex default path uses Codex effort (bumped to `xhigh` when `complex_execution: true`); the Claude fallback runs at the executor's frontmatter `effort: medium`. **Parallel tasks** marked `parallel:` MUST launch as separate sub-agents in a single message; sequential tasks stay inline within the executor.
 
 #### Route A: Codex executor (default)
 

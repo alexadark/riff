@@ -6,7 +6,7 @@
 
 ## Triage tier
 
-[ultrathink / think harder / think hard / none] — [justification]
+[Escalate / Standard / Routine / Trivial] — [justification]
 
 ## Root cause
 

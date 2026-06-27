@@ -1,6 +1,6 @@
 # Model Selection
 
-Which model, thinking budget, and inline-vs-subagent for each pipeline step.
+Which model, reasoning depth, and inline-vs-subagent for each pipeline step.
 
 Design rationale: [`references/MODEL-RATIONALE.md`](../references/MODEL-RATIONALE.md) — read only when changing dispatch rules.
 
@@ -8,21 +8,23 @@ Defaults in the dispatch table below assume `balanced` budget. See § Budget and
 
 ## Dispatch table
 
-| Step                                                   | Where                  | Model                                | Thinking                                                      |
+Depth is set by **model choice and the working effort levers**, not by prose keywords (see § Effort for why keywords are inert in RIFF's spawn path). "Model default" below means the chosen model's own default effort; the lever to go deeper is escalating the model (`*_model: opus`) or, for Codex steps, the `--effort` flag.
+
+| Step                                                   | Where                  | Model                                | Depth lever                                                  |
 | ------------------------------------------------------ | ---------------------- | ------------------------------------ | ------------------------------------------------------------- |
-| `/riff:next` orchestration (state read, pick, git, PR) | Inline (parent)        | **Reasoning model** (`models.reasoning`, default Opus; forced via frontmatter) | none                                       |
-| `/riff:start` Stage 2.5: Architecture adversarial      | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
-| `/riff:start` Stage 4.5: Roadmap adversarial           | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
-| Step 4: Planner                                        | **Inline** (parent)    | **Reasoning model** (parent)         | Dynamic per phase                                             |
-| Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
-| Step 5: Executor                                       | Sub-agent              | **Codex** (default), Sonnet/Opus on opt-in | none, `think hard` if `complex_execution:`               |
-| Step 5b: Simplifier                                    | Sub-agent              | **Haiku**                            | none                                                          |
-| Step 6: Adversarial review                             | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
-| Step 7: Security review                                | Sub-agent              | **Sonnet**                           | `think harder` for auth/payment/public-API, else `think hard` |
-| Step 7b: Improver                                      | Sub-agent (background) | **Haiku**                            | none                                                          |
-| Step 8a: Doc updater                                   | Sub-agent              | **Haiku**                            | none                                                          |
-| Quarterly incident review adversarial pass             | Sub-agent              | **Codex (GPT)**                      | see § Codex model + effort                                    |
-| Debugger (auto-trigger or `/riff:debug`)               | Sub-agent              | **Reasoning model** (default), Sonnet opt-in | Dynamic per triage tier                               |
+| `/riff:next` orchestration (state read, pick, git, PR) | Inline (parent)        | **Reasoning model** (`models.reasoning`, default Opus; forced via frontmatter) | session effort (Opus default `high`)       |
+| `/riff:start` Stage 2.5: Architecture adversarial      | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
+| `/riff:start` Stage 4.5: Roadmap adversarial           | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
+| Step 4: Planner                                        | **Inline** (parent)    | **Reasoning model** (parent)         | session effort; `ultrathink` for architecture/novel (works inline — see § Planner) |
+| Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
+| Step 5: Executor                                       | Sub-agent              | **Codex** (default), Sonnet/Opus on opt-in | Codex `--effort` (xhigh on `complex_execution:`); Claude fallback runs at model default, deepen via `executor_model: opus` |
+| Step 5b: Simplifier                                    | Sub-agent              | **Haiku**                            | model default                                                 |
+| Step 6: Adversarial review                             | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
+| Step 7: Security review                                | Sub-agent              | **Sonnet**                           | model default; deepen via `security_model: opus`              |
+| Step 7b: Improver                                      | Sub-agent (background) | **Haiku**                            | model default                                                 |
+| Step 8a: Doc updater                                   | Sub-agent              | **Haiku**                            | model default                                                 |
+| Quarterly incident review adversarial pass             | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
+| Debugger (auto-trigger or `/riff:debug`)               | Sub-agent              | **Reasoning model** (default), Sonnet opt-in | model default; Codex second opinion for CRITICAL/flaky (see § Debugger) |
 
 ## Codex model + effort
 
@@ -71,24 +73,34 @@ Same precedence as everything else (highest wins):
 
 If the Codex skill is missing or returns an error: log a warning, skip the step, never block the pipeline.
 
-## Thinking keywords
+## Effort
 
-Inject at the start of the agent's prompt. Adaptive-thinking models (Opus 4.8 and similar) self-regulate depth; the keywords below remain accepted as hints.
+Reasoning depth is the `effort` parameter on the API (`low | medium | high | xhigh | max`). On Opus 4.8 / Claude 4.x the text phrases "think hard" / "think harder" / "think" are ordinary prompt text and change nothing — only `ultrathink` is intercepted, and only on the **main thread**.
 
-| Keyword        | Budget | When                                   |
-| -------------- | ------ | -------------------------------------- |
-| `ultrathink`   | Max    | P0 + architecture / novel design       |
-| `think harder` | High   | P0 standard, complex security review   |
-| `think hard`   | Medium | P1 standard, normal security review    |
-| `think`        | Low    | Edge cases during execution            |
-| (none)         | None   | Mechanical work, low-stakes background |
+How this maps to RIFF's spawn mechanism — the part that bites:
+
+- **Inline (parent)** — planner, orchestration. Depth = the session effort. Opus defaults to `high`. A one-off `ultrathink` in the inline prompt works (main thread).
+- **Sub-agents** — RIFF spawns every sub-agent by **prompt injection**: an Agent-tool call with a `model:` override and a prompt that says *"Read `agents/X.md`. …"*. It does **not** dispatch by `subagent_type`. Consequences:
+  - The Agent tool has **no per-call effort parameter**, so RIFF cannot set a sub-agent's effort at spawn.
+  - A sub-agent's `effort:` frontmatter is **not read** through this path (the file is loaded as prompt content, not as a subagent definition).
+  - An `ultrathink` keyword injected into a sub-agent prompt does **nothing**.
+  - Net: each sub-agent runs at **its model's default effort**. The only lever to go deeper is **choosing a stronger model** — `security_model: opus`, `executor_model: opus`, `debug_model` — or, for Codex steps, the `--effort` flag (which RIFF passes into the rescue prompt and does work).
+
+The depth-by-model levers RIFF has today:
+
+| Want more depth on… | Lever that works |
+| --- | --- |
+| Planner / orchestration (inline) | session effort + `ultrathink` |
+| Security review | `security_model: opus` |
+| Execution (Claude path) | `executor_model: opus`; (Codex path) `codex_effort` / `complex_execution` |
+| Debugging | reasoning model default; Codex second opinion on the hardest tier |
+| Any Codex step | `--effort` (`minimal | medium | high | xhigh`) |
+
+> **Follow-up (not yet done):** to make a real per-step `effort` knob, RIFF would dispatch sub-agents by `subagent_type` (frontmatter `effort:` applies) instead of prompt injection. That touches every spawn call site in `QUALITY.md` / `EXECUTION.md` / `POST-PHASE.md`. Tracked as a future change; until then, model choice is the depth lever.
 
 ### Planner (Step 4) selection
 
-- P0 **AND** tag `architecture` / `novel` / `security_critical` → `ultrathink`
-- P0 standard, or P1 with tag `complex` → `think harder`
-- P1 standard → `think hard`
-- P2 or tag `simple` / `mechanical` → none
+Planner runs **inline** on the parent, so its depth is the session effort (Opus default `high`). Add `ultrathink` to the inline planner prompt when the phase is P0 **and** tagged `architecture` / `novel` / `security_critical`. The session `high` covers P0/P1 standard. The old `think harder`/`think hard` per-tier prose was inert on current models and is removed.
 
 ### planner_model resolution
 
@@ -99,8 +111,11 @@ If `planner_model: codex` but `codex` is not in `executors.available`, fall back
 
 ### Security (Step 7) selection
 
-- Phase touches auth / payment / public API / secrets, or tag `security_critical` → `think harder`
-- Else → `think hard`
+The security-reviewer runs on **Sonnet at its model default effort**. RIFF can't raise effort per-call (prompt-injection spawn, no effort param), so there is no auth-vs-other keyword split. Depth on the riskier phases comes from two levers that work: the Step 6 Codex adversarial pass (independent model), and `security_model: opus` for phases touching auth / payment / public API / secrets (or tag `security_critical`), which runs the review on the reasoning model.
+
+### Debugger selection
+
+The debugger runs on the reasoning model (default) at its model default effort; `debug_model: sonnet` opts down for clearly-scoped failures. The old per-triage-tier keyword range (`ultrathink`→none) was inert and is removed. For the top tier — `security_fail` CRITICAL, flaky/intermittent, or 2+ failed fix attempts — escalate with a Codex second opinion (`codex:codex-rescue`, `gpt-5.5 high`) alongside the Claude debugger, which adds a genuinely independent diagnosis instead of a deeper pass from the same model. See `agents/debugger.md` Step 1.
 
 ## Budget and model resolution
 
@@ -148,8 +163,8 @@ phases:
 phases:
   - id: 42
     executor_model: opus        # force the reasoning model for execution (novel architecture only; default: codex, fallback: sonnet; `fable` accepted as legacy alias)
-    complex_execution: true     # inject `think hard` into executor prompt
-    security_critical: true     # force `think harder` in security review
+    complex_execution: true     # Codex path: bump codex_effort to xhigh. Claude fallback: deepen via executor_model: opus (no per-call effort override)
+    security_critical: true     # routes depth via Step 6 Codex adversarial + `security_model: opus` (no per-call effort override on the Sonnet review)
     security_model: sonnet      # sonnet (default) | opus — opt-in reasoning model for security-critical phases
     auto_debug: false           # disable auto-debug triggers for this phase
     debug_model: sonnet         # use Sonnet instead of Opus for the debugger

@@ -300,7 +300,7 @@ Invoked by the quarterly incident review (`protocols/INCIDENT.md` § Part 2). Ch
 
 ### Security-reviewer (`agents/security-reviewer.md`)
 
-OWASP top-10 scan on every production phase: auth, input validation, injection, IDOR, secrets, error handling. Reads `SUMMARY.md` and `git diff main...HEAD`. Writes `SECURITY.md` with verdict `PASS`, `PASS-WITH-WARNINGS`, or `BLOCKED`. CRITICAL/HIGH findings auto-trigger debugger. Default model: Sonnet, with thinking budget per `protocols/MODEL.md`.
+OWASP top-10 scan on every production phase: auth, input validation, injection, IDOR, secrets, error handling. Reads `SUMMARY.md` and `git diff main...HEAD`. Writes `SECURITY.md` with verdict `PASS`, `PASS-WITH-WARNINGS`, or `BLOCKED`. CRITICAL/HIGH findings auto-trigger debugger. Default model: Sonnet, deepened via `security_model: opus` per `protocols/MODEL.md`.
 
 ### Debugger (`agents/debugger.md`)
 

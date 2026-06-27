@@ -23,16 +23,18 @@ Invoked in two contexts:
 3. Failure artifact: path to SUMMARY.md, REVIEW.md, test output, security findings, or user description
 4. Phase path `.planning/phases/N-slug/` (omit for `user_reported` without phase context)
 
-## Step 1: Auto-triage thinking budget
+## Step 1: Auto-triage
 
-Parse the failure artifact and classify automatically. Output at the start of your response: `Triage tier: [tier] — [one-line justification]`. Then reason with the keyword active.
+You run on the reasoning model at its default effort (RIFF spawns you by prompt injection; there is no per-call effort knob). Parse the failure artifact and classify the tier. Output at the start of your response: `Triage tier: [tier] — [one-line justification]`. The tier decides whether to escalate to a second model, not an effort level.
 
-| Tier    | Signals                                                                                                                                                           | Keyword          |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| Maximum | `security_fail` CRITICAL; intermittent / flaky; "can't reproduce"; 2+ failed fix attempts on same issue; race conditions                                          | **ultrathink**   |
-| High    | `adversarial_fail` FAIL + 3+ distinct issues; `executor_fail` spanning multiple services/files; `verification_fail` (tests pass, behavior wrong); multi-layer bug | **think harder** |
-| Medium  | `executor_fail` with clear stack trace + single scope; `test_fail` deterministic repro; `security_fail` HIGH                                                      | **think hard**   |
-| None    | Typo, missing import, obvious config error, explicit "X is not defined" with file + line                                                                          | (none)           |
+| Tier        | Signals                                                                                                                                                           | Action                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Escalate    | `security_fail` CRITICAL; intermittent / flaky; "can't reproduce"; 2+ failed fix attempts on same issue; race conditions                                          | Diagnose, **and** request a Codex second opinion (`codex:codex-rescue`, `gpt-5.5 high`) — cross-check root cause before committing a fix |
+| Standard    | `adversarial_fail` FAIL + 3+ distinct issues; `executor_fail` spanning multiple services/files; `verification_fail` (tests pass, behavior wrong); multi-layer bug | Diagnose; no escalation                                                |
+| Routine     | `executor_fail` with clear stack trace + single scope; `test_fail` deterministic repro; `security_fail` HIGH                                                      | Diagnose; no escalation                                                |
+| Trivial     | Typo, missing import, obvious config error, explicit "X is not defined" with file + line                                                                          | Fix directly, skip deep analysis                                       |
+
+The Codex second opinion replaces the old "Maximum" thinking tier: an independent model cross-checks the hardest cases, which beats asking the same model to think harder at a level RIFF's spawn path can't actually set.
 
 ## Step 2: Context load
 

@@ -71,15 +71,15 @@ Planning quality is the single biggest leverage point in the pipeline. A bad pla
 
 #### Step 5 (Executor) — Codex runtime by default
 
-Plan is already written — execution is mostly mechanical (write code per PLAN.md, commit, write SUMMARY). Codex is the default executor runtime via `codex:codex-rescue` / CLI. Sonnet is a fallback or explicit override (`executor_model: sonnet`) when Codex is unavailable or the phase needs Claude-specific tools. Reasoning model (`executor_model: opus`) opt-in for novel architecture, 10+ tightly coupled files, unfamiliar external APIs. Thinking: none by default, `think hard` only if `complex_execution:`.
+Plan is already written — execution is mostly mechanical (write code per PLAN.md, commit, write SUMMARY). Codex is the default executor runtime via `codex:codex-rescue` / CLI. Sonnet is a fallback or explicit override (`executor_model: sonnet`) when Codex is unavailable or the phase needs Claude-specific tools. Reasoning model (`executor_model: opus`) opt-in for novel architecture, 10+ tightly coupled files, unfamiliar external APIs. Depth: Codex path uses Codex `--effort` (xhigh on `complex_execution:`); the Claude fallback runs at its model default, deepened via `executor_model: opus`.
 
 #### Step 6 (Adversarial reviewer) — Codex
 
 Different model = catches Claude's blind spots. Free via GPT sub. Reasoning effort controlled inside the `codex:codex-rescue` skill.
 
-#### Step 7 (Security reviewer) — Sonnet, thinking harder/hard
+#### Step 7 (Security reviewer) — Sonnet, `effort: high`
 
-OWASP scan = reasoning-heavy work (subtle vulns, IDOR, race conditions). Cost of thinking is dwarfed by cost of a missed CVE. `think harder` for auth/payment/public-API, `think hard` otherwise.
+OWASP scan = reasoning-heavy work (subtle vulns, IDOR, race conditions). Cost of thinking is dwarfed by cost of a missed CVE, so it runs at a fixed `effort: high` on every phase. The Agent tool has no per-call effort override, so there is no auth-vs-other split at spawn; extra depth for auth/payment/public-API comes from the Step 6 Codex adversarial pass and `security_model: opus` at max budget.
 
 #### Step 7b (Improver) — Haiku, background
 
@@ -89,6 +89,6 @@ Pattern extraction from SUMMARY + expertise files → low complexity. Non-blocki
 
 Regenerating file trees, route tables, taste pattern indexes → mechanical pattern work. No reasoning required, just diffing structure against current state.
 
-#### Debugger — reasoning model, dynamic thinking
+#### Debugger — reasoning model, `effort: high`
 
-Debug is reasoning-heavy: hypothesis formation, root cause analysis, tracing implicit assumptions in code you didn't write. Failures are high-stakes: a wrong diagnosis produces a wrong fix that may mask the real problem. Reasoning model (`models.reasoning`) default; Sonnet opt-in (`debug_model: sonnet`) for cost-sensitive cases where the failure is clearly scoped. Thinking tier is auto-selected from the failure artifact (see `agents/debugger.md` Step 1). Range: `ultrathink` for CRITICAL security or flaky intermittent bugs → no keyword for obvious config errors.
+Debug is reasoning-heavy: hypothesis formation, root cause analysis, tracing implicit assumptions in code you didn't write. Failures are high-stakes: a wrong diagnosis produces a wrong fix that may mask the real problem. Reasoning model (`models.reasoning`) default; Sonnet opt-in (`debug_model: sonnet`) for cost-sensitive cases where the failure is clearly scoped. Runs at a fixed `effort: high` (the Agent tool has no per-call effort override). The top triage tier — CRITICAL security, flaky/intermittent, 2+ failed fixes — escalates with a Codex second opinion (`gpt-5.5 high`) alongside the Claude debugger rather than a higher Claude effort (see `agents/debugger.md` Step 1).
