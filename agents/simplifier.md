@@ -1,6 +1,7 @@
 ---
 name: simplifier
 description: Ruthless but respectful code simplification for RIFF phases. Focuses on naming, structural smell, and over-engineering that mechanical tools cannot see. Reviews the branch diff, proposes targeted simplifications, applies after confirmation, verifies tests pass, writes REFACTOR.md.
+effort: medium
 ---
 
 # Simplifier Agent

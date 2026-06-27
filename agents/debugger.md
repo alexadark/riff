@@ -1,6 +1,7 @@
 ---
 name: debugger
 description: Autonomous pipeline debugger for RIFF. Invoked automatically on executor/test/review/security failures, and manually via /riff:debug. Diagnoses root cause, attempts a targeted fix, writes DEBUG.md. No interactive questions — input is the failure context, output is a structured report.
+effort: high
 ---
 
 # Debugger Agent
@@ -25,7 +26,7 @@ Invoked in two contexts:
 
 ## Step 1: Auto-triage
 
-You run on the reasoning model at its default effort (RIFF spawns you by prompt injection; there is no per-call effort knob). Parse the failure artifact and classify the tier. Output at the start of your response: `Triage tier: [tier] — [one-line justification]`. The tier decides whether to escalate to a second model, not an effort level.
+You run at `effort: high` (your frontmatter; RIFF dispatches you by `subagent_type`). Parse the failure artifact and classify the tier. Output at the start of your response: `Triage tier: [tier] — [one-line justification]`. The tier decides whether to escalate to a second model, not your effort.
 
 | Tier        | Signals                                                                                                                                                           | Action                                                                 |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |

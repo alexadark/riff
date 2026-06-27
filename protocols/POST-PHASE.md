@@ -77,7 +77,7 @@ Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected,
 
 **Gate:** skip by default. Run conditions: [`AUTO-TRIGGERS.md#improver-heuristic`](./AUTO-TRIGGERS.md#improver-heuristic).
 
-**If running:** Agent tool, `model: "haiku"`, `run_in_background: true`. Prompt: _"Read `agents/improver.md`. Read SUMMARY.md and `.planning/expertise/` files. Write learnings to `.planning/expertise/.pending/`. Do not auto-merge. Use Context7 or Ref MCP for recent libs. As final act, write completion sentinel `.planning/expertise/.pending/.improver-N-slug.done` (lets Step 10 distinguish 'completed with no findings' from 'killed mid-write')."_
+**If running:** Agent tool, `subagent_type: improver` (its `effort: low` frontmatter applies), `model: "haiku"`, `run_in_background: true`. The agent spec carries the procedure; pass only context: _"Phase N-slug. Read SUMMARY.md and `.planning/expertise/` files. Write learnings to `.planning/expertise/.pending/`. As final act, write completion sentinel `.planning/expertise/.pending/.improver-N-slug.done` (lets Step 10 distinguish 'completed with no findings' from 'killed mid-write')."_
 
 ---
 
@@ -85,11 +85,11 @@ Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected,
 
 Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 
-**Model:** `profile.yaml` `models.reasoning` (default `opus`), or `sonnet` if `debug_model: sonnet`.
+**Dispatch:** Agent tool, `subagent_type: debugger` (its `effort: high` frontmatter applies), `model` = `profile.yaml` `models.reasoning` (default `opus`), or `sonnet` if `debug_model: sonnet`.
 
-**Prompt:**
+**Prompt** (the agent spec carries the procedure; pass only context):
 
-> Read `agents/debugger.md`. Branch: `riff/phase-N-slug`. Failure type: `{{failure_type}}`. Failure artifact: `{{artifact}}`. Phase path: `.planning/phases/N-slug/`. Diagnose, attempt fix, write `.planning/phases/N-slug/DEBUG.md`.
+> Branch: `riff/phase-N-slug`. Failure type: `{{failure_type}}`. Failure artifact: `{{artifact}}`. Phase path: `.planning/phases/N-slug/`. Diagnose, attempt fix, write `.planning/phases/N-slug/DEBUG.md`.
 
 **Prompt capture:** After launching the debugger sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Debugger (if invoked)` section heading.
 

@@ -17,29 +17,29 @@ Invoked by `/riff:stress`. Read this file in full, then run the flow.
 - `--users <N>` — peak concurrent virtual users for the load ramp (default `500`).
 - `--seed` — after the report, seed each prioritized fix as a roadmap phase (R4). Default: list fixes, do not seed.
 
-## Model & depth dispatch
+## Model & effort dispatch
 
-Depth is set by **model choice**, not by an effort flag. RIFF spawns sub-agents by prompt injection (`Agent tool, model: X, prompt: "Read agents/Y.md …"`), and the Agent tool has no per-call effort parameter — so each sub-agent runs at its model's default effort. The lever to go deeper is a stronger model. The keywords "think hard"/"think harder" are inert on Opus 4.8 / Claude 4.x; `ultrathink` works only inline on the parent. Full rationale: `protocols/MODEL.md` § Effort.
+The two stress sub-agents are dispatched by `subagent_type` (`red-teamer`, `load-tester`), so their `effort:` frontmatter is the real depth lever; a `model:` override on the call still applies. The inline parent uses session effort + `ultrathink`. Codex steps use `--effort`. Keywords are inert on Opus 4.8 / Claude 4.x. Full rationale: `protocols/MODEL.md` § Effort.
 
-| Phase / agent | Where | Model | Notes |
+| Phase / agent | Dispatch | Model | Effort |
 | --- | --- | --- | --- |
-| Phase 0/1 — recon, routing, boot | Inline (parent) | **Reasoning model** (Opus, forced via command frontmatter) | session effort; light routing |
-| Phase 2 — static security (whole-codebase `security-reviewer`) | Sub-agent | **Sonnet** | model default |
-| Phase 2 — static scale (`load-tester`, static mode) | Sub-agent | **Sonnet** | model default |
-| Phase 3 — `red-teamer` ×5 (auth, injection, idor, ratelimit, config) | Sub-agent (parallel) | **Sonnet** | model default; one agent per class |
-| Phase 3 — `load-tester`, active mode (interprets autocannon output) | Sub-agent | **Sonnet** | model default |
-| Phase 3.5 — adversarial verify of CRITICAL/HIGH findings | Sub-agent | **Codex `gpt-5.5 high`** | independent refutation (depth via Codex `--effort`) |
-| Phase 4 — synthesis + the "needs specialist" judgment | Inline (parent) | **Reasoning model** (Opus) | session effort (`high`); add `ultrathink` if the finding set is large/conflicting |
+| Phase 0/1 — recon, routing, boot | Inline (parent) | **Reasoning model** (Opus, forced via command frontmatter) | session (`high`); light routing |
+| Phase 2 — static security (whole-codebase) | `subagent_type: security-reviewer` | **Sonnet** | `high` (frontmatter) |
+| Phase 2 — static scale | `subagent_type: load-tester` | **Sonnet** | `medium` (frontmatter) |
+| Phase 3 — `red-teamer` ×5 (auth, injection, idor, ratelimit, config) | `subagent_type: red-teamer` (parallel) | **Sonnet** | `high` (frontmatter); one agent per class |
+| Phase 3 — load test, active | `subagent_type: load-tester` | **Sonnet** | `medium` (frontmatter) |
+| Phase 3.5 — adversarial verify of CRITICAL/HIGH | `codex:codex-rescue` | **Codex `gpt-5.5`** | `high` (`--effort`) |
+| Phase 4 — synthesis + "needs specialist" judgment | Inline (parent) | **Reasoning model** (Opus) | session (`high`); `ultrathink` if the finding set is large/conflicting |
 
-The parent runs at the Opus session default (`high`) — light routing in Phase 0/1, heavy synthesis in Phase 4 (add `ultrathink` inline when the synthesis is genuinely hard). Real depth on the attack and verify work comes from the **two-model design**, not an effort dial: Sonnet attacks, Codex refutes. The load generation (`stress-load.mjs` / autocannon) is a script, not a model call.
+The parent runs at the Opus session default (`high`). Real depth on the attack and verify work comes from the **two-model design** (Sonnet attacks, Codex refutes) plus the agents' frontmatter effort. The load generation (`stress-load.mjs` / autocannon) is a script, not a model call.
 
 Budget shifts:
-- **`frugal`** — static scale and the `ratelimit`/`config` red-team classes drop to **Haiku**. Security-critical classes (`auth`, `injection`, `idor`) stay **Sonnet**. Phase 3.5 Codex verify is **off**.
-- **`max`** — the `auth`, `injection`, `idor` classes run on the **reasoning model (Opus)** instead of Sonnet; Phase 3.5 Codex verify runs on **every** active finding, not just CRITICAL/HIGH.
+- **`frugal`** — static scale and the `ratelimit`/`config` red-team classes run on **Haiku** (`model` override). Security-critical classes (`auth`, `injection`, `idor`) stay **Sonnet** at `effort: high`. Phase 3.5 Codex verify is **off**.
+- **`max`** — the `auth`, `injection`, `idor` classes run on the **reasoning model (Opus)** (`model` override) at `effort: high`; Phase 3.5 Codex verify runs on **every** active finding, not just CRITICAL/HIGH.
 
 ### Why this shape
 
-- **Red team = Sonnet, not Codex.** Five classes fan out in parallel with tight curl/inspect loops. Parallel Sonnet sub-agents are the natural fit; five Codex sessions add orchestration overhead for no gain. Want more depth on the riskiest classes → escalate their model to Opus (the `max` shift), not an effort flag.
+- **Red team = Sonnet, not Codex.** Five classes fan out in parallel with tight curl/inspect loops. Parallel Sonnet sub-agents are the natural fit; five Codex sessions add orchestration overhead for no gain. More depth on the riskiest classes → override their `model` to Opus (the `max` shift).
 - **Adversarial verify = Codex.** Mirrors RIFF Step 6 (post-build adversarial = Codex). An independent model that did not craft the exploit refutes it — kills false positives, confirms exploitability, sanity-checks the breaking-point conclusion. A finding that survives both the Sonnet attacker and the Codex skeptic is real.
 - **Parent synthesizes in Phase 4.** Integrating findings across 5+ agents, prioritizing fixes, and deciding escalation is multi-step reasoning — it runs at the parent's `high` session effort, `ultrathink` when the set is large.
 
@@ -71,11 +71,11 @@ Write the map to `.planning/stress/.recon.json` (endpoints, scale-surface, auth 
 
 ## Phase 2 — Static pass (always)
 
-Two halves, run as parallel agents (model per § Model & depth dispatch).
+Two halves, run as parallel agents (dispatch + effort per § Model & effort dispatch).
 
-**Security (static).** Reuse `agents/security-reviewer.md` logic across the **whole codebase** (not the diff). OWASP + the project-specific and tenant-isolation checks already defined there. Do not re-derive — spawn one security-reviewer-style agent scoped to the full tree. Output feeds the report's Security section.
+**Security (static).** Spawn `subagent_type: security-reviewer` scoped to the **whole codebase** (not the diff) — pass "scope: full tree, not the branch diff" in the context. OWASP + the project-specific and tenant-isolation checks live in its spec. Output feeds the report's Security section.
 
-**Scalability (static).** Spawn the `load-tester` agent in static mode. It scans for the bottlenecks code review can see without traffic:
+**Scalability (static).** Spawn `subagent_type: load-tester` in static mode. It scans for the bottlenecks code review can see without traffic:
 
 - N+1 queries (query inside a loop / per-row fetch).
 - List endpoints with no pagination or no `LIMIT` → unbounded result sets.
@@ -87,7 +87,7 @@ Two halves, run as parallel agents (model per § Model & depth dispatch).
 
 ## Phase 3 — Active pass (only with an allowed target)
 
-**Red team — parallel, one agent per attack class.** Spawn the `red-teamer` agent N times concurrently, each pinned to one class, each given `.recon.json`, the target, and the test identities. Model per class is in § Model & depth dispatch (Sonnet default; auth/injection/idor escalate to Opus at `max` budget):
+**Red team — parallel, one agent per attack class.** Spawn `subagent_type: red-teamer` N times concurrently, each pinned to one class, each given `.recon.json`, the target, and the test identities. Effort is `high` (frontmatter); model is Sonnet, overridden to Opus on auth/injection/idor at `max` budget (see § Model & effort dispatch):
 
 1. **Auth & session** — missing auth on routes, broken access control, weak/forgeable session or JWT, password-reset and account-recovery flaws, missing logout invalidation.
 2. **Injection** — SQLi, NoSQLi, command injection, XSS (reflected/stored), SSTI, path traversal. Fire real payloads at the discovered inputs; confirm by response behavior, not just presence.

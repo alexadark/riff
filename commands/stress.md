@@ -5,7 +5,7 @@ args: "[--target <url>] [--security|--scale] [--users <N>] [--seed]"
 model: opus
 ---
 
-<!-- model: opus forces the parent onto the reasoning model (static mirror of profile.yaml models.reasoning; update both together). Sub-agent models per protocols/STRESS.md § Model & depth dispatch. -->
+<!-- model: opus forces the parent onto the reasoning model (static mirror of profile.yaml models.reasoning; update both together). Sub-agent dispatch + effort per protocols/STRESS.md § Model & effort dispatch. -->
 
 
 # /riff:stress
@@ -16,7 +16,7 @@ Distinct from `security-reviewer` (static, per-phase, diff-scoped). Stress is on
 
 ## What You Do
 
-Read `protocols/STRESS.md` in full and run its flow. The protocol is the source of truth; this file is the entry point. Per-phase model is in § Model & depth dispatch — set `model:` on every Agent call (depth comes from model choice + the Codex verify pass; the Agent tool has no per-call effort knob, and "think hard" keywords are no-ops on Opus 4.8 / Claude 4.x).
+Read `protocols/STRESS.md` in full and run its flow. The protocol is the source of truth; this file is the entry point. Dispatch + effort per § Model & effort dispatch — sub-agents spawn by `subagent_type` (their `effort:` frontmatter is the lever); set `model:` on the call when a phase needs a non-default model. "think hard" keywords are no-ops on Opus 4.8 / Claude 4.x.
 
 1. **Phase 0** — scope, resolve `--target`, run the **safety gate** (local/staging only; production refused for active testing).
 2. **Phase 1** — recon: map endpoints, scale-sensitive surface, auth model, test identities → `.planning/stress/.recon.json`.

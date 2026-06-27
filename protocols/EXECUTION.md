@@ -144,7 +144,7 @@ Agent prompt (give paths, do NOT paste file contents):
 
 **Gate:** `simplify:` from phase ROADMAP entry. `false` → skip. `true` → always run. `auto` (default) → [`AUTO-TRIGGERS.md#simplifier-auto`](./AUTO-TRIGGERS.md#simplifier-auto).
 
-**If running:** Agent tool, `model: "haiku"`. Prompt: branch, phase N-slug, _"Read `agents/simplifier.md`. Scope: diff of `riff/phase-N-slug` against main only. Apply the protocol. Write REFACTOR.md. Commit simplifications as separate `refactor(phase-N): ...` commits, staging explicitly."_
+**If running:** Agent tool, `subagent_type: simplifier` (its `effort: medium` frontmatter applies), `model: "haiku"`. The agent spec carries the protocol; pass only context: _"Branch `riff/phase-N-slug`. Scope: diff against main only. Write REFACTOR.md. Commit simplifications as separate `refactor(phase-N): ...` commits, staging explicitly."_
 
 **Prompt capture:** PROMPTS.md § Simplifier (append the section if absent in template).
 

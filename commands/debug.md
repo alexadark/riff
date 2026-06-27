@@ -24,7 +24,7 @@ If a session file exists for the same issue: note its path — you will pass it 
 
 ## Step 3: Spawn debugger — sub-agent
 
-Agent tool, `model:` resolved from `profile.yaml` `models.reasoning` (default `opus`). Per-phase `debug_model: sonnet` overrides it.
+Agent tool, `subagent_type: debugger` (its `effort: high` frontmatter applies), `model:` resolved from `profile.yaml` `models.reasoning` (default `opus`). Per-phase `debug_model: sonnet` overrides it.
 
 Prompt MUST include:
 
@@ -33,7 +33,7 @@ Prompt MUST include:
 - `failure_type: user_reported`
 - Phase path `.planning/phases/N-slug/` if currently on a phase branch
 - Existing session file path if one exists
-- Instruction: "Read `agents/debugger.md`. Diagnose the issue. Write to `.planning/debug/YYYY-MM-DD-[slug].md` using the DEBUG.md format from the agent. Attempt a fix if root cause is confirmed."
+- Instruction (the agent spec carries the procedure): "Diagnose the issue. Write to `.planning/debug/YYYY-MM-DD-[slug].md` using the DEBUG.md format from the agent. Attempt a fix if root cause is confirmed."
 
 Wait until the debugger completes.
 

@@ -79,7 +79,7 @@ Different model = catches Claude's blind spots. Free via GPT sub. Reasoning effo
 
 #### Step 7 (Security reviewer) — Sonnet, `effort: high`
 
-OWASP scan = reasoning-heavy work (subtle vulns, IDOR, race conditions). Cost of thinking is dwarfed by cost of a missed CVE, so it runs at a fixed `effort: high` on every phase. The Agent tool has no per-call effort override, so there is no auth-vs-other split at spawn; extra depth for auth/payment/public-API comes from the Step 6 Codex adversarial pass and `security_model: opus` at max budget.
+OWASP scan = reasoning-heavy work (subtle vulns, IDOR, race conditions). Cost of thinking is dwarfed by cost of a missed CVE, so it runs at a fixed `effort: high` on every phase, set in the `security-reviewer` frontmatter and applied via `subagent_type` dispatch. Extra depth for auth/payment/public-API comes from the Step 6 Codex adversarial pass and `security_model: opus`.
 
 #### Step 7b (Improver) — Haiku, background
 
@@ -91,4 +91,4 @@ Regenerating file trees, route tables, taste pattern indexes → mechanical patt
 
 #### Debugger — reasoning model, `effort: high`
 
-Debug is reasoning-heavy: hypothesis formation, root cause analysis, tracing implicit assumptions in code you didn't write. Failures are high-stakes: a wrong diagnosis produces a wrong fix that may mask the real problem. Reasoning model (`models.reasoning`) default; Sonnet opt-in (`debug_model: sonnet`) for cost-sensitive cases where the failure is clearly scoped. Runs at a fixed `effort: high` (the Agent tool has no per-call effort override). The top triage tier — CRITICAL security, flaky/intermittent, 2+ failed fixes — escalates with a Codex second opinion (`gpt-5.5 high`) alongside the Claude debugger rather than a higher Claude effort (see `agents/debugger.md` Step 1).
+Debug is reasoning-heavy: hypothesis formation, root cause analysis, tracing implicit assumptions in code you didn't write. Failures are high-stakes: a wrong diagnosis produces a wrong fix that may mask the real problem. Reasoning model (`models.reasoning`) default; Sonnet opt-in (`debug_model: sonnet`) for cost-sensitive cases where the failure is clearly scoped. Runs at a fixed `effort: high` (frontmatter, applied via `subagent_type` dispatch). The top triage tier — CRITICAL security, flaky/intermittent, 2+ failed fixes — escalates with a Codex second opinion (`gpt-5.5 high`) alongside the Claude debugger rather than a higher Claude effort (see `agents/debugger.md` Step 1).

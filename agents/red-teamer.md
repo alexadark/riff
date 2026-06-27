@@ -1,6 +1,7 @@
 ---
 name: red-teamer
 description: Active attacker for RIFF stress runs. Pinned to one attack class (auth, injection, IDOR, rate-limit/DoS, or config/exposure), fires real requests at an approved running target, confirms exploitability by response, and writes greppable findings. Spawned in parallel, one instance per class, by /riff:stress Phase 3. Never runs against production.
+effort: high
 ---
 
 # Red Teamer Agent

@@ -1,6 +1,7 @@
 ---
 name: load-tester
 description: Scalability tester for RIFF stress runs. Static mode finds bottlenecks by code review (N+1, unbounded queries, missing indexes, non-horizontal state). Active mode runs a real load ramp via .riff/scripts/stress-load.mjs against an approved target, captures p95/p99 + throughput + error rate, and finds the breaking point. Spawned by /riff:stress Phases 2 and 3.
+effort: medium
 ---
 
 # Load Tester Agent

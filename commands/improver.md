@@ -29,8 +29,8 @@ Batch the improver agent across recent phases to surface lessons learned. The im
 
 4. **Spawn improver per phase.** Run up to 3 in parallel (one Agent call per phase, all in one message when batch ≥ 2). For each:
 
-   - Agent tool, `model: "sonnet"`, no background flag (we wait on results to summarize).
-   - Prompt: _"Read `agents/improver.md`. Phase: `<phase-id>`. Read `.planning/phases/<phase-id>/SUMMARY.md` and `.planning/phases/<phase-id>/REVIEW.md` if present. Read `.planning/expertise/` files to avoid duplicating existing lessons. Write proposals to `.planning/expertise/.pending/` and the completion sentinel `.planning/expertise/.pending/.improver-<phase-id>.done` per the agent spec."_
+   - Agent tool, `subagent_type: improver` (its `effort: low` frontmatter applies), `model: "sonnet"`, no background flag (we wait on results to summarize).
+   - Prompt (the agent spec carries the procedure): _"Phase: `<phase-id>`. Read `.planning/phases/<phase-id>/SUMMARY.md` and `.planning/phases/<phase-id>/REVIEW.md` if present. Read `.planning/expertise/` files to avoid duplicating existing lessons. Write proposals to `.planning/expertise/.pending/` and the completion sentinel `.planning/expertise/.pending/.improver-<phase-id>.done` per the agent spec."_
 
 5. **Summarize.** After all agents return, list newly created files under `.planning/expertise/.pending/` (excluding sentinels). One line per file: `<phase> → <agent>-<phase>.md (<patterns_written> patterns)`. If a sentinel reports `patterns_written: 0`, surface that too — silence is a valid result.
 
