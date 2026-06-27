@@ -22,6 +22,8 @@ Every reference to "`profile.yaml`" in this framework resolves per `references/P
 
 Calibrate from `style.terminal_explanation_level` (override) → `style.explanation_level` → default `simple`. Per-level vocabulary rules: `references/EXPLANATION-LEVEL.md`. Same rule governs `AskUserQuestion` prompts mid-pipeline (see `references/EXPLANATION-LEVEL.md` § Interactive questions).
 
+Explanation level sets vocabulary, NOT length. Length is governed by `style.length` and applies to ALL terminal output (progress reports, TLDRs, answers), not just SUMMARY.md/PLAN.md. When `style.length: terse`: lead with the answer or action, no preamble; ban flattery, self-narration ("je me suis trompé", "voici l'état réel"), hedge openers ("un bémol", "pour être honnête"), rhetorical antithesis for emphasis ("pas X, c'est Y"), and transition fluff; every sentence carries info. Full rules: `references/EXPLANATION-LEVEL.md` § Length.
+
 ## Conversational triggers
 
 These actions are NOT slash commands. Read the listed protocol or just do the thing inline when the user says one of these:

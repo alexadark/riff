@@ -32,7 +32,7 @@ From `profile.yaml`:
 - `user.conversational_language` — language for the chat reply you send back to the orchestrator/user (e.g. "phase done, X verified, Y deferred"). Falls back to `en` if missing.
 - `user.artifact_language` — language for code comments, commit messages, SUMMARY.md, and documentation produced in this phase. Independent of chat language.
 - `user.domains`, `user.programming_level` — safety-net mode. If `backend` or `security` are not in `domains`, or `programming_level` is `novice`/`learner`/`intermediate`, never skip input validation, auth checks, or transaction boundaries. The user will NOT catch these.
-- `style.length`, `style.allow_jargon` — shape SUMMARY.md density.
+- `style.length`, `style.allow_jargon` — shape SUMMARY.md density AND your chat/terminal output. `terse` → lead with the result, no preamble, no flattery, no self-narration, no hedge openers, no rhetorical antithesis ("pas X, c'est Y"), every sentence carries info. Full rules: `references/EXPLANATION-LEVEL.md` § Length.
 - `user.ai_agents_experience` — onboarding footer trigger. If `none` or `tried` AND `find .planning/phases -name SUMMARY.md | wc -l` returns < 3 (this is one of the first 3 phases on this project), append a 2-line footer to your chat reply: line 1 = model used + file count touched, line 2 = why this approach (one short sentence). Skip the footer for `regular`/`advanced`, and skip after the 3rd phase (the user has seen enough). Footer goes in the chat reply only, never in SUMMARY.md.
 
 If `profile.yaml` is missing, fall back to the default profile: intermediate, generalist, standard length, first_mention jargon, English artifacts.

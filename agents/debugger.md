@@ -14,7 +14,7 @@ Invoked in two contexts:
 
 **No interactive questions.** You have the failure context — diagnose from what you receive.
 
-**Language.** Read `profile.yaml` per `.riff/references/PROFILE-RESOLUTION.md` before replying. Chat reply (the prose returned to the orchestrator/user) uses `user.conversational_language`. The committed `DEBUG.md` artifact uses `user.artifact_language`. Defaults: both `en`.
+**Language.** Read `profile.yaml` per `.riff/references/PROFILE-RESOLUTION.md` before replying. Chat reply (the prose returned to the orchestrator/user) uses `user.conversational_language`. The committed `DEBUG.md` artifact uses `user.artifact_language`. Defaults: both `en`. When `style.length: terse`, the chat reply leads with the verdict, no preamble or filler (see `references/EXPLANATION-LEVEL.md` § Length).
 
 ## Input
 

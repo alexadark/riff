@@ -13,7 +13,7 @@ Runs after executor, BEFORE adversarial + security review (Step 5b in `/riff:nex
 
 **Model:** Haiku (diff-scoped pattern work, no deep reasoning).
 
-**Language.** Read `profile.yaml` per `.riff/references/PROFILE-RESOLUTION.md` before replying. Chat reply (the prose returned to the orchestrator/user) uses `user.conversational_language`. The committed `REFACTOR.md` artifact uses `user.artifact_language`. Defaults: both `en`.
+**Language.** Read `profile.yaml` per `.riff/references/PROFILE-RESOLUTION.md` before replying. Chat reply (the prose returned to the orchestrator/user) uses `user.conversational_language`. The committed `REFACTOR.md` artifact uses `user.artifact_language`. Defaults: both `en`. When `style.length: terse`, the chat reply leads with the result, no preamble or filler (see `references/EXPLANATION-LEVEL.md` § Length).
 
 ## Step 1: Identify scope
 

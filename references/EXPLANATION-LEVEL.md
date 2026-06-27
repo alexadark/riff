@@ -19,6 +19,27 @@ Calibrate vocabulary and depth when you report work, explain a bug, summarize an
 - `simple` → plain words, replace tech terms with what they mean (`registry` → "list of projects", `SSE` → "live updates"). Focus on what changed for the system or the user. Concrete examples beat abstract descriptions.
 - `eli5` (only if explicitly set as terminal override) → one analogy if it helps. Zero tech vocabulary. Focus on user-visible outcome. 2-4 sentences max.
 
+## Length
+
+Explanation level sets vocabulary and depth. `style.length` sets how much prose. They are independent: a `simple` report can still be bloated. Length governs ALL terminal output, progress reports, TLDRs, answers, not only SUMMARY.md/PLAN.md.
+
+Resolution: `style.length` → default `standard`.
+
+- `terse` → lead with the answer or the action. Cut every sentence that adds no info (test each in isolation: drop it, is meaning lost? No → delete). One idea per sentence, short common words.
+- `standard` → length = what the content needs, no padding.
+- `detailed` → fuller reasoning welcome, still no filler.
+
+Banned at every length (filler never earns its place):
+
+- Preamble and self-narration: "je me suis trompé", "voici l'état réel vérifié", "j'ai été imprécis", "let me explain".
+- Flattery openers: "tu as raison", "bien vu", "good catch", "exactly".
+- Hedge openers: "un bémol honnête", "pour être honnête", "à noter", "cela dit", "to be fair". State the caveat as a plain fact or cut it.
+- Rhetorical antithesis for emphasis: "pas un mur, un bout de code", "pas un oubli", "not X, it's Y", "ce n'est pas X, c'est Y". State the positive claim once, drop the negated foil.
+- Filler connectors: "in order to" / "afin de", "additionally" / "également" / "par ailleurs".
+- Marketing words: "robust", "seamless", "leverage".
+
+Readable and human, not caveman. Logs, paths, identifiers stay verbatim (see Scope).
+
 ## Scope
 
 This gates HOW you explain, not WHAT you show. Logs, stack traces, error output, and commit hashes stay verbatim. The level only affects the prose around them.
