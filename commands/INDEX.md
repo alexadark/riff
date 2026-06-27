@@ -1,6 +1,6 @@
 # RIFF Commands — Index
 
-14 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
+15 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
 
 ## Framework (global to the framework install)
 
@@ -35,6 +35,7 @@
 | `/riff:quick <task>`            | One-off task that doesn't deserve a phase (config tweak, copy fix, dependency bump).                                | Direct commit, no phase artifacts |
 | `/riff:debug <bug>`             | Manual debug invocation outside the auto-debug pipeline. For bugs that surfaced post-merge or outside `/riff:next`. | `.planning/debug/YYYY-MM-DD-[slug].md`    |
 | `/riff:improver [N\|--all]`     | Batch the improver across the last N phases (default 3) to harvest learnings into `.planning/expertise/.pending/`. Fallback when Step 7b auto-trigger didn't fire. | `.planning/expertise/.pending/<agent>-<phase>.md` (+ sentinels) |
+| `/riff:stress [--target <url>]`  | Adversarial + load test the whole app. Static always; with `--target`, real attacks (parallel red-team agents) + a real load ramp. Local/staging only. | `.planning/stress/YYYY-MM-DD-stress.md` |
 
 ## Conversational triggers (no slash command)
 
