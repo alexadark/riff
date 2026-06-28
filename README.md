@@ -16,14 +16,14 @@ Lean, profile-driven coding agent framework for Claude Code. Clone, answer the o
 
 Most agent frameworks are a trap. You adopt 40KB agent definitions, pay a token tax on every call, and accumulate maintenance debt while Claude Code ships native features that replace half of what you installed. Then you are stuck rewriting your framework to keep up.
 
-RIFF is not a framework you adopt. It is a kit: a small universal core, modular pieces you can delete, and a `profile.yaml` that wires only what fits you. The 13 agents total ~60KB, between 1.4KB and 6KB each. Every piece is reviewable in under 10 minutes.
+RIFF is not a framework you adopt. It is a kit: a small universal core, modular pieces you can delete, and a `profile.yaml` that wires only what fits you. The 15 agents total ~60KB, between 1.4KB and 6KB each. Every piece is reviewable in under 10 minutes.
 
 When Claude Code ships a native feature that replaces one of your hooks or commands, you delete the piece. No framework-wide migration.
 
 ## What you get
 
 - **Agents + mechanical gates**: planner, executor, security-reviewer, adversarial-reviewer (post-build, runs on Codex as a different model family), plan / architecture / roadmap / incident adversarial reviewers (pre-artifact passes), debugger, simplifier, improver, deep-auditor, plus mechanical scope-check via `scripts/scope-check.mjs`.
-- **14 slash commands**: framework (onboard, learn-stack, dashboard), project lifecycle (init, start, map, resync), daily loop (next, wave, status), off-loop (add-phase, quick, debug, improver). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
+- **15 slash commands**: framework (onboard, learn-stack, dashboard), project lifecycle (init, start, map, resync), daily loop (next, wave, status), off-loop (add-phase, quick, debug, improver, stress). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
 - **Claude Code hooks** in profile-selected buckets: A (universal discipline), B (security-adaptable), C (stack-specific). Your profile picks which ones wire.
 - **23 protocols**: EXECUTION (confidence gates, R1-R4 deviations, waves), MODEL (dispatch and budget resolution), QUALITY (post-build checks), browser verification, wave bundling, promotion, incident review, and related workflow contracts.
 - **Mechanical-quality gate** via [`fallow`](https://github.com/fallow-rs/fallow) on every TS/JS phase: dead code, duplication, complexity, and boundary violations on the diff. Sub-second, deterministic, no LLM. Auto-installed as a devDep at `/riff:start`.
@@ -135,12 +135,12 @@ If `profile.yaml` is missing, agents fall back to the default profile.
 
 ## Commands
 
-All 14 slash commands listed in [`commands/INDEX.md`](./commands/INDEX.md), grouped by purpose:
+All 15 slash commands listed in [`commands/INDEX.md`](./commands/INDEX.md), grouped by purpose:
 
 - **Framework (global):** onboard, learn-stack, dashboard
 - **Setup (project lifecycle):** init, start, map, resync
 - **Core loop:** next, wave, status
-- **Off-loop:** add-phase, quick, debug, improver
+- **Off-loop:** add-phase, quick, debug, improver, stress
 
 Plus conversational triggers for rare lifecycle actions (incident logging, quarterly review, scratch→production promotion, re-audits, profile edits) — see INDEX.md § Conversational triggers.
 

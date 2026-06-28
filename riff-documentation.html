@@ -545,7 +545,7 @@ footer{
     <div class="masthead-meta">
       <div class="vol">Vol. 1 — The Loop</div>
       <div>Framework for Claude Code</div>
-      <div>~60KB · 13 agents · fully editable</div>
+      <div>~60KB · 15 agents · fully editable</div>
       <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light / dark">◐</button>
     </div>
   </div>
@@ -582,8 +582,8 @@ footer{
   <p>Most agent frameworks are a trap. You adopt 40KB agent definitions, pay a token tax on every call, and accumulate maintenance debt while Claude Code ships native features that replace half of what you installed. The 13 RIFF agents total roughly 60KB, between 1.4KB and 6KB each. Every piece is reviewable in under ten minutes. When Claude Code ships something that replaces one of your hooks or commands, you delete the piece. No framework-wide migration.</p>
 
   <div class="stats">
-    <div class="stat"><div class="stat-num">13</div><div class="stat-label">Agents</div></div>
-    <div class="stat"><div class="stat-num">14</div><div class="stat-label">Commands</div></div>
+    <div class="stat"><div class="stat-num">15</div><div class="stat-label">Agents</div></div>
+    <div class="stat"><div class="stat-num">15</div><div class="stat-label">Commands</div></div>
     <div class="stat"><div class="stat-num">18</div><div class="stat-label">Hooks</div></div>
     <div class="stat"><div class="stat-num">~20</div><div class="stat-label">Protocols</div></div>
     <div class="stat"><div class="stat-num">4</div><div class="stat-label">Model families</div></div>
@@ -756,6 +756,7 @@ footer{
         <tr><td><code>/riff:quick &lt;task&gt;</code></td><td>A one-off that does not deserve a phase: config tweak, copy fix, dependency bump.</td></tr>
         <tr><td><code>/riff:debug &lt;bug&gt;</code></td><td>Manual debug invocation outside the auto-debug pipeline.</td></tr>
         <tr><td><code>/riff:improver</code></td><td>Batch the improver across recent phases to harvest learnings into expertise files.</td></tr>
+        <tr><td><code>/riff:stress</code></td><td>Adversarial + load test the whole app. Static always; with a local/staging target, parallel red-team agents and a real load ramp. Local/staging only, never production.</td></tr>
       </tbody>
     </table>
   </div>
@@ -881,6 +882,18 @@ wave 2:
       <div class="role">OWASP scan · default Sonnet</div>
       <p>Auth, input validation, injection, IDOR, secrets, error handling on every production phase. Writes <code>SECURITY.md</code>. CRITICAL/HIGH findings auto-trigger the debugger.</p>
       <div class="meta">verdict · <b>PASS / WARN / BLOCKED</b></div>
+    </div>
+    <div class="card">
+      <h4>Red-teamer</h4>
+      <div class="role">Active attacker · Sonnet · <code>/riff:stress</code></div>
+      <p>One per attack class (auth, injection, IDOR, rate-limit, config), spawned in parallel. Fires real requests at an approved local/staging target and confirms exploitability by the response. Never hits production.</p>
+      <div class="meta">effort · <b>high</b></div>
+    </div>
+    <div class="card">
+      <h4>Load-tester</h4>
+      <div class="role">Scalability · Sonnet · <code>/riff:stress</code></div>
+      <p>Static mode finds bottlenecks (N+1, unbounded queries, missing indexes, non-horizontal state). Active mode runs a real load ramp via autocannon, captures p95/p99 + throughput, reports the breaking point.</p>
+      <div class="meta">effort · <b>medium</b></div>
     </div>
   </div>
 
@@ -1072,8 +1085,8 @@ wave 2:
 ├── CLAUDE.md          <b># always loaded</b>
 ├── DECAY.md           # pruning protocol
 ├── profile.yaml       <b># YOUR config</b>
-├── agents/            # 13 agents
-├── commands/          # 14 commands
+├── agents/            # 15 agents
+├── commands/          # 15 commands
 ├── hooks/             # 18 hooks
 ├── protocols/         # ~20 contracts
 ├── references/        # taste, resolution

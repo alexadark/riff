@@ -16,7 +16,7 @@ Build like a band of six. Ship like one.
 
 RIFF turns "I want to build X" into a repeatable loop: **plan, build, verify, commit**, one phase at a time. Each phase runs in a fresh Claude Code context with full state on disk, so you can stay in the loop and correct as you go, or leave it running unattended.
 
-RIFF works on any project, new or existing. It ships **13 specialized agents**, **14 slash commands**, **18 hooks** in 3 buckets, a local web dashboard, and a small `profile.yaml` that tunes everything to you.
+RIFF works on any project, new or existing. It ships **15 specialized agents**, **15 slash commands**, **18 hooks** in 3 buckets, a local web dashboard, and a small `profile.yaml` that tunes everything to you.
 
 **Who it's for:** solo developers using Claude Code who want structure, quality, and the ability to walk away from the keyboard without the project falling apart.
 
@@ -27,9 +27,9 @@ RIFF works on any project, new or existing. It ships **13 specialized agents**, 
 - [Install](#install)
 - [Quick start](#quick-start)
 - [The two paths: greenfield vs brownfield](#the-two-paths-greenfield-vs-brownfield)
-- [The 14 commands](#the-14-commands)
+- [The 15 commands](#the-14-commands)
 - [The /riff:next pipeline, step by step](#the-riffnext-pipeline-step-by-step)
-- [The 13 agents](#the-13-agents)
+- [The 15 agents](#the-13-agents)
 - [Wave parallelization](#wave-parallelization)
 - [Profile and budget](#profile-and-budget)
 - [Hooks: the 3 buckets](#hooks-the-3-buckets)
@@ -143,7 +143,7 @@ When a scratch project gets serious, ask Claude to "promote to production". RIFF
 
 ---
 
-## The 14 commands
+## The 15 commands
 
 All grouped in [`commands/INDEX.md`](./commands/INDEX.md). Summary:
 
@@ -180,6 +180,7 @@ All grouped in [`commands/INDEX.md`](./commands/INDEX.md). Summary:
 | `/riff:quick <task>`            | One-off task that doesn't deserve a phase (config tweak, copy fix, dependency bump).               |
 | `/riff:debug <bug>`             | Manual debug invocation outside the auto-debug pipeline.                                          |
 | `/riff:improver [N\|--all]`     | Batch the improver across the last N phases to harvest learnings into `.planning/expertise/`.      |
+| `/riff:stress [--target <url>]` | Adversarial + load test the whole app. Static always; with a local/staging target, parallel red-team agents + a real load ramp. Local/staging only. |
 
 ### Conversational triggers (no slash command)
 
@@ -313,6 +314,14 @@ Harvests learnings from recent phases into `.planning/expertise/.pending/`. Patc
 ### Deep-auditor (`agents/deep-auditor.md`)
 
 Cross-phase audit at milestone boundaries (phases tagged `milestone: <name>` in `ROADMAP.yaml`). Reads all phases in the milestone, identifies systemic issues, contradictions, decay. Triggered conversationally ("deep audit", "milestone review") or automatically at `/riff:next` Step 10 when the just-completed phase has a `milestone:` tag.
+
+### Red-teamer (`agents/red-teamer.md`)
+
+Active attacker for `/riff:stress`. Pinned to one attack class (auth, injection, IDOR, rate-limit/DoS, or config/exposure), spawned in parallel one per class. Fires real requests at an approved local/staging target and confirms exploitability by the response, not by reading code. Never runs against production. Default model: Sonnet, `effort: high`.
+
+### Load-tester (`agents/load-tester.md`)
+
+Scalability tester for `/riff:stress`. Static mode finds bottlenecks by code review (N+1, unbounded queries, missing indexes, non-horizontal state). Active mode runs a real load ramp via `stress-load.mjs` (autocannon), captures p95/p99, throughput, error rate, and reports the breaking point. Default model: Sonnet, `effort: medium`.
 
 ---
 
@@ -479,8 +488,8 @@ Pending expertise patches are reviewed at the end of the next `/riff:next` Step 
 ├── profile.yaml                 # YOUR config (gitignored)
 ├── profile.yaml.example         # schema with field comments
 ├── riff                         # node CLI shim (riff init ...)
-├── agents/                      # 13 agents (single markdown each)
-├── commands/                    # 14 slash commands + INDEX.md
+├── agents/                      # 15 agents (single markdown each)
+├── commands/                    # 15 slash commands + INDEX.md
 ├── hooks/                       # 18 hooks + README.md
 ├── protocols/                   # ~20 workflow contracts: EXECUTION, MODEL, QUALITY, INCIDENT, PROMOTE, etc.
 ├── references/                  # ~10 references: PROFILE-RESOLUTION, BROWSER-VERIFICATION, taste/, etc.
