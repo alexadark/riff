@@ -33,6 +33,9 @@ The script reads `PLAN.md` and `SUMMARY.md`, writes `SCOPE-CHECK.json`, and exit
   "unmatched_smokes": [],
   "failed_smokes": [],
   "smoke_too_thin": false,
+  "planned_flow_updates": [],
+  "flow_manifest_changed": false,
+  "missing_flow_manifest_update": false,
   "malformed_reason": null
 }
 ```
@@ -51,12 +54,14 @@ The script reads `PLAN.md` and `SUMMARY.md`, writes `SCOPE-CHECK.json`, and exit
 - A current plan has `## Smoke`, but one or more planned smoke commands have no result row.
 - Any smoke result is `fail` and `SUMMARY.md` does not correctly mark the phase as partial/blocked.
 - `## Smoke` has fewer than two entries for a code-touching phase.
+- PLAN.md has `## Flow updates` but `.uxtest/flows.yaml` is not changed in the git diff.
 
 `MATCH`:
 
 - Every planned task is acknowledged.
 - Every planned smoke has a result.
 - No smoke failed.
+- Any planned `## Flow updates` section has a matching `.uxtest/flows.yaml` diff.
 - Docs-only phases may use one smoke entry.
 
 ## Step 5c orchestration (verdict handling)
@@ -75,7 +80,8 @@ The script reads `PLAN.md` and `SUMMARY.md`, writes `SCOPE-CHECK.json`, and exit
 
 1. **Task drops (`unmatched_tasks` non-empty).** For each, AskUserQuestion: "completed (mark done in SUMMARY)" | "defer to new phase (will run /riff:add-phase)" | "rejected (write rationale)". Apply each choice, then re-run Step 5c.
 2. **Smoke section too thin or missing (`smoke_too_thin == true` OR `planned_smokes` empty on a non-legacy plan).** Surface to user with the modified files list. AskUserQuestion: "ask the planner to expand Smoke section (re-run Step 4 with this finding)" | "skip this gate (run `node .riff/scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`)". On expand → re-run Step 4 inline with the missing-smoke finding as input, then re-run Step 5c.
-3. **Smoke regressions or missing results (`failed_smokes` non-empty OR `unmatched_smokes` non-empty).** For each entry, surface command + observed output (for `failed_smokes`) or "no result row in SUMMARY.md" (for `unmatched_smokes`). AskUserQuestion: "auto-debug (treat as failure_type=smoke_fail, artifact=SCOPE-CHECK.json)" | "fix manually now, then re-run Step 5c" | "skip this gate (run `node .riff/scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`)". On auto-debug → trigger the auto-debug pattern, on RESOLVED re-run Step 5c.
+3. **Flow manifest drops (`missing_flow_manifest_update == true`).** Surface that PLAN.md contains `## Flow updates` but `.uxtest/flows.yaml` is absent from the diff. AskUserQuestion: "apply flow updates now" | "remove/defer the Flow updates section from PLAN.md" | "skip this gate (run `node .riff/scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`)". On apply/defer → make the selected change, then re-run Step 5c.
+4. **Smoke regressions or missing results (`failed_smokes` non-empty OR `unmatched_smokes` non-empty).** For each entry, surface command + observed output (for `failed_smokes`) or "no result row in SUMMARY.md" (for `unmatched_smokes`). AskUserQuestion: "auto-debug (treat as failure_type=smoke_fail, artifact=SCOPE-CHECK.json)" | "fix manually now, then re-run Step 5c" | "skip this gate (run `node .riff/scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`)". On auto-debug → trigger the auto-debug pattern, on RESOLVED re-run Step 5c.
 
 Loop until `verdict == MATCH`. **Max 3 cycles per bucket**, then STOP and escalate to user with both SCOPE-CHECK.json and PLAN.md, ask whether to skip the remaining gate (run `node .riff/scripts/gates-update.mjs --phase .planning/phases/N-slug --gate scope-check --status skipped --reason "override"`) or halt for manual fix.
 
