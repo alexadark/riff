@@ -13,13 +13,14 @@ const script = path.resolve(here, '..', 'scope-check.mjs');
  * Run scope-check against a throwaway project containing one phase with the
  * given PLAN/SUMMARY text, and return the parsed SCOPE-CHECK.json report.
  */
-function runScopeCheck(plan, summary) {
+function runScopeCheck(plan, summary, options = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'riff-scope-check-'));
   try {
     const phaseDir = path.join(root, '.planning', 'phases', '1-phase');
     mkdirSync(phaseDir, { recursive: true });
     writeFileSync(path.join(phaseDir, 'PLAN.md'), plan, 'utf8');
     writeFileSync(path.join(phaseDir, 'SUMMARY.md'), summary, 'utf8');
+    if (options.setup) options.setup(root);
     try {
       execFileSync('node', [script, '--project-root', root, '--phase', '1-phase'], { stdio: 'ignore' });
     } catch {
@@ -30,6 +31,50 @@ function runScopeCheck(plan, summary) {
     rmSync(root, { recursive: true, force: true });
   }
 }
+
+const flowPlan = `# Plan
+
+## Tasks
+
+### Task 1: Add checkout confirmation route
+
+## Flow updates
+
+### Upserts
+
+- id: checkout-confirmation
+  name: Checkout confirmation
+  entry: /checkout/confirmation
+  auth: user
+  steps:
+    - Complete checkout
+    - Land on confirmation page
+  touches: [payment]
+  destructive: true
+
+## Smoke
+
+- \`npm run test -- checkout\` -> exits 0
+- \`npm run typecheck\` -> exits 0
+`;
+
+const flowSummary = `# Summary
+
+## What Was Built
+
+- Added the checkout confirmation route.
+
+## Status
+
+**completed**
+
+## Smoke Results
+
+| Command | Expected | Observed | Status |
+| ------- | -------- | -------- | ------ |
+| \`npm run test -- checkout\` | exits 0 | exits 0 | pass |
+| \`npm run typecheck\` | exits 0 | exits 0 | pass |
+`;
 
 test('canonical "## Tasks" + "### Task N:" format still MATCHes', () => {
   const plan = `# Plan
@@ -136,4 +181,36 @@ test('wave group header with bracketed IDs lifts those IDs and skips the header'
   assert.ok(!report.planned_tasks.some((t) => /^wave\b/.test(t.id)));
   assert.ok(report.planned_tasks.some((t) => t.id.includes('schema and service layer')));
   assert.ok(report.planned_tasks.some((t) => t.id.includes('generation wiring layer')));
+});
+
+test('Flow updates section without a flows.yaml diff is DROPPED', () => {
+  const report = runScopeCheck(flowPlan, flowSummary);
+  assert.equal(report.verdict, 'DROPPED');
+  assert.equal(report.missing_flow_manifest_update, true);
+  assert.equal(report.flow_manifest_changed, false);
+});
+
+test('Flow updates section MATCHes when flows.yaml changes in the git diff', () => {
+  const report = runScopeCheck(flowPlan, flowSummary, {
+    setup(root) {
+      const manifestDir = path.join(root, '.uxtest');
+      mkdirSync(manifestDir, { recursive: true });
+      writeFileSync(path.join(manifestDir, 'flows.yaml'), 'version: 1\nflows: []\n', 'utf8');
+      execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
+      execFileSync('git', ['add', '.'], { cwd: root, stdio: 'ignore' });
+      execFileSync(
+        'git',
+        ['-c', 'user.name=RIFF Test', '-c', 'user.email=riff-test@example.com', 'commit', '-m', 'initial'],
+        { cwd: root, stdio: 'ignore' },
+      );
+      writeFileSync(
+        path.join(manifestDir, 'flows.yaml'),
+        'version: 1\nflows:\n  - id: checkout-confirmation\n    status: active\n',
+        'utf8',
+      );
+    },
+  });
+  assert.equal(report.verdict, 'MATCH');
+  assert.equal(report.missing_flow_manifest_update, false);
+  assert.equal(report.flow_manifest_changed, true);
 });

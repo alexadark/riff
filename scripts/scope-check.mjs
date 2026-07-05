@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 
 function fail(message) {
@@ -217,6 +218,28 @@ function parsePlannedSmokes(planText) {
   return { sectionExists: true, smokes };
 }
 
+function parsePlannedFlowUpdates(planText) {
+  const flowUpdates = section(linesWithNumbers(planText), /^##\s+Flow updates\b/i);
+  if (!flowUpdates.exists) return { sectionExists: false, entries: [] };
+  const entries = flowUpdates.lines
+    .filter((entry) => /\S/.test(entry.text) && !/^#{1,6}\s+/.test(entry.text))
+    .map((entry) => ({ text: stripMarkdown(entry.text), source_line: entry.line }));
+  return { sectionExists: true, entries };
+}
+
+function manifestChangedInDiff(projectRoot) {
+  try {
+    const output = execFileSync(
+      'git',
+      ['diff', '--name-only', 'HEAD', '--', '.uxtest/flows.yaml'],
+      { cwd: projectRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    return output.split(/\r?\n/).some((line) => line.trim() === '.uxtest/flows.yaml');
+  } catch {
+    return false;
+  }
+}
+
 function parseSummaryStatus(summaryText) {
   const status = section(linesWithNumbers(summaryText), /^##\s+Status\b/i);
   for (const entry of status.lines) {
@@ -286,11 +309,14 @@ function malformed(verdict, reason, phaseName, plannedTasks = []) {
     unmatched_smokes: [],
     failed_smokes: [],
     smoke_too_thin: false,
+    planned_flow_updates: [],
+    flow_manifest_changed: false,
+    missing_flow_manifest_update: false,
     malformed_reason: verdict === 'MALFORMED' ? reason : null,
   };
 }
 
-function buildReport({ phaseName, planText, summaryText }) {
+function buildReport({ phaseName, planText, summaryText, projectRoot }) {
   const plannedTasks = parsePlannedTasks(planText);
   if (plannedTasks.length === 0) {
     return malformed('MALFORMED', 'PLAN.md has no parseable Tasks section', phaseName);
@@ -316,6 +342,9 @@ function buildReport({ phaseName, planText, summaryText }) {
     .map((result) => ({ command: result.command, observed: result.observed || 'failed smoke result' }));
   const smokeTooThin = smokeSectionExists && plannedSmokes.length < 2 && codeTouched(planText, summaryText);
   const status = parseSummaryStatus(summaryText);
+  const { sectionExists: flowUpdatesSectionExists, entries: plannedFlowUpdates } = parsePlannedFlowUpdates(planText);
+  const flowManifestChanged = flowUpdatesSectionExists ? manifestChangedInDiff(projectRoot) : false;
+  const missingFlowManifestUpdate = flowUpdatesSectionExists && !flowManifestChanged;
 
   let verdict = 'MATCH';
   let malformedReason = null;
@@ -327,6 +356,7 @@ function buildReport({ phaseName, planText, summaryText }) {
     || unmatchedSmokes.length > 0
     || failedSmokes.length > 0
     || smokeTooThin
+    || missingFlowManifestUpdate
   ) {
     verdict = 'DROPPED';
   }
@@ -344,6 +374,9 @@ function buildReport({ phaseName, planText, summaryText }) {
     unmatched_smokes: unmatchedSmokes,
     failed_smokes: failedSmokes,
     smoke_too_thin: smokeTooThin,
+    planned_flow_updates: plannedFlowUpdates,
+    flow_manifest_changed: flowManifestChanged,
+    missing_flow_manifest_update: missingFlowManifestUpdate,
     malformed_reason: malformedReason,
   };
 }
@@ -365,6 +398,7 @@ if (!existsSync(planPath)) {
     phaseName,
     planText: readFileSync(planPath, 'utf8'),
     summaryText: readFileSync(summaryPath, 'utf8'),
+    projectRoot: args.projectRoot,
   });
 }
 
