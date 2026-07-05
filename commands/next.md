@@ -35,6 +35,12 @@ Catches drift when a prior phase shipped between sessions, resets stale sidecars
 
 ### Step 1: Read state (inline)
 
+Hard gate before reading phase state:
+
+```bash
+bash .riff/lib/validate-roadmap.sh ROADMAP.yaml || { echo "ROADMAP invalid, STOP"; exit 1; }
+```
+
 Read: ROADMAP.yaml, STATE.md, PROJECT.md (skim), previous SUMMARY.md and VERIFICATION.md.
 
 **Read project scope** from `.planning/config.json` → `scope` field. If absent or file missing → default to `production`. Hold this value; it gates Steps 4b, 5b, 6, 7 below.

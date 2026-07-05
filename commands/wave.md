@@ -28,6 +28,12 @@ Group wave-eligible phases into a wave run. The session frontier model plans, th
 
 ## Step 1: Eligibility scan
 
+Hard gate before grouping phases:
+
+```bash
+bash .riff/lib/validate-roadmap.sh ROADMAP.yaml || { echo "ROADMAP invalid, STOP"; exit 1; }
+```
+
 Read ROADMAP.yaml. A phase is **wave-eligible** when ALL of:
 
 - `status: todo`

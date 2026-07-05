@@ -395,6 +395,19 @@ describe('roadmap validator structural checks', () => {
   }));
 });
 
+describe('roadmap validator command wiring', () => {
+  test('next and wave run validate-roadmap as a hard Step 1 gate', () => {
+    const nextCommand = readFileSync(path.join(repoRoot, 'commands', 'next.md'), 'utf8');
+    const waveCommand = readFileSync(path.join(repoRoot, 'commands', 'wave.md'), 'utf8');
+
+    for (const commandText of [nextCommand, waveCommand]) {
+      expect(commandText).toContain('bash .riff/lib/validate-roadmap.sh ROADMAP.yaml');
+      expect(commandText).toContain('ROADMAP invalid, STOP');
+      expect(commandText).toContain('exit 1');
+    }
+  });
+});
+
 describe('csv-append mechanical contract', () => {
   test('appends rows only and leaves header ownership to the caller', () => withTempRoot((root) => {
     const csvPath = path.join(root, 'usage.csv');
