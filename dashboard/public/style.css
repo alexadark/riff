@@ -1337,6 +1337,17 @@ button {
   padding: 0 0 12px;
 }
 
+.project-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.project-tab {
+  padding: 8px 12px;
+}
+
 .kanban-header-actions {
   display: flex;
   gap: 8px;
@@ -1419,4 +1430,209 @@ button {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
+}
+
+/* ============================================================
+   UX runs
+   ============================================================ */
+
+.uxruns.hidden,
+.kanban.hidden {
+  display: none;
+}
+
+.uxruns {
+  max-width: 980px;
+}
+
+.ux-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ux-run {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.ux-run-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ux-run-title,
+.ux-run-counts,
+.ux-flow-summary,
+.ux-artifacts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ux-run-title {
+  font-size: 13px;
+}
+
+.ux-run-counts {
+  justify-content: flex-end;
+}
+
+.ux-count,
+.ux-verdict,
+.ux-severity {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: "SF Mono", "JetBrains Mono", "Menlo", monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.ux-count.pass,
+.ux-verdict.pass {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+.ux-count.fail,
+.ux-verdict.fail,
+.ux-severity.fail {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.ux-count.blocked,
+.ux-verdict.blocked,
+.ux-severity.warn {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+}
+
+.ux-count.skipped,
+.ux-verdict.skipped,
+.ux-severity.info {
+  color: var(--fg-muted);
+  background: color-mix(in srgb, var(--fg-muted) 10%, transparent);
+  border-color: color-mix(in srgb, var(--fg-muted) 30%, transparent);
+}
+
+.ux-flows {
+  display: flex;
+  flex-direction: column;
+}
+
+.ux-flow {
+  border-bottom: 1px solid var(--border);
+}
+
+.ux-flow:last-child {
+  border-bottom: none;
+}
+
+.ux-flow-summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  list-style: none;
+}
+
+.ux-flow-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ux-flow-summary:hover {
+  background: var(--surface-elevated);
+}
+
+.ux-flow-name {
+  font-weight: 500;
+  color: var(--fg);
+  margin-right: auto;
+}
+
+.ux-flow-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 14px 14px;
+}
+
+.ux-screenshots {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.ux-screenshots a {
+  display: block;
+  flex: 0 0 180px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.ux-screenshots img {
+  display: block;
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+}
+
+.ux-subtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  margin-bottom: 6px;
+}
+
+.ux-findings ul,
+.ux-human-checks ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.ux-findings li,
+.ux-human-checks li {
+  margin-bottom: 5px;
+}
+
+.ux-commentary {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--bg) 50%, var(--surface));
+}
+
+.ux-commentary-body {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ux-artifacts a {
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 8px;
+  color: var(--fg-muted);
+}
+
+.ux-artifacts a:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  text-decoration: none;
 }

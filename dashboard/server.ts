@@ -1,5 +1,5 @@
-import { existsSync, statSync } from "node:fs";
-import { basename, join, relative } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { basename, join, relative, resolve, sep } from "node:path";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import {
@@ -249,6 +249,7 @@ function lastModifiedMs(projectRoot: string): number | null {
     join(projectRoot, "ROADMAP.yaml"),
     join(projectRoot, "STATE.md"),
     join(projectRoot, ".planning"),
+    join(projectRoot, ".uxtest", "runs"),
   ];
   let latest: number | null = null;
   for (const p of candidates) {
@@ -261,6 +262,63 @@ function lastModifiedMs(projectRoot: string): number | null {
     }
   }
   return latest;
+}
+
+function hasUxRuns(projectRoot: string): boolean {
+  const runsPath = join(projectRoot, ".uxtest", "runs");
+  try {
+    return existsSync(runsPath) && statSync(runsPath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function safeRunDir(projectRoot: string, runId: string): string | null {
+  const runsRoot = resolve(projectRoot, ".uxtest", "runs");
+  const candidate = resolve(runsRoot, runId);
+  return candidate === runsRoot || candidate.startsWith(`${runsRoot}${sep}`) ? candidate : null;
+}
+
+function safeArtifactPath(runDir: string, artifactPath: string): string | null {
+  const candidate = resolve(runDir, artifactPath);
+  return candidate === runDir || candidate.startsWith(`${runDir}${sep}`) ? candidate : null;
+}
+
+function listUxRuns(projectRoot: string): { has_runs_dir: boolean; runs: unknown[] } {
+  const runsRoot = join(projectRoot, ".uxtest", "runs");
+  if (!hasUxRuns(projectRoot)) return { has_runs_dir: false, runs: [] };
+
+  const runs: unknown[] = [];
+  for (const entry of readdirSync(runsRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const runDir = join(runsRoot, entry.name);
+    const jsonPath = join(runDir, "run.json");
+    if (!existsSync(jsonPath)) continue;
+    try {
+      const parsed = JSON.parse(readFileSync(jsonPath, "utf8"));
+      if (!parsed || typeof parsed !== "object") continue;
+      const run = parsed as Record<string, unknown>;
+      const stat = statSync(jsonPath);
+      runs.push({
+        ...run,
+        run_id: typeof run.run_id === "string" && run.run_id ? run.run_id : entry.name,
+        run_dir: entry.name,
+        mtime_ms: stat.mtimeMs,
+        flows: Array.isArray(run.flows) ? run.flows : [],
+      });
+    } catch {
+      // Malformed run.json files are ignored so one bad run cannot break the dashboard.
+    }
+  }
+
+  runs.sort((a, b) => {
+    const left = a as { run_id?: unknown; mtime_ms?: unknown };
+    const right = b as { run_id?: unknown; mtime_ms?: unknown };
+    const byId = String(right.run_id ?? "").localeCompare(String(left.run_id ?? ""));
+    if (byId !== 0) return byId;
+    return Number(right.mtime_ms ?? 0) - Number(left.mtime_ms ?? 0);
+  });
+  return { has_runs_dir: true, runs };
 }
 
 // ---------- App ----------
@@ -420,7 +478,40 @@ app.get("/api/projects/:slug", (c) => {
     config: { level: liveConfig.level, language: liveConfig.language },
     bootstrap_status: ctx.bootstrap.getStatus(),
     has_preview,
+    has_uxruns: hasUxRuns(ctx.root),
   });
+});
+
+/** GET /api/projects/:slug/uxruns — parsed uxtest run indexes, newest first. */
+app.get("/api/projects/:slug/uxruns", (c) => {
+  const slug = c.req.param("slug");
+  const ctx = contexts.get(slug);
+  if (!ctx) return c.json({ error: "project not found" }, 404);
+  return c.json(listUxRuns(ctx.root));
+});
+
+/** GET /api/projects/:slug/uxruns/:runId/artifact?path=... — serve one run artifact. */
+app.get("/api/projects/:slug/uxruns/:runId/artifact", (c) => {
+  const slug = c.req.param("slug");
+  const runId = c.req.param("runId");
+  const ctx = contexts.get(slug);
+  if (!ctx) return c.json({ error: "project not found" }, 404);
+
+  const artifactPath = c.req.query("path");
+  if (!artifactPath) return c.json({ error: "missing artifact path" }, 400);
+
+  const runDir = safeRunDir(ctx.root, runId);
+  if (!runDir) return c.text("forbidden", 403);
+  const candidate = safeArtifactPath(runDir, artifactPath);
+  if (!candidate) return c.text("forbidden", 403);
+  if (!existsSync(candidate)) return c.text("not found", 404);
+  try {
+    const stat = statSync(candidate);
+    if (!stat.isFile()) return c.text("not found", 404);
+  } catch {
+    return c.text("not found", 404);
+  }
+  return new Response(Bun.file(candidate));
 });
 
 /** GET /api/projects/:slug/phase/:id — full detail for one phase. */

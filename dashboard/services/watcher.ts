@@ -5,7 +5,8 @@ import chokidar, { type FSWatcher } from "chokidar";
 export type WatcherEvent =
   | { type: "roadmap_changed" }
   | { type: "state_changed" }
-  | { type: "phase_changed"; id: number; files: string[] };
+  | { type: "phase_changed"; id: number; files: string[] }
+  | { type: "uxtest_runs_changed"; files: string[] };
 
 export type WatcherListener = (event: WatcherEvent) => void;
 
@@ -25,6 +26,7 @@ export class ProjectWatcher {
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
   private pendingPhase = new Map<number, PendingPhaseChange>();
   private pendingTopLevel = new Set<string>();
+  private pendingUxRuns = new Set<string>();
 
   constructor(private readonly projectRoot: string) {}
 
@@ -35,6 +37,7 @@ export class ProjectWatcher {
       join(this.projectRoot, "ROADMAP.yaml"),
       join(this.projectRoot, "STATE.md"),
       join(this.projectRoot, ".planning", "phases"),
+      join(this.projectRoot, ".uxtest"),
     ].filter((p) => existsSync(p));
 
     if (targets.length === 0) {
@@ -66,6 +69,7 @@ export class ProjectWatcher {
     this.timers.clear();
     this.pendingPhase.clear();
     this.pendingTopLevel.clear();
+    this.pendingUxRuns.clear();
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
@@ -104,6 +108,12 @@ export class ProjectWatcher {
       if (filename) entry.files.add(filename);
       this.pendingPhase.set(id, entry);
       this.scheduleFlush(`phase:${id}`);
+      return;
+    }
+
+    if (segments[0] === ".uxtest" && segments[1] === "runs") {
+      this.pendingUxRuns.add(segments.slice(2).join("/") || ".uxtest/runs");
+      this.scheduleFlush("uxtest:runs");
     }
   }
 
@@ -138,6 +148,12 @@ export class ProjectWatcher {
       this.pendingPhase.delete(id);
       if (!entry) return;
       this.broadcast({ type: "phase_changed", id, files: [...entry.files] });
+      return;
+    }
+    if (key === "uxtest:runs") {
+      const files = [...this.pendingUxRuns];
+      this.pendingUxRuns = new Set<string>();
+      this.broadcast({ type: "uxtest_runs_changed", files });
     }
   }
 

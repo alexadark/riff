@@ -17,9 +17,11 @@
     currentProjectSlug: null,
     currentPhaseId: null,
     currentPhase: null,
+    projectTab: "phases",
     viewLevel: null,             // null → use profile default; else override
     activeTab: "explanation",
     skippedExpanded: false,
+    uxRuns: null,
 
     projects: [],                // overview list
     project: null,               // current project full payload
@@ -237,6 +239,12 @@
     return body;
   }
 
+  async function fetchText(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`${path}: ${res.status}`);
+    return res.text();
+  }
+
   async function loadOverview() {
     try {
       const data = await api("/api/projects");
@@ -253,6 +261,7 @@
   async function loadProject(slug) {
     state.project = null;
     state.bootstrapStatus = null;
+    state.uxRuns = null;
     state.bootstrapDismissed = false;
     if (state.view === "project") renderProject();
     try {
@@ -260,10 +269,25 @@
       state.project = data;
       state.bootstrapStatus = data?.bootstrap_status ?? null;
       handleBootstrapStatus(state.bootstrapStatus);
+      if (state.projectTab === "uxruns" && data?.has_uxruns) {
+        await loadUxRuns(slug);
+      }
     } catch (e) {
       state.project = { error: e.message, slug };
     }
     if (state.view === "project") renderProject();
+  }
+
+  async function loadUxRuns(slug) {
+    state.uxRuns = { loading: true, runs: [] };
+    renderUxRunsView();
+    try {
+      const data = await api(`/api/projects/${encodeURIComponent(slug)}/uxruns`);
+      state.uxRuns = data;
+    } catch (e) {
+      state.uxRuns = { error: e.message, runs: [] };
+    }
+    renderUxRunsView();
   }
 
   async function loadPhase(slug, id, level) {
@@ -611,9 +635,14 @@
 
   function renderProject() {
     const root = $("#kanban");
+    const uxRoot = $("#uxruns");
     clear(root);
+    clear(uxRoot);
     if (!state.project) {
       root.appendChild(el("div", { class: "empty-state" }, "Loading project…"));
+      uxRoot.classList.add("hidden");
+      root.classList.remove("hidden");
+      renderProjectTabs();
       renderKanbanHeader();
       return;
     }
@@ -621,14 +650,54 @@
       root.appendChild(
         el("div", { class: "empty-state" }, `Error: ${state.project.error}`),
       );
+      uxRoot.classList.add("hidden");
+      root.classList.remove("hidden");
+      renderProjectTabs();
       renderKanbanHeader();
       return;
     }
+    if (state.projectTab === "uxruns" && !state.project.has_uxruns) {
+      state.projectTab = "phases";
+    }
+    renderProjectTabs();
     renderKanbanHeader();
+    if (state.projectTab === "uxruns") {
+      root.classList.add("hidden");
+      uxRoot.classList.remove("hidden");
+      renderUxRunsView();
+      return;
+    }
+    uxRoot.classList.add("hidden");
+    root.classList.remove("hidden");
     const phases = Array.isArray(state.project.phases) ? state.project.phases : [];
     const groups = groupPhases(phases);
     for (const status of COLUMN_ORDER) {
       root.appendChild(buildColumn(status, groups[status]));
+    }
+  }
+
+  function renderProjectTabs() {
+    const nav = $("#project-tabs");
+    clear(nav);
+    if (!state.project || state.project.error) return;
+    const tabs = [{ id: "phases", label: "Phases" }];
+    if (state.project.has_uxruns) tabs.push({ id: "uxruns", label: "UX runs" });
+    if (!tabs.some((tab) => tab.id === state.projectTab)) state.projectTab = "phases";
+    for (const tab of tabs) {
+      nav.appendChild(
+        el(
+          "button",
+          {
+            class: "tab project-tab" + (state.projectTab === tab.id ? " active" : ""),
+            type: "button",
+            onClick: () => {
+              if (tab.id === "uxruns") navigateToUxRuns();
+              else navigateToProject(state.currentProjectSlug);
+            },
+          },
+          tab.label,
+        ),
+      );
     }
   }
 
@@ -661,6 +730,180 @@
     openLink.href = url;
     $("#preview-view").classList.remove("hidden");
     document.body.style.overflow = "hidden";
+  }
+
+  function artifactUrl(run, artifactPath) {
+    return `/api/projects/${encodeURIComponent(state.currentProjectSlug)}/uxruns/${encodeURIComponent(run.run_dir || run.run_id)}/artifact?path=${encodeURIComponent(artifactPath)}`;
+  }
+
+  function verdictCounts(run) {
+    const counts = { pass: 0, fail: 0, blocked: 0, skipped: 0 };
+    for (const flow of Array.isArray(run?.flows) ? run.flows : []) {
+      const verdict = counts[flow?.verdict] == null ? "skipped" : flow.verdict;
+      counts[verdict] += 1;
+    }
+    return counts;
+  }
+
+  function verdictChip(verdict) {
+    const normalized = ["pass", "fail", "blocked", "skipped"].includes(verdict) ? verdict : "skipped";
+    return el("span", { class: `ux-verdict ${normalized}` }, normalized);
+  }
+
+  function formatDuration(ms) {
+    if (!Number.isFinite(Number(ms))) return "";
+    const n = Number(ms);
+    if (n < 1000) return `${n}ms`;
+    return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}s`;
+  }
+
+  function buildRunSummary(run) {
+    const counts = verdictCounts(run);
+    return el("div", { class: "ux-run-summary" }, [
+      el("div", { class: "ux-run-title" }, [
+        el("span", { class: "mono" }, run.run_id || run.run_dir || "run"),
+        run.intent ? el("span", { class: "fg-muted" }, run.intent) : null,
+      ]),
+      el("div", { class: "ux-run-counts" }, [
+        el("span", { class: "ux-count pass" }, `pass ${counts.pass}`),
+        el("span", { class: "ux-count fail" }, `fail ${counts.fail}`),
+        el("span", { class: "ux-count blocked" }, `blocked ${counts.blocked}`),
+        el("span", { class: "ux-count skipped" }, `skipped ${counts.skipped}`),
+      ]),
+    ]);
+  }
+
+  function buildArtifactLinks(run, artifacts) {
+    const links = [];
+    for (const key of ["trace", "video", "console"]) {
+      const p = artifacts?.[key];
+      if (!p) continue;
+      links.push(
+        el("a", { href: artifactUrl(run, p), target: "_blank", rel: "noopener" }, key),
+      );
+    }
+    return links.length ? el("div", { class: "ux-artifacts" }, links) : null;
+  }
+
+  function buildCommentary(run, flow) {
+    const p = flow?.artifacts?.commentary;
+    if (!p) return null;
+    const wrap = el("div", { class: "ux-commentary" }, [
+      el("div", { class: "ux-subtitle" }, "Commentary"),
+      el("div", { class: "ux-commentary-body fg-muted" }, "Loading commentary…"),
+    ]);
+    const target = wrap.querySelector(".ux-commentary-body");
+    fetchText(artifactUrl(run, p))
+      .then((text) => {
+        target.classList.remove("fg-muted");
+        target.innerHTML = renderMarkdown(text);
+      })
+      .catch(() => {
+        target.textContent = "Commentary artifact unavailable.";
+      });
+    return wrap;
+  }
+
+  function buildFlowDetail(run, flow) {
+    const artifacts = flow?.artifacts || {};
+    const screenshots = Array.isArray(artifacts.screenshots) ? artifacts.screenshots : [];
+    const findings = Array.isArray(flow?.ux_findings) ? flow.ux_findings : [];
+    const humanChecks = Array.isArray(flow?.human_checks) ? flow.human_checks : [];
+
+    const body = el("div", { class: "ux-flow-body" });
+    if (screenshots.length) {
+      body.appendChild(
+        el(
+          "div",
+          { class: "ux-screenshots" },
+          screenshots.map((p) =>
+            el("a", { href: artifactUrl(run, p), target: "_blank", rel: "noopener" }, [
+              el("img", { src: artifactUrl(run, p), alt: p }),
+            ]),
+          ),
+        ),
+      );
+    }
+    if (findings.length) {
+      body.appendChild(
+        el("div", { class: "ux-findings" }, [
+          el("div", { class: "ux-subtitle" }, "UX findings"),
+          el(
+            "ul",
+            null,
+            findings.map((finding) =>
+              el("li", null, [
+                el("span", { class: `ux-severity ${finding.severity || "info"}` }, finding.severity || "info"),
+                " ",
+                finding.step != null ? el("span", { class: "mono fg-muted" }, `step ${finding.step}: `) : null,
+                finding.note || "",
+              ]),
+            ),
+          ),
+        ]),
+      );
+    }
+    if (humanChecks.length) {
+      body.appendChild(
+        el("div", { class: "ux-human-checks" }, [
+          el("div", { class: "ux-subtitle" }, "Human checks"),
+          el("ul", null, humanChecks.map((item) => el("li", null, item))),
+        ]),
+      );
+    }
+    const commentary = buildCommentary(run, flow);
+    if (commentary) body.appendChild(commentary);
+    const links = buildArtifactLinks(run, artifacts);
+    if (links) body.appendChild(links);
+    if (!body.childNodes.length) {
+      body.appendChild(el("div", { class: "fg-muted" }, "No artifacts for this flow."));
+    }
+    return body;
+  }
+
+  function buildFlowRow(run, flow) {
+    const title = el("summary", { class: "ux-flow-summary" }, [
+      el("span", { class: "ux-flow-name" }, flow?.id || "flow"),
+      flow?.mode ? el("span", { class: "fg-muted" }, flow.mode) : null,
+      flow?.duration_ms ? el("span", { class: "fg-muted mono" }, formatDuration(flow.duration_ms)) : null,
+      verdictChip(flow?.verdict),
+    ]);
+    return el("details", { class: "ux-flow" }, [title, buildFlowDetail(run, flow)]);
+  }
+
+  function renderUxRunsView() {
+    const root = $("#uxruns");
+    if (!root || root.classList.contains("hidden")) return;
+    clear(root);
+    if (!state.uxRuns) {
+      root.appendChild(el("div", { class: "empty-state" }, "Loading UX runs…"));
+      if (state.currentProjectSlug) loadUxRuns(state.currentProjectSlug);
+      return;
+    }
+    if (state.uxRuns.loading) {
+      root.appendChild(el("div", { class: "empty-state" }, "Loading UX runs…"));
+      return;
+    }
+    if (state.uxRuns.error) {
+      root.appendChild(el("div", { class: "empty-state" }, `Error: ${state.uxRuns.error}`));
+      return;
+    }
+    const runs = Array.isArray(state.uxRuns.runs) ? state.uxRuns.runs : [];
+    if (!runs.length) {
+      root.appendChild(el("div", { class: "empty-state" }, "No valid UX runs found."));
+      return;
+    }
+    const timeline = el("div", { class: "ux-timeline" });
+    for (const run of runs) {
+      const flows = Array.isArray(run.flows) ? run.flows : [];
+      timeline.appendChild(
+        el("section", { class: "ux-run" }, [
+          buildRunSummary(run),
+          el("div", { class: "ux-flows" }, flows.map((flow) => buildFlowRow(run, flow))),
+        ]),
+      );
+    }
+    root.appendChild(timeline);
   }
 
   function closePreview() {
@@ -879,12 +1122,13 @@
   function parseHash() {
     const raw = (location.hash || "").replace(/^#\/?/, "");
     if (!raw) return { view: "overview" };
-    const m = raw.match(/^projects\/([^/]+)(?:\/phase\/([^/]+))?$/);
+    const m = raw.match(/^projects\/([^/]+)(?:\/(?:(uxruns)|phase\/([^/]+)))?$/);
     if (!m) return { view: "overview" };
     return {
       view: "project",
       slug: decodeURIComponent(m[1]),
-      phaseId: m[2] ? Number(decodeURIComponent(m[2])) : null,
+      projectTab: m[2] ? "uxruns" : "phases",
+      phaseId: m[3] ? Number(decodeURIComponent(m[3])) : null,
     };
   }
 
@@ -921,6 +1165,11 @@
     );
   }
 
+  function navigateToUxRuns() {
+    if (!state.currentProjectSlug) return;
+    setHash(`#/projects/${encodeURIComponent(state.currentProjectSlug)}/uxruns`);
+  }
+
   function closeDetail() {
     if (!state.currentProjectSlug) {
       navigateToOverview();
@@ -937,6 +1186,8 @@
       state.currentProjectSlug = null;
       state.currentPhaseId = null;
       state.currentPhase = null;
+      state.projectTab = "phases";
+      state.uxRuns = null;
       state.bootstrapDismissed = false;
       hideBootstrapBanner();
       $("#overview-view").classList.remove("hidden");
@@ -951,6 +1202,7 @@
     // Project view (with optional phase modal).
     const projectChanged = route.slug !== state.currentProjectSlug;
     state.view = "project";
+    state.projectTab = route.projectTab || "phases";
     $("#overview-view").classList.add("hidden");
     $("#kanban-view").classList.remove("hidden");
 
@@ -961,6 +1213,7 @@
       state.viewLevel = null;
       state.activeTab = "explanation";
       state.skippedExpanded = false;
+      state.uxRuns = null;
       state.bootstrapDismissed = false;
       hideBootstrapBanner();
     }
@@ -969,9 +1222,13 @@
 
     if (projectChanged) {
       await loadProject(route.slug);
+    } else if (state.projectTab === "uxruns" && !state.uxRuns && state.project?.has_uxruns) {
+      await loadUxRuns(route.slug);
+      renderProject();
     }
 
     if (route.phaseId != null && Number.isFinite(route.phaseId)) {
+      state.projectTab = "phases";
       state.currentPhaseId = route.phaseId;
       $("#detail-view").classList.remove("hidden");
       document.body.style.overflow = "hidden";
@@ -1061,10 +1318,29 @@
       }
     };
 
+    const handleUxRunsChanged = (ev) => {
+      let data = null;
+      try {
+        data = JSON.parse(ev.data);
+      } catch (e) {
+        return;
+      }
+      const slug = data?.project;
+      if (state.view === "overview") {
+        loadOverview();
+        return;
+      }
+      if (slug && slug === state.currentProjectSlug) {
+        loadProject(slug);
+        if (state.projectTab === "uxruns") loadUxRuns(slug);
+      }
+    };
+
     es.addEventListener("phase_changed", handlePhaseChanged);
     es.addEventListener("roadmap_changed", handleRoadmapChanged);
     es.addEventListener("state_changed", handleRoadmapChanged);
     es.addEventListener("bootstrap_status", handleBootstrap);
+    es.addEventListener("uxtest_runs_changed", handleUxRunsChanged);
 
     es.onerror = () => {
       // EventSource auto-reconnects

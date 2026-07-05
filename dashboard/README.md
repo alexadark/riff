@@ -72,6 +72,8 @@ On non-macOS platforms, the picker endpoint returns `501` and the user falls bac
 | DELETE | `/api/projects/:slug`                             | Remove a project from the registry                                      |
 | POST   | `/api/pick-folder`                                | Open a native macOS folder picker (via `osascript`). Returns `{ path }`, `{ cancelled: true }`, or `501` on non-darwin |
 | GET    | `/api/projects/:slug`                             | Project metadata + parsed `ROADMAP.yaml` shape + parsed `STATE.md` + per-project resolved `config` |
+| GET    | `/api/projects/:slug/uxruns`                      | List valid `.uxtest/runs/*/run.json` files newest first, skipping malformed runs |
+| GET    | `/api/projects/:slug/uxruns/:runId/artifact?path=…` | Serve a file from inside one UX run directory; rejects path traversal |
 | GET    | `/api/projects/:slug/phase/:id`                   | Phase detail: PLAN.md, SUMMARY.md, gates, explanations, metadata        |
 | GET    | `/api/projects/:slug/phase/:id/generate`          | SSE stream of `claude --print` chunks (lazy explanation generation)     |
 | GET    | `/api/projects/:slug/bootstrap-status`            | Background bootstrap progress (per-project)                             |
@@ -132,7 +134,7 @@ Already-generated per-phase explanations are NOT regenerated when you switch lev
 
 ## Live updates
 
-The server keeps a chokidar watcher on `.planning/phases/**` and `STATE.md` for every registered project. File changes (a new SUMMARY.md, an updated VERIFICATION.md, etc.) emit SSE events on `GET /api/events`. The frontend re-fetches and re-renders without manual refresh.
+The server keeps a chokidar watcher on `.planning/phases/**`, `.uxtest/runs/**`, and `STATE.md` for every registered project. File changes (a new SUMMARY.md, an updated VERIFICATION.md, a completed UX run, etc.) emit SSE events on `GET /api/events`. The frontend re-fetches and re-renders without manual refresh.
 
 This makes the dashboard a live mirror of `/riff:next` runs: while a phase is executing in the terminal, you can watch the kanban tile move and the metadata block fill in.
 
@@ -169,6 +171,6 @@ If `claude` is not on `PATH`, generation fails gracefully and the UI shows a pla
 
 **Port 4000 already in use** — set `PORT=5000` (or another free port) before starting. The slash command does not currently surface a custom port; for non-default ports, run `bun run start` directly.
 
-**File-change events not firing** — the watcher targets `.planning/phases/**` and `STATE.md`. If you are editing files outside those paths (e.g. PROJECT.md, taste.md), the dashboard will not refresh automatically. Refresh manually.
+**File-change events not firing** — the watcher targets `.planning/phases/**`, `.uxtest/runs/**`, and `STATE.md`. If you are editing files outside those paths (e.g. PROJECT.md, taste.md), the dashboard will not refresh automatically. Refresh manually.
 
 **"could not locate RIFF framework root" warning at startup** — the server walks up from `dashboard/` looking for `profile.yaml.example`. If you have moved the `dashboard/` directory outside the framework, this fails and falls back to the parent. Move it back or symlink it.
