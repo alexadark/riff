@@ -9,6 +9,7 @@ import { describe, expect, test } from 'vitest';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scopeCheckScript = path.join(repoRoot, 'scripts', 'scope-check.mjs');
 const gatesUpdateScript = path.join(repoRoot, 'scripts', 'gates-update.mjs');
+const gatesCheckScript = path.join(repoRoot, 'scripts', 'gates-check.mjs');
 const riffInitScript = path.join(repoRoot, 'scripts', 'riff-init.mjs');
 const reconcileGateScript = path.join(repoRoot, 'scripts', 'reconcile-gate.mjs');
 const validateRoadmapScript = path.join(repoRoot, 'lib', 'validate-roadmap.sh');
@@ -18,6 +19,7 @@ const testGateScript = path.join(repoRoot, 'hooks', 'test-gate.sh');
 const todoGateScript = path.join(repoRoot, 'hooks', 'todo-orphan-guard.sh');
 const destructiveGuardScript = path.join(repoRoot, 'hooks', 'destructive-guard.sh');
 const { buildDashboardMetadata } = await import(pathToFileURL(path.join(repoRoot, 'scripts', 'lib', 'dashboard.mjs')));
+const { GATE_ORDER } = await import(pathToFileURL(path.join(repoRoot, 'scripts', 'lib', 'gates.mjs')));
 
 function tempRoot(prefix = 'riff-test-') {
   return mkdtempSync(path.join(tmpdir(), prefix));
@@ -217,6 +219,31 @@ function runGates(args, cwd) {
   return spawnSync('node', [gatesUpdateScript, ...args], { cwd, encoding: 'utf8' });
 }
 
+function runGatesCheck(args, cwd) {
+  return spawnSync('node', [gatesCheckScript, ...args], { cwd, encoding: 'utf8' });
+}
+
+function setGate(root, phaseDir, gate, status, reason = status) {
+  const result = runGates([
+    '--phase',
+    phaseDir,
+    '--gate',
+    gate,
+    '--status',
+    status,
+    '--reason',
+    reason,
+  ], root);
+  expect(result.status).toBe(0);
+}
+
+function passAllFinalizeGates(root, phaseDir) {
+  for (const gate of GATE_ORDER) {
+    if (gate === 'dashboard-explain' || gate === 'state') continue;
+    setGate(root, phaseDir, gate, 'pass');
+  }
+}
+
 describe('gates-update mechanical contract', () => {
   test('initializes a GATES.md ledger compatible with the dashboard parser', () => withTempRoot((root) => {
     const phaseDir = createGatesProject(root);
@@ -303,6 +330,50 @@ describe('gates-update mechanical contract', () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('Invalid status');
+  }));
+});
+
+describe('gates-check finalize contract', () => {
+  test('exits 0 when production required gates are satisfied', () => withTempRoot((root) => {
+    const phaseDir = createGatesProject(root);
+    runGates(['--init', phaseDir], root);
+    passAllFinalizeGates(root, phaseDir);
+
+    const result = runGatesCheck(['--finalize', '--phase', phaseDir], root);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('gates satisfied');
+  }));
+
+  test('exits 1 when a production required gate fails or is skipped', () => withTempRoot((root) => {
+    const phaseDir = createGatesProject(root);
+    runGates(['--init', phaseDir], root);
+    passAllFinalizeGates(root, phaseDir);
+    setGate(root, phaseDir, 'security-review', 'fail', 'blocked finding');
+
+    const failed = runGatesCheck(['--finalize', '--phase', phaseDir], root);
+    expect(failed.status).toBe(1);
+    expect(failed.stderr).toContain('security-review: fail');
+
+    setGate(root, phaseDir, 'security-review', 'skipped', 'not run');
+    const skipped = runGatesCheck(['--finalize', '--phase', phaseDir], root);
+    expect(skipped.status).toBe(1);
+    expect(skipped.stderr).toContain('security-review: skipped');
+  }));
+
+  test('allows scratch phases with production-only gates skipped', () => withTempRoot((root) => {
+    mkdirSync(path.join(root, '.planning'), { recursive: true });
+    writeFileSync(path.join(root, '.planning', 'config.json'), JSON.stringify({ scope: 'scratch' }), 'utf8');
+    const phaseDir = createGatesProject(root);
+    runGates(['--init', phaseDir], root);
+    for (const gate of ['r1-r4', 'no-secrets', 'smoke', 'summary']) {
+      setGate(root, phaseDir, gate, 'pass');
+    }
+
+    const result = runGatesCheck(['--finalize', '--phase', phaseDir], root);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('(scratch)');
   }));
 });
 
