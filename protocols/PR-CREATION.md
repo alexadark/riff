@@ -19,15 +19,17 @@ Compare SUMMARY.md against `.claude/references/project-details.md` (file tree), 
 ## 8b — Push + PR
 
 1. `git push -u origin riff/phase-N-slug`
-2. Compose the PR body:
+2. Finalize gates before composing the PR:
+   `node .riff/scripts/gates-check.mjs --finalize --phase .planning/phases/N-slug || { echo "gates not satisfied, no PR"; exit 1; }`
+3. Compose the PR body:
    a. Draft the human summary (phase title, artifacts touched, review + security verdict, key changes from SUMMARY.md)
    b. Resolve profile field `metadata.pr_body` (`off | standard | full`, default `standard`).
    c. If `metadata.pr_body: off`, use only the human summary.
    d. If `metadata.pr_body: standard`, run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and append stdout. Standard metadata includes models, duration, gates, Codex usage, and commit trailers; it does not require `USAGE.md` or finalized prompt capture.
    e. If `metadata.pr_body: full`, write `.planning/phases/N-slug/USAGE.md` before running the metadata script, then finalize PROMPTS.md: replace any remaining `{{prompt verbatim}}` placeholder with the actual prompt or `_(not invoked)_`. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and append stdout. Full metadata includes token usage from USAGE.md and prompts from PROMPTS.md; the script hard-fails if placeholders remain.
-3. `PR_URL=$(gh pr create --title "<phase title>" --body "<composed body>")`
+4. `PR_URL=$(gh pr create --title "<phase title>" --body "<composed body>")`
    Capture stdout (the URL) so every strategy can interpolate the real PR URL into the final report.
-4. **Read `profile.yaml` `git.merge_strategy`** (resolved per `.riff/references/PROFILE-RESOLUTION.md`; default `github_button` if missing or file missing) and branch:
+5. **Read `profile.yaml` `git.merge_strategy`** (resolved per `.riff/references/PROFILE-RESOLUTION.md`; default `github_button` if missing or file missing) and branch:
    - **`github_button`:** print final report ending with `PR open at $PR_URL. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
    - **`local_no_ff`:** print final report ending with `PR open at $PR_URL. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
    - Any other value: treat as invalid profile config, print the value, and STOP before merging.

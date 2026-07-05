@@ -27,6 +27,8 @@ if [[ -z "$phase_dir" ]]; then
 	exit 1
 fi
 
+node "$framework_root/scripts/gates-check.mjs" --finalize --phase "$phase_dir" >/dev/null
+
 plan="$phase_dir/PLAN.md"
 summary="$phase_dir/SUMMARY.md"
 gates="$phase_dir/GATES.md"

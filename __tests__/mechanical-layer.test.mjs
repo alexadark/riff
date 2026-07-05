@@ -14,6 +14,7 @@ const riffInitScript = path.join(repoRoot, 'scripts', 'riff-init.mjs');
 const reconcileGateScript = path.join(repoRoot, 'scripts', 'reconcile-gate.mjs');
 const validateRoadmapScript = path.join(repoRoot, 'lib', 'validate-roadmap.sh');
 const csvAppendScript = path.join(repoRoot, 'scripts', 'csv-append.sh');
+const prMetadataScript = path.join(repoRoot, 'scripts', 'riff-pr-metadata.sh');
 const typecheckGateScript = path.join(repoRoot, 'hooks', 'typecheck-gate.sh');
 const testGateScript = path.join(repoRoot, 'hooks', 'test-gate.sh');
 const todoGateScript = path.join(repoRoot, 'hooks', 'todo-orphan-guard.sh');
@@ -375,6 +376,29 @@ describe('gates-check finalize contract', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('(scratch)');
   }));
+});
+
+describe('PR finalize enforcement', () => {
+  test('riff-pr-metadata refuses unsatisfied required gates', () => withTempRoot((root) => {
+    createGatesProject(root);
+
+    const result = spawnSync('/bin/bash', [prMetadataScript, '7'], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('gates not satisfied');
+  }));
+
+  test('PR creation docs run gates-check before gh pr create', () => {
+    const protocol = readFileSync(path.join(repoRoot, 'protocols', 'PR-CREATION.md'), 'utf8');
+    const nextCommand = readFileSync(path.join(repoRoot, 'commands', 'next.md'), 'utf8');
+
+    expect(protocol.indexOf('gates-check.mjs --finalize')).toBeLessThan(protocol.indexOf('gh pr create'));
+    expect(nextCommand).toContain('gates-check.mjs --finalize');
+    expect(nextCommand).toContain('gates not satisfied, no PR');
+  });
 });
 
 describe('hook reconcile gate', () => {

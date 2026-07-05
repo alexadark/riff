@@ -206,7 +206,7 @@ Skip by default. Run conditions and background prompt: [`protocols/POST-PHASE.md
 
 Do NOT update ROADMAP.yaml or STATE.md on the feature branch. Full procedure: [`protocols/PR-CREATION.md`](../protocols/PR-CREATION.md).
 
-8a documentation + README check is blocking. 8b pushes and opens the PR with `metadata.pr_body` handling. `github_button` prints the PR URL and STOPs; `local_no_ff` waits for "merge", then 8c updates state on main.
+8a documentation + README check is blocking. 8b runs `node .riff/scripts/gates-check.mjs --finalize --phase .planning/phases/N-slug || { echo "gates not satisfied, no PR"; exit 1; }`, then pushes and opens the PR with `metadata.pr_body` handling. `github_button` prints the PR URL and STOPs; `local_no_ff` waits for "merge", then 8c updates state on main.
 
 ### Step 9: Learn (inline)
 
