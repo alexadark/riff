@@ -114,6 +114,17 @@ Security-aware ACs are mandatory on EVERY plan that touches the relevant surface
 
 **The human will NOT catch these. You must.** plan-adversarial-reviewer (Codex, Step 4b) challenges the plan before code is written; security-reviewer + adversarial Codex are the runtime safety net.
 
+## User-facing flows
+
+When the project has `.uxtest/flows.yaml` and this phase adds, changes, or removes a user-facing flow, PLAN.md MUST include a `## Flow updates` section. Skip this section when `.uxtest/flows.yaml` does not exist, or when the phase has no user-facing flow changes.
+
+Use manifest-shaped stubs so the executor can apply them without redesigning the journey:
+
+- **Upserts:** list `id`, `name`, `entry`, `auth`, `steps` stub, `touches`, and `destructive`.
+- **Deprecations:** list `id` and a short reason. Removed flows become deprecated; they are never deleted.
+
+Flow changes include a new route with user interaction, a changed journey through existing pages, or removal of a page/flow already represented in the manifest.
+
 ### Revision cycle
 
 When `/riff:next` re-invokes you because Step 4b returned `REVISE`, `.planning/phases/N-slug/PLAN-REVIEW.md` exists. Read it first. Address every `BLOCKER` finding (mandatory) and consider every `WARNING`/`NOTE` (optional). Rewrite PLAN.md in place. Do not argue with findings, fix the plan or escalate to the user via R3.

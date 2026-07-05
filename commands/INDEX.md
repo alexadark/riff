@@ -96,7 +96,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 
 - `agents/planner.md` — read inline by `/riff:next` Step 4 (goal-backward planning policy, AC rules, HITL/AFK criteria, TDD mode, anti-patterns).
 - `agents/adversarial-reviewer.md` — read by the Codex sub-agent invoked at `/riff:next` Step 6 (review contract, severity scale, REVIEW.md format).
-- `protocols/SCOPE-CHECK.md` + `.riff/scripts/scope-check.mjs` — invoked by `/riff:next` Step 5c to diff PLAN.md vs SUMMARY.md and flag silently dropped tasks before review.
+- `protocols/SCOPE-CHECK.md` + `.riff/scripts/scope-check.mjs` — invoked by `/riff:next` Step 5c to diff PLAN.md vs SUMMARY.md and flag silently dropped tasks, smokes, and uxtest flow updates before review.
 - `protocols/FALLOW.md` — invoked by `/riff:next` Step 5d to run fallow against `main...HEAD` and block only on `fail`.
 - `agents/architecture-adversarial-reviewer.md` — invoked by `/riff:start` Stage 2.5 to challenge the System Architecture before scope and roadmap lock.
 - `agents/roadmap-adversarial-reviewer.md` — invoked by `/riff:start` Stage 4.5 to challenge `ROADMAP.yaml` before bootstrap.

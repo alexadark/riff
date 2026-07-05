@@ -199,6 +199,9 @@ After all tasks, update:
 | `.claude/references/project-details.md` | New/renamed/split files         | Only if file exists  |
 | `docs/architecture.md`                  | New services, routes, data flow | Skip                 |
 | `taste.md`                              | New pattern emerged             | Skip (doesn't exist) |
+| `.uxtest/flows.yaml`                    | PLAN.md has `## Flow updates`   | Apply when file exists |
+
+For `.uxtest/flows.yaml`, apply upserts by stable `id`, set removals/deprecations to `status: deprecated`, never delete an entry, and commit the manifest change WITH the code that changes the flow. Preserve existing `status:` values unless the plan explicitly deprecates that flow.
 
 Commit doc changes as `docs(phase-N): ...` or with the code they describe.
 
