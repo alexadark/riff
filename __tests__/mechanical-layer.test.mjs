@@ -207,6 +207,38 @@ describe('scope-check mechanical contract', () => {
     expect(report.unmatched_smokes).toEqual([]);
     expect(report.smoke_too_thin).toBe(false);
   }));
+
+  test('requires blocked status when recorded confidence is below threshold', () => withTempRoot((root) => {
+    const plan = `# Plan
+
+## Confidence
+
+- requirements: 0.6
+- risks: 0.9
+
+## Tasks
+
+### Task 1: Update documentation
+`;
+    const summary = `# Summary
+
+## What Was Built
+
+- Updated documentation.
+
+## Status
+
+**completed**
+`;
+    writePhase(root, { plan, summary });
+
+    const { result, report } = runScope(root);
+
+    expect(result.status).toBe(1);
+    expect(report.verdict).toBe('MALFORMED');
+    expect(report.confidence_requires_pause).toBe(true);
+    expect(report.malformed_reason).toContain('confidence score below 0.7');
+  }));
 });
 
 function createGatesProject(root) {
@@ -398,6 +430,32 @@ describe('PR finalize enforcement', () => {
     expect(protocol.indexOf('gates-check.mjs --finalize')).toBeLessThan(protocol.indexOf('gh pr create'));
     expect(nextCommand).toContain('gates-check.mjs --finalize');
     expect(nextCommand).toContain('gates not satisfied, no PR');
+  });
+});
+
+describe('reviewer format and trace contracts', () => {
+  test('reviewers do not ask models to fabricate Codex runtime metadata', () => {
+    const agentFiles = [
+      'agents/adversarial-reviewer.md',
+      'agents/plan-adversarial-reviewer.md',
+      'agents/architecture-adversarial-reviewer.md',
+      'agents/roadmap-adversarial-reviewer.md',
+      'agents/deep-auditor.md',
+      'agents/incident-adversarial-reviewer.md',
+    ];
+
+    for (const file of agentFiles) {
+      const text = readFileSync(path.join(repoRoot, file), 'utf8');
+      expect(text).not.toContain('runtime metadata');
+      expect(text).not.toContain('<session-id>');
+      expect(text).toContain('Finding headings are load-bearing');
+    }
+  });
+
+  test('riff-doctor includes the command model mirror check', () => {
+    const doctor = readFileSync(path.join(repoRoot, 'scripts', 'riff-doctor.mjs'), 'utf8');
+    expect(doctor).toContain('checkCommandModelMirrors');
+    expect(doctor).toContain('models.reasoning');
   });
 });
 

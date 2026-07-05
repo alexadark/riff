@@ -260,6 +260,54 @@ function checkProfileReads(files) {
   }
 }
 
+function yamlScalar(text, section, key) {
+  let inSection = false;
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.replace(/\s+#.*$/, '');
+    if (new RegExp(`^${section}:\\s*$`).test(line)) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && /^[A-Za-z_][A-Za-z0-9_]*:/.test(line)) return undefined;
+    const match = inSection ? line.match(new RegExp(`^\\s+${key}:\\s*([^#]+?)\\s*$`)) : undefined;
+    if (match) return match[1].replace(/^["']|["']$/g, '').trim();
+  }
+  return undefined;
+}
+
+function commandFrontmatterModel(file) {
+  const lines = readText(file).split(/\r?\n/);
+  if (lines[0]?.trim() !== '---') return undefined;
+  for (let index = 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.trim() === '---') break;
+    const match = line.match(/^model:\s*([^\s#]+)/);
+    if (match) return match[1].trim();
+  }
+  return undefined;
+}
+
+function checkCommandModelMirrors() {
+  const profileFile = existsSync(path.join(frameworkRoot, 'profile.yaml'))
+    ? 'profile.yaml'
+    : 'templates/profile.default.yaml';
+  const reasoningModel = yamlScalar(readText(profileFile), 'models', 'reasoning');
+  if (!reasoningModel) return;
+
+  for (const file of ['commands/next.md', 'commands/start.md', 'commands/wave.md']) {
+    if (!targetExists(file)) continue;
+    const frontmatterModel = commandFrontmatterModel(file);
+    if (frontmatterModel && frontmatterModel !== reasoningModel) {
+      addFinding(
+        FINDING_LEVELS.warn,
+        file,
+        4,
+        `Command model frontmatter '${frontmatterModel}' differs from ${profileFile} models.reasoning '${reasoningModel}'`,
+      );
+    }
+  }
+}
+
 function main() {
   const files = listTrackedFiles()
     .filter((file) => existsSync(path.join(frameworkRoot, file)))
@@ -275,6 +323,7 @@ function main() {
   checkFrameworkPathCitations(files);
   checkSectionReferences(files);
   checkProfileReads(files);
+  checkCommandModelMirrors();
 
   const errors = findings.filter((finding) => finding.level === FINDING_LEVELS.error);
   if (findings.length === 0) {

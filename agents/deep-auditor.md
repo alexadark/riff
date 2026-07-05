@@ -46,13 +46,9 @@ Write `.planning/audits/AUDIT-<milestone>-<YYYY-MM-DD>.md`:
 - **Suggest:** one short sentence (not a rewrite)
 
 ## Verdict: PROCEED / FINDINGS
-
----
-**Codex session:** `<session-id>`
-Resume in Codex with: `codex resume <session-id>`
 ```
 
-The session ID is reported by the codex-rescue skill. Paste it into the footer; if unavailable, write `unknown` with a one-line reason. Severity: `BLOCKER` > `WARNING` > `NOTE`. `FINDINGS` = any `BLOCKER` or `WARNING`. `NOTE`-only or no findings = `PROCEED`.
+Finding headings are load-bearing; keep exact `### [SEVERITY] Title` format. Severity: `BLOCKER` > `WARNING` > `NOTE`. `FINDINGS` = any `BLOCKER` or `WARNING`. `NOTE`-only or no findings = `PROCEED`.
 
 ## Return to orchestrator
 

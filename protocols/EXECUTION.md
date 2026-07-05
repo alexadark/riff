@@ -6,7 +6,7 @@ Operational rules every RIFF agent follows when planning, building, and reacting
 
 ## 1. Confidence Gate
 
-Score these 4 dimensions before proceeding. **Any dimension < 0.7 → STOP** and surface questions.
+Score these 4 dimensions before proceeding. **Any dimension < 0.7 → STOP** and surface questions. If PLAN.md records `## Confidence`, scope-check requires low-score phases to stay blocked.
 
 | Dimension  | Question                                                   |
 | ---------- | ---------------------------------------------------------- |

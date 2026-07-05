@@ -227,6 +227,18 @@ function parsePlannedFlowUpdates(planText) {
   return { sectionExists: true, entries };
 }
 
+function parseConfidenceScores(planText) {
+  const confidence = section(linesWithNumbers(planText), /^##\s+Confidence\b/i);
+  if (!confidence.exists) return [];
+  return confidence.lines
+    .map((entry) => {
+      const match = entry.text.match(/\b([01](?:\.\d+)?)\b/);
+      if (!match) return undefined;
+      return { score: Number(match[1]), source_line: entry.line };
+    })
+    .filter(Boolean);
+}
+
 function manifestChangedInDiff(projectRoot) {
   try {
     const output = execFileSync(
@@ -312,6 +324,8 @@ function malformed(verdict, reason, phaseName, plannedTasks = []) {
     planned_flow_updates: [],
     flow_manifest_changed: false,
     missing_flow_manifest_update: false,
+    confidence_scores: [],
+    confidence_requires_pause: false,
     malformed_reason: verdict === 'MALFORMED' ? reason : null,
   };
 }
@@ -345,10 +359,15 @@ function buildReport({ phaseName, planText, summaryText, projectRoot }) {
   const { sectionExists: flowUpdatesSectionExists, entries: plannedFlowUpdates } = parsePlannedFlowUpdates(planText);
   const flowManifestChanged = flowUpdatesSectionExists ? manifestChangedInDiff(projectRoot) : false;
   const missingFlowManifestUpdate = flowUpdatesSectionExists && !flowManifestChanged;
+  const confidenceScores = parseConfidenceScores(planText);
+  const confidenceRequiresPause = confidenceScores.some((entry) => entry.score < 0.7);
 
   let verdict = 'MATCH';
   let malformedReason = null;
-  if (status === 'completed' && failedSmokes.length > 0) {
+  if (confidenceRequiresPause && status !== 'blocked') {
+    verdict = 'MALFORMED';
+    malformedReason = 'PLAN.md confidence score below 0.7 requires blocked phase status';
+  } else if (status === 'completed' && failedSmokes.length > 0) {
     verdict = 'MALFORMED';
     malformedReason = 'SUMMARY.md status is completed but at least one smoke failed';
   } else if (
@@ -377,6 +396,8 @@ function buildReport({ phaseName, planText, summaryText, projectRoot }) {
     planned_flow_updates: plannedFlowUpdates,
     flow_manifest_changed: flowManifestChanged,
     missing_flow_manifest_update: missingFlowManifestUpdate,
+    confidence_scores: confidenceScores,
+    confidence_requires_pause: confidenceRequiresPause,
     malformed_reason: malformedReason,
   };
 }
