@@ -10,6 +10,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const scopeCheckScript = path.join(repoRoot, 'scripts', 'scope-check.mjs');
 const gatesUpdateScript = path.join(repoRoot, 'scripts', 'gates-update.mjs');
 const csvAppendScript = path.join(repoRoot, 'scripts', 'csv-append.sh');
+const typecheckGateScript = path.join(repoRoot, 'hooks', 'typecheck-gate.sh');
+const testGateScript = path.join(repoRoot, 'hooks', 'test-gate.sh');
+const todoGateScript = path.join(repoRoot, 'hooks', 'todo-orphan-guard.sh');
 const { buildDashboardMetadata } = await import(pathToFileURL(path.join(repoRoot, 'scripts', 'lib', 'dashboard.mjs')));
 
 function tempRoot(prefix = 'riff-test-') {
@@ -328,5 +331,47 @@ describe('csv-append mechanical contract', () => {
 
     expect(result.status).toBe(0);
     expect(readFileSync(csvPath, 'utf8')).toBe('fallback,row\n');
+  }));
+});
+
+describe('PostToolUse hook payload parsing', () => {
+  test('typecheck, test, and todo gates read file paths from JSON stdin', () => withTempRoot((root) => {
+    const binDir = path.join(root, 'bin');
+    const srcDir = path.join(root, 'src');
+    mkdirSync(binDir, { recursive: true });
+    mkdirSync(srcDir, { recursive: true });
+    mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+    writeFileSync(path.join(root, 'tsconfig.json'), '{}\n', 'utf8');
+    const sourcePath = path.join(srcDir, 'x.ts');
+    writeFileSync(sourcePath, '// TODO orphan\nexport const x: string = 1;\n', 'utf8');
+    writeFileSync(path.join(binDir, 'npx'), `#!/usr/bin/env bash\necho "$@" >&2\nexit 1\n`, { mode: 0o755 });
+    const payload = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: sourcePath } });
+    const env = { ...process.env, PATH: `${binDir}:${process.env.PATH}` };
+
+    const typecheck = spawnSync('/bin/bash', [typecheckGateScript, ''], {
+      cwd: root,
+      input: payload,
+      encoding: 'utf8',
+      env,
+    });
+    const testGate = spawnSync('/bin/bash', [testGateScript, ''], {
+      cwd: root,
+      input: payload,
+      encoding: 'utf8',
+      env,
+    });
+    const todo = spawnSync('/bin/bash', [todoGateScript, ''], {
+      cwd: root,
+      input: payload,
+      encoding: 'utf8',
+      env,
+    });
+
+    expect(typecheck.status).toBe(0);
+    expect(typecheck.stdout).toContain('RIFF Typecheck: type errors detected');
+    expect(testGate.status).toBe(0);
+    expect(testGate.stdout).toContain('RIFF Test Gate: failing tests related to modified file');
+    expect(todo.status).toBe(0);
+    expect(todo.stdout).toContain('RIFF TODO Guard: orphan TODO');
   }));
 });

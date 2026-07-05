@@ -1,9 +1,21 @@
 #!/bin/bash
 # RIFF Test Gate - Run related tests after .ts/.tsx file edits
-FILE_PATH="$1"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/extract-files.sh"
+riff_extract_files "$@"
+
+FILE_PATH=""
+for candidate in "${RIFF_FILES[@]}"; do
+  [[ "$candidate" == *"/.planning/"* ]] && continue
+  if [[ "$candidate" =~ \.(ts|tsx)$ ]]; then
+    FILE_PATH="$candidate"
+    break
+  fi
+done
 
 # Only for .ts/.tsx files (not config, not test files themselves)
-if [[ ! "$FILE_PATH" =~ \.(ts|tsx)$ ]]; then exit 0; fi
+if [[ -z "$FILE_PATH" ]]; then exit 0; fi
 if [[ "$FILE_PATH" =~ \.(test|spec|config|setup)\. ]]; then exit 0; fi
 if [[ "$FILE_PATH" =~ (\.stories\.) ]]; then exit 0; fi
 

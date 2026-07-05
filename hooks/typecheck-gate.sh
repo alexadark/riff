@@ -3,10 +3,21 @@
 # Runs tsc --noEmit after TypeScript file edits to catch type errors early
 # Configured as a Claude Code PostToolUse hook in .claude/settings.json
 
-FILE_PATH="$1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/extract-files.sh"
+riff_extract_files "$@"
+
+FILE_PATH=""
+for candidate in "${RIFF_FILES[@]}"; do
+  [[ "$candidate" == *"/.planning/"* ]] && continue
+  if [[ "$candidate" =~ \.(ts|tsx)$ ]]; then
+    FILE_PATH="$candidate"
+    break
+  fi
+done
 
 # Only run for TypeScript files
-if [[ ! "$FILE_PATH" =~ \.(ts|tsx)$ ]]; then
+if [[ -z "$FILE_PATH" ]]; then
   exit 0
 fi
 
