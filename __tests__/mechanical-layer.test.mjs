@@ -9,6 +9,7 @@ import { describe, expect, test } from 'vitest';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scopeCheckScript = path.join(repoRoot, 'scripts', 'scope-check.mjs');
 const gatesUpdateScript = path.join(repoRoot, 'scripts', 'gates-update.mjs');
+const riffInitScript = path.join(repoRoot, 'scripts', 'riff-init.mjs');
 const csvAppendScript = path.join(repoRoot, 'scripts', 'csv-append.sh');
 const typecheckGateScript = path.join(repoRoot, 'hooks', 'typecheck-gate.sh');
 const testGateScript = path.join(repoRoot, 'hooks', 'test-gate.sh');
@@ -398,4 +399,28 @@ describe('destructive command guard', () => {
       expect(result.stderr).toContain('RIFF BLOCKED');
     }
   });
+});
+
+describe('riff-init profile risk handling', () => {
+  test('unknown sensitive_task_preference warns and installs cautious settings', () => withTempRoot((root) => {
+    mkdirSync(path.join(root, '.planning'), { recursive: true });
+    writeFileSync(path.join(root, '.planning', 'profile.yaml'), 'risk:\n  sensitive_task_preference: cautous\n', 'utf8');
+
+    const result = spawnSync('node', [
+      riffInitScript,
+      '--project-root',
+      root,
+      '--scope',
+      'production',
+      '--profile',
+      'skip',
+    ], { encoding: 'utf8' });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("unknown risk.sensitive_task_preference 'cautous'");
+    const settings = readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8');
+    expect(settings).toContain('input-validation-guard.sh');
+    expect(settings).toContain('todo-orphan-guard.sh');
+    expect(result.stdout).toContain('settings:        created from settings-cautious.json');
+  }));
 });

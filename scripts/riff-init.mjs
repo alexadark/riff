@@ -494,7 +494,9 @@ function settingsTemplateForProfile() {
   const risk = profileScalar(resolvedProfileText(), 'risk', 'sensitive_task_preference');
   if (risk === 'cautious') return 'settings-cautious.json';
   if (risk === 'balanced') return 'settings-balanced.json';
-  return 'settings.json';
+  if (risk === 'fast' || risk === undefined) return 'settings.json';
+  process.stderr.write(`[riff-init] warning: unknown risk.sensitive_task_preference '${risk}', defaulting to cautious settings\n`);
+  return 'settings-cautious.json';
 }
 
 function installClaudeSettings() {

@@ -128,6 +128,7 @@ The clone path is resolved from `~/.config/riff/config.yaml` (`framework_path`),
    | `cautious` | `.riff/templates/settings-cautious.json` | Bucket A + all of Bucket B |
    | `balanced` | `.riff/templates/settings-balanced.json` | Bucket A + route-auth-guard + idor-detector |
    | `fast` or missing profile | `.riff/templates/settings.json` | Bucket A only |
+   | unknown value | `.riff/templates/settings-cautious.json` | Fail closed and warn |
 
    **Bucket A** (universal): destructive-guard, boundary-check, typecheck-gate, test-gate.
    **Bucket B** (security-adaptable): route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard.
