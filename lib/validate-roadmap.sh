@@ -49,8 +49,15 @@ cur_id=""
 cur_slug=""
 cur_title=""
 cur_status=""
+cur_depends_on=()
 cur_has_name=0
 cur_name_line=0
+
+phase_count=0
+seen_ids=()
+seen_id_lines=()
+edge_from=()
+edge_to=()
 
 valid_status_re='^(todo|in-progress|done|blocked|skipped)$'
 slug_re='^[a-z0-9][a-z0-9-]*$'
@@ -58,11 +65,39 @@ slug_re='^[a-z0-9][a-z0-9-]*$'
 strip_value() {
   local v="$1"
   v="${v#"${v%%[![:space:]]*}"}"
-  v="${v%%#*}"
+  if [[ "$v" =~ ^(.*)[[:space:]]#.*$ ]]; then v="${BASH_REMATCH[1]}"; fi
   v="${v%"${v##*[![:space:]]}"}"
   if [[ "$v" =~ ^\"(.*)\"$ ]]; then v="${BASH_REMATCH[1]}"; fi
   if [[ "$v" =~ ^\'(.*)\'$ ]]; then v="${BASH_REMATCH[1]}"; fi
   printf '%s' "$v"
+}
+
+id_re='^[0-9]+(\.[0-9]+)?$'
+
+parse_depends_on() {
+  local raw="$1"
+  local v dep
+  v="$(strip_value "$raw")"
+  v="${v#[}"
+  v="${v%]}"
+  v="${v//\"/}"
+  v="${v//\'/}"
+  v="${v//,/ }"
+  for dep in $v; do
+    [ -n "$dep" ] && cur_depends_on+=("$dep")
+  done
+}
+
+id_seen_index() {
+  local needle="$1"
+  local i
+  for i in "${!seen_ids[@]}"; do
+    if [[ "${seen_ids[$i]}" == "$needle" ]]; then
+      printf '%s' "$i"
+      return 0
+    fi
+  done
+  return 1
 }
 
 flush_phase() {
@@ -70,6 +105,17 @@ flush_phase() {
   local id_label="${cur_id:-(unknown)}"
   if [[ -z "$cur_id" ]]; then
     errors+=("$roadmap:$phase_start_line: phase missing required field \`id\`")
+  elif [[ ! "$cur_id" =~ $id_re ]]; then
+    errors+=("$roadmap:$phase_start_line: phase id \`$cur_id\` must be numeric (integer or decimal)")
+  else
+    local existing_index
+    existing_index="$(id_seen_index "$cur_id" || true)"
+    if [[ -n "$existing_index" ]]; then
+      errors+=("$roadmap:$phase_start_line: duplicate phase id \`$cur_id\` (first seen at line ${seen_id_lines[$existing_index]})")
+    fi
+    seen_ids+=("$cur_id")
+    seen_id_lines+=("$phase_start_line")
+    phase_count=$((phase_count + 1))
   fi
   if [[ -z "$cur_slug" ]]; then
     errors+=("$roadmap:$phase_start_line: phase $id_label missing required field \`slug\`")
@@ -87,11 +133,17 @@ flush_phase() {
   if [[ "$cur_has_name" -eq 1 ]]; then
     errors+=("$roadmap:$cur_name_line: phase $id_label uses deprecated phase-level \`name:\` field, use \`title:\` instead")
   fi
+  local dep
+  for dep in "${cur_depends_on[@]}"; do
+    edge_from+=("$cur_id")
+    edge_to+=("$dep")
+  done
 }
 
 reset_phase() {
   in_phase=0
   cur_id=""; cur_slug=""; cur_title=""; cur_status=""
+  cur_depends_on=()
   cur_has_name=0; cur_name_line=0
   phase_start_line=0
 }
@@ -104,7 +156,13 @@ while IFS='' read -r line || [[ -n "$line" ]]; do
   if [[ "$line" =~ ^[[:space:]]*# ]]; then continue; fi
 
   # Detect `phases:` block opening.
-  if [[ "$line" =~ ^phases:[[:space:]]*$ ]]; then
+  if [[ "$line" =~ ^phases:[[:space:]]*\[[[:space:]]*\][[:space:]]*(#.*)?$ ]]; then
+    errors+=("$roadmap:$line_no: \`phases\` must contain at least one phase")
+    in_phases_block=0
+    continue
+  fi
+
+  if [[ "$line" =~ ^phases:[[:space:]]*(#.*)?$ ]]; then
     in_phases_block=1
     continue
   fi
@@ -149,6 +207,7 @@ while IFS='' read -r line || [[ -n "$line" ]]; do
         slug)   cur_slug="$val" ;;
         title)  cur_title="$val" ;;
         status) cur_status="$val" ;;
+        depends_on) parse_depends_on "$raw_val" ;;
         name)   cur_has_name=1; cur_name_line=$line_no ;;
       esac
     fi
@@ -156,6 +215,33 @@ while IFS='' read -r line || [[ -n "$line" ]]; do
 done < "$roadmap"
 
 flush_phase
+
+if [[ "$phase_count" -eq 0 ]]; then
+  errors+=("$roadmap:1: \`phases\` must contain at least one phase")
+fi
+
+for i in "${!edge_from[@]}"; do
+  from="${edge_from[$i]}"
+  to="${edge_to[$i]}"
+  if [[ -z "$to" ]]; then
+    continue
+  fi
+  if [[ ! "$to" =~ $id_re ]]; then
+    errors+=("$roadmap:1: phase $from depends_on \`$to\` but dependency ids must be numeric (integer or decimal)")
+    continue
+  fi
+  if ! id_seen_index "$to" >/dev/null; then
+    errors+=("$roadmap:1: phase $from depends_on missing phase id \`$to\`")
+  fi
+  if [[ "$from" == "$to" ]]; then
+    errors+=("$roadmap:1: phase $from cannot depend on itself")
+  fi
+  for j in "${!edge_from[@]}"; do
+    if [[ "${edge_from[$j]}" == "$to" && "${edge_to[$j]}" == "$from" ]]; then
+      errors+=("$roadmap:1: direct dependency cycle detected: $from <-> $to")
+    fi
+  done
+done
 
 if [[ "${#errors[@]}" -eq 0 ]]; then
   echo "[validate-roadmap] OK: $roadmap"

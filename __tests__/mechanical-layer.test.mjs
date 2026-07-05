@@ -11,6 +11,7 @@ const scopeCheckScript = path.join(repoRoot, 'scripts', 'scope-check.mjs');
 const gatesUpdateScript = path.join(repoRoot, 'scripts', 'gates-update.mjs');
 const riffInitScript = path.join(repoRoot, 'scripts', 'riff-init.mjs');
 const reconcileGateScript = path.join(repoRoot, 'scripts', 'reconcile-gate.mjs');
+const validateRoadmapScript = path.join(repoRoot, 'lib', 'validate-roadmap.sh');
 const csvAppendScript = path.join(repoRoot, 'scripts', 'csv-append.sh');
 const typecheckGateScript = path.join(repoRoot, 'hooks', 'typecheck-gate.sh');
 const testGateScript = path.join(repoRoot, 'hooks', 'test-gate.sh');
@@ -338,6 +339,59 @@ describe('hook reconcile gate', () => {
     const gates = readFileSync(path.join(phaseDir, 'GATES.md'), 'utf8');
     expect(gates).toContain('| hook-reconcile | fail | yes |');
     expect(gates).toContain('HIGH');
+  }));
+});
+
+describe('roadmap validator structural checks', () => {
+  function runValidate(root, text) {
+    const file = path.join(root, 'ROADMAP.yaml');
+    writeFileSync(file, text, 'utf8');
+    return spawnSync('/bin/bash', [validateRoadmapScript, file], { encoding: 'utf8' });
+  }
+
+  test('rejects duplicate ids, dangling deps, and empty phases', () => withTempRoot((root) => {
+    const duplicate = runValidate(root, `phases:
+  - id: 1
+    slug: one
+    title: One
+    status: todo
+  - id: 1
+    slug: two
+    title: Two
+    status: todo
+`);
+    const dangling = runValidate(root, `phases:
+  - id: 1
+    slug: one
+    title: One
+    status: todo
+    depends_on: [99]
+`);
+    const empty = runValidate(root, 'phases: []\n');
+
+    expect(duplicate.status).toBe(1);
+    expect(duplicate.stderr).toContain('duplicate phase id `1`');
+    expect(dangling.status).toBe(1);
+    expect(dangling.stderr).toContain('depends_on missing phase id `99`');
+    expect(empty.status).toBe(1);
+    expect(empty.stderr).toContain('must contain at least one phase');
+  }));
+
+  test('accepts decimal ids and legal dependency graph', () => withTempRoot((root) => {
+    const result = runValidate(root, `phases:
+  - id: 1
+    slug: base
+    title: Base
+    status: done
+  - id: 96.7
+    slug: decimal-phase
+    title: "Hash # inside title"
+    status: todo
+    depends_on: [1]
+`);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('[validate-roadmap] OK');
   }));
 });
 
