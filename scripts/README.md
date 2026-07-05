@@ -48,6 +48,22 @@ gh pr create --body "$body" ...
 
 ---
 
+## dashboard.sh
+
+**Usage:** `riff dashboard [--stop]`, `bash .riff/scripts/dashboard.sh [--stop]`, or `/riff:dashboard [--stop]`
+
+Single source of truth for the local Bun dashboard lifecycle. Starts (or attaches to) the server on `http://localhost:4000`, auto-registers the current project into the registry, and opens the browser at the project's kanban view. `--stop` terminates the running server.
+
+Called three ways, all identical: the `riff dashboard` CLI command, the `/riff:dashboard` slash command (thin wrapper over `.riff/scripts/dashboard.sh`), and directly.
+
+**Behavior:**
+- Idempotent start: if `GET /api/projects` already responds, it registers cwd and opens the browser without touching the running process.
+- Framework root resolution order: `RIFF_FRAMEWORK_ROOT` env (set by the CLI) → project `.riff/` symlink → `framework_path:` in `~/.config/riff/config.yaml` → legacy `~/DEV/frameworks/riff`.
+- PID file at `~/.riff/dashboard.pid`; a stale PID (process gone) is treated as not-running and cleaned up.
+- Guards: requires `.planning/` in cwd (RIFF project) and `bun` on PATH.
+
+---
+
 ## csv-append.sh
 
 **Usage:** `bash .riff/scripts/csv-append.sh <csv-file> <row>`

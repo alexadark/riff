@@ -8,7 +8,7 @@
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `/riff:onboard`         | First time installing RIFF, or to override the profile for one specific project. Detects context: framework root → `profile.yaml`, project root → `.planning/profile.yaml`. | `profile.yaml` (framework or project) |
 | `/riff:learn-stack`     | When you want RIFF to build a taste rule file for a stack it doesn't already know (Rust, Go, FastAPI, etc).         | `references/taste/stacks/<stack>.md`       |
-| `/riff:dashboard`       | Open the local web dashboard for the current project (kanban of phases, plain-language explanations, metadata).     | Browser at `http://localhost:4000`         |
+| `/riff:dashboard`       | Open the local web dashboard for the current project (kanban of phases, plain-language explanations, metadata). Terminal equivalent: `riff dashboard` (`--stop` to terminate). | Browser at `http://localhost:4000`         |
 
 ## Setup (one-shot, project lifecycle)
 
