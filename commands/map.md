@@ -30,12 +30,15 @@ Brownfield entry point. Analyzes an existing codebase and produces the planning 
      - **Module inventory ranked by criticality**: each major module/folder, what it owns, why it matters - ordered from most critical to least critical
      - **Entry points**: where execution starts (main, index, app, route definitions)
      - **Data flow**: how data enters, gets processed, and exits the system
+     - **UX flow manifest draft**: unless `--quick` is set, draft `.uxtest/flows.yaml` using the uxtest schema: infer flows from routes, entry points, and data flow; infer `touches` from email senders, payment SDKs, media APIs, and upload endpoints; mark `destructive: true` for flows that delete, pay, or mass-mail; set `auth:` from detected auth surfaces
      - **Convention extraction**: naming, patterns, architectural style
      - **Dependency/risk map**: external services, tech debt, security concerns
      - **Mermaid diagrams** (2-3): system architecture, data flow, and module dependencies
      - **Spec backfill**: one spec per major module
    - Do NOT proceed until the explorer agent completes
-4. **Post-exploration:** Present summary, ask for corrections, apply to taste.md and `.planning/architecture.md`
+4. **Post-exploration:** Present summary, ask for corrections, apply to taste.md, `.planning/architecture.md`, and the draft `.uxtest/flows.yaml`
+   - If `.uxtest/flows.yaml` already exists, never overwrite it silently. Present a diff proposal: new flows to append, changed flows to update, and unchanged flows to preserve. Preserve existing `id` values and `status:` values. Apply only the user-confirmed additions or changes.
+   - If `.uxtest/flows.yaml` does not exist, write the reviewed draft after the user adds/removes/renames flows.
 5. **CI drift audit:** if `.github/workflows/ci.yml` or `e2e.yml` exist, diff them against `.riff/templates/github-workflows/` and warn on:
    - `e2e.yml` triggering on `push` or `pull_request` — RIFF default is `workflow_dispatch` only
 
@@ -50,6 +53,7 @@ Brownfield entry point. Analyzes an existing codebase and produces the planning 
 | `taste.md`                  | Extracted conventions by concern                                                                                |
 | `.planning/risks.md`        | Tech debt, security concerns                                                                                    |
 | `.planning/specs/*.md`      | One spec per major module (skipped with --quick)                                                                |
+| `.uxtest/flows.yaml`        | Reviewed uxtest flow manifest inferred from routes, entry points, and data flow (skipped with --quick)          |
 | `STATE.md`                  | Updated: mapped, ready for planning                                                                             |
 
 ## Anti-Patterns
