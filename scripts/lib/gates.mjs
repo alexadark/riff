@@ -11,6 +11,7 @@ export const GATE_ORDER = [
   'docs-check',
   'fallow',
   'hooks',
+  'hook-reconcile',
   'dashboard',
   'dashboard-explain',
   'summary',

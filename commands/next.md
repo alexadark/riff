@@ -130,6 +130,14 @@ Resolve executor runtime, record `phase_base_sha`, run Codex by default or Claud
 
 Crash residue can trigger auto-debug, manual resume halt, abort with `CRASHED`, or clean `CRASH.json` removal on success.
 
+If the resolved executor runtime is Codex, re-run security hooks over the phase diff and write the result to the ledger:
+
+```bash
+node .riff/scripts/reconcile-gate.mjs --phase .planning/phases/N-slug --base "$phase_base_sha" --head HEAD || true
+```
+
+This records `hook-reconcile=fail` for HIGH hook findings. Finalization blocks later via `gates-check --finalize`; this step records the evidence and must not be treated as a review substitute.
+
 ---
 
 ### Step 5b: Simplify — sub-agent (gated)

@@ -10,6 +10,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const scopeCheckScript = path.join(repoRoot, 'scripts', 'scope-check.mjs');
 const gatesUpdateScript = path.join(repoRoot, 'scripts', 'gates-update.mjs');
 const riffInitScript = path.join(repoRoot, 'scripts', 'riff-init.mjs');
+const reconcileGateScript = path.join(repoRoot, 'scripts', 'reconcile-gate.mjs');
 const csvAppendScript = path.join(repoRoot, 'scripts', 'csv-append.sh');
 const typecheckGateScript = path.join(repoRoot, 'hooks', 'typecheck-gate.sh');
 const testGateScript = path.join(repoRoot, 'hooks', 'test-gate.sh');
@@ -301,6 +302,42 @@ describe('gates-update mechanical contract', () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('Invalid status');
+  }));
+});
+
+describe('hook reconcile gate', () => {
+  test('records a failing hook-reconcile gate for HIGH hook findings in the diff', () => withTempRoot((root) => {
+    const phaseDir = createGatesProject(root);
+    execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.email', 'riff@example.test'], { cwd: root });
+    execFileSync('git', ['config', 'user.name', 'RIFF Test'], { cwd: root });
+    execFileSync('git', ['add', 'ROADMAP.yaml'], { cwd: root });
+    execFileSync('git', ['commit', '-m', 'chore: base'], { cwd: root, stdio: 'ignore' });
+    const base = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+
+    const routePath = path.join(root, 'app', 'api', 'items', 'route.ts');
+    mkdirSync(path.dirname(routePath), { recursive: true });
+    writeFileSync(routePath, 'export async function GET() { return Response.json({ ok: true }); }\n', 'utf8');
+    execFileSync('git', ['add', 'app/api/items/route.ts'], { cwd: root });
+    execFileSync('git', ['commit', '-m', 'feat: add route'], { cwd: root, stdio: 'ignore' });
+
+    const result = spawnSync('node', [
+      reconcileGateScript,
+      '--project-root',
+      root,
+      '--phase',
+      phaseDir,
+      '--base',
+      base,
+      '--head',
+      'HEAD',
+    ], { encoding: 'utf8' });
+
+    expect(result.status).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({ gate: 'hook-reconcile', status: 'fail' });
+    const gates = readFileSync(path.join(phaseDir, 'GATES.md'), 'utf8');
+    expect(gates).toContain('| hook-reconcile | fail | yes |');
+    expect(gates).toContain('HIGH');
   }));
 });
 
