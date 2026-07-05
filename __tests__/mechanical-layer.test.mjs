@@ -13,6 +13,7 @@ const csvAppendScript = path.join(repoRoot, 'scripts', 'csv-append.sh');
 const typecheckGateScript = path.join(repoRoot, 'hooks', 'typecheck-gate.sh');
 const testGateScript = path.join(repoRoot, 'hooks', 'test-gate.sh');
 const todoGateScript = path.join(repoRoot, 'hooks', 'todo-orphan-guard.sh');
+const destructiveGuardScript = path.join(repoRoot, 'hooks', 'destructive-guard.sh');
 const { buildDashboardMetadata } = await import(pathToFileURL(path.join(repoRoot, 'scripts', 'lib', 'dashboard.mjs')));
 
 function tempRoot(prefix = 'riff-test-') {
@@ -374,4 +375,27 @@ describe('PostToolUse hook payload parsing', () => {
     expect(todo.status).toBe(0);
     expect(todo.stdout).toContain('RIFF TODO Guard: orphan TODO');
   }));
+});
+
+describe('destructive command guard', () => {
+  test('blocks widened destructive command shapes', () => {
+    const commands = [
+      'rm -fr dist',
+      'rm --recursive /tmp/project',
+      'find . -name "*.tmp" -delete',
+      ': > important.txt',
+      '> important.txt',
+      'dd if=/dev/zero of=disk.img',
+      'git clean -fdx',
+    ];
+
+    for (const command of commands) {
+      const result = spawnSync('/bin/bash', [destructiveGuardScript], {
+        input: JSON.stringify({ tool_input: { command } }),
+        encoding: 'utf8',
+      });
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain('RIFF BLOCKED');
+    }
+  });
 });

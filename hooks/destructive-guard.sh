@@ -18,15 +18,19 @@ if [ -z "$COMMAND" ]; then
 fi
 
 DANGEROUS_PATTERNS=(
-  "rm -rf"
-  "rm -r /"
+  "rm[[:space:]]+(-[^[:space:]]*r[^[:space:]]*f|-[^[:space:]]*f[^[:space:]]*r|-f[^[:space:]]*-r|-r[^[:space:]]*-f|--recursive)"
+  "rm[[:space:]]+[^;&|]*[[:space:]]-[^[:space:]]*r[^[:space:]]*[[:space:]]+/"
+  "find[[:space:]].*-delete"
+  "(^|[[:space:]])(:[[:space:]]*)?>[[:space:]]*[^[:space:]]+"
+  "dd[[:space:]].*of="
   "git reset --hard"
   "git push --force"
   "git push -f"
-  "git checkout \.\( \|$\)"
-  "git checkout -- \.\( \|$\)"
+  "git checkout \.( |$)"
+  "git checkout -- \.( |$)"
   "git clean -f"
   "git clean -fd"
+  "git clean -fdx"
   "git branch -D"
   "git add \.\( \|$\)"
   "git add -A"
@@ -37,7 +41,7 @@ DANGEROUS_PATTERNS=(
 )
 
 for pattern in "${DANGEROUS_PATTERNS[@]}"; do
-  if echo "$COMMAND" | grep -qi "$pattern"; then
+  if echo "$COMMAND" | grep -Eqi "$pattern"; then
     echo "RIFF BLOCKED: Destructive command detected: $pattern" >&2
     echo "This command could cause irreversible damage." >&2
     echo "If you need to run this, ask the user for explicit confirmation first." >&2
