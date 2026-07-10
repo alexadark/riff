@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectPendingFinishers } from './lib/finishers.mjs';
 
 const frameworkRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -19,6 +20,7 @@ process.stdout.on('error', (error) => {
 });
 
 const TYPE_PRIORITY = {
+  INCONSISTENT: -1,
   security: 0,
   payment: 1,
   branch: 2,
@@ -28,20 +30,23 @@ const TYPE_PRIORITY = {
 };
 
 const items = [];
+const branchItems = [];
 const warnings = [];
 
 function usage(message) {
   process.stderr.write(`${message}\n`);
-  process.stderr.write('usage: riff-pending [--json] [--registry <file>]\n');
+  process.stderr.write('usage: riff-pending [--json] [--branches] [--registry <file>]\n');
   process.exit(1);
 }
 
 function parseArgs() {
-  const options = { json: false, registry: undefined };
+  const options = { json: false, branches: false, registry: undefined };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--json') {
       options.json = true;
+    } else if (arg === '--branches') {
+      options.branches = true;
     } else if (arg === '--registry') {
       const file = argv[index + 1];
       if (!file || file.startsWith('--')) usage('--registry requires a file');
@@ -175,61 +180,61 @@ function listFiles(dir, fileName) {
   return results.sort();
 }
 
-function parseFinishers(text) {
-  let run = null;
-  let current;
-  const entries = [];
-
-  function pushCurrent() {
-    if (current) entries.push(current);
-    current = undefined;
+function branchListOutput(projectPath, args) {
+  try {
+    return execFileSync('git', ['-C', projectPath, 'branch', '--list', ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
   }
+}
 
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = stripComment(rawLine);
-    if (!line.trim()) continue;
-    const trimmed = line.trim();
-    const runMatch = trimmed.match(/^run:\s*(.+?)\s*$/);
-    if (runMatch && rawLine.match(/^\s*/)[0].length === 0) {
-      run = unquote(runMatch[1]);
-      continue;
-    }
+function branchExistsLocally(projectPath, branch) {
+  return branchListOutput(projectPath, [branch]).length > 0;
+}
 
-    const itemMatch = line.match(/^(\s*)-\s+id:\s*(.+?)\s*$/);
-    if (itemMatch) {
-      pushCurrent();
-      current = { id: unquote(itemMatch[2]) };
-      continue;
-    }
+function isBranchMergedIntoBase(projectPath, branch, base) {
+  return branchListOutput(projectPath, [branch, '--merged', base]).length > 0;
+}
 
-    if (!current) continue;
-    const fieldMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$/);
-    if (fieldMatch) current[fieldMatch[1]] = unquote(fieldMatch[2]);
-  }
-  pushCurrent();
-
-  return { run, entries };
+// Merged-branch integrity check: only claim INCONSISTENT when the branch
+// still exists locally AND `git branch --merged` confirms it landed on main
+// (or master). No local branch to inspect -> no claim, leave it alone.
+function isBranchMerged(projectPath, branch) {
+  if (!branchExistsLocally(projectPath, branch)) return false;
+  return isBranchMergedIntoBase(projectPath, branch, 'main')
+    || isBranchMergedIntoBase(projectPath, branch, 'master');
 }
 
 function collectFinishers(projectPath, projectName) {
-  const root = path.join(projectPath, '.planning/autonomy');
-  for (const file of listFiles(root, 'finishers.yaml')) {
-    const text = readText(file);
-    if (text === undefined) continue;
-    const parsed = parseFinishers(text);
-    for (const entry of parsed.entries.filter((item) => item.status === 'pending')) {
-      items.push({
-        project: projectName,
-        projectPath,
-        type: entry.type || 'unknown',
-        phase: entry.phase || null,
-        waiting_on: entry.waiting_on || null,
-        artifact: entry.artifact || rel(projectPath, file),
-        branch: entry.branch || null,
-        run: parsed.run,
-        created: entry.created || null,
-      });
+  const { pending, malformed } = collectPendingFinishers(projectPath);
+
+  for (const bad of malformed) {
+    warn(`malformed finisher entry in ${rel(projectPath, bad.file)}:${bad.line} (${bad.reason}) — fix it, it is NOT counted`);
+  }
+
+  for (const entry of pending) {
+    let type = entry.type || 'unknown';
+    let waitingOn = entry.waiting_on || null;
+
+    if (entry.branch && isBranchMerged(projectPath, entry.branch)) {
+      type = 'INCONSISTENT';
+      waitingOn = `pending finisher on already-merged branch ${entry.branch} — integrity error, resolve the finisher`;
     }
+
+    items.push({
+      project: projectName,
+      projectPath,
+      type,
+      phase: entry.phase || null,
+      waiting_on: waitingOn,
+      artifact: entry.artifact || rel(projectPath, entry.file),
+      branch: entry.branch || null,
+      run: entry.run,
+      created: entry.created || null,
+    });
   }
 }
 
@@ -239,10 +244,7 @@ function truncate(value, max) {
 
 function collectDecisions(projectPath, projectName) {
   const root = path.join(projectPath, '.planning/autonomy');
-  const files = [
-    path.join(projectPath, 'DECISIONS.md'),
-    ...listFiles(root, 'DECISIONS.md'),
-  ].filter((file, index, all) => existsSync(file) && all.indexOf(file) === index);
+  const files = listFiles(root, 'DECISIONS.md');
 
   for (const file of files) {
     const text = readText(file);
@@ -347,22 +349,19 @@ function collectBranches(projectPath, projectName) {
     }
   }
 
+  // Branches referenced by a pending finisher already surface via the
+  // finisher item itself — don't duplicate them here.
   const finisherBranches = new Set(items
     .filter((item) => item.projectPath === projectPath && item.branch)
     .map((item) => item.branch));
 
   for (const branch of branches) {
     if (finisherBranches.has(branch)) continue;
-    items.push({
+    branchItems.push({
       project: projectName,
       projectPath,
-      type: 'branch',
-      phase: null,
-      waiting_on: 'unmerged branch',
-      artifact: null,
       branch,
-      run: null,
-      created: null,
+      waiting_on: 'unmerged branch',
     });
   }
 }
@@ -390,11 +389,16 @@ function compareItems(left, right) {
   return (left.waiting_on || '').localeCompare(right.waiting_on || '');
 }
 
+function compareBranches(left, right) {
+  if (left.project !== right.project) return left.project.localeCompare(right.project);
+  return left.branch.localeCompare(right.branch);
+}
+
 function outputTarget(item) {
   return item.artifact || item.branch || '';
 }
 
-function textOutput() {
+function textOutput(options) {
   if (items.length === 0) {
     process.stdout.write('riff pending: inbox clean\n');
   } else {
@@ -419,12 +423,21 @@ function textOutput() {
   for (const warning of warnings) {
     process.stdout.write(`warn: ${warning}\n`);
   }
+
+  if (options.branches && branchItems.length > 0) {
+    process.stdout.write('--- unmerged riff/* branches (hygiene) ---\n');
+    const projectWidth = Math.max(...branchItems.map((row) => row.project.length));
+    for (const row of branchItems) {
+      process.stdout.write(`${row.project.padEnd(projectWidth)}  BRANCH  ${row.waiting_on}  -> ${row.branch}\n`);
+    }
+  }
 }
 
 function jsonOutput() {
   process.stdout.write(`${JSON.stringify({
     generated_by: 'riff-pending',
     items,
+    branches: branchItems,
     warnings,
   }, null, 2)}\n`);
 }
@@ -453,11 +466,14 @@ function main() {
     collectProject(projectPath);
   }
   items.sort(compareItems);
+  branchItems.sort(compareBranches);
   if (options.json) {
     jsonOutput();
   } else {
-    textOutput();
+    textOutput(options);
   }
+  // deterministic inbox, not a gate — always exit 0
+  process.exitCode = 0;
 }
 
 main();
