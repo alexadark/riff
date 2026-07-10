@@ -201,6 +201,10 @@ function checkSectionReferences(files) {
         if (markerIndex === -1) break;
         searchFrom = markerIndex + 1;
 
+        // A `§` right after a non-markdown file (profile.yaml § wave.executor) is a
+        // config-key path, not a doc heading. Only markdown files have § sections.
+        if (/[A-Za-z0-9._/-]+\.(?:ya?ml|json)\s*$/.test(line.slice(0, markerIndex))) continue;
+
         const section = sectionTextAfterMarker(line, markerIndex);
         if (!section) continue;
         const candidatePaths = extractMarkdownPaths(line.slice(0, markerIndex));
