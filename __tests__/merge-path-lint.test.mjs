@@ -45,6 +45,16 @@ describe('merge-path lint: every merge path calls the finisher guard', () => {
     expect(section(text, '## 8b')).toContain('finisher-guard.mjs');
   });
 
+  it('protocols/PR-CREATION.md § 8b guard snippet hard-exits on failure', () => {
+    // `|| { echo ...; }` without exit swallows the guard's non-zero code and
+    // lets a literal-minded agent continue to the merge strategy — the
+    // snippet must carry the exit, not just the echo
+    const text = readFileSync(path.join(repoRoot, 'protocols/PR-CREATION.md'), 'utf8');
+    const dispatcher = section(text, '## 8b');
+    const snippet = dispatcher.split('finisher-guard.mjs')[1]?.split('```')[0] || '';
+    expect(snippet).toMatch(/exit\s+2/);
+  });
+
   it('protocols/PR-CREATION.md § 8c cites the guard', () => {
     const text = readFileSync(path.join(repoRoot, 'protocols/PR-CREATION.md'), 'utf8');
     expect(section(text, '## 8c')).toContain('finisher-guard.mjs');

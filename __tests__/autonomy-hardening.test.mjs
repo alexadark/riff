@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -99,6 +99,21 @@ describe('finisher-guard', () => {
       '',
     ].join('\n'));
     expect(checkBranch(projectRoot, 'riff/phase-9-emails').allowed).toBe(true);
+  });
+
+  it('fails closed on an UNREADABLE marker file: every branch is blocked', () => {
+    const dir = path.join(projectRoot, '.planning/autonomy/2026-07-10-1200/finishers');
+    mkdirSync(dir, { recursive: true });
+    const marker = path.join(dir, 'F-7-payments-security.yaml');
+    writeFileSync(marker, 'run: 2026-07-10-1200\nfinishers:\n  - id: F-7-payments-security\n    status: pending\n');
+    chmodSync(marker, 0o000);
+    try {
+      const verdict = checkBranch(projectRoot, 'riff/phase-anything-else');
+      expect(verdict.allowed).toBe(false);
+      expect(verdict.unreadable).toHaveLength(1);
+    } finally {
+      chmodSync(marker, 0o644);
+    }
   });
 
   it('fails closed on a malformed entry that mentions the branch', () => {
@@ -211,6 +226,10 @@ describe('parkPhase ordering', () => {
     for (const id of phases) {
       expect(checkBranch(projectRoot, `riff/phase-${id}`).allowed, id).toBe(false);
     }
+    // and the run.json mutex means no status flip is clobbered either —
+    // resume reads these, so losing them is not acceptable bookkeeping loss
+    const statuses = readRunJson(runDir).phases.map((phase) => phase.status);
+    expect(statuses).toEqual(['parked', 'parked', 'parked', 'parked', 'parked', 'parked']);
   }, 20000);
 
   it('legacy finishers.yaml ledgers are still read (never written)', () => {
@@ -294,7 +313,7 @@ describe('lock concurrency', () => {
   function seedStaleLock(token) {
     mkdirSync(lockDir(), { recursive: true });
     writeFileSync(ownerFile(), `${JSON.stringify({ token, pid: 9999999, started: '2026-07-09' })}\n`);
-    const past = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const past = new Date(Date.now() - 4 * 60 * 60 * 1000); // beyond the 180-min window
     utimesSync(ownerFile(), past, past);
   }
 
@@ -348,6 +367,26 @@ describe('lock concurrency', () => {
     expect(exitCode).toBe(5);
   });
 
+  it('release is fenced: another run cannot delete the lock on its way out', async () => {
+    const { releaseLock } = await import('../scripts/autonomy-state.mjs');
+    expect(acquireLock(projectRoot, { runId: 'run-CURRENT' }).acquired).toBe(true);
+    // an old session finishing late tries to release with its own (stale) run id
+    const refused = releaseLock(projectRoot, { runId: 'run-OLD' });
+    expect(refused.released).toBe(false);
+    expect(refused.reason).toBe('token-mismatch');
+    expect(existsSync(lockDir())).toBe(true);
+    // owned lock without a run id is refused too (fail closed)
+    expect(releaseLock(projectRoot).released).toBe(false);
+    // the rightful owner releases fine
+    expect(releaseLock(projectRoot, { runId: 'run-CURRENT' }).released).toBe(true);
+    expect(existsSync(lockDir())).toBe(false);
+    // CLI contract: exit 6 on a refused release
+    acquireLock(projectRoot, { runId: 'run-CURRENT' });
+    const result = await stateCliAsync(['lock', 'release', '--run', 'run-OLD']);
+    expect(result.code).toBe(6);
+    expect(existsSync(lockDir())).toBe(true);
+  });
+
   it('a live legacy lock.json is honored; a dead one is migrated', () => {
     const legacy = path.join(projectRoot, '.planning/autonomy/lock.json');
     mkdirSync(path.dirname(legacy), { recursive: true });
@@ -356,7 +395,7 @@ describe('lock concurrency', () => {
     expect(acquireLock(projectRoot, { runId: 'run-C' }).acquired).toBe(false);
     // dead: gone pid + old mtime
     writeFileSync(legacy, `${JSON.stringify({ pid: 9999999, run: 'legacy-dead' })}\n`);
-    const past = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const past = new Date(Date.now() - 4 * 60 * 60 * 1000);
     utimesSync(legacy, past, past);
     expect(acquireLock(projectRoot, { runId: 'run-C' }).acquired).toBe(true);
     expect(existsSync(legacy)).toBe(false);
@@ -416,11 +455,24 @@ describe('loop resume reconciliation', () => {
     expect(launch.action).not.toBe('restart-run');
   });
 
-  it('ambiguity (two non-terminal run dirs) is never guessed', () => {
+  it('ambiguity (two non-terminal run dirs) halts the loop instead of piling on more work', () => {
     seedRunDir('2026-07-10-0600', { run: '2026-07-10-0600', stage: 'build', phases: [] });
     seedRunDir('2026-07-10-0700', { run: '2026-07-10-0700', stage: 'build', phases: [] });
     writeLoopJson(projectRoot, { status: 'running', runs_completed: 0 });
-    expect(resolveLaunch(projectRoot).action).toBe('continue-loop');
+    const launch = resolveLaunch(projectRoot);
+    expect(launch.action).toBe('halt-ambiguous');
+    expect(launch.candidates).toEqual(['2026-07-10-0600', '2026-07-10-0700']);
+  });
+
+  it('runs_completed stays exact when an OLD completion is replayed out of order', async () => {
+    const { recordRunCompleted } = await import('../scripts/autonomy-state.mjs');
+    writeLoopJson(projectRoot, { status: 'running', runs_completed: 0 });
+    expect(recordRunCompleted(projectRoot, 'run-A').counted).toBe(true);
+    expect(recordRunCompleted(projectRoot, 'run-B').counted).toBe(true);
+    // crash-resume replays run-A's completion AFTER run-B already counted
+    const replay = recordRunCompleted(projectRoot, 'run-A');
+    expect(replay).toMatchObject({ counted: false, reason: 'already-counted' });
+    expect(readLoopJson(projectRoot).runs_completed).toBe(2);
   });
 
   it('runs_completed counts exactly once per completed run', async () => {
@@ -512,5 +564,12 @@ describe('autonomy boundary classification', () => {
   it('privacy surface in a path alone classifies as hold', () => {
     expect(classifyPhase({ paths: ['app/routes/dsar.tsx'] }).autonomy).toBe('hold');
     expect(classifyPhase({ paths: ['app/lib/cookies.server.ts'] }).autonomy).toBe('hold');
+  });
+
+  it('tags run through the sensitive patterns, not just the exact hold set', () => {
+    for (const tag of ['cookies', 'analytics-opt-out', 'dsar', 'personal-data', 'session-handling', 'stripe-webhooks']) {
+      expect(classifyPhase({ tags: [tag] }).autonomy, tag).toBe('hold');
+    }
+    expect(classifyPhase({ tags: ['frontend', 'polish'] }).autonomy).toBe('safe');
   });
 });

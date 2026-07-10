@@ -16,20 +16,23 @@ import { collectPendingFinishers } from './lib/finishers.mjs';
  * Pending finishers that reference `branch`. Empty array = clear to merge.
  * Malformed ledger entries are treated as blocking evidence too when they
  * mention the branch — a corrupt no-merge marker must fail closed, not open.
+ * An UNREADABLE marker file blocks EVERY branch: it could reference any of
+ * them, and a permission error must never silently open a merge path.
  */
 export function findBlockingFinishers(projectRoot, branch) {
-  const { pending, malformed } = collectPendingFinishers(projectRoot);
+  const { pending, malformed, unreadable = [] } = collectPendingFinishers(projectRoot);
   const blockers = pending.filter((entry) => entry.branch === branch);
   const suspectMalformed = malformed.filter((bad) => bad.entry?.branch === branch);
-  return { blockers, suspectMalformed };
+  return { blockers, suspectMalformed, unreadable };
 }
 
 export function checkBranch(projectRoot, branch) {
-  const { blockers, suspectMalformed } = findBlockingFinishers(projectRoot, branch);
+  const { blockers, suspectMalformed, unreadable } = findBlockingFinishers(projectRoot, branch);
   return {
-    allowed: blockers.length === 0 && suspectMalformed.length === 0,
+    allowed: blockers.length === 0 && suspectMalformed.length === 0 && unreadable.length === 0,
     blockers,
     suspectMalformed,
+    unreadable,
   };
 }
 
@@ -61,7 +64,7 @@ function main() {
     process.exit(1);
   }
 
-  const { allowed, blockers, suspectMalformed } = checkBranch(projectRoot, branch);
+  const { allowed, blockers, suspectMalformed, unreadable } = checkBranch(projectRoot, branch);
   if (allowed) {
     process.stdout.write(`finisher-guard: ${branch} clear to merge\n`);
     process.exit(0);
@@ -79,6 +82,12 @@ function main() {
     process.stdout.write(
       `  blocked by MALFORMED finisher entry at ${bad.file}:${bad.line} (${bad.reason})`
       + ' — fix the ledger before merging\n',
+    );
+  }
+  for (const bad of unreadable) {
+    process.stdout.write(
+      `  blocked by UNREADABLE finisher file ${bad.file} (${bad.reason})`
+      + ' — it could reference any branch; fix its permissions/content before merging\n',
     );
   }
   process.stdout.write('  resolve it first: "finisher F<N> ok, merge it" / "reject finisher F<N>"\n');

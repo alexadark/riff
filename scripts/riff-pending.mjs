@@ -209,10 +209,14 @@ function isBranchMerged(projectPath, branch) {
 }
 
 function collectFinishers(projectPath, projectName) {
-  const { pending, malformed } = collectPendingFinishers(projectPath);
+  const { pending, malformed, unreadable = [] } = collectPendingFinishers(projectPath);
 
   for (const bad of malformed) {
     warn(`malformed finisher entry in ${rel(projectPath, bad.file)}:${bad.line} (${bad.reason}) — fix it, it is NOT counted`);
+  }
+  for (const bad of unreadable) {
+    // the guard fails closed on these: every merge in the project is blocked
+    warn(`UNREADABLE finisher file ${rel(projectPath, bad.file)} (${bad.reason}) — blocks ALL merges until fixed`);
   }
 
   for (const entry of pending) {

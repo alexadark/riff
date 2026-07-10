@@ -140,15 +140,20 @@ export function listFinisherFiles(projectRoot) {
 /**
  * Every `status: pending` finisher across the project, each tagged with the
  * file it came from. Malformed entries are aggregated so callers can warn.
+ * A marker file that EXISTS but cannot be read is reported in `unreadable` —
+ * it may reference any branch, so consumers must fail closed on it (the
+ * guard refuses all merges until the file is fixed), never skip it silently.
  */
 export function collectPendingFinishers(projectRoot) {
   const pending = [];
   const malformed = [];
+  const unreadable = [];
   for (const file of listFinisherFiles(projectRoot)) {
     let text;
     try {
       text = readFileSync(file, 'utf8');
-    } catch {
+    } catch (error) {
+      unreadable.push({ file, reason: error.message });
       continue;
     }
     const parsed = parseFinishers(text);
@@ -157,5 +162,5 @@ export function collectPendingFinishers(projectRoot) {
     }
     for (const bad of parsed.malformed) malformed.push({ ...bad, file });
   }
-  return { pending, malformed };
+  return { pending, malformed, unreadable };
 }

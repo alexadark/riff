@@ -7,7 +7,7 @@
 //   node .riff/scripts/autonomy-state.mjs classify --tags "a,b" --paths "x,y" --text "<title + description>"
 //   node .riff/scripts/autonomy-state.mjs park --run <run-id> --phase <id> --type <t> --branch <b> --waiting "<msg>" --artifact <path>
 //   node .riff/scripts/autonomy-state.mjs phase-status --run <run-id> --phase <id> --status <s>   (exit 5 = lock lost: stop, park, never merge)
-//   node .riff/scripts/autonomy-state.mjs lock acquire --run <run-id> [--loop] | lock release | lock touch [--run <run-id>] | lock status
+//   node .riff/scripts/autonomy-state.mjs lock acquire --run <run-id> [--loop] | lock release --run <run-id> [--force] | lock touch [--run <run-id>] | lock status
 //   node .riff/scripts/autonomy-state.mjs loop start-run --run <run-id> | loop complete-run --run <run-id>
 //   node .riff/scripts/autonomy-state.mjs pointer set --run <run-id> [--loop] | pointer clear | pointer read
 //   node .riff/scripts/autonomy-state.mjs resolve-launch
@@ -55,6 +55,9 @@ export function atomicWrite(file, content) {
   }
   renameSync(temp, file);
   fsyncDir(dir);
+  // the containing directory may itself be freshly created (finishers/, a new
+  // run dir): persist its entry in the parent too
+  fsyncDir(path.dirname(dir));
 }
 
 /**
@@ -111,6 +114,59 @@ export function writeLoopJson(projectRoot, data) {
 // parkPhase — order is load-bearing
 // ---------------------------------------------------------------------------
 
+function sleepMs(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+const RUN_JSON_MUTEX_STALE_MS = 30 * 1000;
+
+/**
+ * Serialize run.json read-modify-write across processes: without this,
+ * concurrent status flips (parallel wave phases) clobber each other — the
+ * last writer's stale snapshot wins and earlier transitions vanish. mkdir is
+ * the mutex (atomic + exclusive); a holder dead for 30s is swept aside by
+ * rename (single winner, same CAS shape as the launch lock). If the mutex
+ * cannot be taken within the deadline we proceed UNLOCKED rather than lose
+ * the write — the disk must reflect reality; the verify-retry in callers is
+ * the backstop.
+ */
+function withRunJsonLock(runDir, fn) {
+  const mutex = path.join(runDir, '.run.json.lock');
+  const deadline = Date.now() + 10 * 1000;
+  let held = false;
+  while (Date.now() < deadline) {
+    try {
+      mkdirSync(mutex);
+      held = true;
+      break;
+    } catch (error) {
+      if (error.code !== 'EEXIST') break; // runDir gone or worse — run fn anyway
+      let mtimeMs = 0;
+      try {
+        mtimeMs = statSync(mutex).mtimeMs;
+      } catch {
+        continue; // vanished between mkdir and stat — retry immediately
+      }
+      if (Date.now() - mtimeMs > RUN_JSON_MUTEX_STALE_MS) {
+        const aside = `${mutex}.stale-${process.pid}-${Date.now()}`;
+        try {
+          renameSync(mutex, aside);
+          rmSync(aside, { recursive: true, force: true });
+        } catch {
+          // another sweeper won — retry the loop
+        }
+        continue;
+      }
+      sleepMs(20);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    if (held) rmSync(mutex, { recursive: true, force: true });
+  }
+}
+
 /**
  * Stable finisher id, derived — no shared counter, no read-modify-write.
  * Same phase+type always maps to the same id (and the same file), so
@@ -157,18 +213,17 @@ export function parkPhase({ projectRoot, runId, phaseId, finisher }) {
   // 1. No-merge marker first.
   atomicWrite(markerFile, serializeFinishers({ run: runId, entries: [written] }));
 
-  // 2. Status flip second. run.json is read-modify-write, so concurrent parks
-  // can clobber each other's status flip — retry until our flip is visible.
-  // Bookkeeping only: the marker above is the safety invariant; resume and the
-  // guard derive truth from markers + git state, never from this status alone.
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  // 2. Status flip second, under the run.json mutex (concurrent flips would
+  // otherwise clobber each other). The marker above stays the safety
+  // invariant; the guard never depends on this status.
+  withRunJsonLock(runDir, () => {
     const run = readRunJson(runDir);
-    if (!run || !Array.isArray(run.phases)) break;
+    if (!run || !Array.isArray(run.phases)) return;
     const phase = run.phases.find((entry) => entry.id === phaseId);
-    if (!phase || phase.status === 'parked') break;
+    if (!phase || phase.status === 'parked') return;
     phase.status = 'parked';
     writeRunJson(runDir, run);
-  }
+  });
 
   return written;
 }
@@ -183,14 +238,18 @@ export function parkPhase({ projectRoot, runId, phaseId, finisher }) {
  */
 export function setPhaseStatus({ projectRoot, runId, phaseId, status }) {
   const runDir = path.join(projectRoot, '.planning/autonomy', runId);
-  const run = readRunJson(runDir);
-  if (!run || !Array.isArray(run.phases)) {
-    return { ok: false, reason: `no parseable run.json under ${runDir}` };
-  }
-  const phase = run.phases.find((entry) => entry.id === phaseId);
-  if (!phase) return { ok: false, reason: `phase ${phaseId} not in run ${runId}` };
-  phase.status = status;
-  writeRunJson(runDir, run);
+  const result = withRunJsonLock(runDir, () => {
+    const run = readRunJson(runDir);
+    if (!run || !Array.isArray(run.phases)) {
+      return { ok: false, reason: `no parseable run.json under ${runDir}` };
+    }
+    const phase = run.phases.find((entry) => entry.id === phaseId);
+    if (!phase) return { ok: false, reason: `phase ${phaseId} not in run ${runId}` };
+    phase.status = status;
+    writeRunJson(runDir, run);
+    return { ok: true };
+  });
+  if (!result.ok) return result;
   const heartbeat = touchLock(projectRoot, { runId });
   // 'no-lock' is fine (manual/test runs); a mismatch or lost dir is fencing
   const lockLost = !heartbeat.ok && heartbeat.reason !== 'no-lock';
@@ -201,7 +260,13 @@ export function setPhaseStatus({ projectRoot, runId, phaseId, status }) {
 // Launch lock (anti-double-launch, shared by run and loop)
 // ---------------------------------------------------------------------------
 
-const LOCK_STALE_MS = 45 * 60 * 1000; // no heartbeat for 45 min = presumed dead
+// No heartbeat for 3 hours = presumed dead. Wider than any single RIFF phase
+// (~1h): transitions are the heartbeat, so the window must exceed the longest
+// gap between them or a live build looks stale. The wide window costs nothing
+// on resume — an in-flight run resolves to `resume` via loop.json/pointer and
+// never needs to reclaim the lock; reclaim is only reached when state says
+// nothing is in flight.
+const LOCK_STALE_MS = 180 * 60 * 1000;
 
 // The lock is a DIRECTORY: mkdir is atomic + exclusive on every platform, so
 // creation has exactly one winner by construction. Ownership identity is the
@@ -356,6 +421,7 @@ export function acquireLock(projectRoot, { runId, loop = false } = {}) {
   }
 
   rmSync(graveyard, { recursive: true, force: true });
+  fsyncDir(path.dirname(dir));
   if (tryMkdir()) return { acquired: true, reclaimed: true, previous: status.owner };
   return { acquired: false, holder: readJson(lockOwnerFile(projectRoot)) };
 }
@@ -385,13 +451,53 @@ export function touchLock(projectRoot, { runId } = {}) {
   return { ok: true };
 }
 
-export function releaseLock(projectRoot) {
-  rmSync(lockDir(projectRoot), { recursive: true, force: true });
+/**
+ * Fenced release: a session may only remove the lock it still owns. Without
+ * fencing, an old session finishing late could delete a successor's lock and
+ * re-open the double-launch door on the way out.
+ *
+ * Same CAS shape as reclaim: token check, rename aside (atomic single
+ * winner), re-check the moved owner, rename back on mismatch. `force` is for
+ * explicit human cleanup only.
+ */
+export function releaseLock(projectRoot, { runId, force = false } = {}) {
   try {
     unlinkSync(legacyLockFile(projectRoot));
   } catch {
     // already gone
   }
+
+  const dir = lockDir(projectRoot);
+  if (!existsSync(dir)) return { released: true, reason: 'not-held' };
+
+  const owner = readJson(path.join(dir, 'owner.json'));
+  if (!force && owner?.token && runId && owner.token !== runId) {
+    return { released: false, reason: 'token-mismatch', holder: owner };
+  }
+  if (!force && owner?.token && !runId) {
+    // fail closed: an owned lock needs its run id (or force) to be released
+    return { released: false, reason: 'run-id-required', holder: owner };
+  }
+
+  const graveyard = `${dir}.released-${process.pid}-${Date.now()}`;
+  try {
+    renameSync(dir, graveyard);
+  } catch {
+    return { released: true, reason: 'already-gone' };
+  }
+  const moved = readJson(path.join(graveyard, 'owner.json'));
+  if (!force && moved?.token && runId && moved.token !== runId) {
+    // the lock changed hands between the check and the rename — put it back
+    try {
+      renameSync(graveyard, dir);
+    } catch {
+      // a fresh lock claimed the name meanwhile; keep the graveyard as evidence
+    }
+    return { released: false, reason: 'token-mismatch', holder: moved };
+  }
+  rmSync(graveyard, { recursive: true, force: true });
+  fsyncDir(path.dirname(dir));
+  return { released: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -491,10 +597,16 @@ export function startLoopRun(projectRoot, runId) {
 export function recordRunCompleted(projectRoot, runId) {
   const loopState = readLoopJson(projectRoot);
   if (!loopState) return { counted: false, reason: 'no-loop' };
-  if (loopState.last_completed_run === runId) {
+  // full history, not just the previous run: replaying ANY old completion
+  // (out-of-order resume) must never count twice
+  const completed = Array.isArray(loopState.completed_runs)
+    ? loopState.completed_runs
+    : (loopState.last_completed_run ? [loopState.last_completed_run] : []);
+  if (completed.includes(runId)) {
     return { counted: false, reason: 'already-counted', runs_completed: loopState.runs_completed };
   }
   loopState.runs_completed = (loopState.runs_completed || 0) + 1;
+  loopState.completed_runs = [...completed, runId];
   loopState.last_completed_run = runId;
   if (loopState.current_run === runId) loopState.current_run = null;
   writeLoopJson(projectRoot, loopState);
@@ -550,7 +662,13 @@ export function resolveLaunch(projectRoot) {
     if (scanned.length === 1) {
       return { action: 'resume', runId: scanned[0].runId, loop: true, run: scanned[0].run };
     }
-    // zero (between runs) or ambiguous (>1, never guess): next run decides
+    if (scanned.length > 1) {
+      // several unfinished runs and no authoritative record: starting MORE
+      // work on top would compound the mess. Halt: park the loop with a
+      // review finisher naming the candidates; a human untangles it.
+      return { action: 'halt-ambiguous', loop: true, candidates: scanned.map((entry) => entry.runId) };
+    }
+    // zero non-terminal runs: cleanly between runs — start the next one
     return { action: 'continue-loop', loop: true };
   }
 
@@ -578,6 +696,8 @@ export const HOLD_TAGS = new Set([
   'subscription', 'subscriptions', 'entitlement', 'entitlements',
   // privacy / legal surfaces
   'privacy', 'pii', 'gdpr', 'data_deletion', 'consent', 'retention', 'legal', 'audit', 'kyc', 'aml',
+  'dsar', 'dpa', 'data_processing_agreement', 'cookie', 'cookies', 'cookie_consent',
+  'personal_data', 'analytics_opt_out', 'data_subject', 'erasure',
 ]);
 
 // Path/text heuristics — matched against phase tags, file paths, AND
@@ -603,7 +723,9 @@ function normalizeTag(tag) {
 /**
  * Classify a phase against the autonomy boundary. ANY hold-tag match or ANY
  * sensitive-pattern match in tags, paths, or title/description → hold.
- * Objective by construction: no planner judgment required to fire.
+ * Tags run through BOTH the exact hold set and the sensitive patterns — a
+ * tag like `cookies` or `session-handling` holds even when the title is
+ * innocuous. Objective by construction: no planner judgment required to fire.
  */
 export function classifyPhase({ tags = [], paths = [], text = '' } = {}) {
   const matches = [];
@@ -611,6 +733,7 @@ export function classifyPhase({ tags = [], paths = [], text = '' } = {}) {
     if (HOLD_TAGS.has(normalizeTag(tag))) matches.push({ source: 'tag', value: String(tag) });
   }
   const haystacks = [
+    ...tags.map((value) => ({ source: 'tag', value: String(value) })),
     ...paths.map((value) => ({ source: 'path', value: String(value) })),
     ...(text ? [{ source: 'text', value: String(text) }] : []),
   ];
@@ -634,8 +757,8 @@ function parseFlags(argv) {
   const flags = { _: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === '--loop') {
-      flags.loop = true;
+    if (arg === '--loop' || arg === '--force') {
+      flags[arg.slice(2)] = true;
     } else if (arg.startsWith('--')) {
       flags[arg.slice(2).replaceAll('-', '_')] = argv[index + 1];
       index += 1;
@@ -704,8 +827,11 @@ function cli() {
         process.exit(result.acquired ? 0 : 4); // 4 = held by a live owner: RESUME, do not relaunch
       }
       if (action === 'release') {
-        releaseLock(projectRoot);
-        return;
+        const result = releaseLock(projectRoot, { runId: flags.run, force: Boolean(flags.force) });
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+        // 6 = refused: the lock belongs to another run (or --run is missing).
+        // Releasing someone else's lock re-opens the double-launch door.
+        process.exit(result.released ? 0 : 6);
       }
       if (action === 'touch') {
         const result = touchLock(projectRoot, { runId: flags.run });
