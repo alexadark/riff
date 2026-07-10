@@ -25,6 +25,7 @@ Group wave-eligible phases into a wave run. The session frontier model plans, th
 | `/riff:wave --status` | List active/pending/done waves |
 | `/riff:wave --scratch` | Run the wave with security gates downgraded to warnings. See § Scratch mode below |
 | `/riff:wave --executor sonnet\|codex` | Override the wave executor for this wave. Combinable with the other modes |
+| `/riff:wave --autonomous` | Autonomous session: all decisions front-loaded at launch, zero questions during build, batched end verification, park + finisher instead of stopping. Lifecycle: [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md). Combinable with `--executor` |
 
 ## Step 1: Eligibility scan
 
@@ -55,7 +56,11 @@ Skip phases marked `planner_model: opus` AND `complex_execution: true` — those
 
 A wave with ZERO parallelism (a pure sequential chain) is a valid wave. Do not refuse or downgrade it to solo runs.
 
+**Autonomous runs** ([`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md)): `mode: HITL` phases ARE wave-eligible — their human-verification semantics convert per `AUTONOMY.md` § Conversion table, and phases crossing the autonomy boundary build as `hold` (branch parked for sign-off, never merged).
+
 ## Step 2: Propose the wave
+
+Autonomous runs: skip this question — the front-load approval (`AUTONOMY.md` § Front-load) already locked the composition.
 
 `AskUserQuestion` with the proposed grouping:
 
@@ -229,10 +234,13 @@ Output: `.planning/waves/W{N}.RECONCILE.md` from
 ### Step 6.2: React to verdict
 
 - `FAIL` → mark wave `status: needs_human_review`, surface verdict + top
-  3 blocking findings inline, stop
+  3 blocking findings inline, stop.
+  Autonomous runs: do not stop — park the failing phases (finisher per
+  phase) and continue to `protocols/AUTONOMY.md` § Batched verification
 - `PASS-WITH-WARNINGS` → mark phases `done`, surface warnings in
   Step 7 output, continue
-- `PASS` → mark phases `done`, no friction
+- `PASS` → mark phases `done`, no friction. Autonomous runs: `safe`
+  phases then merge per `AUTONOMY.md` § Merge policy; `hold` phases park
 
 If a phase reports smoke/browser-check FAIL or the reconcile is FAIL → mark
 `status: needs_human_review`, surface to user. Otherwise mark

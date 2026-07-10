@@ -36,6 +36,8 @@ When in doubt: would removing this line change the reader's understanding of WHA
 
 Compute pending count: `ls .planning/expertise/.pending/*.md 2>/dev/null | wc -l`. If 0 → skip this section.
 
+Autonomous runs ([`AUTONOMY.md`](./AUTONOMY.md)): always take the **Defer** flow without prompting; the run REPORT.md carries the pending count.
+
 If > 0, run AskUserQuestion:
 
 > "{{N}} expertise patches pending. What do you want to do?"
@@ -102,7 +104,7 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 
   In that case, accept RESOLVED as the verdict without a re-run. Surface in Step 10 report: `Re-run skipped: RESOLVED with pinning tests`.
 
-- DEBUG.md `UNRESOLVED` → halt, surface DEBUG.md to user.
+- DEBUG.md `UNRESOLVED` → halt, surface DEBUG.md to user. Autonomous runs: park the phase instead (DEBUG.md becomes the finisher artifact) per [`AUTONOMY.md`](./AUTONOMY.md) § Conversion table; the run continues with independent phases.
 
 ---
 
@@ -156,7 +158,7 @@ After the executor sub-agent returns, the orchestrator checks for crash residue:
    }
    ```
 
-   Then AskUserQuestion:
+   Then AskUserQuestion (autonomous runs: take option A without prompting; on UNRESOLVED, park the phase per [`AUTONOMY.md`](./AUTONOMY.md) § Conversion table):
    > Executor returned but did not write SUMMARY.md. Likely an internal crash or context exhaustion.
    > A) Trigger auto-debug (failure_type: `executor_silent_exit`, artifact: `CRASH.json`)
    > B) Resume manually (keep the branch, re-run /riff:next when ready, Step 0 detects partial state)

@@ -132,7 +132,7 @@ If the section already exists, reset all four field values to `-`.
 5. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
 
    - **All dirty files are inside `.planning/` only:** auto-skip. These are RIFF artifact residue (interrupted hook writes, etc.) safe to leave; Step 5's executor will overwrite them. Print a one-line notice and continue.
-   - **Any dirty file is outside `.planning/`:** AskUserQuestion:
+   - **Any dirty file is outside `.planning/`:** autonomous runs mid-run take option A without prompting + a DECISIONS entry ([`AUTONOMY.md`](./AUTONOMY.md) § Conversion table); at launch this stays interactive. AskUserQuestion:
      > Working tree has uncommitted changes outside .planning/:
      > <git status --porcelain output, max 10 lines>
      > A) Stash and continue (recovered after PR)
@@ -152,7 +152,7 @@ Before creating the phase branch, run two preflight checks against the picked ph
 If `git branch --list "riff/phase-N-slug"` returns non-empty, the branch was created in a prior run.
 
 - If `.planning/phases/N-slug/SUMMARY.md` exists, jump to Check 2b-ii (partial SUMMARY.md drives the decision).
-- If SUMMARY.md does NOT exist, the branch was created but execution never started. AskUserQuestion:
+- If SUMMARY.md does NOT exist, the branch was created but execution never started. Autonomous runs: take option A without prompting + DECISIONS entry. AskUserQuestion:
   > Branch riff/phase-N-slug exists but no SUMMARY.md found. Likely a crashed run before execution started.
   > A) Delete branch and start fresh (recommended)
   > B) Abort, inspect manually
@@ -165,7 +165,7 @@ If `git branch --list "riff/phase-N-slug"` returns non-empty, the branch was cre
 If `.planning/phases/N-slug/SUMMARY.md` exists AND the phase is `status: todo` in ROADMAP.yaml AND the file does NOT contain a `> Merge commit: <40-char-sha>` line (i.e. the line is absent or still reads `{{MERGE_COMMIT}}`), this is a crashed Step 5 from a prior run.
 
 - If `.planning/phases/N-slug/PLAN.md` does NOT exist (very early crash, before plan was written), delete SUMMARY.md and continue from Step 4 normally.
-- Otherwise AskUserQuestion:
+- Otherwise (autonomous runs: take option A Resume without prompting + DECISIONS entry) AskUserQuestion:
   > Phase N-slug has a partial execution log (SUMMARY.md exists, executor appears to have crashed before completing).
   > A) Resume — checkout the existing branch, re-run from Step 5 (executor re-reads PLAN.md and continues; may produce duplicate commits for already-done tasks)
   > B) Restart — delete SUMMARY.md and re-plan from scratch

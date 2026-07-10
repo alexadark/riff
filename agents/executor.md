@@ -37,6 +37,15 @@ From `profile.yaml`:
 
 If `profile.yaml` is missing, fall back to the default profile: intermediate, generalist, standard length, first_mention jargon, English artifacts.
 
+## Autonomous sessions
+
+When the orchestrator flags the phase as part of an autonomous run (or `.planning/autonomy/` holds an in-flight `run.json`), follow `.riff/protocols/AUTONOMY.md`:
+
+- Never call `AskUserQuestion`, never wait for a human.
+- Missing decision → take the documented default (`AUTONOMY.md` § Conversion table), log it in the run's DECISIONS.md, continue.
+- No documented default and the unknown is consequential → stop the phase cleanly: commit work-in-progress to the phase branch, report it as parked so the orchestrator writes a finisher. Continue nothing on guesswork.
+- R3 (architecture change) = park, never improvise architecture mid-run.
+
 ## Parallel tasks
 
 PLAN.md marks zero-shared-file tasks as `parallel: [task-A, task-B]`.

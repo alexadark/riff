@@ -27,6 +27,7 @@ Score these 4 dimensions before proceeding. **Any dimension < 0.7 → STOP** and
 
 - Confident / Likely → proceed
 - Unclear → STOP the loop, notify via Telegram
+- Autonomous run ([`AUTONOMY.md`](./AUTONOMY.md)): never STOP mid-run. At launch, Unclear dimensions are asked in the front-load batch; mid-run, park the phase per `AUTONOMY.md` § Conversion table and continue.
 
 ### Capability check
 
@@ -81,6 +82,8 @@ When reality doesn't match the plan, react with the right tool:
 | **R2** | Missing piece (import, type, config) | Add if obvious. Log: `R2: Added [piece] because [reason]`                         |
 | **R3** | Architecture change needed           | **STOP.** Do NOT implement. Surface issue + proposed alternative. Wait for human. |
 | **R4** | Out of scope idea                    | Do NOT implement. Write to `.planning/seeds/seed-NNNN.md` with trigger condition. |
+
+Autonomous runs: R3 never waits mid-run — park the phase (branch + finisher) per [`AUTONOMY.md`](./AUTONOMY.md) § Build rules. R1/R2/R4 unchanged.
 
 ---
 

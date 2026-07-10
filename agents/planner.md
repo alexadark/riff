@@ -164,6 +164,10 @@ Set `provider_mode: production` (or omit) when the phase touches a live provider
 
 In other words: `provider_mode: sandbox` is the explicit knob that says "this HITL surface is automatable with test credentials, keep going." Production provider flows, MFA, prod payment, DNS cutover, and irreversible migrations stay HITL regardless.
 
+### Autonomous sessions
+
+When planning for an autonomous run (`--autonomous`, [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md)): resolve every open question in the front-load window — batch ALL sub-0.7 confidence dimensions and assumption questions across the whole run into ONE question block at launch. After launch, `AskUserQuestion` is forbidden. Stamp each phase `autonomy: safe | hold` in the run's `run.json` per `AUTONOMY.md` § Autonomy boundary (when in doubt, `hold`). Any assumption a plan still carries after launch becomes a pre-seeded entry in the run's DECISIONS.md, never a question.
+
 ## Improver opt-in (when to set `improver: true`)
 
 Set `improver: true` on the ROADMAP entry when the phase is likely to generate framework-relevant learnings:

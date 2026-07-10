@@ -1,7 +1,7 @@
 ---
 description: The core loop - plan, build, verify the next phase
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion
-args: "[--plan-only] [phase-number]"
+args: "[--plan-only] [--autonomous] [phase-number]"
 model: opus  # static mirror of profile.yaml models.reasoning (frontmatter can't read config); keep in sync
 ---
 
@@ -21,7 +21,10 @@ Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR
 
 - No args → auto-pick next (highest priority, deps met, not blocked)
 - `--plan-only` → create plan but don't execute
+- `--autonomous` → run the phase under the autonomous session contract: all questions front-loaded at launch, zero interactive questions during build, batched end verification, merge per autonomy boundary. Full lifecycle: [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md).
 - `[phase-number]` → target a specific phase
+
+**Autonomous mode:** with `--autonomous`, or when `.planning/autonomy/` holds an in-flight `run.json`, every `AskUserQuestion` site in this pipeline resolves per [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md) § Conversion table instead of prompting. Step 8 merges per § Merge policy. After the final phase, run § Batched verification.
 
 ## Loop
 
@@ -208,6 +211,8 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch. Full procedure: [`
 
 8a documentation + README check is blocking. 8b runs `node .riff/scripts/gates-check.mjs --finalize --phase .planning/phases/N-slug || { echo "gates not satisfied, no PR"; exit 1; }`, then pushes and opens the PR with `metadata.pr_body` handling. `github_button` prints the PR URL and STOPs; `local_no_ff` waits for "merge", then 8c updates state on main.
 
+Autonomous runs: no merge cue — apply [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md) § Merge policy (`safe` phase with clean gates auto-merges via 8c; `hold` phase parks with the PR open and a finisher entry).
+
 ### Step 9: Learn (inline)
 
 Taste proposals: new pattern → append to taste.md with `<!-- PENDING -->`. Seeds: check `.planning/seeds/` triggers.
@@ -226,9 +231,13 @@ If `.planning/expertise/.pending/*.md` is non-empty, prompt **Review now** (walk
 
 Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected, E edited, D deferred.`
 
+Autonomous runs: always **Defer** without prompting; report the pending count in the run REPORT.md.
+
 ### Milestone deep audit prompt (inline)
 
 After Step 10, if the just-completed phase has a `milestone:` tag in ROADMAP.yaml, prompt **Run now** (load [`protocols/DEEP-AUDIT.md`](../protocols/DEEP-AUDIT.md) and execute inline, spawns deep-auditor via `codex:codex-rescue`) / **Defer** (run conversationally with "deep audit" anytime). Skip silently if `codex:codex-rescue` skill is not configured.
+
+Autonomous runs: **Defer** without prompting and write a `review`-type finisher.
 
 ---
 

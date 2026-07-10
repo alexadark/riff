@@ -66,6 +66,8 @@ The script reads `PLAN.md` and `SUMMARY.md`, writes `SCOPE-CHECK.json`, and exit
 
 ## Step 5c orchestration (verdict handling)
 
+**Autonomous runs** ([`AUTONOMY.md`](./AUTONOMY.md)): never prompt. Apply the defaults from `AUTONOMY.md` § Conversion table — defer task drops (+ DECISIONS entry), skip the thin-smoke gate (+ DECISIONS entry), apply flow-manifest updates now, auto-debug smoke regressions once then park the phase. `MALFORMED` → one format-fix attempt, then park.
+
 **Read the verdict from SCOPE-CHECK.json:**
 
 1. Read `.planning/phases/N-slug/SCOPE-CHECK.json`.

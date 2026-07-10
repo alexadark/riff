@@ -39,6 +39,8 @@ The triggers below are matched by the FULL phrase, not by isolated words. If the
 | "resync riff", "sync framework", "re-link riff symlinks"                                | Run `bash .riff/riff-resync.sh` from the project root, paste output back. Surfaces CLAUDE.md drift; never auto-patches. |
 | "set up monitoring", "configure post-deploy", "wire sentry", "post-deploy"               | Read `protocols/POST-DEPLOY.md`, run the one-shot monitoring setup (Sentry, health endpoint, scheduled smoke). User-triggered when the app is deployed.  |
 | "change my profile X to Y", "set my notification channel to Z", "edit profile.yaml"     | Edit the active profile (project override `.planning/profile.yaml` if it exists, else framework default; see `references/PROFILE-RESOLUTION.md`). Preserve other fields. Confirm the change. |
+| "what's pending", "pending inbox", "what am I forgetting", "où j'en suis partout"       | Run `node .riff/scripts/riff-pending.mjs` (works from any RIFF project; the same file lives at the framework root). Format the sorted cross-project list of finishers, unreviewed decisions, and parked branches; offer to open artifacts or resolve finishers. |
+| "finisher F{N} ok, merge it", "resolve finisher F{N}", "reject finisher F{N}"           | Read the run's `finishers.yaml` + the finisher's artifact, apply the human verdict (merge the parked branch / discard), flip `status: resolved`. See `protocols/AUTONOMY.md` § Finishers. |
 
 Discoverable via this section. Do not invent commands the user did not invoke.
 
@@ -52,6 +54,7 @@ Discoverable via this section. Do not invent commands the user did not invoke.
 - Style rules: `taste.md` (`## Architecture` always + `## Stack: {{stack}}` on frontend/route tasks). Stack files live in `references/taste/stacks/`, injected at `/riff:start`.
 - Hooks: `hooks/README.md` § Buckets.
 - Budget and model resolution: `protocols/MODEL.md` § Budget and model resolution.
+- Autonomous sessions (`--autonomous` on `/riff:next` or `/riff:wave`): `protocols/AUTONOMY.md` — front-loaded decisions, zero questions during build, DECISIONS ledger, batched end verification, finishers awaiting human sign-off. Cross-project inbox: `.riff/scripts/riff-pending.mjs`.
 - Roadmap mutations: `commands/add-phase.md` (append-only; use `depends_on` for ordering, `status: skipped` to remove).
 - Project state: `STATE.md` + `ROADMAP.yaml`. Phase changes: `SUMMARY.md` per phase. Pruning: `DECAY.md`.
 

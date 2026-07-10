@@ -110,7 +110,10 @@ Verdict resolution rules: see `templates/RECONCILE.md § Verdict resolution`.
 - `FAIL`: mark the wave `status: needs_human_review` in ROADMAP. Do NOT
   flip phases to `done`. Surface the verdict and the first three
   blocking findings inline to the user. The user decides: re-queue in
-  next wave, hand-fix, or accept and override
+  next wave, hand-fix, or accept and override.
+  Autonomous runs ([`AUTONOMY.md`](./AUTONOMY.md)): park the failing
+  phases (finisher per phase, findings as artifacts) instead of
+  stopping; the run proceeds to `AUTONOMY.md` § Batched verification
 
 ### 6. Promote gate handshake
 

@@ -51,6 +51,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 | "set up monitoring", "configure post-deploy", "wire sentry"               | Read `protocols/POST-DEPLOY.md`, one-shot production monitoring setup (Sentry, health endpoint, scheduled smoke). User-triggered when app is deployed. |
 | "resync riff", "sync framework"                                           | Run `bash .riff/riff-resync.sh` to refresh symlinks; same as `/riff:resync` but works pre-bootstrap                                    |
 | "set my notification channel to X", "edit profile.yaml"                   | Edit the active profile directly (project override `.planning/profile.yaml` if it exists, else framework default). See `references/PROFILE-RESOLUTION.md`. |
+| "what's pending", "pending inbox", "what am I forgetting"                 | Run `node .riff/scripts/riff-pending.mjs` — cross-project inbox of finishers, unreviewed decisions, parked branches. Format the sorted list, offer to open artifacts. |
 | (automatic at end of phase) Pending expertise patches                     | Inline review (Stack/Architecture/Project routing) via `/riff:next` Step 10 with Review now / Defer to next phase / Reject all options |
 
 ## Cheat sheet — "I want to..."
@@ -62,6 +63,8 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - **Onboard RIFF onto an existing codebase** → `/riff:init` then `/riff:map`
 - **Build the next thing on the roadmap** → `/riff:next`
 - **Walk away and let it run** → `/riff:wave` (Codex executes the bundle while you're away)
+- **Launch an hours-long unattended session (one approval, zero questions, one report)** → `/riff:wave --autonomous` (or `/riff:next --autonomous` for a single phase). Lifecycle: `protocols/AUTONOMY.md`
+- **See everything waiting on me across ALL my apps** → ask Claude "what's pending" (runs `.riff/scripts/riff-pending.mjs`)
 - **Group N parallel phases into one Codex wave run** → `/riff:wave` (and `--resume W{N}` when Codex finishes)
 - **Delegate one risky/slow phase to Codex** → `/riff:wave --solo P{N}`
 - **Check where I left off** → `/riff:status`
@@ -91,6 +94,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - `protocols/BOOTSTRAP-FILES.md` — read by `/riff:start` Stage 5 to create persistent artifacts. Two paths: scratch (light) and production (full taste / CONTEXT / INCIDENTS / README), plus the stack-detection slug table.
 - `protocols/BOOTSTRAP-FILES.md` § Dashboard Registration — read by `/riff:start` Stage 5 final step. Best-effort ping so the new project shows up in a running `/riff:dashboard` immediately.
 - `protocols/POST-DEPLOY.md` — production monitoring setup (Sentry, uptime health check, scheduled Playwright smoke). User-triggered via conversational trigger ("set up monitoring") or `/riff:post-deploy`. One-shot, runs when the app is deployed. Each category opt-outable via `ROADMAP.yaml`. Also available as global skill `/post-deploy` for non-RIFF projects.
+- `protocols/AUTONOMY.md` — autonomous session lifecycle for `/riff:next --autonomous` and `/riff:wave --autonomous`: front-loaded decisions, no-questions build with a DECISIONS ledger, batched end-of-run verification, finishers + `.riff/scripts/riff-pending.mjs` cross-project inbox.
 
 ## Agents referenced by commands and protocols
 
