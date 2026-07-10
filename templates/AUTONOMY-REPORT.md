@@ -28,7 +28,7 @@ Merged from SECURITY.md, REVIEW.md, stress static pass, uxtest run, browser veri
 
 ## Finishers awaiting you
 
-One block per pending entry in `finishers.yaml`, sorted security > payment > branch > ux > review > decision. Plain language, no security/GDPR jargon — the human judges the recommendation (or the design), never the domain itself (`protocols/AUTONOMY.md` § Finishers):
+One block per pending finisher (one file per finisher under `finishers/`; legacy `finishers.yaml` entries included), sorted security > payment > branch > ux > review > decision. Plain language, no security/GDPR jargon — the human judges the recommendation (or the design), never the domain itself (`protocols/AUTONOMY.md` § Finishers):
 
 - **{{F1}}** [{{type}}] {{waiting_on}} → `{{artifact}}` (branch `{{branch}}`)
   Machine checks: {{one line — "security review PASS, adversarial PROCEED, all gates green" or "security review found 1 HIGH: <plain-language what/why>"}}

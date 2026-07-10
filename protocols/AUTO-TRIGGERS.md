@@ -127,7 +127,7 @@ Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 6
   - auth surface: auth/authn/authz, oauth, SSO, SAML, sessions, passwords, passkeys, MFA/2FA, magic links, API keys, secrets, tokens
   - money surface: payment, payout, billing, checkout, invoice, refund, chargeback, subscription, entitlement, credits, wallet, pricing plans, tax/VAT
   - payment providers by name: stripe, paddle, lemonsqueezy, braintree, paypal, chargebee, recurly, adyen, mollie, razorpay, square
-  - privacy/regulated surface: GDPR, CCPA, PII, privacy, consent, retention, erasure / right-to-be-forgotten, anonymization, data deletion/export/subject, delete-account/user/data, kyc, aml, compliance, regulated, legal, audit log/trail
+  - privacy/regulated surface: GDPR, CCPA, PII, privacy, consent, retention, erasure / right-to-be-forgotten, anonymization, data deletion/export/subject, delete-account/user/data, kyc, aml, compliance, regulated, legal, audit log/trail, DSAR, DPA / data-processing agreement, cookies, analytics opt-out, personal data
   - irreversible data surface: migrations, drop table/column
 
 **Direction of error:** a phase matching NOTHING is `safe`; a phase matching ANYTHING is `hold`. When a keyword hit looks like a false positive (e.g. "audit" in "audit the CSS"), it still holds — a false `hold` costs one human glance, a false `safe` is an unattended sensitive merge. The planner may add holds on top of this heuristic (uncertainty, novel architecture) but may never downgrade a heuristic `hold` to `safe`.

@@ -240,17 +240,26 @@ Output: `.planning/waves/W{N}.RECONCILE.md` from
 
 ### Step 6.2: React to verdict
 
+**No-merge guard first (BLOCKING, every session, autonomous or not):** before flipping ANY phase to `done` or merging any phase branch — on `PASS` and `PASS-WITH-WARNINGS` alike — run the guard for every phase branch in the wave:
+
+```bash
+node .riff/scripts/finisher-guard.mjs riff/phase-{id}-{slug} \
+  || { echo "phase {id}: NOT done, NOT mergeable — pending finisher"; }
+```
+
+A non-zero exit means a pending finisher references that branch: that phase stays parked regardless of the reconcile verdict — do NOT mark it `done`, surface the blocking finisher and its artifact, continue with the other phases. Mirrors `protocols/WAVE-RECONCILE.md` § 5 and `commands/next.md` Step 8.
+
 - `FAIL` → mark wave `status: needs_human_review`, surface verdict + top
   3 blocking findings inline, stop.
   Autonomous runs: do not stop — park the failing phases (finisher per
   phase) and continue to `protocols/AUTONOMY.md` § Batched verification
-- `PASS-WITH-WARNINGS` → mark phases `done`, surface warnings in
+- `PASS-WITH-WARNINGS` → mark guard-clear phases `done`, surface warnings in
   Step 7 output, continue
-- `PASS` → mark phases `done`, no friction. Autonomous runs: `safe`
+- `PASS` → mark guard-clear phases `done`, no friction. Autonomous runs: `safe`
   phases then merge per `AUTONOMY.md` § Merge policy; `hold` phases park
 
 If a phase reports smoke/browser-check FAIL or the reconcile is FAIL → mark
-`status: needs_human_review`, surface to user. Otherwise mark
+`status: needs_human_review`, surface to user. Otherwise (guard clear) mark
 `status: done`, update ROADMAP.yaml, run
 [`protocols/POST-PHASE.md`](../protocols/POST-PHASE.md) once per phase
 (compressed).

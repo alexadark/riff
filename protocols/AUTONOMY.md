@@ -14,10 +14,10 @@ State machinery (atomic writes, parking, launch lock, classification) is code, n
 | --- | --- |
 | `run.json` | Machine state: phases, classification, per-phase status, current stage. Resumability lives here. Always written atomically (temp + fsync + rename) via `.riff/scripts/autonomy-state.mjs` — a crash never leaves a torn file. |
 | `DECISIONS.md` | Ledger of defaults taken instead of asking. Checkbox per entry; unchecked = not yet human-reviewed. |
-| `finishers.yaml` | Machine ledger of items awaiting human sign-off. Source of truth for the no-merge marker, enforced by `.riff/scripts/finisher-guard.mjs`. Read by `.riff/scripts/riff-pending.mjs`. |
+| `finishers/<id>.yaml` | Machine ledger of items awaiting human sign-off — ONE file per finisher, each written atomically, so concurrent parks (wave mode) can never lose each other's no-merge marker. Source of truth for the no-merge marker, enforced by `.riff/scripts/finisher-guard.mjs`. Read by `.riff/scripts/riff-pending.mjs`. Legacy single-ledger `finishers.yaml` files are still read but never written. |
 | `REPORT.md` | Single consolidated end-of-run report, from `templates/AUTONOMY-REPORT.md`. |
 
-Shared across runs: `.planning/autonomy/lock.json` (launch lock, see § Launch lock) and `.planning/autonomy/loop.json` (loop state, see § Loop mode).
+Shared across runs: `.planning/autonomy/lock/` (launch lock directory, see § Launch lock) and `.planning/autonomy/loop.json` (loop state, see § Loop mode).
 
 `run.json` shape:
 
@@ -32,12 +32,13 @@ Shared across runs: `.planning/autonomy/lock.json` (launch lock, see § Launch l
 }
 ```
 
-`finishers.yaml` shape (flat and stable — parsed by the shared tolerant parser in `scripts/lib/finishers.mjs`, do not nest deeper):
+Finisher shape — one file per finisher at `finishers/<id>.yaml`, flat and stable (parsed by the shared tolerant parser in `scripts/lib/finishers.mjs`, do not nest deeper). The id is DERIVED, never counted: `F-<phase>-<type>`, so the same phase+type always maps to the same file and re-parking overwrites its own marker, never anyone else's.
 
 ```yaml
+# .planning/autonomy/2026-07-10-1430/finishers/F-12-checkout-flow-security.yaml
 run: 2026-07-10-1430
 finishers:
-  - id: F1
+  - id: F-12-checkout-flow-security
     type: security        # security | payment | ux | branch | decision | review
     phase: 12-checkout-flow
     branch: riff/phase-12-checkout-flow
@@ -47,7 +48,7 @@ finishers:
     created: 2026-07-10
 ```
 
-Write finisher entries via `node .riff/scripts/autonomy-state.mjs park ...` (see § Parking), never by hand-editing the YAML — the helper guarantees marker-before-status ordering and atomic writes.
+Write finisher entries via `node .riff/scripts/autonomy-state.mjs park ...` (see § Parking), never by hand-editing the YAML — the helper guarantees marker-before-status ordering and atomic writes. Resolving a finisher (human verdict) flips `status: resolved` inside its file. Pre-existing single-ledger `finishers.yaml` files keep blocking until resolved (read everywhere, written nowhere); a legacy pending duplicate of a re-parked phase double-blocks — fail-closed, resolve both.
 
 ## Front-load
 
@@ -64,11 +65,13 @@ The only interactive window. Everything a human might be asked during the run is
 
 ## Launch lock
 
-`.planning/autonomy/lock.json` is the anti-double-launch marker, created by atomic check-and-set (`O_EXCL`) in `.riff/scripts/autonomy-state.mjs`. Rules:
+`.planning/autonomy/lock/` is the anti-double-launch marker: a lock DIRECTORY (mkdir is atomic and exclusive — creation has exactly one winner by construction) containing `owner.json` with the owning run's TOKEN (`{ token: <run-id>, loop, pid, started }`). Ownership identity is the token, never the pid — the CLI helper that creates the lock exits immediately, so its pid proves nothing. All of it lives in `.riff/scripts/autonomy-state.mjs`. Rules:
 
 - An in-flight run or loop for the project means a new `--autonomous` launch RESUMES it. Never two parallel autonomous sessions on one project.
-- The lock is reclaimed ONLY when the owner is provably dead: its pid is gone AND the lock has had no mtime heartbeat for 45 minutes. Bump the heartbeat (`lock touch`) at every phase status transition.
-- Release the lock (`lock release`) when the run reaches `stage: done` (single run) or when the loop stops (loop mode).
+- **Heartbeat is automatic.** Every phase status transition goes through `node .riff/scripts/autonomy-state.mjs phase-status ...` (or `park`), which writes run.json AND bumps the lock heartbeat in one call — no agent ever needs to remember `lock touch`. Staleness = no heartbeat for 45 minutes (a recorded pid that is still alive also counts as live, as secondary evidence only).
+- **Reclaim is a compare-and-swap.** A stale lock is renamed aside (atomic — exactly one reclaimer can win; losers fall back to mkdir and lose that too), the moved owner is re-checked against what was read, then the reclaimer acquires fresh via mkdir. A lock is never unlinked in place; two relaunches can never both think they own it.
+- **Fencing.** `phase-status` exits 5 (and `lock touch --run <run-id>` likewise) when the lock's token no longer matches this session's run — the lock was lost to another launch. On exit 5: stop the run, park the in-flight phase, NEVER merge. The other session owns the project now.
+- Release the lock (`lock release`) when the run reaches `stage: done` (single run) or when the loop stops (loop mode). A pre-redesign `lock.json` single-file lock is still honored while live and migrated when provably dead.
 
 ## Autonomy boundary
 
@@ -100,7 +103,7 @@ node .riff/scripts/autonomy-state.mjs park --run <run-id> --phase <id> --type <t
   --branch riff/phase-<id> --waiting "<what a human must check>" --artifact <path>
 ```
 
-The helper writes the `finishers.yaml` no-merge marker FIRST (temp + fsync + atomic rename), THEN flips the phase to `parked` in `run.json`. The order is load-bearing: a crash between the two writes leaves a pending finisher with no status flip (safe — the guard still blocks the branch), never a parked branch without a marker.
+The helper writes the no-merge marker FIRST (its own file under `finishers/`, temp + fsync + atomic rename), THEN flips the phase to `parked` in `run.json`. The order is load-bearing: a crash between the two writes leaves a pending finisher with no status flip (safe — the guard still blocks the branch), never a parked branch without a marker. One file per finisher means two phases parking at the same moment (wave mode) write two different files — neither marker can be lost. `run.json` statuses are bookkeeping; the markers plus git state are what resume and the guard trust.
 
 ## Build rules
 
@@ -208,7 +211,7 @@ Cross-project inbox: `node .riff/scripts/riff-pending.mjs` (the same file lives 
 
 ## Merge policy
 
-- Every merge, `safe` or manual, is preceded by the no-merge guard: `node .riff/scripts/finisher-guard.mjs riff/phase-N-slug || <refuse: do not merge, surface the blocking finisher>`.
+- Every merge, `safe` or manual, is preceded by the no-merge guard: `node .riff/scripts/finisher-guard.mjs riff/phase-N-slug || <refuse: do not merge, surface the blocking finisher>`. The guard runs in the merge-strategy DISPATCHER (step 5 of `protocols/PR-CREATION.md` § 8b — Push + PR), before EITHER strategy executes — on `github_button` a blocked branch means the "Click Merge" instruction is never printed; the blocking finisher is surfaced instead.
 - `hold` phases: PR opened, branch left unmerged, finisher written. No exception, no override flag.
 - `safe` phases: when every required gate in GATES.md passes (`gates-check.mjs --finalize` clean, scope-check MATCH, security PASS or PASS-WITH-WARNINGS, smoke pass/warn) AND the guard exits 0, auto-merge using the `local_no_ff` mechanics of `protocols/PR-CREATION.md` § 8c — Update state after merge, without waiting for a verbal cue, regardless of the profile's `git.merge_strategy`. Record the merge SHA in SUMMARY.md as usual.
 - Any gate short of that bar → the phase parks instead. PASS-WITH-WARNINGS security verdicts auto-merge but their warnings are listed in REPORT.md.
@@ -220,9 +223,9 @@ Cross-project inbox: `node .riff/scripts/riff-pending.mjs` (the same file lives 
 What changes vs a single autonomous run:
 
 - **Front-load covers the whole loop.** At launch, run the confidence gate + classification (`safe | hold`) + assumption questions for EVERY `todo` phase the loop may reach (not just the first bundle). One approval covers the entire loop session. Detailed PLAN.md files are still written just-in-time per run — planning is non-interactive by then, and any residual assumption becomes a DECISIONS entry, never a question. Phases created after launch (new seeds, `/riff:add-phase`) are NOT in scope; they wait for the next session.
-- **Anti-double-launch.** `loop.json` `status: running` is the loop lock, backed by the shared launch lock (§ Launch lock): both are written by atomic check-and-set. A second `--autonomous --loop` launch on the same project RESUMES the existing loop — never a parallel one. Reclaim only when the owner is provably dead (pid gone + stale heartbeat).
-- **Between runs** (after each REPORT.md): re-run Step 0 sync per the Conversion table, re-check the usage guard, check the stop criteria below, then start the next run (fresh run-id, fresh run directory; update the STATE.md pointer to the new run-id). Prefer fresh context per run: at each run boundary, apply `protocols/HANDOFF.md` — checkpoint STATE.md and restart clean rather than dragging a bloated session into the next run.
-- **Loop state** lives in `.planning/autonomy/loop.json`: `{ "started": ..., "status": "running | paused | stopped", "stop_reason": ..., "runs_completed": N, "max_runs": N|null, "consecutive_zero_merge_runs": N }`. Updated between runs via atomic write; a fresh session resuming the loop reads it (same resume contract as run.json). `runs_completed` increments exactly once per run, at REPORT.md delivery — never on resume.
+- **Anti-double-launch.** `loop.json` `status: running` is the loop lock, backed by the shared launch lock (§ Launch lock): both are written by atomic check-and-set. A second `--autonomous --loop` launch on the same project RESUMES the existing loop — never a parallel one. Reclaim only when the owner is provably dead (no heartbeat for the stale window; reclaim is a compare-and-swap rename, never an unlink — see § Launch lock).
+- **Between runs** (after each REPORT.md): count the finished run (`node .riff/scripts/autonomy-state.mjs loop complete-run --run <run-id>` — idempotent, see below), re-run Step 0 sync per the Conversion table, re-check the usage guard, check the stop criteria below, then start the next run (fresh run-id, fresh run directory): FIRST `loop start-run --run <new-run-id>` (loop.json is the authoritative record), THEN `pointer set` (the STATE.md pointer is a hint). Prefer fresh context per run: at each run boundary, apply `protocols/HANDOFF.md` — checkpoint STATE.md and restart clean rather than dragging a bloated session into the next run.
+- **Loop state** lives in `.planning/autonomy/loop.json`: `{ "started": ..., "status": "running | paused | stopped", "stop_reason": ..., "current_run": "<run-id>|null", "last_completed_run": "<run-id>|null", "runs_completed": N, "max_runs": N|null, "consecutive_zero_merge_runs": N }`. Updated between runs via atomic write; a fresh session resuming the loop reads it (same resume contract as run.json). `current_run` is the loop's authoritative in-flight run id, written at every run start via `loop start-run`. `runs_completed` increments exactly once per run, at REPORT.md delivery, via `loop complete-run` — `last_completed_run` is the idempotency marker (incrementing and marking are one atomic write), so a crash-then-resume around REPORT.md can never double-count.
 
 **Stop criteria** — the loop ends when the FIRST of these fires, always ending with a final consolidated report (one REPORT.md per run + a one-screen loop summary) and a § Notifications ping:
 
@@ -235,16 +238,18 @@ What changes vs a single autonomous run:
 
 On stop or pause: release the launch lock, clear the STATE.md pointer (stopped) or keep it (paused — a resume continues the loop after the finisher is resolved).
 
-**Loop resume reconciliation** (fresh session, crash, wakeup): read the STATE.md pointer → `loop.json` → the pointed-at `run.json`, in that order (`node .riff/scripts/autonomy-state.mjs resolve-launch` does exactly this).
+**Loop resume reconciliation** (fresh session, crash, wakeup): `node .riff/scripts/autonomy-state.mjs resolve-launch` does the reconciliation. When `loop.json` says `running`, it is AUTHORITATIVE: `loop.current_run` is checked first, the STATE.md pointer is a hint only (a crash between run start and pointer update leaves them disagreeing — the loop record wins), and a scan of run directories is the defensive fallback. A run id that cannot be verified on disk is never restarted blind.
 
-- `run.json` parseable and non-terminal → resume that run mid-flight (§ Resume).
-- `run.json` missing, partial, or corrupt while `loop.json` says `running` → discard the partial run directory's `run.json` and restart the SAME run-id fresh. Front-load is already locked, so no questions. Never increment `runs_completed` for the discarded attempt; before re-merging anything, re-check each phase branch against main (a phase whose merge commit already landed is `merged`, not re-mergeable — the finisher guard and `git merge-base --is-ancestor` prevent double-merges).
+- `current_run`'s `run.json` parseable and non-terminal → `resume` that run mid-flight (§ Resume).
+- `current_run`'s `run.json` says `done` → the crash hit between REPORT.md and the next run start: `continue-loop`, with `completedRun` set — call `loop complete-run` for it first (idempotent), then start the next run.
+- `current_run`'s directory exists but `run.json` is missing, partial, or corrupt → `restart-run`: discard the partial `run.json` and restart the SAME run-id fresh. Front-load is already locked, so no questions. Never increment `runs_completed` for the discarded attempt; before re-merging anything, re-check each phase branch against main (a phase whose merge commit already landed is `merged`, not re-mergeable — the finisher guard and `git merge-base --is-ancestor` prevent double-merges).
+- No usable candidate (legacy loop.json without `current_run`, pointer stale): exactly ONE non-terminal run directory on disk → resume it; zero or several → `continue-loop` (between runs, or ambiguity — the next run starts cleanly rather than guessing).
 
 ## Resume
 
 The run must survive session death (compaction, crash, quota wakeup).
 
-- Entry point: STATE.md carries a machine-parseable pointer section (`## Active Autonomous Run` — run-id + loop flag, see `templates/STATE.md`), written atomically at launch and cleared at `done`. `node .riff/scripts/autonomy-state.mjs resolve-launch` reads pointer → loop.json → run.json and says whether to resume, restart the in-flight run, or start new.
-- `run.json` is updated atomically at every phase status transition (and the lock heartbeat bumped).
+- Entry point: STATE.md carries a machine-parseable pointer section (`## Active Autonomous Run` — run-id + loop flag, see `templates/STATE.md`), written atomically at launch and cleared at `done`. `node .riff/scripts/autonomy-state.mjs resolve-launch` reconciles loop.json (authoritative when running) + pointer (hint) + run dirs (fallback) and says whether to `resume`, `restart-run`, `continue-loop`, or start `new`.
+- Every phase status transition goes through `node .riff/scripts/autonomy-state.mjs phase-status --run <run-id> --phase <id> --status <s>` — one call that writes run.json atomically AND heartbeats the launch lock. Exit 5 = the lock's token no longer matches this run (lost to another launch): stop, park the in-flight phase, never merge.
 - Relaunching `/riff:next --autonomous` or `/riff:wave --autonomous` with an in-flight `run.json` resumes it: skip front-load entirely (decisions are already locked), re-enter at the first non-terminal phase, reusing the standard crash-residue and branch-resume mechanics of `protocols/RECONCILE.md` § Step 2b — Crash residue checks (pre-branch).
 - Resume never re-opens locked decisions. A contradiction discovered on resume (per `protocols/HANDOFF.md`) parks the affected phase instead of re-asking.

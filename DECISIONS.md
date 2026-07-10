@@ -49,3 +49,15 @@ An in-flight run or loop (detected via the STATE.md `## Active Autonomous Run` p
 ## D36 — Block Events Ping the Human, Parked Phases Do Not
 
 `hooks/notify-human.sh` (Telegram/email per `notifications.channel`) fires on exactly three autonomous events: report ready, run halted on a global blocker, loop paused/stopped. Individual parked phases land in REPORT.md only. Rationale: parking is routine (that is the design); pinging per park would train her to ignore the channel.
+
+## D37 — One Finisher Per File, Ids Derived, Never Counted
+
+Supersedes the single-ledger detail of D29 (the marker semantics stand). `parkPhase()` writes each finisher to its own file, `finishers/<id>.yaml`, id = `F-<phase>-<type>`. Rationale (concurrency re-verify finding): two wave phases parking concurrently both read-modify-wrote one `finishers.yaml` and the last atomic rename silently dropped the other's no-merge marker; a shared F-counter also made both pick the same id. Per-file writes remove the race by construction — no shared file, no counter, nothing to lose. Legacy `finishers.yaml` ledgers are read everywhere, written nowhere.
+
+## D38 — The Launch Lock Is a Directory Owned by a Token, Reclaimed by CAS
+
+Supersedes the mechanics of D34 (the resume-not-parallel rule stands). The lock is a directory (`mkdir` = atomic, exclusive) whose `owner.json` carries the run-id TOKEN; the creating CLI pid is secondary evidence only, since that helper exits immediately. Heartbeat is automatic: every `phase-status`/`park` write bumps it, so a live build can no longer look stale because an agent forgot `lock touch`. Stale reclaim renames the lock aside (atomic, single winner), re-checks the moved owner, then re-acquires via mkdir — never an unlink-and-recreate, which let two relaunches both win. Fencing: a heartbeat against a token that is not yours exits 5 — stop, park, never merge.
+
+## D39 — Loop Resume Trusts loop.json, Counts Runs Idempotently
+
+`loop.json` gains `current_run` (authoritative in-flight run id, written at run start before the STATE.md pointer) and `last_completed_run` (idempotency marker, written atomically with the `runs_completed` increment). `resolve-launch` reconciles loop.json → pointer (hint) → run-dir scan (fallback) and never restarts a run id it cannot verify on disk. Rationale (re-verify finding): the pointer-only resolution restarted the wrong run or returned a null run id after a crash between loop.json and pointer updates, and a crash around REPORT.md could double-count runs.

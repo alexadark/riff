@@ -29,7 +29,16 @@ Compare SUMMARY.md against `.claude/references/project-details.md` (file tree), 
    e. If `metadata.pr_body: full`, write `.planning/phases/N-slug/USAGE.md` before running the metadata script, then finalize PROMPTS.md: replace any remaining `{{prompt verbatim}}` placeholder with the actual prompt or `_(not invoked)_`. Run `bash .riff/scripts/riff-pr-metadata.sh <phase-id>` and append stdout. Full metadata includes token usage from USAGE.md and prompts from PROMPTS.md; the script hard-fails if placeholders remain.
 4. `PR_URL=$(gh pr create --title "<phase title>" --body "<composed body>")`
    Capture stdout (the URL) so every strategy can interpolate the real PR URL into the final report.
-5. **Read `profile.yaml` `git.merge_strategy`** (resolved per `.riff/references/PROFILE-RESOLUTION.md`; default `github_button` if missing or file missing) and branch:
+5. **No-merge guard (BLOCKING — runs in the dispatcher, before EITHER merge strategy):**
+
+   ```bash
+   node .riff/scripts/finisher-guard.mjs riff/phase-N-slug \
+     || { echo "merge path blocked: pending finisher on this branch"; }
+   ```
+
+   A non-zero exit means a pending finisher references this branch. Do NOT proceed to the strategy branching below. On `github_button` this means: do NOT print the "Click Merge on GitHub" instruction — print the blocking finisher and its review artifact instead, and end the report with `PR open at $PR_URL — merge BLOCKED by finisher <id>. Resolve it first ("finisher <id> ok, merge it").` On `local_no_ff` the merge cue is refused the same way. The 8c guard still runs at merge time as defense in depth.
+
+6. **Read `profile.yaml` `git.merge_strategy`** (resolved per `.riff/references/PROFILE-RESOLUTION.md`; default `github_button` if missing or file missing) and branch:
    - **`github_button`:** print final report ending with `PR open at $PR_URL. Click Merge on GitHub when ready. Run /riff:next again — Step 0 reconciles ROADMAP/STATE on the next run.` STOP. Skip 8c.
    - **`local_no_ff`:** print final report ending with `PR open at $PR_URL. Review on GitHub, then tell me 'merge' to merge locally and continue.` Stay alive. When the user says "merge" (or equivalent), run 8c.
    - Any other value: treat as invalid profile config, print the value, and STOP before merging.
