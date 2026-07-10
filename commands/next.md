@@ -212,7 +212,9 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch. Full procedure: [`
 
 8a documentation + README check is blocking. 8b runs `node .riff/scripts/gates-check.mjs --finalize --phase .planning/phases/N-slug || { echo "gates not satisfied, no PR"; exit 1; }`, then pushes and opens the PR with `metadata.pr_body` handling. `github_button` prints the PR URL and STOPs; `local_no_ff` waits for "merge", then 8c updates state on main.
 
-Autonomous runs: no merge cue — apply [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md) § Merge policy (`safe` phase with clean gates auto-merges via 8c; `hold` phase parks with the PR open and a finisher entry).
+**No-merge guard (every merge, every session):** before any 8c local merge — including a manual "merge phase N" in a later session — run `node .riff/scripts/finisher-guard.mjs riff/phase-N-slug`. Non-zero exit = a pending finisher references the branch: refuse the merge and surface the blocking finisher + its artifact. See [`protocols/PR-CREATION.md`](../protocols/PR-CREATION.md) § 8c.
+
+Autonomous runs: no merge cue — apply [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md) § Merge policy (`safe` phase with clean gates AND a clean finisher-guard pass auto-merges via 8c; `hold` phase parks with the PR open and a finisher entry).
 
 ### Step 9: Learn (inline)
 

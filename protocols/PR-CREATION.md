@@ -46,6 +46,14 @@ The flow depends on `git.merge_strategy`:
 
 - **`local_no_ff`:** on the user's "merge" cue:
 
+  **No-merge guard (BLOCKING, runs first — every session, autonomous or not):**
+
+  ```bash
+  node .riff/scripts/finisher-guard.mjs riff/phase-N-slug || { echo "merge refused: pending finisher on this branch"; exit 2; }
+  ```
+
+  A non-zero exit means a pending finisher references this branch (the guard prints which one and its review artifact). Do NOT merge — not even on an explicit "merge" cue; the human must first resolve the finisher ("finisher F<N> ok, merge it" resolves it, THEN the merge proceeds). This also covers a later manual "merge phase 12" in a fresh session.
+
   ```bash
   git checkout main
   git pull --ff-only origin main

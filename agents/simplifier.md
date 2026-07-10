@@ -84,7 +84,7 @@ If no issues: output "No simplifications needed — diff is already lean." and e
 
 ## Step 5: Apply
 
-Wait for confirmation from `/riff:next` orchestrator.
+The orchestrator's invocation IS the confirmation (`protocols/EXECUTION.md` § Step 5b simplifier orchestration tells you to apply and commit) — do not stop after Step 4 to wait for a separate go-ahead. In an autonomous run (`protocols/AUTONOMY.md` § Conversion table) this is absolute: apply and commit, never wait, never ask. Only skip applying a proposal when it would violate a Ground Rule below; drop it and note the drop in REFACTOR.md.
 
 1. Edit file by file
 2. Verify no syntax errors after each file

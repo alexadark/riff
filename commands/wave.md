@@ -144,6 +144,12 @@ between launch and result.
 
 5. **Fallback.** If `codex exec` fails to start (auth/env/binary missing), fall
    back to the paste flow below and tell the user.
+   **Autonomous runs** (`protocols/AUTONOMY.md` § Conversion table): NEVER the
+   paste flow — fall back to in-process Sonnet execution (Step 5c) with the same
+   bundle. If Sonnet workers are also unavailable (usage guard ≥95%, Agent tool
+   failure), park the whole wave: one finisher type `review` covering the wave
+   (`AUTONOMY.md` § Parking), log the startup failure in DECISIONS.md, continue
+   to Batched verification with whatever previously completed.
 
 ### RESULT.md Schema
 

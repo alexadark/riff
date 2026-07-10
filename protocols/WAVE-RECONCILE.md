@@ -103,6 +103,13 @@ Verdict resolution rules: see `templates/RECONCILE.md § Verdict resolution`.
 
 ### 5. React to verdict
 
+**No-merge guard first:** before flipping any phase to `done` or merging any
+wave branch, run `node .riff/scripts/finisher-guard.mjs <branch>` for every
+phase branch involved. A non-zero exit (pending finisher on that branch) means
+that phase is NOT mergeable regardless of the reconcile verdict — leave it
+parked, surface the blocking finisher, and proceed with the other phases.
+Applies to autonomous and normal sessions alike.
+
 - `PASS`: continue Step 6 in `commands/wave.md` (mark phases done,
   update ROADMAP)
 - `PASS-WITH-WARNINGS`: mark phases done, surface warnings to user,

@@ -99,10 +99,10 @@ When driver detection returns "neither available," each caller has its own degra
 | Caller                                            | Skip behavior                                                                                                                            |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | **Step 5e smoke test**                            | Log `Step 5e: skipped — no browser driver` to GATES.md, continue the pipeline.                                                          |
-| **Sandbox-HITL routing in `/riff:next`**          | `AskUserQuestion`: `verify manually now (open the URL yourself) | install lightpanda and retry | halt`. Default `verify manually now` on no answer. |
+| **Sandbox-HITL routing in `/riff:next`**          | Interactive sessions: `AskUserQuestion`: `verify manually now (open the URL yourself) | install lightpanda and retry | halt`. Default `verify manually now` on no answer. **Autonomous runs** (`protocols/AUTONOMY.md` § Conversion table): no prompt — skip the verification, write a finisher type `ux` (`AUTONOMY.md` § Parking semantics for the finisher entry; the phase itself continues) with the unverified flow named in `waiting_on`. |
 | **Debugger frontend reproduction**                | Append `Visual evidence: skipped — no browser driver` to DEBUG.md. The debugger proceeds without screenshots/console capture.            |
 
-A driver that's installed but crashes mid-run is a runtime error, not a skip — surface stderr, AskUserQuestion `skip and continue | halt`, default skip on no answer. The dev server PID (when the caller booted one) is always killed before exit.
+A driver that's installed but crashes mid-run is a runtime error, not a skip — surface stderr, AskUserQuestion `skip and continue | halt`, default skip on no answer. Autonomous runs: skip + log, no prompt; sandbox-HITL callers still write the `ux` finisher. The dev server PID (when the caller booted one) is always killed before exit.
 
 ---
 

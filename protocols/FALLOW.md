@@ -28,5 +28,6 @@ Step 5d runs after the executor and scope check, before smoke/review, so cheap s
 - `pass` → gate `pass`, continue.
 - `warn` → gate `warn` with count, continue, surfaced in Step 10 report.
 - `fail` → STOP. Prompt **Fix in place** (re-run executor with FALLOW.json input, max 2 cycles) / **Accepted exception** (`status: pass --reason "accepted-exception: <reason>"`) / **One-time override** (`status: skipped --reason "override"`).
+  - **Autonomous runs** (`protocols/AUTONOMY.md` § Conversion table): never prompt. Auto-debug once (max 1 cycle, Fix-in-place semantics with FALLOW.json input); still `fail` → park the phase (AUTONOMY.md § Parking, finisher type `review`, FALLOW.json as artifact) + DECISIONS entry. Continue with independent phases.
 
-**Runtime error** (non-zero exit other than `command not found`): surface stderr, AskUserQuestion `skip and continue | halt`. Default skip on no answer.
+**Runtime error** (non-zero exit other than `command not found`): surface stderr, AskUserQuestion `skip and continue | halt`. Default skip on no answer. Autonomous runs: skip + log to GATES.md, no prompt.

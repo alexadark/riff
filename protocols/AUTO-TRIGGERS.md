@@ -114,6 +114,26 @@ Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 6
 
 ---
 
+## Autonomy boundary heuristic <a id="autonomy-boundary-heuristic"></a>
+
+**Used by:** `protocols/AUTONOMY.md` § Autonomy boundary (front-load classification of every phase in an autonomous run).
+
+**Source of truth is code, not this doc:** `.riff/scripts/autonomy-state.mjs` exports `HOLD_TAGS` and `SENSITIVE_PATTERNS`; run `node .riff/scripts/autonomy-state.mjs classify --tags "<tags>" --paths "<planned file paths>" --text "<phase title + description>"`. Exit 3 = `hold`, exit 0 = `safe`. The lists below summarize what the code matches — when they drift, the code wins and this section must be updated.
+
+**Hold condition (ANY single match is sufficient — no planner judgment required):**
+
+- **Tags** (exact, case-insensitive, `-`/`_` interchangeable): the hold set in `AUTONOMY.md` § Autonomy boundary — security/auth/payment/compliance/regulated/migration plus privacy, pii, gdpr, data_deletion, consent, retention, legal, audit, kyc, aml, finance, invoice(s), refund(s), credits, subscription(s), entitlement(s).
+- **Paths AND title/description**, matched against sensitive-surface patterns:
+  - auth surface: auth/authn/authz, oauth, SSO, SAML, sessions, passwords, passkeys, MFA/2FA, magic links, API keys, secrets, tokens
+  - money surface: payment, payout, billing, checkout, invoice, refund, chargeback, subscription, entitlement, credits, wallet, pricing plans, tax/VAT
+  - payment providers by name: stripe, paddle, lemonsqueezy, braintree, paypal, chargebee, recurly, adyen, mollie, razorpay, square
+  - privacy/regulated surface: GDPR, CCPA, PII, privacy, consent, retention, erasure / right-to-be-forgotten, anonymization, data deletion/export/subject, delete-account/user/data, kyc, aml, compliance, regulated, legal, audit log/trail
+  - irreversible data surface: migrations, drop table/column
+
+**Direction of error:** a phase matching NOTHING is `safe`; a phase matching ANYTHING is `hold`. When a keyword hit looks like a false positive (e.g. "audit" in "audit the CSS"), it still holds — a false `hold` costs one human glance, a false `safe` is an unattended sensitive merge. The planner may add holds on top of this heuristic (uncertainty, novel architecture) but may never downgrade a heuristic `hold` to `safe`.
+
+---
+
 ## Improver heuristic <a id="improver-heuristic"></a>
 
 **Used by:** Step 7b of `/riff:next`.

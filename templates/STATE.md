@@ -24,6 +24,19 @@ Mirror of the runtime sidecar `.planning/active-phase.txt` (read by hooks/bounda
 This section is the human-readable + agent-bootstrap copy.
 -->
 
+## Active Autonomous Run
+
+- **Run**: -
+- **Loop**: -
+
+<!--
+Machine-parseable pointer to the live autonomous run (protocols/AUTONOMY.md § Resume).
+Written atomically at launch and cleared at done by `.riff/scripts/autonomy-state.mjs`
+(`pointer set --run <run-id> [--loop]` / `pointer clear`). Never edit by hand.
+`-` = no autonomous run in flight. Resume entry point: `resolve-launch` reads this
+section first, then loop.json, then the pointed-at run.json.
+-->
+
 ## Active Decisions
 
 <!--

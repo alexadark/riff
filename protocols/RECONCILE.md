@@ -68,6 +68,7 @@ If the section already exists, reset all four field values to `-`.
    - **In sync (`ahead=0` AND `behind=0`):** continue.
    - **Behind only (`ahead=0`, `behind>0`):** `git pull --ff-only origin main`.
    - **Ahead only (`ahead>0`, `behind=0`):** local has unpushed commits on main. Surface to the user: `Local main has <ahead> unpushed commits. Push now? (yes / skip)`. On `yes`: `git push origin main`. On `skip`: continue without pushing.
+     **Autonomous runs** ([`AUTONOMY.md`](./AUTONOMY.md) § Conversion table): push automatically without asking — the ahead-only commits are our own local merge commits, safe to push. If the push fails (network, permissions), log the failure to the run's REPORT.md and continue; never ask.
    - **Diverged (`ahead>0` AND `behind>0`):** **STOP and surface — do not auto-fix.** Common cause: a recent PR was squash-merged on GitHub and the squash bundled local-only commits that existed on the phase branch (e.g. unpushed personal commits Alex had on local main when the phase branch was cut). Print:
 
      ```
@@ -87,6 +88,8 @@ If the section already exists, reset all four field values to `-`.
      ```
 
      Ask the user how they want to proceed. Do not run any destructive command without explicit confirmation.
+
+     **Autonomous runs** ([`AUTONOMY.md`](./AUTONOMY.md) § Conversion table, § Build rules): never STOP-and-ask, never auto-fix. At LAUNCH (front-load, still interactive): a diverged main blocks the launch — resolve interactively first. MID-RUN or ON RESUME: park all affected non-terminal phases with one `review` finisher describing the divergence (`AUTONOMY.md` § Parking), produce REPORT.md for what completed, notify per `AUTONOMY.md` § Notifications, end the run. No destructive git command, ever.
 
 2. **Detect stale-todo phases.** For each phase in ROADMAP.yaml with `status: todo`, check whether it has shipped on main. Detection runs in three tiers from strongest to weakest signal:
 

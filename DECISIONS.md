@@ -29,3 +29,23 @@ In an autonomous run, a phase classified `safe` with every required gate passing
 ## D31 — Loop Mode Stops on Human-Shaped Walls, Not Quota
 
 `--loop` chains autonomous runs until the roadmap is dry, two consecutive runs merge nothing, `--max-runs` is hit, or the STOP kill switch exists. Quota exhaustion schedules a wakeup and resumes — it is a pause, not a stop. Rationale: two zero-merge runs mean every remaining phase waits on a human finisher; further runs only burn tokens against the same wall.
+
+## D32 — The No-Merge Marker Is Enforced by a Guard Script, Not Prose
+
+`scripts/finisher-guard.mjs` is called before EVERY merge (PR-CREATION.md 8c, next.md Step 8, WAVE-RECONCILE, AUTONOMY merge policy) and refuses any branch referenced by a pending finisher — autonomous and normal sessions alike. Malformed finisher entries that mention the branch also block (fail closed). Rationale (red-team finding): D29 existed only as documentation; no merge path checked it, so one forgetful session could merge unreviewed sensitive work.
+
+## D33 — Park Order Is Marker First, Status Second
+
+`scripts/autonomy-state.mjs parkPhase()` writes finishers.yaml (temp + fsync + atomic rename) BEFORE flipping run.json to `parked`. A crash between the writes leaves a pending finisher without a status flip — safe, the guard still blocks. The reverse order could leave a parked branch with no marker. All autonomy state files (run.json, loop.json, finishers.yaml, the STATE.md pointer) are written atomically.
+
+## D34 — Relaunch Resumes, Never Parallels
+
+An in-flight run or loop (detected via the STATE.md `## Active Autonomous Run` pointer + `.planning/autonomy/lock.json`, atomic check-and-set) makes any new `--autonomous` launch a RESUME. The lock is reclaimed only when the owner is provably dead (pid gone AND no mtime heartbeat for 45 min). Rationale: a crash during launch previously looked like a fresh start and re-opened front-load questions; two parallel runs on one project can double-merge.
+
+## D35 — Autonomy Boundary Classification Is Objective and Errs Toward Hold
+
+`scripts/autonomy-state.mjs classifyPhase()` is the source of truth (summarized in AUTO-TRIGGERS.md under "Autonomy boundary heuristic"). ANY sensitive keyword/tag/provider match in tags, paths, or title/description → `hold`; planner judgment can add holds but never remove one. Vocabulary covers auth, money (incl. invoices/refunds/subscriptions/entitlements/credits and provider names), privacy/GDPR/PII/consent/retention/deletion/export, legal/audit/kyc/aml, and migrations. Bare "delete"/"export" match only in data-subject contexts (delete-account/data-export) to avoid holding every cleanup phase — judgment call biased toward safety while keeping the loop useful.
+
+## D36 — Block Events Ping the Human, Parked Phases Do Not
+
+`hooks/notify-human.sh` (Telegram/email per `notifications.channel`) fires on exactly three autonomous events: report ready, run halted on a global blocker, loop paused/stopped. Individual parked phases land in REPORT.md only. Rationale: parking is routine (that is the design); pinging per park would train her to ignore the channel.
