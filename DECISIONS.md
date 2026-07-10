@@ -25,3 +25,7 @@ A pending finisher entry referencing a branch is the machine-readable signal tha
 ## D30 — Safe Phases Auto-Merge in Autonomous Runs
 
 In an autonomous run, a phase classified `safe` with every required gate passing auto-merges via the `local_no_ff` mechanics regardless of `git.merge_strategy`. Security-critical, money-touching, and regulated phases (`hold`) never do. Rationale: parking everything would make every run end in a pile of stale branches; the boundary, not the merge, is the safety mechanism.
+
+## D31 — Loop Mode Stops on Human-Shaped Walls, Not Quota
+
+`--loop` chains autonomous runs until the roadmap is dry, two consecutive runs merge nothing, `--max-runs` is hit, or the STOP kill switch exists. Quota exhaustion schedules a wakeup and resumes — it is a pause, not a stop. Rationale: two zero-merge runs mean every remaining phase waits on a human finisher; further runs only burn tokens against the same wall.

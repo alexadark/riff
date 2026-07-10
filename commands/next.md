@@ -22,6 +22,7 @@ Pick the next phase from ROADMAP.yaml, plan it, execute it, review it, open a PR
 - No args → auto-pick next (highest priority, deps met, not blocked)
 - `--plan-only` → create plan but don't execute
 - `--autonomous` → run the phase under the autonomous session contract: all questions front-loaded at launch, zero interactive questions during build, batched end verification, merge per autonomy boundary. Full lifecycle: [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md).
+- `--autonomous --loop [--max-runs N]` → chain autonomous runs until the roadmap is dry, 2 consecutive runs merge nothing, `--max-runs` is hit, or `.planning/autonomy/STOP` exists. See `protocols/AUTONOMY.md` § Loop mode.
 - `[phase-number]` → target a specific phase
 
 **Autonomous mode:** with `--autonomous`, or when `.planning/autonomy/` holds an in-flight `run.json`, every `AskUserQuestion` site in this pipeline resolves per [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md) § Conversion table instead of prompting. Step 8 merges per § Merge policy. After the final phase, run § Batched verification.

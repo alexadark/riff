@@ -41,6 +41,7 @@ The triggers below are matched by the FULL phrase, not by isolated words. If the
 | "change my profile X to Y", "set my notification channel to Z", "edit profile.yaml"     | Edit the active profile (project override `.planning/profile.yaml` if it exists, else framework default; see `references/PROFILE-RESOLUTION.md`). Preserve other fields. Confirm the change. |
 | "what's pending", "pending inbox", "what am I forgetting", "où j'en suis partout"       | Run `node .riff/scripts/riff-pending.mjs` (works from any RIFF project; the same file lives at the framework root). Format the sorted cross-project list of finishers, unreviewed decisions, and parked branches; offer to open artifacts or resolve finishers. |
 | "finisher F{N} ok, merge it", "resolve finisher F{N}", "reject finisher F{N}"           | Read the run's `finishers.yaml` + the finisher's artifact, apply the human verdict (merge the parked branch / discard), flip `status: resolved`. See `protocols/AUTONOMY.md` § Finishers. |
+| "stop the loop", "arrête la boucle", "stop the autonomous loop"                          | `touch .planning/autonomy/STOP` — the loop finishes the in-flight run cleanly, then stops. See `protocols/AUTONOMY.md` § Loop mode. |
 
 Discoverable via this section. Do not invent commands the user did not invoke.
 

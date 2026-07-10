@@ -26,6 +26,7 @@ Group wave-eligible phases into a wave run. The session frontier model plans, th
 | `/riff:wave --scratch` | Run the wave with security gates downgraded to warnings. See § Scratch mode below |
 | `/riff:wave --executor sonnet\|codex` | Override the wave executor for this wave. Combinable with the other modes |
 | `/riff:wave --autonomous` | Autonomous session: all decisions front-loaded at launch, zero questions during build, batched end verification, park + finisher instead of stopping. Lifecycle: [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md). Combinable with `--executor` |
+| `/riff:wave --autonomous --loop [--max-runs N]` | Chain autonomous runs Ralph-style until roadmap dry / 2 zero-merge runs / max-runs / `.planning/autonomy/STOP`. See `protocols/AUTONOMY.md` § Loop mode |
 
 ## Step 1: Eligibility scan
 

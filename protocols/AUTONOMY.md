@@ -2,7 +2,7 @@
 
 One approval, then hours of unattended build. Every decision is front-loaded into the launch window; the build has zero open questions by construction. Human-facing verification is batched at the end into one report. Anything security-critical, money-touching, or regulated builds on a branch and is never merged unattended.
 
-Launch surface: `/riff:next --autonomous` (single phase) or `/riff:wave --autonomous [phases]` (bundle). Both reuse the standard pipeline; this protocol only changes what happens at interaction points, at merge time, and after the last phase.
+Launch surface: `/riff:next --autonomous` (single phase) or `/riff:wave --autonomous [phases]` (bundle). Both reuse the standard pipeline; this protocol only changes what happens at interaction points, at merge time, and after the last phase. Add `--loop` to chain runs Ralph-style until a stop criterion fires (see Loop mode below).
 
 ## Run directory
 
@@ -145,6 +145,24 @@ Cross-project inbox: `node .riff/scripts/riff-pending.mjs` (the same file lives 
 - `hold` phases: PR opened, branch left unmerged, finisher written. No exception, no override flag.
 - `safe` phases: when every required gate in GATES.md passes (`gates-check.mjs --finalize` clean, scope-check MATCH, security PASS or PASS-WITH-WARNINGS, smoke pass/warn), auto-merge using the `local_no_ff` mechanics of `protocols/PR-CREATION.md` § 8c — Update state after merge, without waiting for a verbal cue, regardless of the profile's `git.merge_strategy`. Record the merge SHA in SUMMARY.md as usual.
 - Any gate short of that bar → the phase parks instead. PASS-WITH-WARNINGS security verdicts auto-merge but their warnings are listed in REPORT.md.
+
+## Loop mode
+
+`--loop` on top of `--autonomous` chains runs back-to-back, Ralph-Wiggum style, without re-asking anything between runs. Flags: `/riff:wave --autonomous --loop [--max-runs N]`, same on `/riff:next`.
+
+What changes vs a single autonomous run:
+
+- **Front-load covers the whole loop.** At launch, run the confidence gate + classification (`safe | hold`) + assumption questions for EVERY `todo` phase the loop may reach (not just the first bundle). One approval covers the entire loop session. Detailed PLAN.md files are still written just-in-time per run — planning is non-interactive by then, and any residual assumption becomes a DECISIONS entry, never a question. Phases created after launch (new seeds, `/riff:add-phase`) are NOT in scope; they wait for the next session.
+- **Between runs** (after each REPORT.md): re-run Step 0 sync per the Conversion table, re-check the usage guard, check the stop criteria below, then start the next run (fresh run-id, fresh run directory). Prefer fresh context per run: at each run boundary, apply `protocols/HANDOFF.md` — checkpoint STATE.md and restart clean rather than dragging a bloated session into the next run.
+- **Loop state** lives in `.planning/autonomy/loop.json`: `{ "started": ..., "status": "running | stopped", "stop_reason": ..., "runs_completed": N, "max_runs": N|null, "consecutive_zero_merge_runs": N }`. Updated between runs; a fresh session resuming the loop reads it (same resume contract as run.json).
+
+**Stop criteria** — the loop ends when the FIRST of these fires, always ending with a final consolidated report (one REPORT.md per run + a one-screen loop summary):
+
+1. **Roadmap dry:** no eligible `todo` phase remains (parked phases don't count as eligible — they wait for finishers).
+2. **Failure brake:** 2 consecutive runs merged zero phases (everything parked or failed). The wall is human-shaped; more runs only burn quota.
+3. **`--max-runs N` reached** (default: unlimited — criteria 1 and 2 are the real brakes).
+4. **Kill switch:** `.planning/autonomy/STOP` file exists. She can `touch .planning/autonomy/STOP` from any terminal, or say "stop the loop" in any session — the loop checks between runs, finishes the in-flight run cleanly, never kills mid-phase. Delete the file to re-arm.
+5. **Quota is NOT a stop:** the usage guard schedules a wakeup and the loop resumes when the window clears (same mechanics as a single run).
 
 ## Resume
 

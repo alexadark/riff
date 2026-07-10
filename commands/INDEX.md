@@ -64,6 +64,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - **Build the next thing on the roadmap** → `/riff:next`
 - **Walk away and let it run** → `/riff:wave` (Codex executes the bundle while you're away)
 - **Launch an hours-long unattended session (one approval, zero questions, one report)** → `/riff:wave --autonomous` (or `/riff:next --autonomous` for a single phase). Lifecycle: `protocols/AUTONOMY.md`
+- **Let it chain runs until the roadmap is done (Ralph loop with brakes)** → `/riff:wave --autonomous --loop [--max-runs N]`. Stop anytime: say "stop the loop" or `touch .planning/autonomy/STOP`
 - **See everything waiting on me across ALL my apps** → ask Claude "what's pending" (runs `.riff/scripts/riff-pending.mjs`)
 - **Group N parallel phases into one Codex wave run** → `/riff:wave` (and `--resume W{N}` when Codex finishes)
 - **Delegate one risky/slow phase to Codex** → `/riff:wave --solo P{N}`
