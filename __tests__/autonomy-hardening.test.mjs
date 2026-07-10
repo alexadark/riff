@@ -101,6 +101,46 @@ describe('finisher-guard', () => {
     expect(checkBranch(projectRoot, 'riff/phase-9-emails').allowed).toBe(true);
   });
 
+  it('fails closed on an unreadable finishers DIRECTORY too', () => {
+    const dir = path.join(projectRoot, '.planning/autonomy/2026-07-10-1200/finishers');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'F-1-x-security.yaml'), 'run: r\nfinishers:\n  - id: F-1-x-security\n    status: resolved\n');
+    chmodSync(dir, 0o000);
+    try {
+      const verdict = checkBranch(projectRoot, 'riff/phase-whatever');
+      expect(verdict.allowed).toBe(false);
+      expect(verdict.unreadable.length).toBeGreaterThan(0);
+    } finally {
+      chmodSync(dir, 0o755);
+    }
+  });
+
+  it('a pending security/payment marker that LOST its branch blocks every branch', () => {
+    writeLedger('2026-07-10-1200', [
+      'run: 2026-07-10-1200',
+      'finishers:',
+      '  - id: F-9-pay-payment',
+      '    type: payment',
+      '    phase: 9-pay',
+      '    status: pending',
+      '',
+    ].join('\n'));
+    const verdict = checkBranch(projectRoot, 'riff/phase-anything');
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.branchless).toHaveLength(1);
+    // a branchless decision finisher is legitimately non-blocking
+    writeLedger('2026-07-10-1201', [
+      'run: 2026-07-10-1201',
+      'finishers:',
+      '  - id: F-0-none-decision',
+      '    type: decision',
+      '    status: pending',
+      '',
+    ].join('\n'));
+    rmSync(path.join(projectRoot, '.planning/autonomy/2026-07-10-1200'), { recursive: true, force: true });
+    expect(checkBranch(projectRoot, 'riff/phase-anything').allowed).toBe(true);
+  });
+
   it('fails closed on an UNREADABLE marker file: every branch is blocked', () => {
     const dir = path.join(projectRoot, '.planning/autonomy/2026-07-10-1200/finishers');
     mkdirSync(dir, { recursive: true });
@@ -367,6 +407,52 @@ describe('lock concurrency', () => {
     expect(exitCode).toBe(5);
   });
 
+  it('acquire without a run token is refused (an anonymous lock cannot be fenced)', async () => {
+    expect(acquireLock(projectRoot, {}).acquired).toBe(false);
+    expect(acquireLock(projectRoot, {}).reason).toBe('run-id-required');
+    expect(existsSync(lockDir())).toBe(false);
+    // CLI: missing --run fails; `--run --loop` must not swallow --loop as the id
+    const bare = await stateCliAsync(['lock', 'acquire']);
+    expect(bare.code).not.toBe(0);
+    const swallowed = await stateCliAsync(['lock', 'acquire', '--run', '--loop']);
+    expect(swallowed.code).not.toBe(0);
+    expect(existsSync(lockDir())).toBe(false);
+  });
+
+  it('release refuses an ownerless/corrupt lock without an explicit force', async () => {
+    const { releaseLock } = await import('../scripts/autonomy-state.mjs');
+    mkdirSync(lockDir(), { recursive: true });
+    writeFileSync(ownerFile(), '{ not json');
+    const refused = releaseLock(projectRoot, { runId: 'run-X' });
+    expect(refused.released).toBe(false);
+    expect(refused.reason).toBe('owner-unreadable');
+    expect(existsSync(lockDir())).toBe(true);
+    expect(releaseLock(projectRoot, { force: true }).released).toBe(true);
+    expect(existsSync(lockDir())).toBe(false);
+  });
+
+  it('release fences the legacy lock.json by its recorded run id', async () => {
+    const { releaseLock } = await import('../scripts/autonomy-state.mjs');
+    const legacy = path.join(projectRoot, '.planning/autonomy/lock.json');
+    mkdirSync(path.dirname(legacy), { recursive: true });
+    writeFileSync(legacy, `${JSON.stringify({ pid: process.pid, run: 'legacy-run' })}\n`);
+    const refused = releaseLock(projectRoot, { runId: 'someone-else' });
+    expect(refused.released).toBe(false);
+    expect(refused.reason).toBe('legacy-held');
+    expect(existsSync(legacy)).toBe(true);
+    expect(releaseLock(projectRoot, { runId: 'legacy-run' }).released).toBe(true);
+    expect(existsSync(legacy)).toBe(false);
+  });
+
+  it('day-old reclaim/release graveyards are swept at acquire', () => {
+    const debris = path.join(projectRoot, '.planning/autonomy/lock.reclaimed-123-456');
+    mkdirSync(debris, { recursive: true });
+    const past = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    utimesSync(debris, past, past);
+    expect(acquireLock(projectRoot, { runId: 'run-D' }).acquired).toBe(true);
+    expect(existsSync(debris)).toBe(false);
+  });
+
   it('release is fenced: another run cannot delete the lock on its way out', async () => {
     const { releaseLock } = await import('../scripts/autonomy-state.mjs');
     expect(acquireLock(projectRoot, { runId: 'run-CURRENT' }).acquired).toBe(true);
@@ -463,6 +549,26 @@ describe('loop resume reconciliation', () => {
     expect(launch.action).toBe('halt-ambiguous');
     expect(launch.candidates).toEqual(['2026-07-10-0600', '2026-07-10-0700']);
   });
+
+  it('a completed current_run never hides a live run: the live one is resumed', () => {
+    seedRunDir('2026-07-10-0410', { run: '2026-07-10-0410', stage: 'done', phases: [] });
+    seedRunDir('2026-07-10-0420', { run: '2026-07-10-0420', stage: 'build', phases: [] });
+    writeLoopJson(projectRoot, { status: 'running', current_run: '2026-07-10-0410', runs_completed: 1 });
+    const launch = resolveLaunch(projectRoot);
+    expect(launch.action).toBe('resume');
+    expect(launch.runId).toBe('2026-07-10-0420');
+    expect(launch.completedRun).toBe('2026-07-10-0410'); // still reported for counting
+  });
+
+  it('CONCURRENCY: parallel complete-runs all count (loop.json mutex)', async () => {
+    writeLoopJson(projectRoot, { status: 'running', runs_completed: 0 });
+    const runs = Array.from({ length: 10 }, (_, index) => `run-${index}`);
+    const results = await Promise.all(runs.map((id) => stateCliAsync(['loop', 'complete-run', '--run', id])));
+    expect(results.every((result) => result.code === 0)).toBe(true);
+    const loopState = readLoopJson(projectRoot);
+    expect(loopState.runs_completed).toBe(10);
+    expect([...loopState.completed_runs].sort()).toEqual([...runs].sort());
+  }, 30000);
 
   it('runs_completed stays exact when an OLD completion is replayed out of order', async () => {
     const { recordRunCompleted } = await import('../scripts/autonomy-state.mjs');
@@ -571,5 +677,19 @@ describe('autonomy boundary classification', () => {
       expect(classifyPhase({ tags: [tag] }).autonomy, tag).toBe('hold');
     }
     expect(classifyPhase({ tags: ['frontend', 'polish'] }).autonomy).toBe('safe');
+  });
+
+  it('access-control and compliance-framework phrasing classifies as hold', () => {
+    for (const text of [
+      'RBAC roles and permissions screen',
+      'SOC 2 evidence collection page',
+      'HIPAA-compliant document storage',
+      'Encrypt exported reports at rest',
+      'Data portability request flow',
+      'Pricing page revamp',
+      'ISO 27001 asset register',
+    ]) {
+      expect(classifyPhase({ text }).autonomy, text).toBe('hold');
+    }
   });
 });

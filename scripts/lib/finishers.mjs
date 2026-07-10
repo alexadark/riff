@@ -110,15 +110,27 @@ export function serializeFinishers({ run, entries }) {
  * legacy single-ledger `finishers.yaml` files (read-only back-compat).
  */
 export function listFinisherFiles(projectRoot) {
+  return walkFinisherFiles(projectRoot).files;
+}
+
+/**
+ * Walk that also reports unreadable DIRECTORIES: a directory that exists but
+ * cannot be listed may hide marker files, so consumers must fail closed on it
+ * exactly like an unreadable marker file. A missing root is fine (no
+ * autonomy state yet) — only errors on things that exist are reported.
+ */
+function walkFinisherFiles(projectRoot) {
   const root = path.join(projectRoot, '.planning/autonomy');
-  const results = [];
-  if (!existsSync(root)) return results;
+  const files = [];
+  const errors = [];
+  if (!existsSync(root)) return { files, errors };
 
   function walk(current) {
     let dirEntries;
     try {
       dirEntries = readdirSync(current, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      errors.push({ file: current, reason: error.message });
       return;
     }
     const inFinishersDir = path.basename(current) === 'finishers';
@@ -128,13 +140,14 @@ export function listFinisherFiles(projectRoot) {
         walk(child);
       } else if (entry.isFile()
         && (entry.name === 'finishers.yaml' || (inFinishersDir && entry.name.endsWith('.yaml')))) {
-        results.push(child);
+        files.push(child);
       }
     }
   }
 
   walk(root);
-  return results.sort();
+  files.sort();
+  return { files, errors };
 }
 
 /**
@@ -147,8 +160,9 @@ export function listFinisherFiles(projectRoot) {
 export function collectPendingFinishers(projectRoot) {
   const pending = [];
   const malformed = [];
-  const unreadable = [];
-  for (const file of listFinisherFiles(projectRoot)) {
+  const walked = walkFinisherFiles(projectRoot);
+  const unreadable = [...walked.errors];
+  for (const file of walked.files) {
     let text;
     try {
       text = readFileSync(file, 'utf8');

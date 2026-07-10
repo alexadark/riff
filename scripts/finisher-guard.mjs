@@ -19,18 +19,28 @@ import { collectPendingFinishers } from './lib/finishers.mjs';
  * An UNREADABLE marker file blocks EVERY branch: it could reference any of
  * them, and a permission error must never silently open a merge path.
  */
+// Finisher types whose pending entries ARE no-merge markers. A pending entry
+// of one of these types that has LOST its branch field could reference any
+// branch — it blocks all of them (fail closed). decision/review/ux finishers
+// without a branch are legitimately branchless (deferred audits, decisions)
+// and block nothing.
+const BRANCH_MARKER_TYPES = new Set(['security', 'payment', 'branch']);
+
 export function findBlockingFinishers(projectRoot, branch) {
   const { pending, malformed, unreadable = [] } = collectPendingFinishers(projectRoot);
   const blockers = pending.filter((entry) => entry.branch === branch);
+  const branchless = pending.filter((entry) => !entry.branch && BRANCH_MARKER_TYPES.has(entry.type));
   const suspectMalformed = malformed.filter((bad) => bad.entry?.branch === branch);
-  return { blockers, suspectMalformed, unreadable };
+  return { blockers, branchless, suspectMalformed, unreadable };
 }
 
 export function checkBranch(projectRoot, branch) {
-  const { blockers, suspectMalformed, unreadable } = findBlockingFinishers(projectRoot, branch);
+  const { blockers, branchless, suspectMalformed, unreadable } = findBlockingFinishers(projectRoot, branch);
   return {
-    allowed: blockers.length === 0 && suspectMalformed.length === 0 && unreadable.length === 0,
+    allowed: blockers.length === 0 && branchless.length === 0
+      && suspectMalformed.length === 0 && unreadable.length === 0,
     blockers,
+    branchless,
     suspectMalformed,
     unreadable,
   };
@@ -64,13 +74,18 @@ function main() {
     process.exit(1);
   }
 
-  const { allowed, blockers, suspectMalformed, unreadable } = checkBranch(projectRoot, branch);
+  const { allowed, blockers, branchless, suspectMalformed, unreadable } = checkBranch(projectRoot, branch);
   if (allowed) {
     process.stdout.write(`finisher-guard: ${branch} clear to merge\n`);
     process.exit(0);
   }
-
   process.stdout.write(`finisher-guard: MERGE REFUSED for ${branch}\n`);
+  for (const finisher of branchless) {
+    process.stdout.write(
+      `  blocked by ${finisher.id} (${finisher.type}) which has NO branch recorded`
+      + ' — it could reference any branch; restore its branch field or resolve it\n',
+    );
+  }
   for (const finisher of blockers) {
     process.stdout.write(
       `  blocked by ${finisher.id} (${finisher.type || 'unknown'}, run ${finisher.run || '?'})`

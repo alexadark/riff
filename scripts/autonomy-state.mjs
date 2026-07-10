@@ -118,21 +118,25 @@ function sleepMs(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-const RUN_JSON_MUTEX_STALE_MS = 30 * 1000;
+// Mutex holders do millisecond-scale JSON read-modify-writes; a holder silent
+// for 15s is dead. The acquisition deadline must comfortably EXCEED the stale
+// window — otherwise a waiter gives up (and proceeds unlocked) before it ever
+// gets the chance to sweep a dead holder aside.
+const FILE_MUTEX_STALE_MS = 15 * 1000;
+const FILE_MUTEX_DEADLINE_MS = 120 * 1000;
 
 /**
- * Serialize run.json read-modify-write across processes: without this,
- * concurrent status flips (parallel wave phases) clobber each other — the
- * last writer's stale snapshot wins and earlier transitions vanish. mkdir is
- * the mutex (atomic + exclusive); a holder dead for 30s is swept aside by
- * rename (single winner, same CAS shape as the launch lock). If the mutex
- * cannot be taken within the deadline we proceed UNLOCKED rather than lose
- * the write — the disk must reflect reality; the verify-retry in callers is
- * the backstop.
+ * Serialize a JSON file's read-modify-write across processes: without this,
+ * concurrent writers (parallel wave phases, racing complete-runs) clobber
+ * each other — the last writer's stale snapshot wins and earlier updates
+ * vanish. mkdir is the mutex (atomic + exclusive); a dead holder is swept
+ * aside by rename (single winner, same CAS shape as the launch lock). If the
+ * mutex cannot be taken within the deadline we proceed UNLOCKED with a loud
+ * warning rather than lose the write — the disk must reflect reality.
  */
-function withRunJsonLock(runDir, fn) {
-  const mutex = path.join(runDir, '.run.json.lock');
-  const deadline = Date.now() + 10 * 1000;
+function withFileMutex(dir, name, fn) {
+  const mutex = path.join(dir, name);
+  const deadline = Date.now() + FILE_MUTEX_DEADLINE_MS;
   let held = false;
   while (Date.now() < deadline) {
     try {
@@ -140,14 +144,14 @@ function withRunJsonLock(runDir, fn) {
       held = true;
       break;
     } catch (error) {
-      if (error.code !== 'EEXIST') break; // runDir gone or worse — run fn anyway
+      if (error.code !== 'EEXIST') break; // dir gone or worse — run fn anyway
       let mtimeMs = 0;
       try {
         mtimeMs = statSync(mutex).mtimeMs;
       } catch {
         continue; // vanished between mkdir and stat — retry immediately
       }
-      if (Date.now() - mtimeMs > RUN_JSON_MUTEX_STALE_MS) {
+      if (Date.now() - mtimeMs > FILE_MUTEX_STALE_MS) {
         const aside = `${mutex}.stale-${process.pid}-${Date.now()}`;
         try {
           renameSync(mutex, aside);
@@ -157,14 +161,25 @@ function withRunJsonLock(runDir, fn) {
         }
         continue;
       }
-      sleepMs(20);
+      sleepMs(25);
     }
+  }
+  if (!held) {
+    process.stderr.write(`warn: file mutex ${mutex} not acquired within ${FILE_MUTEX_DEADLINE_MS / 1000}s — writing unlocked\n`);
   }
   try {
     return fn();
   } finally {
     if (held) rmSync(mutex, { recursive: true, force: true });
   }
+}
+
+function withRunJsonLock(runDir, fn) {
+  return withFileMutex(runDir, '.run.json.lock', fn);
+}
+
+function withLoopJsonLock(projectRoot, fn) {
+  return withFileMutex(path.join(projectRoot, '.planning/autonomy'), '.loop.json.lock', fn);
 }
 
 /**
@@ -294,6 +309,34 @@ function pidAlive(pid) {
   }
 }
 
+/**
+ * Remove day-old reclaim/release graveyards. A graveyard younger than that
+ * may still be evidence of an in-flight CAS (or of a lock that changed hands
+ * mid-rename and should be inspected) — never sweep those.
+ */
+function sweepLockDebris(projectRoot) {
+  const root = path.join(projectRoot, '.planning/autonomy');
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (!/^lock\.(reclaimed|released)-/.test(entry.name)) continue;
+    const debris = path.join(root, entry.name);
+    try {
+      if (Date.now() - statSync(debris).mtimeMs > DAY_MS) {
+        rmSync(debris, { recursive: true, force: true });
+      }
+    } catch {
+      // already gone or unreadable — leave it
+    }
+  }
+}
+
 export function lockStatus(projectRoot) {
   const dir = lockDir(projectRoot);
   // pre-redesign single-file lock: still honored so an upgrade mid-run can
@@ -345,8 +388,14 @@ export function lockStatus(projectRoot) {
  * relaunches can never both think they own it.
  */
 export function acquireLock(projectRoot, { runId, loop = false } = {}) {
+  // No token, no lock: an anonymous lock cannot be fenced — release,
+  // heartbeat verification, and reclaim CAS all key on the run token.
+  if (!runId || typeof runId !== 'string') {
+    return { acquired: false, reason: 'run-id-required' };
+  }
   mkdirSync(path.join(projectRoot, '.planning/autonomy'), { recursive: true });
   const dir = lockDir(projectRoot);
+  sweepLockDebris(projectRoot);
 
   const tryMkdir = () => {
     try {
@@ -365,7 +414,8 @@ export function acquireLock(projectRoot, { runId, loop = false } = {}) {
   };
 
   // one-time migration: a legacy lock.json is honored while live, removed
-  // when provably dead (safe: acquisition still funnels through mkdir)
+  // when provably dead (safe: two concurrent migrators can both unlink, but
+  // acquisition still funnels through mkdir — exactly one wins)
   if (!existsSync(dir) && existsSync(legacyLockFile(projectRoot))) {
     const legacyStatus = lockStatus(projectRoot);
     if (legacyStatus.held && !legacyStatus.stale) {
@@ -373,6 +423,7 @@ export function acquireLock(projectRoot, { runId, loop = false } = {}) {
     }
     try {
       unlinkSync(legacyLockFile(projectRoot));
+      fsyncDir(path.dirname(legacyLockFile(projectRoot)));
     } catch {
       // someone else migrated first
     }
@@ -414,6 +465,7 @@ export function acquireLock(projectRoot, { runId, loop = false } = {}) {
   if (!sameOwner || movedFresh) {
     try {
       renameSync(graveyard, dir);
+      fsyncDir(path.dirname(dir));
     } catch {
       // a fresh lock claimed the name meanwhile; keep the graveyard as evidence
     }
@@ -461,20 +513,43 @@ export function touchLock(projectRoot, { runId } = {}) {
  * explicit human cleanup only.
  */
 export function releaseLock(projectRoot, { runId, force = false } = {}) {
-  try {
-    unlinkSync(legacyLockFile(projectRoot));
-  } catch {
-    // already gone
+  // Legacy single-file lock is fenced too: it records its run id, so only its
+  // own run (or an explicit force, or proven staleness) may remove it.
+  const legacy = legacyLockFile(projectRoot);
+  if (existsSync(legacy)) {
+    const data = readJson(legacy);
+    const legacyRun = data?.run || null;
+    let stale = true;
+    try {
+      stale = !pidAlive(data?.pid) && Date.now() - statSync(legacy).mtimeMs > LOCK_STALE_MS;
+    } catch {
+      stale = true;
+    }
+    if (force || stale || (runId && legacyRun === runId)) {
+      try {
+        unlinkSync(legacy);
+        fsyncDir(path.dirname(legacy));
+      } catch {
+        // already gone
+      }
+    } else if (!existsSync(lockDir(projectRoot))) {
+      return { released: false, reason: 'legacy-held', holder: data };
+    }
   }
 
   const dir = lockDir(projectRoot);
   if (!existsSync(dir)) return { released: true, reason: 'not-held' };
 
   const owner = readJson(path.join(dir, 'owner.json'));
-  if (!force && owner?.token && runId && owner.token !== runId) {
+  if (!force && !owner?.token) {
+    // fail closed: a lock whose owner cannot be read has no provable owner —
+    // only an explicit human --force may remove it
+    return { released: false, reason: 'owner-unreadable' };
+  }
+  if (!force && owner.token && runId && owner.token !== runId) {
     return { released: false, reason: 'token-mismatch', holder: owner };
   }
-  if (!force && owner?.token && !runId) {
+  if (!force && owner.token && !runId) {
     // fail closed: an owned lock needs its run id (or force) to be released
     return { released: false, reason: 'run-id-required', holder: owner };
   }
@@ -490,6 +565,7 @@ export function releaseLock(projectRoot, { runId, force = false } = {}) {
     // the lock changed hands between the check and the rename — put it back
     try {
       renameSync(graveyard, dir);
+      fsyncDir(path.dirname(dir));
     } catch {
       // a fresh lock claimed the name meanwhile; keep the graveyard as evidence
     }
@@ -582,11 +658,13 @@ function scanRunDirs(projectRoot) {
  * crash between the two leaves the authoritative record, not the hint.
  */
 export function startLoopRun(projectRoot, runId) {
-  const loopState = readLoopJson(projectRoot);
-  if (!loopState) return { ok: false, reason: 'no-loop' };
-  loopState.current_run = runId;
-  writeLoopJson(projectRoot, loopState);
-  return { ok: true };
+  return withLoopJsonLock(projectRoot, () => {
+    const loopState = readLoopJson(projectRoot);
+    if (!loopState) return { ok: false, reason: 'no-loop' };
+    loopState.current_run = runId;
+    writeLoopJson(projectRoot, loopState);
+    return { ok: true };
+  });
 }
 
 /**
@@ -595,22 +673,26 @@ export function startLoopRun(projectRoot, runId) {
  * same run (crash between REPORT.md and the next run, then resume) counts once.
  */
 export function recordRunCompleted(projectRoot, runId) {
-  const loopState = readLoopJson(projectRoot);
-  if (!loopState) return { counted: false, reason: 'no-loop' };
-  // full history, not just the previous run: replaying ANY old completion
-  // (out-of-order resume) must never count twice
-  const completed = Array.isArray(loopState.completed_runs)
-    ? loopState.completed_runs
-    : (loopState.last_completed_run ? [loopState.last_completed_run] : []);
-  if (completed.includes(runId)) {
-    return { counted: false, reason: 'already-counted', runs_completed: loopState.runs_completed };
-  }
-  loopState.runs_completed = (loopState.runs_completed || 0) + 1;
-  loopState.completed_runs = [...completed, runId];
-  loopState.last_completed_run = runId;
-  if (loopState.current_run === runId) loopState.current_run = null;
-  writeLoopJson(projectRoot, loopState);
-  return { counted: true, runs_completed: loopState.runs_completed };
+  // under the loop.json mutex: concurrent completions are a read-modify-write
+  // race that would drop entries from the history and lose counts
+  return withLoopJsonLock(projectRoot, () => {
+    const loopState = readLoopJson(projectRoot);
+    if (!loopState) return { counted: false, reason: 'no-loop' };
+    // full history, not just the previous run: replaying ANY old completion
+    // (out-of-order resume) must never count twice
+    const completed = Array.isArray(loopState.completed_runs)
+      ? loopState.completed_runs
+      : (loopState.last_completed_run ? [loopState.last_completed_run] : []);
+    if (completed.includes(runId)) {
+      return { counted: false, reason: 'already-counted', runs_completed: loopState.runs_completed };
+    }
+    loopState.runs_completed = (loopState.runs_completed || 0) + 1;
+    loopState.completed_runs = [...completed, runId];
+    loopState.last_completed_run = runId;
+    if (loopState.current_run === runId) loopState.current_run = null;
+    writeLoopJson(projectRoot, loopState);
+    return { counted: true, runs_completed: loopState.runs_completed };
+  });
 }
 
 /**
@@ -641,35 +723,41 @@ export function resolveLaunch(projectRoot) {
     if (loopState.current_run) candidates.push(loopState.current_run);
     if (pointer.runId && !candidates.includes(pointer.runId)) candidates.push(pointer.runId);
 
+    // a completed current_run is remembered, NOT returned early: another
+    // non-terminal run may still exist on disk and must be found first —
+    // starting a fresh run beside a live one is the failure mode
+    let completedRun;
     for (const runId of candidates) {
       const runDir = path.join(projectRoot, '.planning/autonomy', runId);
       const run = readRunJson(runDir);
       if (run && run.stage && run.stage !== 'done') {
-        return { action: 'resume', runId, loop: true, run };
+        return { action: 'resume', runId, loop: true, run, completedRun };
       }
       if (run && run.stage === 'done') {
-        // crashed between REPORT.md and the next run start
-        return { action: 'continue-loop', loop: true, completedRun: runId };
+        // crashed between REPORT.md and the next run start — count it
+        // (recordRunCompleted is idempotent) before starting the next run
+        completedRun = completedRun || runId;
+        continue;
       }
       if (existsSync(runDir)) {
         // dir exists, run.json missing or corrupt: same-id fresh restart
-        return { action: 'restart-run', runId, loop: true };
+        return { action: 'restart-run', runId, loop: true, completedRun };
       }
       // no run dir at all: a stale/mismatched id — never restart it blind
     }
 
     const scanned = scanRunDirs(projectRoot);
     if (scanned.length === 1) {
-      return { action: 'resume', runId: scanned[0].runId, loop: true, run: scanned[0].run };
+      return { action: 'resume', runId: scanned[0].runId, loop: true, run: scanned[0].run, completedRun };
     }
     if (scanned.length > 1) {
       // several unfinished runs and no authoritative record: starting MORE
       // work on top would compound the mess. Halt: park the loop with a
       // review finisher naming the candidates; a human untangles it.
-      return { action: 'halt-ambiguous', loop: true, candidates: scanned.map((entry) => entry.runId) };
+      return { action: 'halt-ambiguous', loop: true, candidates: scanned.map((entry) => entry.runId), completedRun };
     }
     // zero non-terminal runs: cleanly between runs — start the next one
-    return { action: 'continue-loop', loop: true };
+    return { action: 'continue-loop', loop: true, completedRun };
   }
 
   if (pointer.runId) {
@@ -707,7 +795,9 @@ export const SENSITIVE_PATTERNS = [
   // auth surface
   /\bauth\b|authenticat|authoriz|oauth|\bsso\b|\bsaml\b|\bsession(s)?\b|password|passkey|\bmfa\b|\b2fa\b|magic[-_ ]?link|api[-_ ]?key|\bsecret(s)?\b|\btoken(s)?\b/i,
   // money surface
-  /payment|payout|billing|checkout|invoic|refund|chargeback|subscription|entitlement|\bcredits?\b|\bwallet\b|pricing[-_ ]?plan|\btax\b|\bvat\b/i,
+  /payment|payout|billing|checkout|invoic|refund|chargeback|subscription|entitlement|\bcredits?\b|\bwallet\b|\bpricing\b|\btax\b|\bvat\b/i,
+  // access-control / compliance-framework surface
+  /\brbac\b|\bacl(s)?\b|role[-_ ]?based|access[-_ ]?control|\bsoc[-_ ]?2\b|\bhipaa\b|\bpci(?:[-_ ]?dss)?\b|\biso[-_ ]?27001\b|encrypt|data[-_ ]?portability/i,
   // payment providers
   /stripe|paddle|lemon[-_ ]?squeezy|braintree|paypal|chargebee|recurly|adyen|mollie|razorpay|square(?:up)?\b/i,
   // privacy / regulated surface
@@ -760,8 +850,15 @@ function parseFlags(argv) {
     if (arg === '--loop' || arg === '--force') {
       flags[arg.slice(2)] = true;
     } else if (arg.startsWith('--')) {
-      flags[arg.slice(2).replaceAll('-', '_')] = argv[index + 1];
-      index += 1;
+      const value = argv[index + 1];
+      // a flag given no value must NOT swallow the next flag as its value
+      // (`--run --loop` would silently make the run id "--loop")
+      if (value === undefined || String(value).startsWith('--')) {
+        flags[arg.slice(2).replaceAll('-', '_')] = undefined;
+      } else {
+        flags[arg.slice(2).replaceAll('-', '_')] = value;
+        index += 1;
+      }
     } else {
       flags._.push(arg);
     }
@@ -822,6 +919,7 @@ function cli() {
     case 'lock': {
       const action = flags._[0];
       if (action === 'acquire') {
+        if (!flags.run) fail('lock acquire requires --run <run-id> (the lock is fenced by its run token)');
         const result = acquireLock(projectRoot, { runId: flags.run, loop: Boolean(flags.loop) });
         process.stdout.write(`${JSON.stringify(result)}\n`);
         process.exit(result.acquired ? 0 : 4); // 4 = held by a live owner: RESUME, do not relaunch

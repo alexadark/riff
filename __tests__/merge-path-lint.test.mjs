@@ -40,6 +40,16 @@ describe('merge-path lint: every merge path calls the finisher guard', () => {
     expect(section(text, '### Step 6.2')).toContain('finisher-guard.mjs');
   });
 
+  it('commands/wave.md § Step 6.2 snippet skips the phase on refusal instead of falling through', () => {
+    // an `|| { echo; }` handler converts the guard's refusal into exit 0 and
+    // a literal-minded agent continues to the done-transition
+    const text = readFileSync(path.join(repoRoot, 'commands/wave.md'), 'utf8');
+    const step = section(text, '### Step 6.2');
+    const snippet = step.split('finisher-guard.mjs')[1]?.split('```')[0] || '';
+    expect(snippet).toContain('continue');
+    expect(snippet).not.toMatch(/\|\|\s*\{\s*echo[^}]*\}\s*$/m);
+  });
+
   it('protocols/PR-CREATION.md § 8b dispatcher cites the guard', () => {
     const text = readFileSync(path.join(repoRoot, 'protocols/PR-CREATION.md'), 'utf8');
     expect(section(text, '## 8b')).toContain('finisher-guard.mjs');

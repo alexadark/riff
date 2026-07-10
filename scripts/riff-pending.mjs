@@ -403,8 +403,16 @@ function outputTarget(item) {
 }
 
 function textOutput(options) {
+  // warnings first: "inbox clean" under a buried unreadable-marker warning
+  // reads as all-good when merges are actually blocked
+  for (const warning of warnings) {
+    process.stdout.write(`warn: ${warning}\n`);
+  }
+
   if (items.length === 0) {
-    process.stdout.write('riff pending: inbox clean\n');
+    process.stdout.write(warnings.length === 0
+      ? 'riff pending: inbox clean\n'
+      : `riff pending: no pending items, but ${warnings.length} warning(s) above need attention\n`);
   } else {
     const projectCount = new Set(items.map((item) => item.projectPath)).size;
     process.stdout.write(`riff pending: ${items.length} item(s) across ${projectCount} project(s)\n`);
@@ -422,10 +430,6 @@ function textOutput(options) {
     for (const row of rows) {
       process.stdout.write(`${row.project.padEnd(projectWidth)}  ${row.type.padEnd(typeWidth)}  ${row.waiting.padEnd(waitingWidth)}  -> ${row.target}\n`);
     }
-  }
-
-  for (const warning of warnings) {
-    process.stdout.write(`warn: ${warning}\n`);
   }
 
   if (options.branches && branchItems.length > 0) {
