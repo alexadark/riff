@@ -28,9 +28,11 @@ Merged from SECURITY.md, REVIEW.md, stress static pass, uxtest run, browser veri
 
 ## Finishers awaiting you
 
-One line per pending entry in `finishers.yaml`, sorted security > payment > branch > ux > review > decision:
+One block per pending entry in `finishers.yaml`, sorted security > payment > branch > ux > review > decision. Plain language, no security/GDPR jargon — the human judges the recommendation (or the design), never the domain itself (`protocols/AUTONOMY.md` § Finishers):
 
 - **{{F1}}** [{{type}}] {{waiting_on}} → `{{artifact}}` (branch `{{branch}}`)
+  Machine checks: {{one line — "security review PASS, adversarial PROCEED, all gates green" or "security review found 1 HIGH: <plain-language what/why>"}}
+  → Recommended: {{"all green — safe to say: finisher F1 ok, merge it" | "hold — <fix queued / needs an outside expert / look at the screenshots>"}}
 
 Resolve conversationally: "finisher F1 ok, merge it" / "reject F1". Cross-project view anytime: `node .riff/scripts/riff-pending.mjs`.
 

@@ -57,6 +57,7 @@ The only interactive window. Everything a human might be asked during the run is
 1. Run `protocols/RECONCILE.md` § Step 0 — Sync main + reconcile stale bookkeeping, interactively (sync main, dirty tree, stale branches). A diverged main blocks the launch — never launch autonomous on a diverged main.
 2. Select the run scope: the phases for `/riff:wave` bundling, or the single next phase. Apply the standard wave eligibility rules, except `mode: HITL` phases are NOT excluded — HITL semantics are converted per § Conversion table.
 3. Confidence gate for every phase in scope. Collect ALL sub-0.7 dimensions and planner questions across all phases into ONE `AskUserQuestion` batch. No question survives past launch.
+   **Question domain rule:** the batch may only contain product, design, UX, and scope questions, phrased plainly (`references/EXPLANATION-LEVEL.md`). Security, privacy, GDPR, compliance, and payment-correctness questions are NEVER asked to the human — she does not operate in those domains, and a question she cannot evaluate blocks the launch for nothing. Instead: take the conservative default, log it in the run DECISIONS ledger, classify the phase `hold`, and let the machine verification at the end of the run produce the evidence (see the Batched verification and Finishers sections below).
 4. Classify every phase per § Autonomy boundary. Stamp `autonomy: safe | hold` into `run.json`.
 5. Plan all phases (standard Step 4 planning, plan adversarial review included per its gate). Plans must contain zero open questions; an assumption a plan still carries becomes a pre-seeded `DECISIONS.md` entry.
 6. Present one summary: phases, classifications, plans, baked-in defaults. One yes launches the run. After that yes: write `run.json` atomically, write the STATE.md pointer (`node .riff/scripts/autonomy-state.mjs pointer set --run <run-id> [--loop]`), and `AskUserQuestion` is forbidden until REPORT.md is delivered.
@@ -109,6 +110,19 @@ The helper writes the `finishers.yaml` no-merge marker FIRST (temp + fsync + ato
 - Truly global blockers (corrupted ROADMAP.yaml, unrecoverable git state) → park all non-terminal phases with one `review`-type finisher describing the halt, still produce REPORT.md for what completed, and notify per § Notifications.
 - Main diverged mid-run or on resume → same treatment: park all affected non-terminal phases, one `review` finisher describing the divergence, REPORT.md, notify. Never STOP-and-ask — encoded in the autonomous branch of `protocols/RECONCILE.md` § Step 0 — Sync main + reconcile stale bookkeeping.
 - R1–R4 apply unchanged. R3 (architecture change) in autonomous mode = park the phase, never improvise architecture.
+
+### Irreversibility rule
+
+Some actions are never taken autonomously, whatever the phase classification, because they cannot be undone by a `git revert`:
+
+- production deploys and production cutovers (DNS, domains, env promotion)
+- irreversible database migrations against non-local data (drops, destructive backfills)
+- real-money operations (live charges, refunds, payouts — sandbox is fine)
+- outbound communication to real users (emails, push, SMS)
+- bulk data deletion outside the repo
+- destructive git beyond the documented branch cleanup (force-push, history rewrite)
+
+Hitting one of these mid-run → park the phase with a finisher naming the exact pending action. In interactive sessions the same actions always get an explicit AskUserQuestion first. Everything else the run does (branches, commits, local merges, artifacts) is reversible by construction.
 
 ## Conversion table
 
@@ -182,7 +196,13 @@ Every parked phase, every deferred audit, every payment/UX verdict awaiting eyes
 
 That rule is enforced in code, not prose: every merge path (`protocols/PR-CREATION.md` § 8c, `commands/next.md` Step 8, `protocols/WAVE-RECONCILE.md`, and the Merge policy section below) runs `node .riff/scripts/finisher-guard.mjs <branch>` before merging and REFUSES on a non-zero exit — in autonomous AND normal sessions. A later manual "merge phase 12" is refused the same way while its finisher is pending.
 
-Resolution is always human-initiated: she reviews the artifact, then says so in conversation ("finisher F1 ok, merge it" / "reject F2"); the agent then merges or discards and flips `status: resolved`.
+Resolution is always human-initiated: she says so in conversation ("finisher F1 ok, merge it" / "reject F2"); the agent then merges or discards and flips `status: resolved`.
+
+**What she reviews depends on the finisher domain — never ask her to evaluate security, privacy, or payment correctness herself:**
+
+- `security` / `payment` / compliance-flavored `review` finishers: the machine produces the judgment (security-reviewer verdict, adversarial Codex, stress pass, GATES.md). REPORT.md translates that evidence into plain language and ends each finisher with ONE recommended action — "all machine checks green, safe to say: finisher F3 ok" or "real finding (<one-line what/why>), fix it before merging / needs an outside expert". Her glance is a go/no-go on the recommendation, not a domain evaluation.
+- `ux` finishers: her actual domain. Present the screenshots/flow evidence and let her judge the design directly.
+- A `hold` phase whose machine checks are ALL green still waits for her explicit ok before merging — the recommendation makes that ok a 10-second glance, but no sensitive branch ever merges without a human word.
 
 Cross-project inbox: `node .riff/scripts/riff-pending.mjs` (the same file lives at the framework root) sweeps every project registered in `profile.yaml` → `dashboard.projects` and prints one sorted list: pending finishers, unchecked DECISIONS entries, `needs_human_review` phases; unmerged `riff/*` branches are branch hygiene, shown only with `--branches`. Deterministic, exits 0, `--json` for piping.
 
