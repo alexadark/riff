@@ -52,3 +52,7 @@ Use `hooks/__tests__/run.sh` for the dual-payload hook fixtures. Even though Cod
 2. Add it to the appropriate `templates/settings*.json` file.
 3. Add or update a fixture in `hooks/__tests__/run.sh`.
 4. Document the bucket and behavior in `hooks/README.md`.
+
+## Known gaps
+
+- **Codex file mutations must use `apply_patch`.** The security hooks (idor, auth, input-validation, boundary) fire on `apply_patch` tool calls, not on `exec_command`. A Codex executor that writes files through shell redirection (`printf > file`, `cat <<EOF > file`, `sed -i`) bypasses these hooks and the security gate is silently disabled. Shell-based file writes are forbidden for this reason in `protocols/CODEX-DELEGATION.md` § Template A.

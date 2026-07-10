@@ -222,7 +222,9 @@ Maps to: `notifications.channel`. When the user picks `telegram`, ask two follow
 
 > Slack is intentionally not offered yet (workspace + incoming-webhook setup is more involved). Add it later if needed.
 
-**Telegram setup** (run this once before picking `channel: telegram`)
+#### Telegram setup
+
+Run this once before picking `channel: telegram`.
 
 1. Open Telegram, message [@BotFather](https://t.me/BotFather) and send `/newbot`. Pick a name + username. BotFather replies with a bot token like `123456:ABC-DEF...`.
 2. Open a chat with your new bot and send any message (this lets the bot see you).

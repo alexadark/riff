@@ -30,7 +30,7 @@ models:
 
 wave:
   reconcile_mode: <hooks | sonnet | both | off>  # default: both — see protocols/WAVE-RECONCILE.md § Modes
-  executor: <codex | sonnet>  # default: codex — see commands/wave.md § Executor resolution
+  executor: <codex | sonnet>  # default: codex — see commands/wave.md (Executor resolution)
   codex_exec:                  # codex sub-mode, applies when executor == codex
     run_mode: <codex-exec-in-session | paste>  # default: codex-exec-in-session (mode C).
                           # codex-exec-in-session: the session runs `codex exec` headless in the

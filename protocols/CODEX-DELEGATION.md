@@ -63,8 +63,8 @@ Execution rules:
   - File mutations: ALWAYS use `apply_patch` for create/modify/delete. Do NOT
     use shell redirections (`printf > file`, `cat <<EOF > file`, `sed -i`). The
     RIFF security hooks (idor, auth, input-validation, boundary) only fire on
-    `apply_patch`, not on `exec_command`. See .riff/protocols/HOOKS.md § "Known
-    gaps". If you bypass this, the security gate is silently disabled.
+    `apply_patch`, not on `exec_command`. See `.riff/protocols/HOOKS.md` § Known gaps.
+    If you bypass this, the security gate is silently disabled.
 
 Quality contract (non-negotiable, enforced in adversarial review):
 

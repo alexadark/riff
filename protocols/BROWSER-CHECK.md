@@ -114,7 +114,7 @@ For Codex specifically: it has a tendency to optimize the code path that already
 
 - `/riff:wave` Step 3 auto-enables this protocol per phase
 - `protocols/WAVE-BUNDLE.md` defines where the per-phase block lives in the bundle
-- `protocols/CODEX-DELEGATION.md` § Template A references this protocol from the Codex prompt
+- The Codex prompt references this protocol from `protocols/CODEX-DELEGATION.md` § Template A
 - `references/BROWSER-VERIFICATION.md` is the CLI driver layer for Lightpanda — reused here, not replaced
 - Runtime Smoke Test is the narrower "page loads" gate — not replaced
 

@@ -124,7 +124,7 @@ reads every `.planning/waves/W*.RECONCILE.md`:
   warnings in the promote pre-flight summary
 - RECONCILE.md verdict `PASS` → no friction
 
-See `protocols/PROMOTE.md` § Step 1.6.
+See `protocols/PROMOTE.md` § Step 1.45.
 
 ## Interaction with scratch mode
 

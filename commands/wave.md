@@ -87,7 +87,7 @@ For the `codex` executor, pick the route:
 - **in-process (Step 5a)** — `≤1` phase AND under ~30 min, when you want the `codex:codex-rescue` skill to block the session inline. Force with `--in-process`.
 - **paste / out-of-process (Step 5b-fallback)** — when `run_mode` is unset/`paste` or the user passes `--paste`: render the prompt and hand it to the user to run in a separate Codex terminal.
 
-Read [`protocols/CODEX-DELEGATION.md`](../protocols/CODEX-DELEGATION.md) § Routing for the in-process vs out-of-process details. User can force with `--in-process`, `--out-of-process`, or `--paste`.
+Read [`protocols/CODEX-DELEGATION.md`](../protocols/CODEX-DELEGATION.md) § Routing decision for the in-process vs out-of-process details. User can force with `--in-process`, `--out-of-process`, or `--paste`.
 
 ## Step 5a: In-process route
 
@@ -103,8 +103,8 @@ between launch and result.
 
 1. **Render the prompt.** Save the rendered Codex prompt to
    `.planning/waves/W{N}.prompt.md` (launch metadata + full `/goal` block),
-   the audit trail for what the executor received (see `protocols/WAVE-BUNDLE.md`
-   § Prompt preservation). For `codex exec`, **strip the leading `/goal` line** —
+   the audit trail for what the executor received (see `protocols/WAVE-BUNDLE.md` § Prompt preservation).
+   For `codex exec`, **strip the leading `/goal` line** —
    slash prefixes are interactive-only; the body works as plain instructions.
 
 2. **Capture the base SHA** in STATE.md BEFORE launching, so Step 6 can resolve
@@ -262,7 +262,7 @@ Next: /riff:next or /riff:wave for the next eligible group.
 | Scope drift detected | Same as failure: `needs_human_review`. Do not auto-rollback |
 | Reconcile verdict `FAIL` | Wave marked `status: needs_human_review`. Surface top 3 findings, no auto-rollback. User fixes, re-runs `/riff:wave --resume W{N}` |
 | `wave_W{N}_base_sha` missing in STATE.md | Fallback to parent of first wave commit via `git log --grep="<first_phase_slug>"`. Warn in reconcile Notes section |
-| `codex:codex-rescue` skill missing | Error, point to `commands/onboard.md` § Codex setup |
+| `codex:codex-rescue` skill missing | Error, point to `protocols/CODEX-DELEGATION.md` § Execution skill resolution |
 
 ## Scratch mode
 

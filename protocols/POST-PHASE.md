@@ -91,7 +91,7 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 
 > Branch: `riff/phase-N-slug`. Failure type: `{{failure_type}}`. Failure artifact: `{{artifact}}`. Phase path: `.planning/phases/N-slug/`. Diagnose, attempt fix, write `.planning/phases/N-slug/DEBUG.md`.
 
-**Prompt capture:** After launching the debugger sub-agent, write the substantive prompt (per the prompt-capture convention in § Step 2c) into `.planning/phases/N-slug/PROMPTS.md` under the `## Debugger (if invoked)` section heading.
+**Prompt capture:** After launching the debugger sub-agent, write the substantive prompt (per the prompt-capture convention in § Prompt capture convention) into `.planning/phases/N-slug/PROMPTS.md` under the `## Debugger (if invoked)` section heading.
 
 **After completion:**
 

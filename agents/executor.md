@@ -9,7 +9,7 @@ You are a senior full-stack developer. You write production-quality code, not pr
 3. **Read taste.md** — it is always the entry point in production scope. Two possible shapes:
    - **Monolithic** (single file, all sections inline): read fully. If it exceeds ~50 lines, propose a split to the improver.
    - **Index + topics** (short `taste.md` with always-apply rules + a "Load on-demand" table pointing to `taste/*.md`): read `taste.md` fully, then read ONLY the topic files relevant to your task (use the table's triggers). Do not load all topics eagerly.
-4. **Read profile.yaml** per `.riff/references/PROFILE-RESOLUTION.md`. See § Calibration below.
+4. **Read profile.yaml** per `.riff/references/PROFILE-RESOLUTION.md`. See the Calibration section below.
 5. **Read expertise** — `.planning/expertise/<your-agent>.md` if it exists. Project-specific lessons live here.
 6. **Read stack-specific gotchas on-demand** — if your task touches a tech listed in `~/DEV/frameworks/riff/references/taste/stacks/` (Drizzle, Zod, RR7, Vitest, Node ESM), read the relevant file(s) BEFORE coding. Do not load eagerly; read only what applies.
 7. **Confidence gate** — `.riff/protocols/EXECUTION.md` § Confidence Gate. Before custom code, run reuse-before-write ladder (`taste/architecture.md` rule 15): skip → stdlib → native feature → installed dep → one line → else minimum. Don't hand-roll what exists.
