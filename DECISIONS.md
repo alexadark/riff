@@ -13,3 +13,15 @@ Deterministic checks such as `scope-check.mjs`, `fallow`, typecheck, tests, and 
 ## D27 — Codex Is the Default Executor Runtime, Not an Installed Project Adapter
 
 RIFF installs Claude Code runtime files into projects. Codex execution happens through the configured skill/CLI path and writes normal RIFF artifacts; no `.codex/`, CommandCode, or adapter harness is installed by `riff init`.
+
+## D28 — Autonomous Sessions Have Exactly One Approval Gate
+
+`protocols/AUTONOMY.md` front-loads every question into the launch window and converts each interactive site to a documented default (Conversion table) or a parked branch. One yes at launch; the next human touchpoint is the consolidated REPORT.md. Rationale: mid-run questions destroy the operator's context-switch budget and are worth less than a reviewed defaults ledger.
+
+## D29 — finishers.yaml Is the No-Merge Marker
+
+A pending finisher entry referencing a branch is the machine-readable signal that no agent may merge that branch, in any session. Chosen over branch-name conventions or marker files because it is one flat ledger per run, carries the "waiting on what" context, and is what `scripts/riff-pending.mjs` scans across projects.
+
+## D30 — Safe Phases Auto-Merge in Autonomous Runs
+
+In an autonomous run, a phase classified `safe` with every required gate passing auto-merges via the `local_no_ff` mechanics regardless of `git.merge_strategy`. Security-critical, money-touching, and regulated phases (`hold`) never do. Rationale: parking everything would make every run end in a pile of stale branches; the boundary, not the merge, is the safety mechanism.
