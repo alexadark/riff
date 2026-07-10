@@ -243,11 +243,13 @@ Output: `.planning/waves/W{N}.RECONCILE.md` from
 **No-merge guard first (BLOCKING, every session, autonomous or not):** before flipping ANY phase to `done` or merging any phase branch — on `PASS` and `PASS-WITH-WARNINGS` alike — run the guard for every phase branch in the wave:
 
 ```bash
-node .riff/scripts/finisher-guard.mjs riff/phase-{id}-{slug} \
-  || { echo "phase {id}: NOT done, NOT mergeable — pending finisher"; }
+if ! node .riff/scripts/finisher-guard.mjs riff/phase-{id}-{slug}; then
+  echo "phase {id}: blocked by pending finisher — leave parked, skip its done-transition"
+  continue   # next phase; this one is NOT done and NOT mergeable
+fi
 ```
 
-A non-zero exit means a pending finisher references that branch: that phase stays parked regardless of the reconcile verdict — do NOT mark it `done`, surface the blocking finisher and its artifact, continue with the other phases. Mirrors `protocols/WAVE-RECONCILE.md` § 5 and `commands/next.md` Step 8.
+A guard refusal means a pending finisher references that branch: that phase stays parked regardless of the reconcile verdict — its `done`-transition is skipped entirely (the `continue` above), the blocking finisher and its artifact are surfaced, and the loop proceeds with the other phases. Never convert the refusal into a success and fall through. Mirrors `protocols/WAVE-RECONCILE.md` § 5 and `commands/next.md` Step 8.
 
 - `FAIL` → mark wave `status: needs_human_review`, surface verdict + top
   3 blocking findings inline, stop.
