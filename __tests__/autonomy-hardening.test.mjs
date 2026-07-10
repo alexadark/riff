@@ -142,6 +142,17 @@ describe('finisher-guard', () => {
     expect(checkBranch(projectRoot, 'riff/phase-anything').allowed).toBe(true);
   });
 
+  it('a BROKEN symlink at the autonomy root blocks merges instead of reading as absent', () => {
+    mkdirSync(path.join(projectRoot, '.planning'), { recursive: true });
+    symlinkSync(
+      path.join(projectRoot, 'vanished-marker-store'), // target does not exist
+      path.join(projectRoot, '.planning/autonomy'),
+    );
+    const verdict = checkBranch(projectRoot, 'riff/phase-sensitive');
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.unreadable).toHaveLength(1);
+  });
+
   it('a symlinked finishers directory is followed, not silently skipped', () => {
     const real = path.join(projectRoot, 'elsewhere-finishers');
     mkdirSync(real, { recursive: true });

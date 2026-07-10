@@ -1,7 +1,7 @@
 // Shared finishers.yaml reading for finisher-guard.mjs, autonomy-state.mjs,
 // and riff-pending.mjs. One tolerant parser so a malformed ledger is never
 // silently dropped by one consumer while another sees it.
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const FIELD_PATTERN = /^([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$/;
@@ -123,7 +123,18 @@ function walkFinisherFiles(projectRoot) {
   const root = path.join(projectRoot, '.planning/autonomy');
   const files = [];
   const errors = [];
-  if (!existsSync(root)) return { files, errors };
+  if (!existsSync(root)) {
+    // existsSync FOLLOWS symlinks: a broken symlink at the autonomy root
+    // reads as "absent" — but its marker store existed and is now
+    // unreachable. That is damaged evidence (fail closed), not absence.
+    try {
+      lstatSync(root);
+      errors.push({ file: root, reason: 'autonomy root is a broken symlink — its marker store is unreachable' });
+    } catch {
+      // genuinely absent: no autonomy state yet
+    }
+    return { files, errors };
+  }
 
   function walk(current) {
     let dirEntries;
