@@ -153,6 +153,18 @@ describe('finisher-guard', () => {
     expect(verdict.unreadable).toHaveLength(1);
   });
 
+  it('an autonomy root that cannot be inspected (EACCES) blocks instead of reading as absent', () => {
+    mkdirSync(path.join(projectRoot, '.planning/autonomy/2026-07-10-1200'), { recursive: true });
+    chmodSync(path.join(projectRoot, '.planning'), 0o000);
+    try {
+      const verdict = checkBranch(projectRoot, 'riff/phase-sensitive');
+      expect(verdict.allowed).toBe(false);
+      expect(verdict.unreadable.length).toBeGreaterThan(0);
+    } finally {
+      chmodSync(path.join(projectRoot, '.planning'), 0o755);
+    }
+  });
+
   it('a symlinked finishers directory is followed, not silently skipped', () => {
     const real = path.join(projectRoot, 'elsewhere-finishers');
     mkdirSync(real, { recursive: true });

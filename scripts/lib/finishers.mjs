@@ -124,14 +124,18 @@ function walkFinisherFiles(projectRoot) {
   const files = [];
   const errors = [];
   if (!existsSync(root)) {
-    // existsSync FOLLOWS symlinks: a broken symlink at the autonomy root
-    // reads as "absent" — but its marker store existed and is now
-    // unreachable. That is damaged evidence (fail closed), not absence.
+    // existsSync FOLLOWS symlinks and swallows errors: a broken symlink at
+    // the autonomy root, or a root we lack permission to inspect, reads as
+    // "absent". Only ENOENT is genuine absence; everything else is damaged
+    // or unreachable evidence and must fail closed.
     try {
       lstatSync(root);
       errors.push({ file: root, reason: 'autonomy root is a broken symlink — its marker store is unreachable' });
-    } catch {
-      // genuinely absent: no autonomy state yet
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        errors.push({ file: root, reason: `cannot inspect autonomy root: ${error.message}` });
+      }
+      // ENOENT: genuinely absent, no autonomy state yet
     }
     return { files, errors };
   }
