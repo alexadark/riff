@@ -1,8 +1,9 @@
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFile, execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkBranch } from '../scripts/finisher-guard.mjs';
@@ -10,18 +11,30 @@ import {
   acquireLock,
   classifyPhase,
   clearStatePointer,
+  lockStatus,
   parkPhase,
+  readLoopJson,
   readRunJson,
   readStatePointer,
   resolveLaunch,
+  touchLock,
   writeLoopJson,
   writeRunJson,
   writeStatePointer,
 } from '../scripts/autonomy-state.mjs';
-import { parseFinishers } from '../scripts/lib/finishers.mjs';
+import { collectPendingFinishers, parseFinishers } from '../scripts/lib/finishers.mjs';
 
+const execFileAsync = promisify(execFile);
 const scriptsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../scripts');
 const guardCli = path.join(scriptsDir, 'finisher-guard.mjs');
+const stateCli = path.join(scriptsDir, 'autonomy-state.mjs');
+
+/** Run the autonomy-state CLI as a real child process (for race tests). */
+function stateCliAsync(args) {
+  return execFileAsync('node', [stateCli, ...args, '--project-root', projectRoot])
+    .then((result) => ({ code: 0, stdout: result.stdout }))
+    .catch((error) => ({ code: error.code ?? error.status ?? 1, stdout: error.stdout || '' }));
+}
 
 let projectRoot;
 
@@ -116,9 +129,9 @@ describe('parkPhase ordering', () => {
     return runDir;
   }
 
-  it('writes the no-merge marker before flipping run.json', () => {
+  it('writes the no-merge marker (its own file) before flipping run.json', () => {
     const runDir = seedRun();
-    parkPhase({
+    const written = parkPhase({
       projectRoot,
       runId,
       phaseId: '12-checkout-flow',
@@ -130,22 +143,24 @@ describe('parkPhase ordering', () => {
         artifact: '.planning/phases/12-checkout-flow/DEBUG.md',
       },
     });
-    const ledger = parseFinishers(readFileSync(path.join(runDir, 'finishers.yaml'), 'utf8'));
-    expect(ledger.entries[0].status).toBe('pending');
+    expect(written.id).toBe('F-12-checkout-flow-review');
+    const marker = parseFinishers(readFileSync(path.join(runDir, 'finishers', 'F-12-checkout-flow-review.yaml'), 'utf8'));
+    expect(marker.run).toBe(runId);
+    expect(marker.entries[0].status).toBe('pending');
     expect(readRunJson(runDir).phases[0].status).toBe('parked');
     expect(checkBranch(projectRoot, 'riff/phase-12-checkout-flow').allowed).toBe(false);
   });
 
   it('a crash between the two writes still leaves a valid no-merge marker', async () => {
     const runDir = seedRun();
-    // simulate the crash: run.json write throws after finishers.yaml landed
+    // simulate the crash: run.json write throws after the marker file landed
     const state = await import('../scripts/autonomy-state.mjs');
     const spy = vi.spyOn(JSON, 'stringify').mockImplementationOnce(() => {
       throw new Error('simulated crash between marker write and status flip');
     });
-    // first stringify call inside parkPhase happens in writeRunJson? No —
-    // marker write serializes YAML, not JSON. The FIRST JSON.stringify in
-    // parkPhase is the run.json write, so this throws exactly in the window.
+    // the marker write serializes YAML (no JSON.stringify for these values),
+    // so the FIRST JSON.stringify in parkPhase is the run.json write — the
+    // mock throws exactly in the crash window between the two writes.
     expect(() => state.parkPhase({
       projectRoot,
       runId,
@@ -155,21 +170,72 @@ describe('parkPhase ordering', () => {
     spy.mockRestore();
 
     // marker exists → the guard blocks even though run.json still says building
-    const ledger = parseFinishers(readFileSync(path.join(runDir, 'finishers.yaml'), 'utf8'));
-    expect(ledger.entries).toHaveLength(1);
-    expect(ledger.entries[0].status).toBe('pending');
+    const { pending } = collectPendingFinishers(projectRoot);
+    expect(pending).toHaveLength(1);
     expect(readRunJson(runDir).phases[0].status).toBe('building');
     expect(checkBranch(projectRoot, 'riff/phase-12-checkout-flow').allowed).toBe(false);
   });
 
-  it('re-parking the same phase+type updates instead of duplicating', () => {
+  it('re-parking the same phase+type rewrites the same file instead of duplicating', () => {
     const runDir = seedRun();
     const finisher = { type: 'review', phase: '12-checkout-flow', branch: 'riff/phase-12-checkout-flow' };
     parkPhase({ projectRoot, runId, phaseId: '12-checkout-flow', finisher });
     parkPhase({ projectRoot, runId, phaseId: '12-checkout-flow', finisher: { ...finisher, waiting_on: 'second attempt' } });
-    const ledger = parseFinishers(readFileSync(path.join(runDir, 'finishers.yaml'), 'utf8'));
-    expect(ledger.entries).toHaveLength(1);
-    expect(ledger.entries[0].waiting_on).toBe('second attempt');
+    const files = readdirSync(path.join(runDir, 'finishers')).filter((name) => name.endsWith('.yaml'));
+    expect(files).toHaveLength(1);
+    const { pending } = collectPendingFinishers(projectRoot);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].waiting_on).toBe('second attempt');
+  });
+
+  it('CONCURRENCY: parallel parks from separate processes all keep their marker', async () => {
+    const runDir = path.join(projectRoot, '.planning/autonomy', runId);
+    mkdirSync(runDir, { recursive: true });
+    const phases = Array.from({ length: 6 }, (_, index) => `p${index}-slug`);
+    writeRunJson(runDir, {
+      run: runId,
+      stage: 'build',
+      phases: phases.map((id) => ({ id, autonomy: 'hold', status: 'building', branch: `riff/phase-${id}` })),
+    });
+
+    const results = await Promise.all(phases.map((id) => stateCliAsync([
+      'park', '--run', runId, '--phase', id, '--type', 'security',
+      '--branch', `riff/phase-${id}`, '--waiting', 'sign-off', '--artifact', 'x.md',
+    ])));
+    expect(results.every((result) => result.code === 0)).toBe(true);
+
+    // the old single-ledger design lost markers here (last rename wins);
+    // one file per finisher makes every marker survive by construction
+    const { pending } = collectPendingFinishers(projectRoot);
+    expect(pending).toHaveLength(6);
+    for (const id of phases) {
+      expect(checkBranch(projectRoot, `riff/phase-${id}`).allowed, id).toBe(false);
+    }
+  }, 20000);
+
+  it('legacy finishers.yaml ledgers are still read (never written)', () => {
+    const runDir = seedRun();
+    writeFileSync(path.join(runDir, 'finishers.yaml'), [
+      `run: ${runId}`,
+      'finishers:',
+      '  - id: F1',
+      '    type: security',
+      '    phase: 3-auth',
+      '    branch: riff/phase-3-auth',
+      '    status: pending',
+      '',
+    ].join('\n'));
+    parkPhase({
+      projectRoot,
+      runId,
+      phaseId: '12-checkout-flow',
+      finisher: { type: 'review', phase: '12-checkout-flow', branch: 'riff/phase-12-checkout-flow' },
+    });
+    const { pending } = collectPendingFinishers(projectRoot);
+    expect(pending).toHaveLength(2); // legacy F1 + new per-file marker
+    expect(checkBranch(projectRoot, 'riff/phase-3-auth').allowed).toBe(false);
+    // the legacy ledger was not rewritten
+    expect(readFileSync(path.join(runDir, 'finishers.yaml'), 'utf8')).toContain('id: F1');
   });
 });
 
@@ -221,6 +287,181 @@ describe('launch lock + resume', () => {
   });
 });
 
+describe('lock concurrency', () => {
+  const lockDir = () => path.join(projectRoot, '.planning/autonomy/lock');
+  const ownerFile = () => path.join(lockDir(), 'owner.json');
+
+  function seedStaleLock(token) {
+    mkdirSync(lockDir(), { recursive: true });
+    writeFileSync(ownerFile(), `${JSON.stringify({ token, pid: 9999999, started: '2026-07-09' })}\n`);
+    const past = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    utimesSync(ownerFile(), past, past);
+  }
+
+  it('CONCURRENCY: parallel acquires on a free lock — exactly one winner', async () => {
+    const results = await Promise.all(Array.from({ length: 6 }, (_, index) => stateCliAsync([
+      'lock', 'acquire', '--run', `2026-07-10-160${index}`,
+    ])));
+    const winners = results.filter((result) => result.code === 0);
+    const losers = results.filter((result) => result.code === 4);
+    expect(winners).toHaveLength(1);
+    expect(losers).toHaveLength(5);
+  }, 20000);
+
+  it('CONCURRENCY: parallel reclaims of a stale lock — exactly one winner, never two', async () => {
+    seedStaleLock('dead-run');
+    const results = await Promise.all(Array.from({ length: 6 }, (_, index) => stateCliAsync([
+      'lock', 'acquire', '--run', `2026-07-10-170${index}`,
+    ])));
+    // the old design unlinked unconditionally: two relaunches could both
+    // recreate and both believe they own the lock
+    expect(results.filter((result) => result.code === 0)).toHaveLength(1);
+    expect(results.filter((result) => result.code === 4)).toHaveLength(5);
+    // and the surviving lock belongs to the single winner
+    const owner = JSON.parse(readFileSync(ownerFile(), 'utf8'));
+    expect(owner.token).not.toBe('dead-run');
+  }, 20000);
+
+  it('staleness follows the heartbeat, not the (dead) CLI helper pid', () => {
+    seedStaleLock('run-A');
+    expect(lockStatus(projectRoot).stale).toBe(true);
+    // a phase status transition heartbeats automatically through writeRunJson
+    const runDir = path.join(projectRoot, '.planning/autonomy', 'run-A');
+    mkdirSync(runDir, { recursive: true });
+    writeRunJson(runDir, { run: 'run-A', stage: 'build', phases: [] });
+    expect(lockStatus(projectRoot).stale).toBe(false);
+  });
+
+  it('fencing: heartbeat against someone else\'s token reports the loss', () => {
+    seedStaleLock('run-B');
+    expect(touchLock(projectRoot, { runId: 'run-B' }).ok).toBe(true);
+    const stolen = touchLock(projectRoot, { runId: 'run-INTRUDER' });
+    expect(stolen.ok).toBe(false);
+    expect(stolen.reason).toBe('token-mismatch');
+    // CLI contract: exit 5 tells the agent to stop, park, never merge
+    let exitCode = 0;
+    try {
+      execFileSync('node', [stateCli, 'lock', 'touch', '--run', 'run-INTRUDER', '--project-root', projectRoot], { encoding: 'utf8' });
+    } catch (error) {
+      exitCode = error.status;
+    }
+    expect(exitCode).toBe(5);
+  });
+
+  it('a live legacy lock.json is honored; a dead one is migrated', () => {
+    const legacy = path.join(projectRoot, '.planning/autonomy/lock.json');
+    mkdirSync(path.dirname(legacy), { recursive: true });
+    // live: our own pid
+    writeFileSync(legacy, `${JSON.stringify({ pid: process.pid, run: 'legacy-live' })}\n`);
+    expect(acquireLock(projectRoot, { runId: 'run-C' }).acquired).toBe(false);
+    // dead: gone pid + old mtime
+    writeFileSync(legacy, `${JSON.stringify({ pid: 9999999, run: 'legacy-dead' })}\n`);
+    const past = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    utimesSync(legacy, past, past);
+    expect(acquireLock(projectRoot, { runId: 'run-C' }).acquired).toBe(true);
+    expect(existsSync(legacy)).toBe(false);
+  });
+});
+
+describe('loop resume reconciliation', () => {
+  function seedRunDir(runId, runJson) {
+    const runDir = path.join(projectRoot, '.planning/autonomy', runId);
+    mkdirSync(runDir, { recursive: true });
+    if (typeof runJson === 'string') {
+      writeFileSync(path.join(runDir, 'run.json'), runJson);
+    } else if (runJson) {
+      writeRunJson(runDir, runJson);
+    }
+    return runDir;
+  }
+
+  it('pointer and loop.json disagree: loop.current_run wins', () => {
+    seedRunDir('2026-07-10-0100', { run: '2026-07-10-0100', stage: 'done', phases: [] });
+    seedRunDir('2026-07-10-0200', { run: '2026-07-10-0200', stage: 'build', phases: [] });
+    writeStatePointer(projectRoot, { runId: '2026-07-10-0100', loop: true }); // stale hint
+    writeLoopJson(projectRoot, { status: 'running', current_run: '2026-07-10-0200', runs_completed: 1 });
+    const launch = resolveLaunch(projectRoot);
+    expect(launch.action).toBe('resume');
+    expect(launch.runId).toBe('2026-07-10-0200');
+  });
+
+  it('current_run with corrupt run.json restarts the SAME id, never a null one', () => {
+    seedRunDir('2026-07-10-0300', '{ torn write');
+    writeLoopJson(projectRoot, { status: 'running', current_run: '2026-07-10-0300', runs_completed: 0 });
+    const launch = resolveLaunch(projectRoot);
+    expect(launch.action).toBe('restart-run');
+    expect(launch.runId).toBe('2026-07-10-0300');
+  });
+
+  it('current_run already done (crash before next run start) → continue-loop, never restart', () => {
+    seedRunDir('2026-07-10-0400', { run: '2026-07-10-0400', stage: 'done', phases: [] });
+    writeLoopJson(projectRoot, { status: 'running', current_run: '2026-07-10-0400', runs_completed: 2 });
+    const launch = resolveLaunch(projectRoot);
+    expect(launch.action).toBe('continue-loop');
+    expect(launch.completedRun).toBe('2026-07-10-0400');
+  });
+
+  it('legacy loop.json without current_run: single non-terminal run dir is found by the scan', () => {
+    seedRunDir('2026-07-10-0500', { run: '2026-07-10-0500', stage: 'build', phases: [] });
+    writeLoopJson(projectRoot, { status: 'running', runs_completed: 0 });
+    const launch = resolveLaunch(projectRoot);
+    expect(launch.action).toBe('resume');
+    expect(launch.runId).toBe('2026-07-10-0500');
+  });
+
+  it('nothing verifiable on disk: continue-loop, no restart of a null run', () => {
+    writeLoopJson(projectRoot, { status: 'running', runs_completed: 0 });
+    const launch = resolveLaunch(projectRoot);
+    expect(launch.action).toBe('continue-loop');
+    expect(launch.action).not.toBe('restart-run');
+  });
+
+  it('ambiguity (two non-terminal run dirs) is never guessed', () => {
+    seedRunDir('2026-07-10-0600', { run: '2026-07-10-0600', stage: 'build', phases: [] });
+    seedRunDir('2026-07-10-0700', { run: '2026-07-10-0700', stage: 'build', phases: [] });
+    writeLoopJson(projectRoot, { status: 'running', runs_completed: 0 });
+    expect(resolveLaunch(projectRoot).action).toBe('continue-loop');
+  });
+
+  it('runs_completed counts exactly once per completed run', async () => {
+    const { recordRunCompleted } = await import('../scripts/autonomy-state.mjs');
+    writeLoopJson(projectRoot, { status: 'running', current_run: '2026-07-10-0800', runs_completed: 3 });
+    const first = recordRunCompleted(projectRoot, '2026-07-10-0800');
+    expect(first).toMatchObject({ counted: true, runs_completed: 4 });
+    // crash-then-resume around REPORT.md delivery re-calls it: idempotent
+    const second = recordRunCompleted(projectRoot, '2026-07-10-0800');
+    expect(second).toMatchObject({ counted: false, reason: 'already-counted' });
+    const loopState = readLoopJson(projectRoot);
+    expect(loopState.runs_completed).toBe(4);
+    expect(loopState.current_run).toBe(null);
+    expect(loopState.last_completed_run).toBe('2026-07-10-0800');
+  });
+
+  it('phase-status CLI writes the transition and heartbeats in one call', async () => {
+    const runId = '2026-07-10-0900';
+    const runDir = path.join(projectRoot, '.planning/autonomy', runId);
+    mkdirSync(runDir, { recursive: true });
+    writeRunJson(runDir, { run: runId, stage: 'build', phases: [{ id: '5-emails', status: 'building' }] });
+    acquireLock(projectRoot, { runId });
+    const result = await stateCliAsync(['phase-status', '--run', runId, '--phase', '5-emails', '--status', 'merged']);
+    expect(result.code).toBe(0);
+    expect(readRunJson(runDir).phases[0].status).toBe('merged');
+    expect(lockStatus(projectRoot).stale).toBe(false);
+  });
+
+  it('phase-status CLI exits 5 when the lock belongs to another run', async () => {
+    const runId = '2026-07-10-1000';
+    const runDir = path.join(projectRoot, '.planning/autonomy', runId);
+    mkdirSync(runDir, { recursive: true });
+    writeRunJson(runDir, { run: runId, stage: 'build', phases: [{ id: '6-ui', status: 'building' }] });
+    acquireLock(projectRoot, { runId: 'ANOTHER-RUN' });
+    const result = await stateCliAsync(['phase-status', '--run', runId, '--phase', '6-ui', '--status', 'done']);
+    expect(result.code).toBe(5);
+    // the state write itself still lands — disk must reflect reality
+    expect(readRunJson(runDir).phases[0].status).toBe('done');
+  });
+});
+
 describe('autonomy boundary classification', () => {
   it('privacy phase classifies as hold', () => {
     const verdict = classifyPhase({
@@ -252,5 +493,24 @@ describe('autonomy boundary classification', () => {
       text: 'Polish the dashboard empty state illustration',
     });
     expect(verdict.autonomy).toBe('safe');
+  });
+
+  it('DSAR / DPA / cookie / personal-data phrasing classifies as hold', () => {
+    for (const text of [
+      'Build DSAR request portal',
+      'Cookie consent banner',
+      'Sign the DPA with the vendor',
+      'Data processing agreement page',
+      'Personal data inventory screen',
+      'Analytics opt-out toggle',
+      'Right to be forgotten flow',
+    ]) {
+      expect(classifyPhase({ text }).autonomy, text).toBe('hold');
+    }
+  });
+
+  it('privacy surface in a path alone classifies as hold', () => {
+    expect(classifyPhase({ paths: ['app/routes/dsar.tsx'] }).autonomy).toBe('hold');
+    expect(classifyPhase({ paths: ['app/lib/cookies.server.ts'] }).autonomy).toBe('hold');
   });
 });

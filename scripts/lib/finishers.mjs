@@ -103,7 +103,12 @@ export function serializeFinishers({ run, entries }) {
   return `${lines.join('\n')}\n`;
 }
 
-/** All finishers.yaml files under <projectRoot>/.planning/autonomy/, sorted. */
+/**
+ * All finisher marker files under <projectRoot>/.planning/autonomy/, sorted.
+ * Two layouts, both read: one file per finisher in a `finishers/` directory
+ * (the write path — concurrent parks cannot lose each other's marker), and
+ * legacy single-ledger `finishers.yaml` files (read-only back-compat).
+ */
 export function listFinisherFiles(projectRoot) {
   const root = path.join(projectRoot, '.planning/autonomy');
   const results = [];
@@ -116,10 +121,15 @@ export function listFinisherFiles(projectRoot) {
     } catch {
       return;
     }
+    const inFinishersDir = path.basename(current) === 'finishers';
     for (const entry of dirEntries) {
       const child = path.join(current, entry.name);
-      if (entry.isDirectory()) walk(child);
-      else if (entry.isFile() && entry.name === 'finishers.yaml') results.push(child);
+      if (entry.isDirectory()) {
+        walk(child);
+      } else if (entry.isFile()
+        && (entry.name === 'finishers.yaml' || (inFinishersDir && entry.name.endsWith('.yaml')))) {
+        results.push(child);
+      }
     }
   }
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // No-merge guard: refuses to merge any branch referenced by a pending
-// finisher. Wired into EVERY merge path (PR-CREATION.md § 8c, commands/next.md
-// Step 8, WAVE-RECONCILE.md, AUTONOMY.md § Merge policy) and protects normal
-// sessions too — a manual "merge phase 12" is refused while its finisher is
-// pending.
+// finisher. Wired into EVERY merge path (PR-CREATION.md § 8b dispatcher + § 8c,
+// commands/next.md Step 8, commands/wave.md Step 6.2, WAVE-RECONCILE.md § 5,
+// AUTONOMY.md § Merge policy) and protects normal sessions too — a manual
+// "merge phase 12" is refused while its finisher is pending.
 //
 // CLI:  node .riff/scripts/finisher-guard.mjs <branch> [--project-root <dir>]
 // Exit: 0 = branch clear to merge, 2 = BLOCKED by pending finisher(s), 1 = usage.
