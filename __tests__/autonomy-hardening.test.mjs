@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,7 @@ import {
   readLoopJson,
   readRunJson,
   readStatePointer,
+  releaseLock,
   resolveLaunch,
   touchLock,
   writeLoopJson,
@@ -139,6 +140,38 @@ describe('finisher-guard', () => {
     ].join('\n'));
     rmSync(path.join(projectRoot, '.planning/autonomy/2026-07-10-1200'), { recursive: true, force: true });
     expect(checkBranch(projectRoot, 'riff/phase-anything').allowed).toBe(true);
+  });
+
+  it('a symlinked finishers directory is followed, not silently skipped', () => {
+    const real = path.join(projectRoot, 'elsewhere-finishers');
+    mkdirSync(real, { recursive: true });
+    writeFileSync(path.join(real, 'F-2-auth-security.yaml'), [
+      'run: 2026-07-10-1200',
+      'finishers:',
+      '  - id: F-2-auth-security',
+      '    type: security',
+      '    phase: 2-auth',
+      '    branch: riff/phase-2-auth',
+      '    status: pending',
+      '',
+    ].join('\n'));
+    const runDir = path.join(projectRoot, '.planning/autonomy/2026-07-10-1200');
+    mkdirSync(runDir, { recursive: true });
+    symlinkSync(real, path.join(runDir, 'finishers'));
+    expect(checkBranch(projectRoot, 'riff/phase-2-auth').allowed).toBe(false);
+  });
+
+  it('a malformed entry with NO branch blocks every branch (unattributable evidence)', () => {
+    writeLedger('2026-07-10-1200', [
+      'run: 2026-07-10-1200',
+      'finishers:',
+      '  - type: security', // no id, no status, no branch: damaged marker
+      '    phase: 5-payments',
+      '',
+    ].join('\n'));
+    const verdict = checkBranch(projectRoot, 'riff/phase-unrelated');
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.suspectMalformed).toHaveLength(1);
   });
 
   it('fails closed on an UNREADABLE marker file: every branch is blocked', () => {
@@ -473,6 +506,41 @@ describe('lock concurrency', () => {
     expect(existsSync(lockDir())).toBe(true);
   });
 
+  it('a VANISHED lock while claiming ownership is a fencing failure, not a pass', async () => {
+    // no lock at all + --run = the caller thinks it holds one: exit 5
+    const touch = await stateCliAsync(['lock', 'touch', '--run', 'run-GONE']);
+    expect(touch.code).toBe(5);
+    // bare probe without --run stays exit 0 (nothing claimed, nothing lost)
+    const probe = await stateCliAsync(['lock', 'touch']);
+    expect(probe.code).toBe(0);
+    // phase-status with a vanished lock: state still written, but exit 5
+    const runId = '2026-07-10-1050';
+    const runDir = path.join(projectRoot, '.planning/autonomy', runId);
+    mkdirSync(runDir, { recursive: true });
+    writeRunJson(runDir, { run: runId, stage: 'build', phases: [{ id: '3-ui', status: 'building' }] });
+    releaseLock(projectRoot, { force: true }); // ensure nothing is held
+    const result = await stateCliAsync(['phase-status', '--run', runId, '--phase', '3-ui', '--status', 'done']);
+    expect(result.code).toBe(5);
+    expect(readRunJson(runDir).phases[0].status).toBe('done');
+  });
+
+  it('mutex timeout refuses the write instead of writing unlocked', async () => {
+    const runId = '2026-07-10-1060';
+    const runDir = path.join(projectRoot, '.planning/autonomy', runId);
+    mkdirSync(runDir, { recursive: true });
+    writeRunJson(runDir, { run: runId, stage: 'build', phases: [{ id: '4-api', status: 'building' }] });
+    mkdirSync(path.join(runDir, '.run.json.lock')); // a live (fresh-mtime) holder
+    const result = await execFileAsync('node', [
+      stateCli, 'phase-status', '--run', runId, '--phase', '4-api', '--status', 'done',
+      '--project-root', projectRoot,
+    ], { env: { ...process.env, RIFF_MUTEX_DEADLINE_MS: '400', RIFF_MUTEX_STALE_MS: '60000' } })
+      .then(() => ({ code: 0 }))
+      .catch((error) => ({ code: error.code ?? 1 }));
+    expect(result.code).not.toBe(0);
+    // fail closed: the transition did NOT land unlocked
+    expect(readRunJson(runDir).phases[0].status).toBe('building');
+  }, 15000);
+
   it('a live legacy lock.json is honored; a dead one is migrated', () => {
     const legacy = path.join(projectRoot, '.planning/autonomy/lock.json');
     mkdirSync(path.dirname(legacy), { recursive: true });
@@ -548,6 +616,16 @@ describe('loop resume reconciliation', () => {
     const launch = resolveLaunch(projectRoot);
     expect(launch.action).toBe('halt-ambiguous');
     expect(launch.candidates).toEqual(['2026-07-10-0600', '2026-07-10-0700']);
+  });
+
+  it('a corrupt current_run beside a LIVE run halts instead of restarting alongside it', () => {
+    seedRunDir('2026-07-10-0430', '{ torn write');
+    seedRunDir('2026-07-10-0440', { run: '2026-07-10-0440', stage: 'build', phases: [] });
+    writeLoopJson(projectRoot, { status: 'running', current_run: '2026-07-10-0430', runs_completed: 0 });
+    const launch = resolveLaunch(projectRoot);
+    expect(launch.action).toBe('halt-ambiguous');
+    expect(launch.candidates).toContain('2026-07-10-0430');
+    expect(launch.candidates).toContain('2026-07-10-0440');
   });
 
   it('a completed current_run never hides a live run: the live one is resumed', () => {

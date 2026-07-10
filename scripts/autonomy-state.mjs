@@ -120,19 +120,27 @@ function sleepMs(ms) {
 
 // Mutex holders do millisecond-scale JSON read-modify-writes; a holder silent
 // for 15s is dead. The acquisition deadline must comfortably EXCEED the stale
-// window — otherwise a waiter gives up (and proceeds unlocked) before it ever
-// gets the chance to sweep a dead holder aside.
-const FILE_MUTEX_STALE_MS = 15 * 1000;
-const FILE_MUTEX_DEADLINE_MS = 120 * 1000;
+// window — otherwise a waiter gives up before it ever gets the chance to
+// sweep a dead holder aside. Env overrides exist for tests only.
+const FILE_MUTEX_STALE_MS = Number(process.env.RIFF_MUTEX_STALE_MS) > 0
+  ? Number(process.env.RIFF_MUTEX_STALE_MS) : 15 * 1000;
+const FILE_MUTEX_DEADLINE_MS = Number(process.env.RIFF_MUTEX_DEADLINE_MS) > 0
+  ? Number(process.env.RIFF_MUTEX_DEADLINE_MS) : 120 * 1000;
+
+/** Sentinel returned by withFileMutex when the mutex cannot be taken. */
+export const MUTEX_TIMEOUT = Symbol('mutex-timeout');
 
 /**
  * Serialize a JSON file's read-modify-write across processes: without this,
  * concurrent writers (parallel wave phases, racing complete-runs) clobber
  * each other — the last writer's stale snapshot wins and earlier updates
  * vanish. mkdir is the mutex (atomic + exclusive); a dead holder is swept
- * aside by rename (single winner, same CAS shape as the launch lock). If the
- * mutex cannot be taken within the deadline we proceed UNLOCKED with a loud
- * warning rather than lose the write — the disk must reflect reality.
+ * aside by rename (single winner, same CAS shape as the launch lock).
+ *
+ * FAIL-CLOSED: if the mutex cannot be taken within the deadline, fn is NOT
+ * run and MUTEX_TIMEOUT is returned. An unlocked write would reintroduce the
+ * exact lost-update race this mutex exists to prevent; callers surface the
+ * refusal and retry instead.
  */
 function withFileMutex(dir, name, fn) {
   const mutex = path.join(dir, name);
@@ -144,7 +152,12 @@ function withFileMutex(dir, name, fn) {
       held = true;
       break;
     } catch (error) {
-      if (error.code !== 'EEXIST') break; // dir gone or worse — run fn anyway
+      if (error.code === 'ENOENT') {
+        // parent dir gone: nothing to serialize against — run fn (it will
+        // surface its own missing-state error)
+        return fn();
+      }
+      if (error.code !== 'EEXIST') throw error;
       let mtimeMs = 0;
       try {
         mtimeMs = statSync(mutex).mtimeMs;
@@ -165,12 +178,13 @@ function withFileMutex(dir, name, fn) {
     }
   }
   if (!held) {
-    process.stderr.write(`warn: file mutex ${mutex} not acquired within ${FILE_MUTEX_DEADLINE_MS / 1000}s — writing unlocked\n`);
+    process.stderr.write(`warn: file mutex ${mutex} not acquired within ${FILE_MUTEX_DEADLINE_MS / 1000}s — refusing the write (fail closed)\n`);
+    return MUTEX_TIMEOUT;
   }
   try {
     return fn();
   } finally {
-    if (held) rmSync(mutex, { recursive: true, force: true });
+    rmSync(mutex, { recursive: true, force: true });
   }
 }
 
@@ -231,14 +245,20 @@ export function parkPhase({ projectRoot, runId, phaseId, finisher }) {
   // 2. Status flip second, under the run.json mutex (concurrent flips would
   // otherwise clobber each other). The marker above stays the safety
   // invariant; the guard never depends on this status.
-  withRunJsonLock(runDir, () => {
+  const flip = withRunJsonLock(runDir, () => {
     const run = readRunJson(runDir);
-    if (!run || !Array.isArray(run.phases)) return;
+    if (!run || !Array.isArray(run.phases)) return undefined;
     const phase = run.phases.find((entry) => entry.id === phaseId);
-    if (!phase || phase.status === 'parked') return;
+    if (!phase || phase.status === 'parked') return undefined;
     phase.status = 'parked';
     writeRunJson(runDir, run);
+    return undefined;
   });
+  if (flip === MUTEX_TIMEOUT) {
+    // safe: the marker above already blocks the branch; the status is
+    // reconciled from markers + git state on resume
+    process.stderr.write(`warn: parkPhase(${phaseId}) could not take the run.json mutex — marker written, status flip skipped\n`);
+  }
 
   return written;
 }
@@ -264,10 +284,15 @@ export function setPhaseStatus({ projectRoot, runId, phaseId, status }) {
     writeRunJson(runDir, run);
     return { ok: true };
   });
+  if (result === MUTEX_TIMEOUT) {
+    return { ok: false, reason: 'run.json mutex busy — transition refused (fail closed), retry' };
+  }
   if (!result.ok) return result;
   const heartbeat = touchLock(projectRoot, { runId });
-  // 'no-lock' is fine (manual/test runs); a mismatch or lost dir is fencing
-  const lockLost = !heartbeat.ok && heartbeat.reason !== 'no-lock';
+  // ANY failed heartbeat is fencing: a mismatched token means another launch
+  // owns the project, and a VANISHED lock means this run's lock was reclaimed
+  // and released — either way this session must stop, park, never merge.
+  const lockLost = !heartbeat.ok;
   return { ok: true, lockLost, heartbeat };
 }
 
@@ -307,6 +332,40 @@ function pidAlive(pid) {
   } catch (error) {
     return error.code === 'EPERM'; // alive, owned by someone else
   }
+}
+
+/**
+ * Remove the legacy single-file lock only if its content still matches what
+ * the caller validated (CAS via rename: exactly one remover can win, and the
+ * post-rename re-check catches a replacement written between validation and
+ * rename — a plain pathname unlink could delete a fresh live lock). Returns
+ * true when the legacy lock is gone, false when it changed hands.
+ */
+function removeLegacyLockIfUnchanged(projectRoot, validated) {
+  const legacy = legacyLockFile(projectRoot);
+  const aside = `${legacy}.migrating-${process.pid}-${Date.now()}`;
+  try {
+    renameSync(legacy, aside);
+  } catch {
+    return !existsSync(legacy); // someone else migrated it first (or re-created it)
+  }
+  const moved = readJson(aside);
+  const same = JSON.stringify(moved ?? null) === JSON.stringify(validated ?? null);
+  if (!same) {
+    try {
+      renameSync(aside, legacy);
+    } catch {
+      // replaced yet again in the window; keep the aside file as evidence
+    }
+    return false;
+  }
+  try {
+    unlinkSync(aside);
+  } catch {
+    // already gone
+  }
+  fsyncDir(path.dirname(legacy));
+  return true;
 }
 
 /**
@@ -414,18 +473,16 @@ export function acquireLock(projectRoot, { runId, loop = false } = {}) {
   };
 
   // one-time migration: a legacy lock.json is honored while live, removed
-  // when provably dead (safe: two concurrent migrators can both unlink, but
-  // acquisition still funnels through mkdir — exactly one wins)
+  // when provably dead — via CAS (rename + re-check), never a pathname
+  // unlink that could delete a replacement written after our staleness read
   if (!existsSync(dir) && existsSync(legacyLockFile(projectRoot))) {
+    const validated = readJson(legacyLockFile(projectRoot));
     const legacyStatus = lockStatus(projectRoot);
     if (legacyStatus.held && !legacyStatus.stale) {
       return { acquired: false, holder: legacyStatus.owner };
     }
-    try {
-      unlinkSync(legacyLockFile(projectRoot));
-      fsyncDir(path.dirname(legacyLockFile(projectRoot)));
-    } catch {
-      // someone else migrated first
+    if (!removeLegacyLockIfUnchanged(projectRoot, validated)) {
+      return { acquired: false, holder: readJson(legacyLockFile(projectRoot)) };
     }
   }
 
@@ -490,7 +547,11 @@ export function acquireLock(projectRoot, { runId, loop = false } = {}) {
 export function touchLock(projectRoot, { runId } = {}) {
   const ownerFile = lockOwnerFile(projectRoot);
   const data = readJson(ownerFile);
-  if (!data) return { ok: false, reason: 'no-lock' };
+  if (!data) {
+    // With a runId the caller EXPECTS to hold the lock: a vanished lock is a
+    // fencing failure (reclaimed+released, or force-removed), not a pass.
+    return { ok: false, reason: 'no-lock', expectedHolder: Boolean(runId) };
+  }
   if (runId && data.token && data.token !== runId) {
     return { ok: false, reason: 'token-mismatch', holder: data };
   }
@@ -526,12 +587,9 @@ export function releaseLock(projectRoot, { runId, force = false } = {}) {
       stale = true;
     }
     if (force || stale || (runId && legacyRun === runId)) {
-      try {
-        unlinkSync(legacy);
-        fsyncDir(path.dirname(legacy));
-      } catch {
-        // already gone
-      }
+      // CAS removal: never pathname-unlink a file that may have been
+      // replaced by a live lock after the staleness/ownership read above
+      removeLegacyLockIfUnchanged(projectRoot, data);
     } else if (!existsSync(lockDir(projectRoot))) {
       return { released: false, reason: 'legacy-held', holder: data };
     }
@@ -605,16 +663,31 @@ function replacePointerSection(stateText, runId, loop) {
   return `${stateText.replace(/\n*$/, '\n\n')}${block}\n`;
 }
 
+// STATE.md pointer writes are read-modify-writes on a shared file: serialize
+// them (mutex lives under .planning/autonomy; when that dir does not exist
+// there are no concurrent autonomy writers to serialize against).
+function withStatePointerLock(projectRoot, fn) {
+  return withFileMutex(path.join(projectRoot, '.planning/autonomy'), '.state-pointer.lock', fn);
+}
+
 export function writeStatePointer(projectRoot, { runId, loop = false }) {
-  const file = path.join(projectRoot, 'STATE.md');
-  const text = existsSync(file) ? readFileSync(file, 'utf8') : '# State\n\n';
-  atomicWrite(file, replacePointerSection(text, runId, loop));
+  const result = withStatePointerLock(projectRoot, () => {
+    const file = path.join(projectRoot, 'STATE.md');
+    const text = existsSync(file) ? readFileSync(file, 'utf8') : '# State\n\n';
+    atomicWrite(file, replacePointerSection(text, runId, loop));
+    return { ok: true };
+  });
+  return result === MUTEX_TIMEOUT ? { ok: false, reason: 'mutex-timeout' } : result;
 }
 
 export function clearStatePointer(projectRoot) {
-  const file = path.join(projectRoot, 'STATE.md');
-  if (!existsSync(file)) return;
-  atomicWrite(file, replacePointerSection(readFileSync(file, 'utf8'), null, false));
+  const result = withStatePointerLock(projectRoot, () => {
+    const file = path.join(projectRoot, 'STATE.md');
+    if (!existsSync(file)) return { ok: true };
+    atomicWrite(file, replacePointerSection(readFileSync(file, 'utf8'), null, false));
+    return { ok: true };
+  });
+  return result === MUTEX_TIMEOUT ? { ok: false, reason: 'mutex-timeout' } : result;
 }
 
 export function readStatePointer(projectRoot) {
@@ -658,13 +731,14 @@ function scanRunDirs(projectRoot) {
  * crash between the two leaves the authoritative record, not the hint.
  */
 export function startLoopRun(projectRoot, runId) {
-  return withLoopJsonLock(projectRoot, () => {
+  const result = withLoopJsonLock(projectRoot, () => {
     const loopState = readLoopJson(projectRoot);
     if (!loopState) return { ok: false, reason: 'no-loop' };
     loopState.current_run = runId;
     writeLoopJson(projectRoot, loopState);
     return { ok: true };
   });
+  return result === MUTEX_TIMEOUT ? { ok: false, reason: 'mutex-timeout' } : result;
 }
 
 /**
@@ -675,7 +749,7 @@ export function startLoopRun(projectRoot, runId) {
 export function recordRunCompleted(projectRoot, runId) {
   // under the loop.json mutex: concurrent completions are a read-modify-write
   // race that would drop entries from the history and lose counts
-  return withLoopJsonLock(projectRoot, () => {
+  const result = withLoopJsonLock(projectRoot, () => {
     const loopState = readLoopJson(projectRoot);
     if (!loopState) return { counted: false, reason: 'no-loop' };
     // full history, not just the previous run: replaying ANY old completion
@@ -693,6 +767,7 @@ export function recordRunCompleted(projectRoot, runId) {
     writeLoopJson(projectRoot, loopState);
     return { counted: true, runs_completed: loopState.runs_completed };
   });
+  return result === MUTEX_TIMEOUT ? { counted: false, reason: 'mutex-timeout' } : result;
 }
 
 /**
@@ -740,7 +815,18 @@ export function resolveLaunch(projectRoot) {
         continue;
       }
       if (existsSync(runDir)) {
-        // dir exists, run.json missing or corrupt: same-id fresh restart
+        // dir exists, run.json missing or corrupt: same-id fresh restart —
+        // but only when no OTHER run is live; restarting beside a live run
+        // would put two runs in flight
+        const others = scanRunDirs(projectRoot).filter((entry) => entry.runId !== runId);
+        if (others.length > 0) {
+          return {
+            action: 'halt-ambiguous',
+            loop: true,
+            candidates: [runId, ...others.map((entry) => entry.runId)],
+            completedRun,
+          };
+        }
         return { action: 'restart-run', runId, loop: true, completedRun };
       }
       // no run dir at all: a stale/mismatched id — never restart it blind
@@ -797,7 +883,7 @@ export const SENSITIVE_PATTERNS = [
   // money surface
   /payment|payout|billing|checkout|invoic|refund|chargeback|subscription|entitlement|\bcredits?\b|\bwallet\b|\bpricing\b|\btax\b|\bvat\b/i,
   // access-control / compliance-framework surface
-  /\brbac\b|\bacl(s)?\b|role[-_ ]?based|access[-_ ]?control|\bsoc[-_ ]?2\b|\bhipaa\b|\bpci(?:[-_ ]?dss)?\b|\biso[-_ ]?27001\b|encrypt|data[-_ ]?portability/i,
+  /\brbac\b|\bacl(s)?\b|role[-_ ]?based|\broles?\b|\bpermissions?\b|access[-_ ]?(control|rights?)|\bsoc[-_ ]?2\b|\bhipaa\b|\bpci(?:[-_ ]?dss)?\b|\biso[-_ ]?27001\b|encrypt|data[-_ ]?portability|plan[-_ ]?tiers?\b|tier[-_ ]?(change|upgrade|downgrade)/i,
   // payment providers
   /stripe|paddle|lemon[-_ ]?squeezy|braintree|paypal|chargebee|recurly|adyen|mollie|razorpay|square(?:up)?\b/i,
   // privacy / regulated surface
@@ -934,8 +1020,11 @@ function cli() {
       if (action === 'touch') {
         const result = touchLock(projectRoot, { runId: flags.run });
         process.stdout.write(`${JSON.stringify(result)}\n`);
-        // token-mismatch/lock-lost = fencing violation: exit 5, caller must stop
-        process.exit(result.ok || result.reason === 'no-lock' ? 0 : 5);
+        // With --run, the caller claims ownership: mismatch, loss, AND a
+        // vanished lock are all fencing violations — exit 5, caller must stop.
+        // Without --run it is a bare heartbeat probe; a missing lock is fine.
+        const fencingViolation = !result.ok && (flags.run ? true : result.reason !== 'no-lock');
+        process.exit(fencingViolation ? 5 : 0);
       }
       if (action === 'status') {
         process.stdout.write(`${JSON.stringify(lockStatus(projectRoot))}\n`);

@@ -1,7 +1,7 @@
 // Shared finishers.yaml reading for finisher-guard.mjs, autonomy-state.mjs,
 // and riff-pending.mjs. One tolerant parser so a malformed ledger is never
 // silently dropped by one consumer while another sees it.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const FIELD_PATTERN = /^([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$/;
@@ -136,9 +136,24 @@ function walkFinisherFiles(projectRoot) {
     const inFinishersDir = path.basename(current) === 'finishers';
     for (const entry of dirEntries) {
       const child = path.join(current, entry.name);
-      if (entry.isDirectory()) {
+      let isDir = entry.isDirectory();
+      let isFile = entry.isFile();
+      if (entry.isSymbolicLink()) {
+        // follow symlinks instead of silently skipping them — a symlinked
+        // marker (or marker directory) must still count; a broken link is
+        // unreadable evidence, not nothing
+        try {
+          const stats = statSync(child);
+          isDir = stats.isDirectory();
+          isFile = stats.isFile();
+        } catch (error) {
+          errors.push({ file: child, reason: `broken symlink: ${error.message}` });
+          continue;
+        }
+      }
+      if (isDir) {
         walk(child);
-      } else if (entry.isFile()
+      } else if (isFile
         && (entry.name === 'finishers.yaml' || (inFinishersDir && entry.name.endsWith('.yaml')))) {
         files.push(child);
       }

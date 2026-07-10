@@ -30,7 +30,10 @@ export function findBlockingFinishers(projectRoot, branch) {
   const { pending, malformed, unreadable = [] } = collectPendingFinishers(projectRoot);
   const blockers = pending.filter((entry) => entry.branch === branch);
   const branchless = pending.filter((entry) => !entry.branch && BRANCH_MARKER_TYPES.has(entry.type));
-  const suspectMalformed = malformed.filter((bad) => bad.entry?.branch === branch);
+  // A malformed entry naming this branch blocks it; a malformed entry with NO
+  // branch is unattributable damaged evidence — it blocks every branch (fail
+  // closed), because the lost field could have been this branch's marker.
+  const suspectMalformed = malformed.filter((bad) => bad.entry?.branch === branch || !bad.entry?.branch);
   return { blockers, branchless, suspectMalformed, unreadable };
 }
 
