@@ -104,8 +104,8 @@ Every interactive site in the standard pipeline, converted. "Park" = branch + fi
 | Pending expertise review (`protocols/POST-PHASE.md`) | AskUserQuestion review/defer/reject | Always defer; count reported in REPORT.md |
 | Milestone deep-audit prompt | AskUserQuestion run/defer | Defer + finisher type `review` |
 | Wave proposal confirm (`commands/wave.md` Step 2) | AskUserQuestion confirm/adjust/cancel | Replaced by the front-load approval |
-| Wave reconcile FAIL (`protocols/WAVE-RECONCILE.md`) | `needs_human_review`, stop | Park affected phases; run continues to § Batched verification |
-| Merge cue (`protocols/PR-CREATION.md`) | Human clicks / says "merge" | § Merge policy |
+| Wave reconcile FAIL (`protocols/WAVE-RECONCILE.md`) | `needs_human_review`, stop | Park affected phases; run continues to the Batched verification stage below |
+| Merge cue (`protocols/PR-CREATION.md`) | Human clicks / says "merge" | Merge policy below |
 | Usage guard ≥95% (`commands/wave.md`) | Tell user, schedule wakeup | Unchanged — schedule wakeup, resume per § Resume (never burn a hot quota window) |
 
 ## Decisions ledger
@@ -138,7 +138,7 @@ Every parked phase, every deferred audit, every payment/UX verdict awaiting eyes
 
 Resolution is always human-initiated: she reviews the artifact, then says so in conversation ("finisher F1 ok, merge it" / "reject F2"); the agent then merges or discards and flips `status: resolved`.
 
-Cross-project inbox: `node .riff/scripts/riff-pending.mjs` (or from the framework repo, `node scripts/riff-pending.mjs`) sweeps every project registered in `profile.yaml § dashboard.projects` and prints one sorted list: pending finishers, unchecked DECISIONS entries, `needs_human_review` phases, unmerged `riff/*` branches. Deterministic, exits 0, `--json` for piping.
+Cross-project inbox: `node .riff/scripts/riff-pending.mjs` (the same file lives at the framework root) sweeps every project registered in `profile.yaml` → `dashboard.projects` and prints one sorted list: pending finishers, unchecked DECISIONS entries, `needs_human_review` phases, unmerged `riff/*` branches. Deterministic, exits 0, `--json` for piping.
 
 ## Merge policy
 
