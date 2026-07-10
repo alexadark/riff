@@ -178,6 +178,13 @@ function sectionTextAfterMarker(line, markerIndex) {
   return withoutLink
     .split(/\s+(?:and|or)\s+`?[\w./-]+\.(?:md|yaml|json)`?\s+§\s+/i)[0]
     .split(/\s+[A-Za-z0-9._/-]+\.md\s+§\s+/i)[0]
+    // Cut trailing prose bleed: a heading anchor ends at the first clause break.
+    .replace(/\s*[—|].*$/, '') // em-dash / pipe clause
+    .replace(/\s*\(.*$/, '') // parenthetical bleed
+    .replace(/\)\s.*$/, '') // prose after a closing paren
+    .replace(/`.*$/, '') // trailing backtick prose
+    .replace(/[,;:]\s.*$/, '') // comma / semicolon / colon clause
+    .replace(/\.(?=\s|$).*$/, '') // sentence bleed (period at a word boundary)
     .replace(/\s+(?:below|above)\b.*$/i, '')
     .replace(/\s+(?:if|when|so|to|from|with|that|and)\b.*$/i, '')
     .replace(/[).:|]+$/g, '')
