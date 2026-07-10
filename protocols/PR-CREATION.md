@@ -33,7 +33,7 @@ Compare SUMMARY.md against `.claude/references/project-details.md` (file tree), 
 
    ```bash
    node .riff/scripts/finisher-guard.mjs riff/phase-N-slug \
-     || { echo "merge path blocked: pending finisher on this branch"; }
+     || { echo "merge path blocked: pending finisher on this branch"; exit 2; }
    ```
 
    A non-zero exit means a pending finisher references this branch. Do NOT proceed to the strategy branching below. On `github_button` this means: do NOT print the "Click Merge on GitHub" instruction — print the blocking finisher and its review artifact instead, and end the report with `PR open at $PR_URL — merge BLOCKED by finisher <id>. Resolve it first ("finisher <id> ok, merge it").` On `local_no_ff` the merge cue is refused the same way. The 8c guard still runs at merge time as defense in depth.

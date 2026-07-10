@@ -122,8 +122,8 @@ Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 6
 
 **Hold condition (ANY single match is sufficient — no planner judgment required):**
 
-- **Tags** (exact, case-insensitive, `-`/`_` interchangeable): the hold set in `AUTONOMY.md` § Autonomy boundary — security/auth/payment/compliance/regulated/migration plus privacy, pii, gdpr, data_deletion, consent, retention, legal, audit, kyc, aml, finance, invoice(s), refund(s), credits, subscription(s), entitlement(s).
-- **Paths AND title/description**, matched against sensitive-surface patterns:
+- **Tags** (exact, case-insensitive, `-`/`_` interchangeable): the hold set in `AUTONOMY.md` § Autonomy boundary — security/auth/payment/compliance/regulated/migration plus privacy, pii, gdpr, data_deletion, consent, retention, legal, audit, kyc, aml, finance, invoice(s), refund(s), credits, subscription(s), entitlement(s), dsar, dpa, data_processing_agreement, cookie(s), cookie_consent, personal_data, analytics_opt_out, data_subject, erasure.
+- **Tags, paths AND title/description**, matched against sensitive-surface patterns (tags pass through the patterns too, not just the exact set above):
   - auth surface: auth/authn/authz, oauth, SSO, SAML, sessions, passwords, passkeys, MFA/2FA, magic links, API keys, secrets, tokens
   - money surface: payment, payout, billing, checkout, invoice, refund, chargeback, subscription, entitlement, credits, wallet, pricing plans, tax/VAT
   - payment providers by name: stripe, paddle, lemonsqueezy, braintree, paypal, chargebee, recurly, adyen, mollie, razorpay, square
