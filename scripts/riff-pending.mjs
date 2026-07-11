@@ -9,6 +9,7 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectPendingFinishers } from './lib/finishers.mjs';
+import { collectPendingFlags } from './lib/flags.mjs';
 import { registryProjects as resolveRegistry } from './lib/registry.mjs';
 
 const frameworkRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -28,6 +29,13 @@ const TYPE_PRIORITY = {
   ux: 3,
   review: 4,
   decision: 5,
+  // flags are non-blocking (autonomy.hold_behavior: flag_and_continue) — they
+  // sort after every blocking item so the inbox reads "act on these first,
+  // sweep these at the next specialist gate" top to bottom
+  'flag:security': 6,
+  'flag:irreversible': 7,
+  'flag:review': 8,
+  'flag:ux': 9,
 };
 
 const items = [];
@@ -187,6 +195,34 @@ function collectFinishers(projectPath, projectName) {
   }
 }
 
+function collectFlags(projectPath, projectName) {
+  const { pending, malformed, unreadable = [] } = collectPendingFlags(projectPath);
+
+  for (const bad of malformed) {
+    warn(`malformed flag entry in ${rel(projectPath, bad.file)}:${bad.line} (${bad.reason}) — fix it, it is NOT counted`);
+  }
+  for (const bad of unreadable) {
+    // flags never block merges, so an unreadable one only hides evidence
+    // from the specialist gate — surface it, but never fail closed like the
+    // finisher guard does
+    warn(`UNREADABLE flag file ${rel(projectPath, bad.file)} (${bad.reason}) — hidden from the next specialist gate until fixed`);
+  }
+
+  for (const entry of pending) {
+    items.push({
+      project: projectName,
+      projectPath,
+      type: `flag:${entry.type || 'review'}`,
+      phase: entry.phase || null,
+      waiting_on: entry.waiting_on || null,
+      artifact: entry.artifact || rel(projectPath, entry.file),
+      branch: entry.branch || null,
+      run: entry.run,
+      created: entry.created || null,
+    });
+  }
+}
+
 function truncate(value, max) {
   return value.length > max ? `${value.slice(0, max - 3)}...` : value;
 }
@@ -322,6 +358,7 @@ function collectProject(projectPath) {
   }
   const projectName = path.basename(projectPath);
   collectFinishers(projectPath, projectName);
+  collectFlags(projectPath, projectName);
   collectDecisions(projectPath, projectName);
   collectRoadmap(projectPath, projectName);
   collectBranches(projectPath, projectName);

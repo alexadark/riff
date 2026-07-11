@@ -37,6 +37,12 @@ function writeFinishers(projectRoot, runName, content) {
   writeFileSync(path.join(dir, 'finishers.yaml'), content, 'utf8');
 }
 
+function writeFlag(projectRoot, runName, id, content) {
+  const dir = path.join(projectRoot, '.planning', 'autonomy', runName, 'flags');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, `${id}.yaml`), content, 'utf8');
+}
+
 function git(cwd, args) {
   execFileSync('git', args, { cwd, stdio: 'ignore' });
 }
@@ -197,6 +203,65 @@ finishers:
     const item = report.items.find((entry) => entry.phase === '2-phase');
     expect(item).toBeTruthy();
     expect(item.type).toBe('review');
+  });
+});
+
+describe('flags (autonomy.hold_behavior: flag_and_continue)', () => {
+  test('a pending flag surfaces as a non-blocking item tagged flag:<type>', () => {
+    const project = tempProject();
+    writeFlag(project, 'run-g', 'FLAG-12-checkout-flow-security', `run: 2026-07-11-1000
+finishers:
+  - id: FLAG-12-checkout-flow-security
+    type: security
+    phase: 12-checkout-flow
+    branch: riff/phase-12-checkout-flow
+    waiting_on: "security-reviewer still BLOCKED after the debug-cycle cap"
+    artifact: .planning/phases/12-checkout-flow/SECURITY.md
+    status: pending
+    created: 2026-07-11
+`);
+    const registry = tempRegistry([project]);
+    const report = runPending(registry);
+
+    const item = report.items.find((entry) => entry.phase === '12-checkout-flow');
+    expect(item).toBeTruthy();
+    expect(item.type).toBe('flag:security');
+    expect(item.waiting_on).toMatch(/debug-cycle cap/);
+    expect(report.warnings).toEqual([]);
+  });
+
+  test('a resolved flag is not surfaced', () => {
+    const project = tempProject();
+    writeFlag(project, 'run-h', 'FLAG-9-slug-review', `run: 2026-07-11-1000
+finishers:
+  - id: FLAG-9-slug-review
+    type: review
+    phase: 9-slug
+    status: resolved
+    created: 2026-07-11
+`);
+    const registry = tempRegistry([project]);
+    const report = runPending(registry);
+
+    expect(report.items.some((entry) => entry.phase === '9-slug')).toBe(false);
+  });
+
+  test('a flagged phase never appears as a blocking finisher — merges are not affected', () => {
+    const project = tempProject();
+    writeFlag(project, 'run-i', 'FLAG-3-slug-security', `run: 2026-07-11-1000
+finishers:
+  - id: FLAG-3-slug-security
+    type: security
+    phase: 3-slug
+    branch: riff/phase-3-slug
+    status: pending
+    created: 2026-07-11
+`);
+    const registry = tempRegistry([project]);
+    const report = runPending(registry);
+
+    expect(report.items.filter((entry) => entry.type === 'security')).toHaveLength(0);
+    expect(report.items.find((entry) => entry.phase === '3-slug').type).toBe('flag:security');
   });
 });
 
