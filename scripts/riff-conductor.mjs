@@ -370,16 +370,18 @@ export function evaluateProject(projectPath, { scheduled = false } = {}) {
   if (mergesBlocked(projectPath)) return skip('merges-blocked');
 
   // Eligible work: safe todo phases whose dependencies are met.
+  const hasIdentity = (phase) => (phase.id !== undefined && String(phase.id).trim() !== '')
+    || (phase.slug !== undefined && String(phase.slug).trim() !== '');
   const byKey = new Map();
   for (const phase of roadmap.phases) {
-    if (phase.id !== undefined) byKey.set(dependencyKey(phase.id), phase);
-    if (phase.slug) byKey.set(dependencyKey(phase.slug), phase);
+    if (phase.id !== undefined && String(phase.id).trim() !== '') byKey.set(dependencyKey(phase.id), phase);
+    if (phase.slug && String(phase.slug).trim() !== '') byKey.set(dependencyKey(phase.slug), phase);
   }
   for (const phase of roadmap.phases) {
     if (!HOLD_STATUSES.has(phase.status)) continue;
-    // a phase with neither id nor slug cannot be referenced or verified —
-    // fail closed, never select it
-    if (phase.id === undefined && !phase.slug) continue;
+    // a phase without a non-blank id or slug cannot be referenced or
+    // verified — fail closed, never select it
+    if (!hasIdentity(phase)) continue;
     if (!dependenciesMet(phase, byKey)) continue;
     const autonomy = classifyRoadmapPhase(phase);
     if (autonomy === 'hold') {
@@ -489,6 +491,9 @@ function nextProject(state) {
   return candidate ? candidate.path : null;
 }
 
+// Latest RUNNING run only: `state read` without --run is the resume probe,
+// and a finished/stopped run must never look resumable. Explicit --run still
+// reads any run.
 function latestRun(stateRoot) {
   const root = path.join(stateRoot, '.planning/conductor');
   let entries;
@@ -506,7 +511,7 @@ function latestRun(stateRoot) {
     const state = readConductor(stateRoot, runId);
     if (state && state.status === 'running') return runId;
   }
-  return runs[0] || null;
+  return null;
 }
 
 const PROJECT_STATUSES = new Set(['pending', 'advancing', 'done', 'halted', 'skipped']);
@@ -626,7 +631,7 @@ function cli() {
       }
       if (action === 'read') {
         const runId = flags.run || latestRun(stateRoot);
-        if (!runId) fail('no conductor runs found');
+        if (!runId) fail('no running conductor run — nothing to resume');
         const state = readConductor(stateRoot, runId);
         if (!state) fail(`no conductor.json for run ${runId}`);
         process.stdout.write(`${JSON.stringify({ ...state, next_project: nextProject(state) }, null, 2)}\n`);

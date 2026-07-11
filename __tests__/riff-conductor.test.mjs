@@ -446,6 +446,21 @@ phase-13:
     expect(entry.reason).toBe('no-eligible-work');
   });
 
+  test('an empty-string id counts as no identity', () => {
+    const project = tempProject({
+      roadmap: `phases:
+  - id: ""
+    title: "Blank identity"
+    status: todo
+    depends_on: []
+    description: "Unverifiable"
+`,
+    });
+    const entry = planFor(project);
+    expect(entry.decision).toBe('skip');
+    expect(entry.reason).toBe('no-eligible-work');
+  });
+
   test('a pending finisher tied to a branch does not block other safe work', () => {
     const project = tempProject();
     const finisherDir = path.join(project, '.planning/autonomy/2026-07-10-0700/finishers');
@@ -633,6 +648,23 @@ describe('riff-conductor state', () => {
     initState(stateRoot, '2026-07-11-0700', [{ path: '/tmp/b', decision: 'advance', reason: null }]);
     const state = readState(stateRoot);
     expect(state.run).toBe('2026-07-11-0700');
+  });
+
+  test('read with no run fails when no run is running — a finished run never resumes', () => {
+    const stateRoot = tempDir('riff-conductor-state-');
+    initState(stateRoot, '2026-07-10-0700', [{ path: '/tmp/a', decision: 'advance', reason: null }]);
+    execFileSync(process.execPath, [
+      script, 'state', 'finish', '--run', '2026-07-10-0700', '--state-root', stateRoot,
+    ], { encoding: 'utf8' });
+    let code = 0;
+    try {
+      execFileSync(process.execPath, [
+        script, 'state', 'read', '--state-root', stateRoot,
+      ], { encoding: 'utf8' });
+    } catch (error) {
+      code = error.status;
+    }
+    expect(code).not.toBe(0);
   });
 });
 
