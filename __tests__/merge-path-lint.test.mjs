@@ -79,4 +79,16 @@ describe('merge-path lint: every merge path calls the finisher guard', () => {
     const text = readFileSync(path.join(repoRoot, 'protocols/AUTONOMY.md'), 'utf8');
     expect(section(text, '## Merge policy')).toContain('finisher-guard.mjs');
   });
+
+  it('the Conductor introduces no merge path of its own', () => {
+    // The Conductor is a thin orchestration layer: it launches the existing
+    // autonomous loop per project and must never gain a way to merge — no
+    // `git merge`, no `gh pr merge`, no local_no_ff mechanics of its own.
+    for (const file of ['commands/conductor.md', 'protocols/CONDUCTOR.md']) {
+      const text = readFileSync(path.join(repoRoot, file), 'utf8');
+      expect(text, `${file} must not invoke a merge`).not.toMatch(/git merge|gh pr merge|merge -m|--no-ff/);
+    }
+    const engine = readFileSync(path.join(repoRoot, 'scripts/riff-conductor.mjs'), 'utf8');
+    expect(engine).not.toMatch(/['"]merge['"]|git merge/);
+  });
 });
