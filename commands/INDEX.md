@@ -1,6 +1,6 @@
 # RIFF Commands — Index
 
-15 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
+16 RIFF slash commands at a glance. Use this as a routing table when you've forgotten which command does what. Some lifecycle actions live as conversational triggers instead — see § Conversational triggers below.
 
 ## Framework (global to the framework install)
 
@@ -25,6 +25,7 @@
 | ---------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `/riff:next`     | The main command. Plans + executes + reviews + opens PR for the next phase.                        | `PLAN.md`, `SUMMARY.md`, `REVIEW.md`, security report, USAGE.md, PR |
 | `/riff:wave [W{N}\|--solo P\|--resume W{N}]` | Bundle N parallel-eligible phases (or 1 solo) and delegate to Codex. Opus plans, Codex executes, opt-in smoke/browser checks prove it works. | `.planning/waves/W{N}.bundle.md`, `.RESULT.md`, `.SUMMARY.md` |
+| `/riff:conductor [--dry-run\|--projects a,b\|--max-runs-per-project N]` | Advancing the whole portfolio unattended, or a morning briefing across every registered project.    | `.planning/conductor/<run-id>/REPORT.md` (framework root)          |
 | `/riff:status`   | "Where am I?" — shows current phase, next phase, blocked phases, pending expertise.                | Console output                                                      |
 
 ## Off-loop work (when you need to act outside the roadmap)
