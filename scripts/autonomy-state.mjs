@@ -6,6 +6,8 @@
 // CLI (agents call these instead of hand-editing state files):
 //   node .riff/scripts/autonomy-state.mjs classify --tags "a,b" --paths "x,y" --text "<title + description>"
 //   node .riff/scripts/autonomy-state.mjs park --run <run-id> --phase <id> --type <t> --branch <b> --waiting "<msg>" --artifact <path>
+//   node .riff/scripts/autonomy-state.mjs flag --run <run-id> --phase <id> --type <t> [--branch <b>] --waiting "<msg>" [--artifact <path>]
+//   node .riff/scripts/autonomy-state.mjs flag-resolve --run <run-id> --id <flag-id>
 //   node .riff/scripts/autonomy-state.mjs phase-status --run <run-id> --phase <id> --status <s>   (exit 5 = lock lost: stop, park, never merge)
 //   node .riff/scripts/autonomy-state.mjs lock acquire --run <run-id> [--loop] | lock release --run <run-id> [--force] | lock touch [--run <run-id>] | lock status
 //   node .riff/scripts/autonomy-state.mjs loop start-run --run <run-id> | loop complete-run --run <run-id>
@@ -261,6 +263,68 @@ export function parkPhase({ projectRoot, runId, phaseId, finisher }) {
   }
 
   return written;
+}
+
+/**
+ * Stable flag id, derived the same way as finisherId — same phase+type always
+ * maps to the same file, so re-flagging overwrites its own entry. Prefixed
+ * `FLAG-` (not `F-`) so a flag can never collide with a finisher id for the
+ * same phase+type, even though both mechanisms can be live on one project.
+ */
+export function flagId(phaseId, type) {
+  const slug = (value) => String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `FLAG-${slug(phaseId)}-${slug(type)}`;
+}
+
+/**
+ * Flag a phase for the specialist WITHOUT blocking its merge (AUTONOMY.md §
+ * Flags, `autonomy.hold_behavior: flag_and_continue`). The opposite of
+ * parkPhase: finisher-guard.mjs never reads `flags/`, so a pending flag can
+ * never trip the no-merge guard, by construction. Unlike parkPhase this never
+ * touches run.json — the phase's status is whatever the build naturally
+ * produced (merged, done); the flag is additive bookkeeping for the one-time
+ * specialist review at the production boundary (§ Specialist gate).
+ *
+ * One file per flag (`<run-dir>/flags/<id>.yaml`), same atomic-write and
+ * id-derivation discipline as parkPhase so concurrent flags never clobber
+ * each other. `flag`: { id?, type, phase, branch?, waiting_on, artifact?, created? }.
+ */
+export function flagPhase({ projectRoot, runId, phaseId, flag }) {
+  const runDir = path.join(projectRoot, '.planning/autonomy', runId);
+  const id = flag.id || flagId(flag.phase || phaseId, flag.type);
+  const markerFile = path.join(runDir, 'flags', `${id}.yaml`);
+
+  let created = flag.created;
+  if (!created && existsSync(markerFile)) {
+    const prior = parseFinishers(readFileSync(markerFile, 'utf8'));
+    created = prior.entries[0]?.created || prior.malformed[0]?.entry?.created;
+  }
+
+  const written = {
+    ...flag,
+    id,
+    status: 'pending',
+    created: created || new Date().toISOString().slice(0, 10),
+  };
+
+  atomicWrite(markerFile, serializeFinishers({ run: runId, entries: [written] }));
+  return written;
+}
+
+/**
+ * Mark a flag resolved (the specialist reviewed it at § Specialist gate).
+ * Always human-initiated, same trigger shape as finisher resolution.
+ */
+export function resolveFlag({ projectRoot, runId, id }) {
+  const runDir = path.join(projectRoot, '.planning/autonomy', runId);
+  const markerFile = path.join(runDir, 'flags', `${id}.yaml`);
+  if (!existsSync(markerFile)) return { ok: false, reason: `no flag ${id} in run ${runId}` };
+  const parsed = parseFinishers(readFileSync(markerFile, 'utf8'));
+  const entry = parsed.entries[0];
+  if (!entry) return { ok: false, reason: `flag file ${id} unparseable` };
+  entry.status = 'resolved';
+  atomicWrite(markerFile, serializeFinishers({ run: runId, entries: [entry] }));
+  return { ok: true };
 }
 
 /**
@@ -986,6 +1050,30 @@ function cli() {
       process.stdout.write(`parked ${flags.phase} — finisher ${entry.id} pending\n`);
       return;
     }
+    case 'flag': {
+      if (!flags.run || !flags.phase || !flags.type) fail('flag requires --run --phase --type (+ --branch --waiting --artifact)');
+      const entry = flagPhase({
+        projectRoot,
+        runId: flags.run,
+        phaseId: flags.phase,
+        flag: {
+          type: flags.type,
+          phase: flags.phase,
+          branch: flags.branch || null,
+          waiting_on: flags.waiting || 'specialist review at the production gate',
+          artifact: flags.artifact || null,
+        },
+      });
+      process.stdout.write(`flagged ${flags.phase} — ${entry.id} pending specialist review (non-blocking)\n`);
+      return;
+    }
+    case 'flag-resolve': {
+      if (!flags.run || !flags.id) fail('flag-resolve requires --run --id');
+      const result = resolveFlag({ projectRoot, runId: flags.run, id: flags.id });
+      if (!result.ok) fail(result.reason);
+      process.stdout.write(`${flags.id} -> resolved\n`);
+      return;
+    }
     case 'phase-status': {
       if (!flags.run || !flags.phase || !flags.status) fail('phase-status requires --run --phase --status');
       const result = setPhaseStatus({
@@ -1075,7 +1163,7 @@ function cli() {
       return;
     }
     default:
-      fail('usage: autonomy-state <classify | park | phase-status | lock | loop | pointer | resolve-launch> [flags]');
+      fail('usage: autonomy-state <classify | park | flag | flag-resolve | phase-status | lock | loop | pointer | resolve-launch> [flags]');
   }
 }
 

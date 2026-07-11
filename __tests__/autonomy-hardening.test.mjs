@@ -11,12 +11,15 @@ import {
   acquireLock,
   classifyPhase,
   clearStatePointer,
+  flagId,
+  flagPhase,
   lockStatus,
   parkPhase,
   readLoopJson,
   readRunJson,
   readStatePointer,
   releaseLock,
+  resolveFlag,
   resolveLaunch,
   touchLock,
   writeLoopJson,
@@ -24,6 +27,7 @@ import {
   writeStatePointer,
 } from '../scripts/autonomy-state.mjs';
 import { collectPendingFinishers, parseFinishers } from '../scripts/lib/finishers.mjs';
+import { collectPendingFlags } from '../scripts/lib/flags.mjs';
 
 const execFileAsync = promisify(execFile);
 const scriptsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../scripts');
@@ -351,6 +355,111 @@ describe('parkPhase ordering', () => {
     expect(checkBranch(projectRoot, 'riff/phase-3-auth').allowed).toBe(false);
     // the legacy ledger was not rewritten
     expect(readFileSync(path.join(runDir, 'finishers.yaml'), 'utf8')).toContain('id: F1');
+  });
+});
+
+describe('flagPhase (non-blocking, hold_behavior: flag_and_continue)', () => {
+  const runId = '2026-07-11-1000';
+
+  function seedRun(status = 'merged') {
+    const runDir = path.join(projectRoot, '.planning/autonomy', runId);
+    mkdirSync(runDir, { recursive: true });
+    writeRunJson(runDir, {
+      run: runId,
+      stage: 'build',
+      phases: [{ id: '12-checkout-flow', autonomy: 'hold', status, branch: 'riff/phase-12-checkout-flow' }],
+    });
+    return runDir;
+  }
+
+  it('writes to flags/, never finishers/, and never trips the no-merge guard', () => {
+    seedRun();
+    const written = flagPhase({
+      projectRoot,
+      runId,
+      phaseId: '12-checkout-flow',
+      flag: {
+        type: 'security',
+        phase: '12-checkout-flow',
+        branch: 'riff/phase-12-checkout-flow',
+        waiting_on: 'security-reviewer still BLOCKED after the debug-cycle cap',
+        artifact: '.planning/phases/12-checkout-flow/SECURITY.md',
+      },
+    });
+    expect(written.id).toBe('FLAG-12-checkout-flow-security');
+    expect(existsSync(path.join(projectRoot, '.planning/autonomy', runId, 'flags', 'FLAG-12-checkout-flow-security.yaml'))).toBe(true);
+    // finisher-guard only reads finishers/ — a pending flag never blocks the branch
+    expect(checkBranch(projectRoot, 'riff/phase-12-checkout-flow').allowed).toBe(true);
+    const { pending: pendingFinishers } = collectPendingFinishers(projectRoot);
+    expect(pendingFinishers).toHaveLength(0);
+    const { pending: pendingFlags } = collectPendingFlags(projectRoot);
+    expect(pendingFlags).toHaveLength(1);
+    expect(pendingFlags[0].id).toBe('FLAG-12-checkout-flow-security');
+  });
+
+  it('never touches run.json — the phase status stays whatever the build produced', () => {
+    const runDir = seedRun('merged');
+    flagPhase({
+      projectRoot,
+      runId,
+      phaseId: '12-checkout-flow',
+      flag: { type: 'review', phase: '12-checkout-flow', branch: 'riff/phase-12-checkout-flow' },
+    });
+    expect(readRunJson(runDir).phases[0].status).toBe('merged');
+  });
+
+  it('flagId is namespaced separately from finisherId so the two never collide', () => {
+    expect(flagId('12-checkout-flow', 'security')).toBe('FLAG-12-checkout-flow-security');
+    expect(flagId('12-checkout-flow', 'security')).not.toBe('F-12-checkout-flow-security');
+  });
+
+  it('a flagged phase and a parked phase can coexist without clobbering each other', () => {
+    const runDir = seedRun('building');
+    parkPhase({
+      projectRoot,
+      runId,
+      phaseId: '12-checkout-flow',
+      finisher: { type: 'review', phase: '12-checkout-flow', branch: 'riff/phase-12-checkout-flow' },
+    });
+    flagPhase({
+      projectRoot,
+      runId,
+      phaseId: '12-checkout-flow',
+      flag: { type: 'security', phase: '12-checkout-flow', branch: 'riff/phase-12-checkout-flow' },
+    });
+    expect(readRunJson(runDir).phases[0].status).toBe('parked');
+    expect(checkBranch(projectRoot, 'riff/phase-12-checkout-flow').allowed).toBe(false);
+    expect(collectPendingFinishers(projectRoot).pending).toHaveLength(1);
+    expect(collectPendingFlags(projectRoot).pending).toHaveLength(1);
+  });
+
+  it('re-flagging the same phase+type rewrites the same file instead of duplicating', () => {
+    seedRun();
+    const flag = { type: 'review', phase: '12-checkout-flow', branch: 'riff/phase-12-checkout-flow' };
+    flagPhase({ projectRoot, runId, phaseId: '12-checkout-flow', flag });
+    flagPhase({ projectRoot, runId, phaseId: '12-checkout-flow', flag: { ...flag, waiting_on: 'second pass' } });
+    const files = readdirSync(path.join(projectRoot, '.planning/autonomy', runId, 'flags')).filter((name) => name.endsWith('.yaml'));
+    expect(files).toHaveLength(1);
+    const { pending } = collectPendingFlags(projectRoot);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].waiting_on).toBe('second pass');
+  });
+
+  it('resolveFlag flips status to resolved; an unknown flag id fails cleanly', () => {
+    seedRun();
+    flagPhase({
+      projectRoot,
+      runId,
+      phaseId: '12-checkout-flow',
+      flag: { type: 'security', phase: '12-checkout-flow', branch: 'riff/phase-12-checkout-flow' },
+    });
+    const result = resolveFlag({ projectRoot, runId, id: 'FLAG-12-checkout-flow-security' });
+    expect(result.ok).toBe(true);
+    const { pending } = collectPendingFlags(projectRoot);
+    expect(pending).toHaveLength(0);
+
+    const missing = resolveFlag({ projectRoot, runId, id: 'FLAG-does-not-exist' });
+    expect(missing.ok).toBe(false);
   });
 });
 
