@@ -104,7 +104,7 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 
   In that case, accept RESOLVED as the verdict without a re-run. Surface in Step 10 report: `Re-run skipped: RESOLVED with pinning tests`.
 
-- DEBUG.md `UNRESOLVED` → halt, surface DEBUG.md to user. Autonomous runs: park the phase instead (DEBUG.md becomes the finisher artifact) per [`AUTONOMY.md`](./AUTONOMY.md) § Conversion table; the run continues with independent phases.
+- DEBUG.md `UNRESOLVED` → halt, surface DEBUG.md to user. Autonomous runs: the phase does not merge (functional gate bar) — DEBUG.md becomes the finisher artifact under `hold_behavior: park` (default) or a non-blocking flag under `flag_and_continue`, per [`AUTONOMY.md`](./AUTONOMY.md) § Conversion table; the run continues with independent phases either way.
 
 ---
 

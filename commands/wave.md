@@ -25,7 +25,7 @@ Group wave-eligible phases into a wave run. The session frontier model plans, th
 | `/riff:wave --status` | List active/pending/done waves |
 | `/riff:wave --scratch` | Run the wave with security gates downgraded to warnings. See § Scratch mode below |
 | `/riff:wave --executor sonnet\|codex` | Override the wave executor for this wave. Combinable with the other modes |
-| `/riff:wave --autonomous` | Autonomous session: all decisions front-loaded at launch, zero questions during build, batched end verification, park + finisher instead of stopping. Lifecycle: [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md). Combinable with `--executor` |
+| `/riff:wave --autonomous` | Autonomous session: all decisions front-loaded at launch, zero questions during build, batched end verification; unfixable failures park+finisher (default) or flag+continue (`autonomy.hold_behavior: flag_and_continue`) instead of stopping. Lifecycle: [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md). Combinable with `--executor` |
 | `/riff:wave --autonomous --loop [--max-runs N]` | Chain autonomous runs Ralph-style until roadmap dry / 2 zero-merge runs / max-runs / `.planning/autonomy/STOP`. See `protocols/AUTONOMY.md` § Loop mode |
 
 ## Step 1: Eligibility scan
@@ -57,7 +57,7 @@ Skip phases marked `planner_model: opus` AND `complex_execution: true` — those
 
 A wave with ZERO parallelism (a pure sequential chain) is a valid wave. Do not refuse or downgrade it to solo runs.
 
-**Autonomous runs** ([`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md)): `mode: HITL` phases ARE wave-eligible — their human-verification semantics convert per `AUTONOMY.md` § Conversion table, and phases crossing the autonomy boundary build as `hold` (branch parked for sign-off, never merged).
+**Autonomous runs** ([`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md)): `mode: HITL` phases ARE wave-eligible — their human-verification semantics convert per `AUTONOMY.md` § Conversion table, and phases crossing the autonomy boundary build as `hold`. Merge disposition depends on `autonomy.hold_behavior`: branch parked for sign-off and never merged by default, or merged with a specialist flag under `flag_and_continue` — see `AUTONOMY.md` § Merge policy.
 
 ## Step 2: Propose the wave
 
@@ -147,9 +147,12 @@ between launch and result.
    **Autonomous runs** (`protocols/AUTONOMY.md` § Conversion table): NEVER the
    paste flow — fall back to in-process Sonnet execution (Step 5c) with the same
    bundle. If Sonnet workers are also unavailable (usage guard ≥95%, Agent tool
-   failure), park the whole wave: one finisher type `review` covering the wave
-   (`AUTONOMY.md` § Parking), log the startup failure in DECISIONS.md, continue
-   to Batched verification with whatever previously completed.
+   failure), the whole wave does not build this run: `hold_behavior: park`
+   (default) writes one finisher type `review` covering the wave
+   (`AUTONOMY.md` § Parking); `flag_and_continue` writes a `review` flag
+   instead (`AUTONOMY.md` § Flags) — same non-build outcome, non-blocking
+   bookkeeping. Log the startup failure in DECISIONS.md, continue to Batched
+   verification with whatever previously completed.
 
 ### RESULT.md Schema
 
@@ -253,12 +256,17 @@ A guard refusal means a pending finisher references that branch: that phase stay
 
 - `FAIL` → mark wave `status: needs_human_review`, surface verdict + top
   3 blocking findings inline, stop.
-  Autonomous runs: do not stop — park the failing phases (finisher per
-  phase) and continue to `protocols/AUTONOMY.md` § Batched verification
+  Autonomous runs: do not stop — the failing phases don't merge (functional
+  gate bar, unconditional on `hold_behavior`): `park` (default) writes a
+  finisher per phase; `flag_and_continue` writes a `review` flag per phase
+  instead. Either way continue to `protocols/AUTONOMY.md` § Batched
+  verification
 - `PASS-WITH-WARNINGS` → mark guard-clear phases `done`, surface warnings in
   Step 7 output, continue
-- `PASS` → mark guard-clear phases `done`, no friction. Autonomous runs: `safe`
-  phases then merge per `AUTONOMY.md` § Merge policy; `hold` phases park
+- `PASS` → mark guard-clear phases `done`, no friction. Autonomous runs:
+  `safe` phases merge per `AUTONOMY.md` § Merge policy. `hold` phases:
+  `park` (default) leaves them parked; `flag_and_continue` merges them on
+  the same gate bar, writing a flag instead of a finisher.
 
 If a phase reports smoke/browser-check FAIL or the reconcile is FAIL → mark
 `status: needs_human_review`, surface to user. Otherwise (guard clear) mark

@@ -93,6 +93,6 @@ Auto-debug on confirmed FAIL → `failure_type: adversarial_fail`, `artifact: RE
 
 **Reading verdict back:** parse `verdict` from SECURITY.md frontmatter. On `BLOCKED`, double-check `grep -E '^### \[(CRITICAL|HIGH)\]' SECURITY.md` returns a match (if frontmatter and grep disagree, treat as BLOCKED defensively). On SECURITY.md absent: trigger auto-debug with `failure_type: security_silent_exit`.
 
-Auto-debug on `BLOCKED` → `failure_type: security_fail`, `artifact: SECURITY.md`. On RESOLVED, re-run Step 7 (security-reviewer overwrites SECURITY.md, populating `## Resolved Findings` per idempotency contract).
+Auto-debug on `BLOCKED` → `failure_type: security_fail`, `artifact: SECURITY.md`. On RESOLVED, re-run Step 7 (security-reviewer overwrites SECURITY.md, populating `## Resolved Findings` per idempotency contract). Autonomous runs under `hold_behavior: flag_and_continue` repeat this diagnose→re-run cycle up to `autonomy.debug_cycle_cap` (default 3) before falling through to `AUTONOMY.md` § Merge policy's merge-anyway-and-flag disposition; `park` (default) stays single-cycle per `AUTONOMY.md` § Conversion table.
 
 **Wait for BOTH.** Security CRITICAL/HIGH or adversarial FAIL → do NOT create PR.

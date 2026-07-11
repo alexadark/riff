@@ -214,7 +214,7 @@ Do NOT update ROADMAP.yaml or STATE.md on the feature branch. Full procedure: [`
 
 **No-merge guard (every merge, every session):** before any 8c local merge — including a manual "merge phase N" in a later session — run `node .riff/scripts/finisher-guard.mjs riff/phase-N-slug`. Non-zero exit = a pending finisher references the branch: refuse the merge and surface the blocking finisher + its artifact. See [`protocols/PR-CREATION.md`](../protocols/PR-CREATION.md) § 8c.
 
-Autonomous runs: no merge cue — apply [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md) § Merge policy (`safe` phase with clean gates AND a clean finisher-guard pass auto-merges via 8c; `hold` phase parks with the PR open and a finisher entry).
+Autonomous runs: no merge cue — apply [`protocols/AUTONOMY.md`](../protocols/AUTONOMY.md) § Merge policy, gated by `autonomy.hold_behavior`. Default `park`: `safe` phase with clean gates AND a clean finisher-guard pass auto-merges via 8c; `hold` phase parks with the PR open and a finisher entry. `flag_and_continue`: `hold` phases merge on the same functional gate bar as `safe`, writing a non-blocking flag instead of a finisher when the security/review evidence is incomplete.
 
 ### Step 9: Learn (inline)
 
