@@ -132,10 +132,11 @@ If the section already exists, reset all four field values to `-`.
 
 4. **No stale phase found:** continue to the dirty-tree preflight (below).
 
-5. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty:
+5. **Dirty-tree preflight.** Run `git status --porcelain`. If output is non-empty, classify each line: UNTRACKED (`??`) vs TRACKED modifications (everything else).
 
    - **All dirty files are inside `.planning/` only:** auto-skip. These are RIFF artifact residue (interrupted hook writes, etc.) safe to leave; Step 5's executor will overwrite them. Print a one-line notice and continue.
-   - **Any dirty file is outside `.planning/`:** autonomous runs mid-run take option A without prompting + a DECISIONS entry ([`AUTONOMY.md`](./AUTONOMY.md) § Conversion table); at launch this stays interactive. AskUserQuestion:
+   - **Only UNTRACKED files outside `.planning/`:** never a question, in ANY mode. Untracked files cannot leak into a phase commit (atomic commits, never `git add .`) and asking about the same stray notes at every launch is noise. Print a one-line notice listing them (max 5) and continue. Autonomous runs: list them in REPORT.md.
+   - **TRACKED modifications outside `.planning/`:** autonomous runs — launch AND mid-run — take option A without prompting + a DECISIONS entry ([`AUTONOMY.md`](./AUTONOMY.md) § Conversion table); the stash is recoverable, so nothing is lost and no question is worth blocking the run. Interactive sessions AskUserQuestion:
      > Working tree has uncommitted changes outside .planning/:
      > <git status --porcelain output, max 10 lines>
      > A) Stash and continue (recovered after PR)
