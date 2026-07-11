@@ -1,10 +1,18 @@
 # Autonomous Session Protocol
 
-One approval, then hours of unattended build. Every decision is front-loaded into the launch window; the build has zero open questions by construction. Human-facing verification is batched at the end into one report. Anything security-critical, money-touching, privacy-touching, or regulated builds on a branch and is never merged unattended.
+One approval, then hours of unattended build. Every decision is front-loaded into the launch window; the build has zero open questions by construction. Human-facing verification is batched at the end into one report.
+
+Three fields under `profile.yaml` → `autonomy` govern how far "unattended" goes ([`references/PROFILE-SCHEMA.md`](../references/PROFILE-SCHEMA.md)). Every field defaults to today's strict behavior — a profile must opt in explicitly:
+
+- **`auto_launch`** (default `false`): `true` skips the front-load's single "yes" (§ Front-load Step 6) — approval already happened at roadmap planning (`/riff:start`, `/riff:add-phase`), so a per-launch re-confirmation is pure babysitting.
+- **`hold_behavior`** (default `park`): what happens to `hold`-classified phases and to judgment-gate failures (security BLOCKED, adversarial FAIL) the debugger cannot resolve.
+  - `park` (default): unchanged from today. `hold` phases build on a branch and are NEVER merged unattended; anything security-critical, money-touching, privacy-touching, or regulated waits on a human decision (§ Parking, § Finishers).
+  - `flag_and_continue`: for an operator with no security/compliance judgment of their own — asking her to gate on a domain she can't evaluate is friction, not safety. `hold` phases and judgment-gate failures MERGE once the functional gate bar passes, recorded as a non-blocking flag for a specialist's one-time review at the production boundary (§ Flags, § Specialist gate) instead of parking for the operator. Genuinely broken code (failing tests/build) still never merges, under either setting. Irreversible actions (§ Irreversibility rule) are never auto-executed under either setting either.
+- **`debug_cycle_cap`** (default `3`, only consulted under `flag_and_continue`): diagnose→fix→re-verify cycles the debugger gets on a BLOCKED/FAIL judgment gate before the run gives up and flags instead of looping forever.
 
 Launch surface: `/riff:next --autonomous` (single phase) or `/riff:wave --autonomous [phases]` (bundle). Both reuse the standard pipeline; this protocol only changes what happens at interaction points, at merge time, and after the last phase. Add `--loop` to chain runs Ralph-style until a stop criterion fires (see Loop mode below).
 
-State machinery (atomic writes, parking, launch lock, classification) is code, not prose: `.riff/scripts/autonomy-state.mjs`. The no-merge guard is `.riff/scripts/finisher-guard.mjs`. Agents call these instead of hand-editing state files.
+State machinery (atomic writes, parking, flagging, launch lock, classification) is code, not prose: `.riff/scripts/autonomy-state.mjs`. The no-merge guard is `.riff/scripts/finisher-guard.mjs` — it only ever reads `finishers/`, never `flags/`, so a pending flag can never block a merge by construction. Agents call these instead of hand-editing state files.
 
 ## Run directory
 
@@ -59,9 +67,12 @@ The only interactive window. Everything a human might be asked during the run is
 2. Select the run scope: the phases for `/riff:wave` bundling, or the single next phase. Apply the standard wave eligibility rules, except `mode: HITL` phases are NOT excluded — HITL semantics are converted per § Conversion table.
 3. Confidence gate for every phase in scope. Collect ALL sub-0.7 dimensions and planner questions across all phases into ONE `AskUserQuestion` batch. No question survives past launch.
    **Question domain rule:** the batch may only contain product, design, UX, and scope questions, phrased plainly (`references/EXPLANATION-LEVEL.md`). Security, privacy, GDPR, compliance, and payment-correctness questions are NEVER asked to the human — she does not operate in those domains, and a question she cannot evaluate blocks the launch for nothing. Instead: take the conservative default, log it in the run DECISIONS ledger, classify the phase `hold`, and let the machine verification at the end of the run produce the evidence (see the Batched verification and Finishers sections below).
+   **Genuine-fork rule:** within the allowed domains, ask ONLY when two-plus options carry a real tradeoff a human must actually weigh. Do NOT ask when (a) the phase spec or PLAN.md already determines the answer, or (b) one option is obviously wrong or nonsensical (e.g. "style only part of the app" when the phase spec calls for a full pass) — bake the sensible default silently and log it to `DECISIONS.md` instead. A question that just restates something the spec already settled is friction, not a fork, and defeats the "one approval then hours unattended" point of this window. Product/design/UX questions on the operator's own product ARE her legitimate domain when the fork is real; marketing/social/scroll-stop judgment calls are never hers to make, default those too.
 4. Classify every phase per § Autonomy boundary. Stamp `autonomy: safe | hold` into `run.json`.
 5. Plan all phases (standard Step 4 planning, plan adversarial review included per its gate). Plans must contain zero open questions; an assumption a plan still carries becomes a pre-seeded `DECISIONS.md` entry.
-6. Present one summary: phases, classifications, plans, baked-in defaults. One yes launches the run. After that yes, FIRST re-verify the lock: `node .riff/scripts/autonomy-state.mjs lock touch --run <run-id>` — the wait for the human's yes can outlast the staleness window, and another launch may have legitimately reclaimed the lock meanwhile. Exit 5 = this launch lost the lock: do NOT start the run; resolve-launch and resume whatever now owns the project. Exit 0: write `run.json` atomically, write the STATE.md pointer (`node .riff/scripts/autonomy-state.mjs pointer set --run <run-id> [--loop]`), and `AskUserQuestion` is forbidden until REPORT.md is delivered.
+6. Present one summary: phases, classifications, plans, baked-in defaults. **`autonomy.auto_launch: false` (default):** one yes launches the run — wait for it. **`autonomy.auto_launch: true`:** print the summary and proceed immediately, no `AskUserQuestion` — the approval already happened at roadmap planning; re-confirming per launch is exactly the babysitting this flag exists to remove.
+
+   Either way, before writing state: re-verify the lock: `node .riff/scripts/autonomy-state.mjs lock touch --run <run-id>` — under `auto_launch: false` the wait for the human's yes can outlast the staleness window and another launch may have legitimately reclaimed the lock meanwhile; under `auto_launch: true` this is a cheap sanity check immediately before the write. Exit 5 = this launch lost the lock: do NOT start the run; resolve-launch and resume whatever now owns the project. Exit 0: write `run.json` atomically, write the STATE.md pointer (`node .riff/scripts/autonomy-state.mjs pointer set --run <run-id> [--loop]`), and `AskUserQuestion` is forbidden until REPORT.md is delivered.
 
 ## Launch lock
 
@@ -87,14 +98,18 @@ The classification is objective by construction: run `node .riff/scripts/autonom
 
 Everything else is `safe`.
 
-| Class | Build | Merge | End state |
-| --- | --- | --- | --- |
-| `safe` | Standard pipeline on its phase branch | Auto-merged per § Merge policy when all gates pass | `merged` |
-| `hold` | Standard pipeline on its phase branch, PR opened | NEVER merged or deployed by the agent | `parked` + finisher |
+| Class | Build | Merge (`hold_behavior: park`, default) | Merge (`hold_behavior: flag_and_continue`) | End state |
+| --- | --- | --- | --- | --- |
+| `safe` | Standard pipeline on its phase branch | Auto-merged per § Merge policy when all gates pass | Same — `hold_behavior` only changes `hold`-phase and judgment-gate-failure disposition | `merged` |
+| `hold` | Standard pipeline on its phase branch, PR opened | NEVER merged or deployed by the agent | Auto-merged once the functional gate bar passes (tests/build green, scope-check MATCH); a clean security verdict is not required — see § Flags, § Merge policy | `parked` + finisher (`park`) or `merged` + flag (`flag_and_continue`) |
 
-A `safe` phase that fails a gate (after one auto-debug attempt) is demoted to `parked` with a finisher; the run continues with the remaining independent phases.
+Irreversible actions (§ Irreversibility rule) are never auto-executed under either setting — that carve-out is orthogonal to `hold_behavior`.
+
+A `safe` or `hold` phase that fails the FUNCTIONAL gate bar (build/tests, after the debug-cycle cap) never merges under either setting: `park` demotes it to `parked` with a finisher, `flag_and_continue` writes a `review` flag and skips its strict dependents — neither setting merges broken code. A `hold` phase that fails only a JUDGMENT gate (security BLOCKED, adversarial FAIL) follows § Merge policy's security gate bar, which is where `hold_behavior` actually changes the merge outcome.
 
 ## Parking
+
+`hold_behavior: park` (default). See § Flags for the `flag_and_continue` counterpart — same trigger conditions, opposite disposition (non-blocking, merges when functional gates pass).
 
 "Park" = commit work-in-progress to the phase branch, then run:
 
@@ -104,6 +119,32 @@ node .riff/scripts/autonomy-state.mjs park --run <run-id> --phase <id> --type <t
 ```
 
 The helper writes the no-merge marker FIRST (its own file under `finishers/`, temp + fsync + atomic rename), THEN flips the phase to `parked` in `run.json`. The order is load-bearing: a crash between the two writes leaves a pending finisher with no status flip (safe — the guard still blocks the branch), never a parked branch without a marker. One file per finisher means two phases parking at the same moment (wave mode) write two different files — neither marker can be lost. `run.json` statuses are bookkeeping; the markers plus git state are what resume and the guard trust.
+
+## Flags
+
+`hold_behavior: flag_and_continue` only. "Flag" = record a non-blocking marker for the specialist gate, then keep going — the opposite of § Parking's no-merge marker.
+
+```bash
+node .riff/scripts/autonomy-state.mjs flag --run <run-id> --phase <id> --type <type> \
+  --branch riff/phase-<id> --waiting "<what the specialist should check>" --artifact <path>
+```
+
+The helper writes `<run-dir>/flags/<id>.yaml` (`id` = `FLAG-<phase>-<type>`, same derivation as finishers so re-flagging the same phase+type overwrites its own entry, never duplicates). `finisher-guard.mjs` never reads `flags/` — a pending flag cannot block a merge, by construction, unlike a finisher. `flagPhase` never touches `run.json`: the phase's status is whatever the build naturally produced (`merged`, `done`); the flag is additive bookkeeping only.
+
+When to flag (all require `hold_behavior: flag_and_continue`):
+
+- A `hold`-classified phase whose functional gates are clean but whose security verdict is `BLOCKED` (or adversarial review is `FAIL`) after the § Merge policy debug-cycle cap is exhausted — `type: security` or `type: review` respectively.
+- A `hold`-classified phase that merges without ever having a security/compliance question asked, because the question domain rule forbids asking (§ Front-load Step 3) — `type: review`, written at classification time alongside the `hold` stamp.
+- An irreversible action the run refused to perform (§ Irreversibility rule) — `type: irreversible`.
+- A functional failure the debugger could not fix (§ Conversion table) — `type: review`. Unlike the cases above, this phase does NOT merge (§ Autonomy boundary); the flag records why it stayed unmerged without asking the operator to resolve it before the run moves on.
+
+Flags accumulate for the life of the project until a human resolves them — pending or not, they never gate anything in the meantime:
+
+```bash
+node .riff/scripts/autonomy-state.mjs flag-resolve --run <run-id> --id <flag-id>
+```
+
+Resolution is always human-initiated, at § Specialist gate. Cross-project aggregation: `node .riff/scripts/riff-pending.mjs` lists pending flags alongside finishers, tagged `flag:<type>` so they read distinctly from blocking finishers (finishers first, flags after — flags never need attention before the next specialist gate).
 
 ## Build rules
 
@@ -125,7 +166,12 @@ Some actions are never taken autonomously, whatever the phase classification, be
 - bulk data deletion outside the repo
 - destructive git beyond the documented branch cleanup (force-push, history rewrite)
 
-Hitting one of these mid-run → park the phase with a finisher naming the exact pending action. In interactive sessions the same actions always get an explicit AskUserQuestion first. Everything else the run does (branches, commits, local merges, artifacts) is reversible by construction.
+Hitting one of these mid-run: the action itself is NEVER performed by the agent, under either `hold_behavior` setting — this carve-out is orthogonal to `hold_behavior` and is not a judgment call routed to the operator either way.
+
+- `hold_behavior: park` (default): park the phase with a finisher naming the exact pending action.
+- `hold_behavior: flag_and_continue`: do not park the whole phase waiting on the operator — the rest of the phase's reversible work (code, migrations against local/sandbox data, everything a `git revert` away) still builds and merges normally on the usual gate bar. Write an `irreversible`-type flag (§ Flags) naming the exact pending action and pointing at whatever prepared it (e.g. a migration file staged but not run). The specialist executes or rejects it at § Specialist gate — never the operator.
+
+In interactive sessions the same actions always get an explicit AskUserQuestion first. Everything else the run does (branches, commits, local merges, artifacts) is reversible by construction.
 
 ## Conversion table
 
@@ -146,7 +192,7 @@ Every interactive site in the standard pipeline, converted. "Park" = § Parking 
 | Simplifier apply confirmation (`agents/simplifier.md` Step 5) | Orchestrator confirms before apply | Auto-apply + commit as `refactor(phase-N)` commits, never wait |
 | Browser smoke runtime error (`protocols/BROWSER-CHECK.md`) | AskUserQuestion skip/halt | Skip + log to GATES.md (existing default) |
 | Browser smoke `fail` verdict | STOP fix/exception/override | Auto-debug once; still failing → park |
-| Adversarial FAIL / Security BLOCKED after auto-debug | No PR, surface | Park; finisher type `security` when SECURITY.md is BLOCKED |
+| Adversarial FAIL / Security BLOCKED after auto-debug | No PR, surface | `park` (default): park; finisher type `security` when SECURITY.md is BLOCKED, `review` when REVIEW.md is FAIL. `flag_and_continue`: repeat diagnose→re-verify up to `autonomy.debug_cycle_cap` cycles (default 3); still BLOCKED/FAIL after the cap → merge anyway per § Merge policy + write a `security`/`review` flag instead |
 | Sandbox HITL with no headless driver (`references/BROWSER-VERIFICATION.md` § Skip behavior per caller) | AskUserQuestion verify/install/halt | Skip verification + finisher type `ux`, no prompt |
 | Wave codex-exec startup failure (`commands/wave.md` Step 5b) | Fall back to paste flow | Fall back to in-process Sonnet execution (Step 5c); Sonnet also unavailable → park the whole wave, finisher type `review`. NEVER the paste flow |
 | Ahead-only main at Step 0 (`protocols/RECONCILE.md` § Step 0) | AskUserQuestion push/skip | Push automatically (our own local merge commits); push fails → log to REPORT.md, continue |
@@ -158,6 +204,8 @@ Every interactive site in the standard pipeline, converted. "Park" = § Parking 
 | Wave reconcile FAIL (`protocols/WAVE-RECONCILE.md`) | `needs_human_review`, stop | Park affected phases; run continues to the Batched verification stage below |
 | Merge cue (`protocols/PR-CREATION.md`) | Human clicks / says "merge" | Merge policy below |
 | Usage guard ≥95% (`commands/wave.md`) | Tell user, schedule wakeup | Unchanged — schedule wakeup, resume per § Resume (never burn a hot quota window) |
+
+**Reading this table under `hold_behavior: flag_and_continue`:** rows fall into two buckets. (1) Judgment/review gates the operator cannot evaluate anyway — security BLOCKED, adversarial-review FAIL, an unreviewed `hold` classification — get the debug-cycle treatment (§ Merge policy): retry up to `autonomy.debug_cycle_cap` cycles, then MERGE regardless + write a flag (§ Flags) for the specialist. (2) Everything else in this table — actual functional breaks (tests/build/scope-check/smoke), global blockers, executor crashes, startup failures — keeps the exact same non-merge outcome as `park`; the only change is bookkeeping, a non-blocking flag instead of a blocking finisher, so the run never waits on the operator to resolve it before continuing (parking never halted the whole run either — it already skipped only the dependent phases). Either way, dependents of a phase that didn't merge are skipped automatically, never re-asked about.
 
 ## Decisions ledger
 
@@ -180,20 +228,22 @@ Runs once, non-interactively, after the last phase reaches a terminal state (`me
 2. Run `/riff:stress` static pass (no `--target`, no active attacks — the static pass needs no confirmation).
 3. If `.uxtest/flows.yaml` exists and the uxtest skill is available: run the replay/regression pass headlessly; UX findings land in the report. Missing manifest or skill → log skip.
 4. Sandbox payment/provider flows: browser-verification evidence (screenshots, console transcripts) captured per phase is folded in — payment correctness is never auto-signed; it always yields a `payment` finisher for human review of the evidence.
-5. Compose `REPORT.md` from `templates/AUTONOMY-REPORT.md`: per-phase verdict table, findings deduped by file+finding and bucketed BLOCKER/HIGH/NOTE (same shape as `protocols/DEEP-AUDIT.md` synthesis), full DECISIONS ledger, finishers list with exact next commands.
+5. Compose `REPORT.md` from `templates/AUTONOMY-REPORT.md`: per-phase verdict table, findings deduped by file+finding and bucketed BLOCKER/HIGH/NOTE (same shape as `protocols/DEEP-AUDIT.md` synthesis), full DECISIONS ledger, finishers list with exact next commands, and (`flag_and_continue` only) the flags list — not for her to resolve now, just visible so the eventual specialist review's pending count is never a surprise.
 6. Notify per § Notifications: one message, link to REPORT.md.
 
 ## Notifications
 
-All human-facing pings go through `bash .riff/hooks/notify-human.sh "<message>"` (channel from `notifications.channel` in `profile.yaml` — Telegram when configured). Fire one at each of these events, and ONLY these (parking a single phase mid-run is not a ping — it lands in REPORT.md):
+All human-facing pings go through `bash .riff/hooks/notify-human.sh "<message>"` (channel from `notifications.channel` in `profile.yaml` — Telegram when configured). Fire one at each of these events, and ONLY these (parking or flagging a single phase mid-run is not a ping — it lands in REPORT.md):
 
-- **Run report ready** — REPORT.md delivered (end of every run). Include: merged/parked counts, pending finisher count, REPORT.md path.
+- **Run report ready** — REPORT.md delivered (end of every run). Include: merged/parked counts, pending finisher count, pending flag count (`flag_and_continue` only), REPORT.md path.
 - **Run halted on a global blocker** — diverged main, corrupted ROADMAP, unrecoverable git state. Include the finisher id and what is needed.
 - **Loop paused or stopped** — any loop stop/pause reason (BLOCKER finding, zero-merge brake, roadmap dry, max-runs, kill switch). Include `stop_reason` and the pending-finisher count.
 
 The hook exits 0 even when unconfigured — a missing Telegram token never blocks the run; it warns on stderr.
 
 ## Finishers
+
+`hold_behavior: park` (default) — see § Flags for the `flag_and_continue` non-blocking counterpart.
 
 Every parked phase, every deferred audit, every payment/UX verdict awaiting eyes = one `finishers.yaml` entry, `status: pending`. A pending finisher on a branch IS the no-merge marker: no agent, in any later session, merges a branch referenced by a pending finisher.
 
@@ -207,14 +257,34 @@ Resolution is always human-initiated: she says so in conversation ("finisher F1 
 - `ux` finishers: her actual domain. Present the screenshots/flow evidence and let her judge the design directly.
 - A `hold` phase whose machine checks are ALL green still waits for her explicit ok before merging — the recommendation makes that ok a 10-second glance, but no sensitive branch ever merges without a human word.
 
-Cross-project inbox: `node .riff/scripts/riff-pending.mjs` (the same file lives at the framework root) sweeps every project registered in `profile.yaml` → `dashboard.projects` and prints one sorted list: pending finishers, unchecked DECISIONS entries, `needs_human_review` phases; unmerged `riff/*` branches are branch hygiene, shown only with `--branches`. Deterministic, exits 0, `--json` for piping.
+Cross-project inbox: `node .riff/scripts/riff-pending.mjs` (the same file lives at the framework root) sweeps every project registered in `profile.yaml` → `dashboard.projects` and prints one sorted list: pending finishers, pending flags, unchecked DECISIONS entries, `needs_human_review` phases; unmerged `riff/*` branches are branch hygiene, shown only with `--branches`. Deterministic, exits 0, `--json` for piping.
+
+## Specialist gate (production boundary)
+
+The single human gate under `hold_behavior: flag_and_continue` — not the operator, a security/compliance SPECIALIST, once, before the project goes live. Everything up to this point ran unattended; this is where accumulated flags get a real review. Under `hold_behavior: park` (default) nothing is ever written to `flags/`, so this gate is a no-op there — every project stayed gated per-item throughout.
+
+**Trigger:** conversational, not a slash command — "ready to deploy", "go live", "call the specialist", "specialist review before prod", or equivalent. Run this BEFORE the actual deploy/cutover, which is itself an irreversible action (§ Irreversibility rule) and always needs its own explicit go-ahead regardless of this gate's outcome.
+
+**Procedure:**
+
+1. Aggregate every pending flag for this project: `node .riff/scripts/riff-pending.mjs` (or read `.planning/autonomy/*/flags/*.yaml` directly). Group by type (`security`, `review`, `irreversible`, `ux`).
+2. Run `/riff:stress` — the static pass unconditionally; the active pass (`--target <url>`) against a non-prod target when one is available, per `protocols/STRESS.md`.
+3. Present the specialist a plain-language summary per flag: what was merged, why it was flagged, the evidence artifact (SECURITY.md / REVIEW.md / DEBUG.md), and the stress-pass result. This is the specialist's read, not the operator's — do not compress it to a go/no-go recommendation the way § Finishers does for her; the specialist evaluates the domain directly, that is the point of the gate.
+4. For every `irreversible`-type flag: the specialist decides whether to execute the pending action now, reject it, or defer — never auto-executed by the agent regardless of the verdict here.
+5. Resolve each reviewed flag: `node .riff/scripts/autonomy-state.mjs flag-resolve --run <run-id> --id <flag-id>`.
+6. Once every flag tied to code going live is resolved (or explicitly accepted as a known residual risk by the specialist), proceed to the actual deploy — a separate, always-confirmed action per § Irreversibility rule.
+
+**If flags remain unresolved and the operator asks to deploy anyway:** surface the count and let her decide whether to proceed or wait for the specialist — that go/no-go IS hers to make (she is not being asked to evaluate the flags themselves, only whether to wait), matching the domain split used everywhere else in this protocol: she judges the recommendation, never the security/compliance domain.
 
 ## Merge policy
 
-- Every merge, `safe` or manual, is preceded by the no-merge guard: `node .riff/scripts/finisher-guard.mjs riff/phase-N-slug || <refuse: do not merge, surface the blocking finisher>`. The guard runs in the merge-strategy DISPATCHER (step 5 of `protocols/PR-CREATION.md` § 8b — Push + PR), before EITHER strategy executes — on `github_button` a blocked branch means the "Click Merge" instruction is never printed; the blocking finisher is surfaced instead.
-- `hold` phases: PR opened, branch left unmerged, finisher written. No exception, no override flag.
-- `safe` phases: when every required gate in GATES.md passes (`gates-check.mjs --finalize` clean, scope-check MATCH, security PASS or PASS-WITH-WARNINGS, smoke pass/warn) AND the guard exits 0, auto-merge using the `local_no_ff` mechanics of `protocols/PR-CREATION.md` § 8c — Update state after merge, without waiting for a verbal cue, regardless of the profile's `git.merge_strategy`. Record the merge SHA in SUMMARY.md as usual.
-- Any gate short of that bar → the phase parks instead. PASS-WITH-WARNINGS security verdicts auto-merge but their warnings are listed in REPORT.md.
+- Every merge, `safe` or manual, is preceded by the no-merge guard: `node .riff/scripts/finisher-guard.mjs riff/phase-N-slug || <refuse: do not merge, surface the blocking finisher>`. The guard runs in the merge-strategy DISPATCHER (step 5 of `protocols/PR-CREATION.md` § 8b — Push + PR), before EITHER strategy executes — on `github_button` a blocked branch means the "Click Merge" instruction is never printed; the blocking finisher is surfaced instead. The guard only ever reads `finishers/`; a pending flag never trips it.
+- **Functional gate bar (both `hold_behavior` settings, unconditional):** `gates-check.mjs --finalize` clean, scope-check MATCH, smoke pass/warn. A phase short of this bar never auto-merges, under either setting — `hold_behavior` changes what happens to it afterward, never whether broken or incomplete work merges.
+- **Security/adversarial gate bar:**
+  - `hold_behavior: park` (default): security PASS or PASS-WITH-WARNINGS required, same bar as `safe` phases. A `hold` phase, whatever its security verdict, is NEVER merged by the agent — PR opened, branch left unmerged, finisher written. No exception, no override flag. BLOCKED (even after one auto-debug attempt) → park, finisher type `security`; adversarial FAIL → park, finisher type `review`.
+  - `hold_behavior: flag_and_continue`: `safe` and `hold` phases are evaluated the same way. Security PASS or PASS-WITH-WARNINGS, adversarial PROCEED → merges normally, no flag needed. Security BLOCKED or adversarial FAIL → run the debug-cycle (§ Conversion table), capped at `autonomy.debug_cycle_cap` (default 3): resolved within the cap → merge normally. Still BLOCKED/FAIL after the cap → merge anyway (the functional gate bar above already confirmed the code works) and write a `security`/`review` flag (§ Flags) instead of a finisher. A `hold` phase whose security verdict is clean but was never seen by a human (front-load couldn't ask — § Front-load Step 3 domain rule) also merges, with a `review` flag noting the unreviewed `hold` classification for the specialist gate to catch.
+- Guard clear + gates clear (by the rules above) → auto-merge using the `local_no_ff` mechanics of `protocols/PR-CREATION.md` § 8c — Update state after merge, without waiting for a verbal cue, regardless of the profile's `git.merge_strategy`. Record the merge SHA in SUMMARY.md as usual.
+- Short of the functional bar → the phase parks (`park`) or fails to merge with a non-blocking `review` flag (`flag_and_continue`) — see § Autonomy boundary. PASS-WITH-WARNINGS security verdicts always auto-merge (both settings); their warnings are listed in REPORT.md.
 
 ## Loop mode
 
