@@ -68,6 +68,22 @@ metadata:
 git:
   merge_strategy: <github_button | local_no_ff>
 
+autonomy:
+  auto_launch: <true | false>              # default: false — see protocols/AUTONOMY.md § Front-load Step 6
+                          # true skips the single launch-confirmation prompt on `--autonomous`
+                          # runs; approval already happened at roadmap planning.
+  hold_behavior: <park | flag_and_continue>  # default: park — see protocols/AUTONOMY.md § Autonomy boundary
+                          # park: today's behavior — `hold` phases and unfixable failures never
+                          # merge unattended, wait for a human decision (finisher).
+                          # flag_and_continue: for operators with no security/compliance judgment
+                          # of their own — `hold` phases and judgment-gate failures (security
+                          # BLOCKED, adversarial FAIL) merge once functional gates pass, recorded
+                          # as a non-blocking flag for a specialist's one-time review instead of
+                          # parking for the operator. Actual functional breaks still never merge.
+  debug_cycle_cap: <N>                     # default: 3 — only consulted under flag_and_continue.
+                          # diagnose→fix→re-verify cycles before giving up and flagging instead
+                          # of looping forever. See protocols/AUTONOMY.md § Merge policy.
+
 dashboard:
   projects: []                            # registry of project paths (auto-managed)
 ```

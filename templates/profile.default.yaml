@@ -76,5 +76,18 @@ git:
   # Valid values: github_button | local_no_ff
   merge_strategy: github_button
 
+autonomy:
+  # Skip the single launch-confirmation prompt on `--autonomous` runs. Default
+  # off — approval stays at each launch unless explicitly opted in.
+  auto_launch: false
+  # park (default): `hold` phases and unfixable failures never merge
+  # unattended, wait for a human decision (finisher). flag_and_continue: for
+  # operators who don't evaluate security/compliance themselves — see
+  # protocols/AUTONOMY.md § Autonomy boundary before switching this.
+  hold_behavior: park
+  # Diagnose->fix->re-verify cycles before giving up, only under
+  # flag_and_continue. See protocols/AUTONOMY.md § Merge policy.
+  debug_cycle_cap: 3
+
 dashboard:
   projects: []
