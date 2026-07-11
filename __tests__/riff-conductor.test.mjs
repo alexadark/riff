@@ -446,6 +446,21 @@ phase-13:
     expect(entry.reason).toBe('no-eligible-work');
   });
 
+  test('YAML null spellings for id count as no identity', () => {
+    const project = tempProject({
+      roadmap: `phases:
+  - id: ~
+    title: "Null identity"
+    status: todo
+    depends_on: []
+    description: "Unverifiable"
+`,
+    });
+    const entry = planFor(project);
+    expect(entry.decision).toBe('skip');
+    expect(entry.reason).toBe('no-eligible-work');
+  });
+
   test('an empty-string id counts as no identity', () => {
     const project = tempProject({
       roadmap: `phases:

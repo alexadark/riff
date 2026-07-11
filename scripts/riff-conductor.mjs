@@ -370,12 +370,16 @@ export function evaluateProject(projectPath, { scheduled = false } = {}) {
   if (mergesBlocked(projectPath)) return skip('merges-blocked');
 
   // Eligible work: safe todo phases whose dependencies are met.
-  const hasIdentity = (phase) => (phase.id !== undefined && String(phase.id).trim() !== '')
-    || (phase.slug !== undefined && String(phase.slug).trim() !== '');
+  // Identity must be a non-blank string or number — null/false/objects and
+  // the YAML null spellings (~, null) are "no identity", never selectable.
+  const identityValue = (value) => (typeof value === 'string' || typeof value === 'number')
+    && String(value).trim() !== ''
+    && !/^(~|null)$/i.test(String(value).trim());
+  const hasIdentity = (phase) => identityValue(phase.id) || identityValue(phase.slug);
   const byKey = new Map();
   for (const phase of roadmap.phases) {
-    if (phase.id !== undefined && String(phase.id).trim() !== '') byKey.set(dependencyKey(phase.id), phase);
-    if (phase.slug && String(phase.slug).trim() !== '') byKey.set(dependencyKey(phase.slug), phase);
+    if (identityValue(phase.id)) byKey.set(dependencyKey(phase.id), phase);
+    if (identityValue(phase.slug)) byKey.set(dependencyKey(phase.slug), phase);
   }
   for (const phase of roadmap.phases) {
     if (!HOLD_STATUSES.has(phase.status)) continue;
