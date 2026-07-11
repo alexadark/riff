@@ -43,6 +43,8 @@ The triggers below are matched by the FULL phrase, not by isolated words. If the
 | "run the conductor", "advance all my apps", "morning briefing"                          | Read `commands/conductor.md` and run the conductor flow: plan via `node .riff/scripts/riff-conductor.mjs plan`, present the plan, one yes, then sequential advance and ONE consolidated report. When she asks "what would the conductor do", run the `--dry-run` variant only. |
 | "finisher F{N} ok, merge it", "resolve finisher F{N}", "reject finisher F{N}"           | Read the finisher's file (`finishers/<id>.yaml` in the run dir; legacy `finishers.yaml` still counts) + its artifact, apply the human verdict (merge the parked branch / discard), flip `status: resolved`. See `protocols/AUTONOMY.md` § Finishers. |
 | "stop the loop", "arrête la boucle", "stop the autonomous loop"                          | `touch .planning/autonomy/STOP` — the loop finishes the in-flight run cleanly, then stops. See `protocols/AUTONOMY.md` § Loop mode. |
+| "flag FLAG-{id} reviewed", "resolve flag FLAG-{id}", "specialist cleared FLAG-{id}"      | `autonomy.hold_behavior: flag_and_continue` only. Read the flag's file (`flags/<id>.yaml` in the run dir) + its artifact, apply the specialist's verdict, run `node .riff/scripts/autonomy-state.mjs flag-resolve --run <run-id> --id <flag-id>`. See `protocols/AUTONOMY.md` § Flags. |
+| "ready to deploy", "go live", "call the specialist", "specialist review before prod"    | Run `protocols/AUTONOMY.md` § Specialist gate: aggregate pending flags via `riff-pending.mjs`, run `/riff:stress`, present the evidence to the specialist (never to her), resolve each via `flag-resolve`. No-op if no flags exist (`hold_behavior: park` profiles). |
 
 Discoverable via this section. Do not invent commands the user did not invoke.
 
@@ -56,7 +58,7 @@ Discoverable via this section. Do not invent commands the user did not invoke.
 - Style rules: `taste.md` (`## Architecture` always + `## Stack: {{stack}}` on frontend/route tasks). Stack files live in `references/taste/stacks/`, injected at `/riff:start`.
 - Hooks: `hooks/README.md` § Buckets.
 - Budget and model resolution: `protocols/MODEL.md` § Budget and model resolution.
-- Autonomous sessions (`--autonomous` on `/riff:next` or `/riff:wave`): `protocols/AUTONOMY.md` — front-loaded decisions, zero questions during build, DECISIONS ledger, batched end verification, finishers awaiting human sign-off. Cross-project inbox: `.riff/scripts/riff-pending.mjs`.
+- Autonomous sessions (`--autonomous` on `/riff:next` or `/riff:wave`): `protocols/AUTONOMY.md` — front-loaded decisions, zero questions during build, DECISIONS ledger, batched end verification, finishers awaiting human sign-off (default `park`) or non-blocking flags awaiting a specialist (`autonomy.hold_behavior: flag_and_continue`, see § Flags, § Specialist gate). Cross-project inbox: `.riff/scripts/riff-pending.mjs`.
 - Roadmap mutations: `commands/add-phase.md` (append-only; use `depends_on` for ordering, `status: skipped` to remove).
 - Project state: `STATE.md` + `ROADMAP.yaml`. Phase changes: `SUMMARY.md` per phase. Pruning: `DECAY.md`.
 
