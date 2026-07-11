@@ -9,6 +9,7 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectPendingFinishers } from './lib/finishers.mjs';
+import { registryProjects as resolveRegistry } from './lib/registry.mjs';
 
 const frameworkRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -94,64 +95,8 @@ function isDirectory(file) {
   }
 }
 
-function parseRegistryFile(file) {
-  const text = readText(file);
-  if (text === undefined) return [];
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('#'));
-}
-
-function profileFile() {
-  const userProfile = path.join(frameworkRoot, 'profile.yaml');
-  if (existsSync(userProfile)) return userProfile;
-  return path.join(frameworkRoot, 'templates/profile.default.yaml');
-}
-
-function parseDashboardProjects(text) {
-  const lines = text.split(/\r?\n/);
-  let dashboardIndent;
-  let projectsIndent;
-  const projects = [];
-
-  for (const rawLine of lines) {
-    const line = stripComment(rawLine);
-    if (!line.trim()) continue;
-    const indent = line.match(/^\s*/)[0].length;
-    const trimmed = line.trim();
-
-    if (dashboardIndent === undefined) {
-      if (/^dashboard:\s*$/.test(trimmed)) dashboardIndent = indent;
-      continue;
-    }
-
-    if (indent <= dashboardIndent && /^[A-Za-z_][A-Za-z0-9_]*:/.test(trimmed)) break;
-
-    if (projectsIndent === undefined) {
-      const match = trimmed.match(/^projects:\s*(\[\])?\s*$/);
-      if (match) {
-        projectsIndent = indent;
-        if (match[1]) break;
-      }
-      continue;
-    }
-
-    if (indent <= projectsIndent && /^[A-Za-z_][A-Za-z0-9_]*:/.test(trimmed)) break;
-    if (indent <= projectsIndent) continue;
-
-    const match = trimmed.match(/^-\s+(.+?)\s*$/);
-    if (match) projects.push(unquote(match[1]));
-  }
-
-  return projects;
-}
-
 function registryProjects(options) {
-  if (options.registry) return parseRegistryFile(options.registry);
-  const text = readText(profileFile());
-  if (text === undefined) return [];
-  return parseDashboardProjects(text);
+  return resolveRegistry({ frameworkRoot, registry: options.registry, onWarn: warn });
 }
 
 function listFiles(dir, fileName) {
@@ -450,27 +395,9 @@ function jsonOutput() {
   }, null, 2)}\n`);
 }
 
-function dedupeByInode(paths) {
-  const seen = new Set();
-  const unique = [];
-  for (const projectPath of paths) {
-    let key = projectPath;
-    try {
-      const stats = statSync(projectPath);
-      key = `${stats.dev}:${stats.ino}`;
-    } catch {
-      // missing dirs keep their raw path as key; collectProject warns about them
-    }
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(projectPath);
-  }
-  return unique;
-}
-
 function main() {
   const options = parseArgs();
-  for (const projectPath of dedupeByInode(registryProjects(options))) {
+  for (const projectPath of registryProjects(options)) {
     collectProject(projectPath);
   }
   items.sort(compareItems);
