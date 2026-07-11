@@ -15,9 +15,9 @@ One `### {{PROJECT_NAME}}` subsection per ADVANCED project.
 ### {{PROJECT_NAME}}
 
 - Merged: {{N-slug}}, {{N-slug}}, …
-- Parked: {{N-slug}} → finisher {{F1}} — {{plain-language recommended action, same convention as AUTONOMY-REPORT § Finishers}}
+- Parked: {{N-slug}} → finisher {{F1}} — {{plain-language recommended action, convention of protocols/AUTONOMY.md § Finishers}}
 - Decisions taken instead of asking: {{count}} unchecked
-- Run report: `.planning/conductor/{{RUN_ID}}/{{PROJECT_NAME}}/REPORT.md`
+- Run report: `{{PROJECT_PATH}}/.planning/autonomy/{{PROJECT_RUN_ID}}/REPORT.md`
 
 ## Pending inbox (all projects)
 
@@ -29,7 +29,7 @@ Inlined from `node .riff/scripts/riff-pending.mjs`, run at the end of this condu
 
 | Project | Reason | What would unblock it |
 | --- | --- | --- |
-| {{PROJECT_NAME}} | {{scratch \| dirty-tree \| diverged \| in-flight-session \| ambiguous-state \| merges-blocked \| no-eligible-work \| not-opted-in \| invalid-roadmap \| missing \| not-a-git-repo}} | {{clean the tree, resolve the finisher, opt in via dashboard.projects, …}} |
+| {{PROJECT_NAME}} | {{scratch \| dirty-tree \| diverged \| in-flight-session \| ambiguous-state \| merges-blocked \| no-eligible-work \| not-opted-in \| invalid-roadmap \| missing \| not-a-git-repo}} | {{clean the tree, resolve the finisher, set auto_advance: true in .planning/config.json, …}} |
 
 ## Next commands
 

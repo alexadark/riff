@@ -216,7 +216,9 @@ function readConfig(projectPath) {
 }
 
 function treeState(projectPath) {
-  const output = git(projectPath, ['status', '--porcelain']);
+  // --no-optional-locks: a plain `git status` may refresh and rewrite
+  // .git/index — plan must be strictly read-only, even inside .git
+  const output = git(projectPath, ['--no-optional-locks', 'status', '--porcelain']);
   let tracked = 0;
   let untracked = 0;
   for (const line of output.split('\n')) {
@@ -280,8 +282,17 @@ function dependencyKey(value) {
   return String(value).trim();
 }
 
+// A scalar where a list is expected (`depends_on: 1`, `tags: auth`) is the
+// author meaning a one-element list — dropping it would fail OPEN (a lost
+// dependency or a lost hold tag).
+function asList(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null || value === '') return [];
+  return [value];
+}
+
 function dependenciesMet(phase, byKey) {
-  const deps = Array.isArray(phase.depends_on) ? phase.depends_on : [];
+  const deps = asList(phase.depends_on);
   for (const dep of deps) {
     const target = byKey.get(dependencyKey(dep));
     if (!target) return false; // unknown dependency — fail closed
@@ -294,7 +305,7 @@ function classifyRoadmapPhase(phase) {
   // provider_mode: production is a hold on its own (AUTONOMY.md § Autonomy
   // boundary) — classifyPhase only sees tags/paths/text
   if (phase.provider_mode === 'production') return 'hold';
-  const tags = Array.isArray(phase.tags) ? phase.tags : [];
+  const tags = asList(phase.tags);
   const text = [phase.title, phase.slug, phase.description, phase.rationale].filter(Boolean).join(' ');
   return classifyPhase({ tags, text }).autonomy;
 }
@@ -366,6 +377,9 @@ export function evaluateProject(projectPath, { scheduled = false } = {}) {
   }
   for (const phase of roadmap.phases) {
     if (!HOLD_STATUSES.has(phase.status)) continue;
+    // a phase with neither id nor slug cannot be referenced or verified —
+    // fail closed, never select it
+    if (phase.id === undefined && !phase.slug) continue;
     if (!dependenciesMet(phase, byKey)) continue;
     const autonomy = classifyRoadmapPhase(phase);
     if (autonomy === 'hold') {
@@ -548,6 +562,11 @@ function cli() {
       const action = flags._[0];
       if (action === 'init') {
         if (!flags.run || !flags.plan) fail('state init requires --run and --plan <plan.json>');
+        if (readConductor(stateRoot, flags.run)) {
+          // overwriting would reset done projects to pending and re-advance
+          // them — resume via `state read` instead
+          fail(`conductor run ${flags.run} already exists — resume it (state read), never re-init`);
+        }
         let plan;
         try {
           plan = JSON.parse(readFileSync(flags.plan, 'utf8'));
@@ -578,6 +597,12 @@ function cli() {
         if (!state) fail(`no conductor.json for run ${flags.run}`);
         const target = state.projects.find((entry) => entry.path === flags.project);
         if (!target) fail(`project ${flags.project} not in run ${flags.run}`);
+        // terminal statuses are sticky: a done/skipped project is never
+        // re-opened inside the same run (re-advancing it is the failure mode)
+        const TERMINAL = new Set(['done', 'skipped']);
+        if (TERMINAL.has(target.status) && flags.status !== target.status) {
+          fail(`project ${flags.project} is already ${target.status} in run ${flags.run} — refusing ${flags.status}`);
+        }
         target.status = flags.status;
         if (flags.reason !== undefined) target.reason = flags.reason;
         writeConductor(stateRoot, flags.run, state);
@@ -586,9 +611,13 @@ function cli() {
       }
       if (action === 'finish') {
         if (!flags.run) fail('state finish requires --run');
+        const finalStatus = flags.status || 'done';
+        if (finalStatus !== 'done' && finalStatus !== 'stopped') {
+          fail(`state finish --status must be done or stopped, got ${finalStatus}`);
+        }
         const state = readConductor(stateRoot, flags.run);
         if (!state) fail(`no conductor.json for run ${flags.run}`);
-        state.status = flags.status || 'done';
+        state.status = finalStatus;
         if (flags.reason !== undefined) state.stop_reason = flags.reason;
         state.finished = new Date().toISOString();
         writeConductor(stateRoot, flags.run, state);

@@ -392,6 +392,60 @@ phase-13:
     expect(entry.holds).toBe(1);
   });
 
+  test('a scalar depends_on is honored, not treated as no dependencies', () => {
+    const project = tempProject({
+      roadmap: `phases:
+  - id: 1
+    slug: base
+    title: "Base layer"
+    status: todo
+    depends_on: []
+    description: "Shared shell"
+  - id: 2
+    slug: child
+    title: "Child page"
+    status: todo
+    depends_on: 1
+    description: "Sits on the base"
+`,
+    });
+    const entry = planFor(project);
+    expect(entry.decision).toBe('advance');
+    expect(entry.phases.map((p) => p.slug)).toEqual(['base']);
+  });
+
+  test('a scalar tag still feeds the hold classification', () => {
+    const project = tempProject({
+      roadmap: `phases:
+  - id: 1
+    slug: identity-flow
+    title: "Identity flow"
+    status: todo
+    depends_on: []
+    tags: security_critical
+    description: "User entry"
+`,
+    });
+    const entry = planFor(project);
+    expect(entry.decision).toBe('skip');
+    expect(entry.reason).toBe('no-eligible-work');
+    expect(entry.holds).toBe(1);
+  });
+
+  test('a phase with neither id nor slug is never eligible', () => {
+    const project = tempProject({
+      roadmap: `phases:
+  - title: "No identity"
+    status: todo
+    depends_on: []
+    description: "Cannot be referenced"
+`,
+    });
+    const entry = planFor(project);
+    expect(entry.decision).toBe('skip');
+    expect(entry.reason).toBe('no-eligible-work');
+  });
+
   test('a pending finisher tied to a branch does not block other safe work', () => {
     const project = tempProject();
     const finisherDir = path.join(project, '.planning/autonomy/2026-07-10-0700/finishers');
@@ -504,6 +558,70 @@ describe('riff-conductor state', () => {
     ], { encoding: 'utf8' });
     state = readState(stateRoot, ['--run', '2026-07-11-0700']);
     expect(state.status).toBe('done');
+  });
+
+  test('terminal project statuses are sticky: done never goes back to pending', () => {
+    const stateRoot = tempDir('riff-conductor-state-');
+    initState(stateRoot, '2026-07-11-0700', [
+      { path: '/tmp/a', decision: 'advance', reason: null },
+    ]);
+    execFileSync(process.execPath, [
+      script, 'state', 'project', '--run', '2026-07-11-0700', '--state-root', stateRoot,
+      '--project', '/tmp/a', '--status', 'done',
+    ], { encoding: 'utf8' });
+    let code = 0;
+    try {
+      execFileSync(process.execPath, [
+        script, 'state', 'project', '--run', '2026-07-11-0700', '--state-root', stateRoot,
+        '--project', '/tmp/a', '--status', 'pending',
+      ], { encoding: 'utf8' });
+    } catch (error) {
+      code = error.status;
+    }
+    expect(code).not.toBe(0);
+    const state = readState(stateRoot, ['--run', '2026-07-11-0700']);
+    expect(state.projects[0].status).toBe('done');
+    expect(state.next_project).toBeNull();
+  });
+
+  test('state init refuses to overwrite an existing run', () => {
+    const stateRoot = tempDir('riff-conductor-state-');
+    initState(stateRoot, '2026-07-11-0700', [
+      { path: '/tmp/a', decision: 'advance', reason: null },
+    ]);
+    execFileSync(process.execPath, [
+      script, 'state', 'project', '--run', '2026-07-11-0700', '--state-root', stateRoot,
+      '--project', '/tmp/a', '--status', 'done',
+    ], { encoding: 'utf8' });
+    let code = 0;
+    try {
+      initState(stateRoot, '2026-07-11-0700', [
+        { path: '/tmp/a', decision: 'advance', reason: null },
+      ]);
+    } catch (error) {
+      code = error.status;
+    }
+    expect(code).not.toBe(0);
+    const state = readState(stateRoot, ['--run', '2026-07-11-0700']);
+    expect(state.projects[0].status).toBe('done');
+  });
+
+  test('state finish only accepts done or stopped', () => {
+    const stateRoot = tempDir('riff-conductor-state-');
+    initState(stateRoot, '2026-07-11-0700', [
+      { path: '/tmp/a', decision: 'advance', reason: null },
+    ]);
+    let code = 0;
+    try {
+      execFileSync(process.execPath, [
+        script, 'state', 'finish', '--run', '2026-07-11-0700', '--state-root', stateRoot,
+        '--status', 'banana',
+      ], { encoding: 'utf8' });
+    } catch (error) {
+      code = error.status;
+    }
+    expect(code).not.toBe(0);
+    expect(readState(stateRoot, ['--run', '2026-07-11-0700']).status).toBe('running');
   });
 
   test('read with no run resumes the latest non-terminal run, skipping finished ones', () => {

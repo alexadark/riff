@@ -25,7 +25,7 @@ Run from the framework root (`~/DEV/frameworks/riff`). All deterministic pieces 
 node .riff/scripts/riff-conductor.mjs state read 2>/dev/null
 ```
 
-A run with `status: running` means a previous Conductor died or paused mid-sweep: skip Steps 1–3, re-enter Step 4 at its `next_project` with the recorded plan. Approval is never re-asked on resume. No running state → new run, continue.
+A run with `status: running` means a previous Conductor died or paused mid-sweep: skip Steps 1–2, re-enter Step 3 at its `next_project` with the recorded plan (a project left `advancing` by a crash is relaunched — safe, its loop resumes via its own `resolve-launch`). Approval is never re-asked on resume. No running state → new run, continue.
 
 ## Step 1 — Plan (sweep + select)
 
@@ -38,16 +38,22 @@ The plan lists, per registered project, `advance` (with the safe phases, or the 
 
 `--dry-run` → print the human-readable plan (`plan` without `--json`) and STOP. Zero advance candidates (any mode) → print the skips and stop; nothing to do is a valid outcome, not an error.
 
+Otherwise mint the run-id (`YYYY-MM-DD-HHMM`) and capture the plan you are about to present:
+
+```bash
+mkdir -p .planning/conductor/<run-id>
+node .riff/scripts/riff-conductor.mjs plan --json [flags] > .planning/conductor/<run-id>/plan.json
+```
+
 ## Step 2 — One approval (interactive only)
 
-Present ONE summary: projects in order, phases per project, resume actions, every skip with its reason, the per-project run budget. One `AskUserQuestion` yes launches the whole sweep. Anything she wants changed (drop a project, cap runs) → adjust the plan once, re-present, still one yes.
+Present ONE summary from the captured `plan.json`: projects in order, phases per project, resume actions, every skip with its reason, the per-project run budget. One `AskUserQuestion` yes launches the whole sweep. Anything she wants changed (drop a project, cap runs) → re-capture with adjusted flags, re-present, still one yes. She declines → remove the just-created run directory and stop.
 
 `--scheduled` skips this step entirely — `auto_advance: true` is the standing approval.
 
-After the yes (or in scheduled mode, immediately): mint the run-id (`YYYY-MM-DD-HHMM`), save the plan and init the state:
+After the yes (or in scheduled mode, immediately), init the state FROM THE CAPTURED PLAN — never re-plan after the yes; what she approved is what launches:
 
 ```bash
-node .riff/scripts/riff-conductor.mjs plan --json [flags] > .planning/conductor/<run-id>/plan.json
 node .riff/scripts/riff-conductor.mjs state init --run <run-id> --plan .planning/conductor/<run-id>/plan.json
 ```
 
