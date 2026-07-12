@@ -111,7 +111,7 @@ The security-reviewer is dispatched by `subagent_type: security-reviewer` at a f
 
 ### Debugger selection
 
-The debugger is dispatched by `subagent_type: debugger` at a fixed `effort: high` (frontmatter); `debug_model: sonnet` opts the model down for clearly-scoped failures. The old per-triage-tier keyword range (`ultrathink`→none) was inert and is removed. For the top tier — `security_fail` CRITICAL, flaky/intermittent, or 2+ failed fix attempts — escalate with a Codex second opinion (`codex:codex-rescue`, `gpt-5.5 high`) alongside the Claude debugger: an independent diagnosis beats a deeper pass from the same model. See `agents/debugger.md` Step 1.
+The debugger is dispatched by `subagent_type: debugger` at a fixed `effort: high` (frontmatter); `debug_model: sonnet` opts the model down for clearly-scoped failures. The old per-triage-tier keyword range (`ultrathink`→none) was inert and is removed. For the top tier — `security_fail` CRITICAL, flaky/intermittent, 2+ failed fix attempts, or a context-dependent signature per `protocols/DEBUGGING.md` § Triage with a first attempt failed — escalate with a Codex second opinion (`codex:codex-rescue`, `gpt-5.6-sol high` <!-- TODO(model-id): confirm gpt-5.6-sol exists -->) alongside the Claude debugger: an independent diagnosis beats a deeper pass from the same model. Bench (2026-07-12): `sol-high` matched Opus-max on the hardest debug replay, 0.40 each. See `agents/debugger.md` Step 1.
 
 ## Budget and model resolution
 

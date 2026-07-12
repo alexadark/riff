@@ -97,6 +97,7 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - `protocols/BOOTSTRAP-FILES.md` § Dashboard Registration — read by `/riff:start` Stage 5 final step. Best-effort ping so the new project shows up in a running `/riff:dashboard` immediately.
 - `protocols/POST-DEPLOY.md` — production monitoring setup (Sentry, uptime health check, scheduled Playwright smoke). User-triggered via conversational trigger ("set up monitoring") or `/riff:post-deploy`. One-shot, runs when the app is deployed. Each category opt-outable via `ROADMAP.yaml`. Also available as global skill `/post-deploy` for non-RIFF projects.
 - `protocols/AUTONOMY.md` — autonomous session lifecycle for `/riff:next --autonomous` and `/riff:wave --autonomous`: front-loaded decisions, no-questions build with a DECISIONS ledger, batched end-of-run verification, finishers + `.riff/scripts/riff-pending.mjs` cross-project inbox.
+- `protocols/DEBUGGING.md` — read by `agents/debugger.md` Steps 1 (triage: context-dependent vs context-free signature) and 3 (hypotheses: mode-gated layer sweep + discriminator accounting). FULL vs LIGHT mode selection for any debug invocation, auto-triggered or manual.
 
 ## Agents referenced by commands and protocols
 

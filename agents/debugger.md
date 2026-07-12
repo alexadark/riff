@@ -26,11 +26,11 @@ Invoked in two contexts:
 
 ## Step 1: Auto-triage
 
-You run at `effort: high` (your frontmatter; RIFF dispatches you by `subagent_type`). Parse the failure artifact and classify the tier. Output at the start of your response: `Triage tier: [tier] — [one-line justification]`. The tier decides whether to escalate to a second model, not your effort.
+You run at `effort: high` (your frontmatter; RIFF dispatches you by `subagent_type`). Parse the failure artifact and classify the tier. Output at the start of your response: `Triage tier: [tier] — [one-line justification]`. The tier decides whether to escalate to a second model, not your effort. Also classify context-dependent vs context-free signature per `protocols/DEBUGGING.md` § Triage — this picks the mode Step 3 applies.
 
 | Tier        | Signals                                                                                                                                                           | Action                                                                 |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Escalate    | `security_fail` CRITICAL; intermittent / flaky; "can't reproduce"; 2+ failed fix attempts on same issue; race conditions                                          | Diagnose, **and** request a Codex second opinion (`codex:codex-rescue`, `gpt-5.5 high`) — cross-check root cause before committing a fix |
+| Escalate    | `security_fail` CRITICAL; intermittent / flaky; "can't reproduce"; 2+ failed fix attempts on same issue; race conditions                                          | Diagnose, **and** request a Codex second opinion (`codex:codex-rescue`, `gpt-5.6-sol high` <!-- TODO(model-id): confirm gpt-5.6-sol exists -->) — cross-check root cause before committing a fix |
 | Standard    | `adversarial_fail` FAIL + 3+ distinct issues; `executor_fail` spanning multiple services/files; `verification_fail` (tests pass, behavior wrong); multi-layer bug | Diagnose; no escalation                                                |
 | Routine     | `executor_fail` with clear stack trace + single scope; `test_fail` deterministic repro; `security_fail` HIGH                                                      | Diagnose; no escalation                                                |
 | Trivial     | Typo, missing import, obvious config error, explicit "X is not defined" with file + line                                                                          | Fix directly, skip deep analysis                                       |
@@ -54,6 +54,8 @@ Read in order. Do not skim.
 - `executor_fail` with no SUMMARY.md: executor did not complete — check git log for partial commits
 
 ## Step 3: Hypotheses
+
+Apply `protocols/DEBUGGING.md` (mode chosen in Step 1; FULL = layer sweep + parity list mandatory).
 
 Form falsifiable hypotheses — specific and testable:
 
