@@ -5,15 +5,24 @@
 # Usage:
 #   validate-roadmap.sh <path-to-ROADMAP.yaml>
 #
-# Verifies that every entry under `phases:` has the required fields:
+# Supports the two roadmap formats in the wild:
+#
+# List format (current) — entries under a top-level `phases:` list. Every
+# entry must have:
 #   - id    (numeric, integer or decimal)
 #   - slug  (kebab-case, lowercase letters/digits/hyphens, starts with letter/digit)
 #   - title (any non-empty string)
 #   - status (one of: todo | in-progress | done | blocked | skipped)
-#
 # Forbids the deprecated phase-level `name:` key. Reports a clear error when
 # a phase still uses `name:` instead of `title:`. The roadmap-level (top-of-file)
 # `name:` is allowed and ignored by this check.
+#
+# Mapping format (legacy, e.g. ai-interviewer) — top-level `phase-<id>:` keys.
+# Detected when any line matches `^phase-<number>:`. Every phase must have:
+#   - name   (any non-empty string; this format uses `name:`, not `title:`)
+#   - status (one of: todo | in-progress | done | complete | blocked | skipped)
+# The id comes from the key and must be numeric. No slug in this format.
+# `depends_on` cross-reference, duplicate-id and cycle checks apply to both.
 #
 # Pure bash, no yq or gawk dependency. Operates line-by-line with a tiny state
 # machine: a phase begins on `- id:` and ends at the next `- id:` or EOF. Any
@@ -65,7 +74,10 @@ slug_re='^[a-z0-9][a-z0-9-]*$'
 strip_value() {
   local v="$1"
   v="${v#"${v%%[![:space:]]*}"}"
-  if [[ "$v" =~ ^(.*)[[:space:]]#.*$ ]]; then v="${BASH_REMATCH[1]}"; fi
+  # Cut the inline comment at its FIRST ` #` (greedy regex would cut at the
+  # last one and mangle values like `done # merged (PR #41)`).
+  v="${v%%" #"*}"
+  v="${v%%$'\t#'*}"
   v="${v%"${v##*[![:space:]]}"}"
   if [[ "$v" =~ ^\"(.*)\"$ ]]; then v="${BASH_REMATCH[1]}"; fi
   if [[ "$v" =~ ^\'(.*)\'$ ]]; then v="${BASH_REMATCH[1]}"; fi
@@ -148,6 +160,85 @@ reset_phase() {
   phase_start_line=0
 }
 
+legacy_status_re='^(todo|in-progress|done|complete|blocked|skipped)$'
+
+flush_legacy_phase() {
+  if [[ "$in_phase" -eq 0 ]]; then return; fi
+  local id_label="phase-$cur_id"
+  local existing_index
+  existing_index="$(id_seen_index "$cur_id" || true)"
+  if [[ -n "$existing_index" ]]; then
+    errors+=("$roadmap:$phase_start_line: duplicate phase id \`$cur_id\` (first seen at line ${seen_id_lines[$existing_index]})")
+  fi
+  seen_ids+=("$cur_id")
+  seen_id_lines+=("$phase_start_line")
+  phase_count=$((phase_count + 1))
+  if [[ -z "$cur_title" ]]; then
+    errors+=("$roadmap:$phase_start_line: $id_label missing required field \`name\`")
+  fi
+  if [[ -z "$cur_status" ]]; then
+    errors+=("$roadmap:$phase_start_line: $id_label missing required field \`status\`")
+  elif [[ ! "$cur_status" =~ $legacy_status_re ]]; then
+    errors+=("$roadmap:$phase_start_line: $id_label status \`$cur_status\` is not one of: todo | in-progress | done | complete | blocked | skipped")
+  fi
+  local dep
+  for dep in "${cur_depends_on[@]}"; do
+    edge_from+=("$cur_id")
+    edge_to+=("$dep")
+  done
+}
+
+format=list
+if grep -qE '^phase-[0-9]+(\.[0-9]+)?:' "$roadmap"; then format=legacy; fi
+
+if [[ "$format" == "legacy" ]]; then
+
+line_no=0
+while IFS='' read -r line || [[ -n "$line" ]]; do
+  line_no=$((line_no + 1))
+  if [[ "$line" =~ ^[[:space:]]*$ ]]; then continue; fi
+  if [[ "$line" =~ ^[[:space:]]*# ]]; then continue; fi
+
+  # New phase entry: `^phase-<id>:`
+  if [[ "$line" =~ ^phase-([0-9]+(\.[0-9]+)?):[[:space:]]*(#.*)?$ ]]; then
+    new_id="${BASH_REMATCH[1]}"
+    flush_legacy_phase
+    reset_phase
+    in_phase=1
+    phase_start_line=$line_no
+    cur_id="$new_id"
+    continue
+  fi
+
+  # Any other top-level key (parking-lot:, etc.) closes the current phase.
+  if [[ "$line" =~ ^[A-Za-z_] ]]; then
+    flush_legacy_phase
+    reset_phase
+    continue
+  fi
+
+  if [[ "$in_phase" -ne 1 ]]; then continue; fi
+
+  # Field line at the phase field indent (2 spaces).
+  if [[ "$line" =~ ^([[:space:]]+)([A-Za-z_]+):[[:space:]]*(.*)$ ]]; then
+    indent=${#BASH_REMATCH[1]}
+    key="${BASH_REMATCH[2]}"
+    raw_val="${BASH_REMATCH[3]}"
+    if [[ "$indent" -eq 2 ]]; then
+      val="$(strip_value "$raw_val")"
+      case "$key" in
+        name)   cur_title="$val" ;;
+        status) cur_status="$val" ;;
+        depends_on) parse_depends_on "$raw_val" ;;
+      esac
+    fi
+  fi
+done < "$roadmap"
+
+flush_legacy_phase
+
+else
+
 line_no=0
 while IFS='' read -r line || [[ -n "$line" ]]; do
   line_no=$((line_no + 1))
@@ -215,6 +306,8 @@ while IFS='' read -r line || [[ -n "$line" ]]; do
 done < "$roadmap"
 
 flush_phase
+
+fi
 
 if [[ "$phase_count" -eq 0 ]]; then
   errors+=("$roadmap:1: \`phases\` must contain at least one phase")
