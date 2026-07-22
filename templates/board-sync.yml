@@ -1,0 +1,24 @@
+name: Sync roadmap to riff-board
+on:
+  push:
+    branches: [main]
+    paths:
+      - ROADMAP.yaml
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install js-yaml
+      - name: Sync
+        env:
+          RIFF_BOARD_URL: ${{ secrets.RIFF_BOARD_URL }}
+          RIFF_BOARD_TOKEN: ${{ secrets.RIFF_BOARD_TOKEN }}
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/alexadark/riff/main/scripts/board-sync.mjs -o board-sync.mjs
+          node board-sync.mjs .
