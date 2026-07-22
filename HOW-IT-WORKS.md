@@ -110,7 +110,7 @@ After `/riff:init`:
 /riff:dashboard    # open the local web dashboard (kanban + plain-language explanations)
 ```
 
-Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let Codex execute them while you're away.
+Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let the configured executor (parallel Sonnet workers by default, Codex on opt-in) build them while you're away.
 
 ---
 
@@ -169,7 +169,7 @@ All grouped in [`commands/INDEX.md`](./commands/INDEX.md). Summary:
 | Command          | When to run                                                                                              |
 | ---------------- | -------------------------------------------------------------------------------------------------------- |
 | `/riff:next`     | The main command. Plans, executes, reviews, opens PR for the next phase.                                 |
-| `/riff:wave`     | Bundle N parallel-eligible phases (tagged `mode: AFK`) and delegate execution to Codex. Opus plans, Codex executes, browser-check proves it works. |
+| `/riff:wave`     | Bundle N parallel-eligible phases (tagged `mode: AFK`) and delegate execution to parallel Sonnet workers (default) or Codex (`--executor codex`). Opus plans, the executor builds, browser-check proves it works. |
 | `/riff:status`   | "Where am I?" — current phase, next phase, blocked phases, pending expertise patches.                    |
 
 ### Off-loop
@@ -178,7 +178,7 @@ All grouped in [`commands/INDEX.md`](./commands/INDEX.md). Summary:
 | ------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `/riff:add-phase [name] [goal]` | Append a new phase to `ROADMAP.yaml`.                                                              |
 | `/riff:quick <task>`            | One-off task that doesn't deserve a phase (config tweak, copy fix, dependency bump).               |
-| `/riff:debug <bug>`             | Manual debug invocation outside the auto-debug pipeline.                                          |
+| `/riff:debug <bug> [--tier normal\|high\|max]` | Manual debug invocation outside the auto-debug pipeline. `--tier` forces the dispatch tier (max = vicious bugs: flaky, races, repeated failed fixes). |
 | `/riff:improver [N\|--all]`     | Batch the improver across the last N phases to harvest learnings into `.planning/expertise/`.      |
 | `/riff:stress [--target <url>]` | Adversarial + load test the whole app. Static always; with a local/staging target, parallel red-team agents + a real load ramp. Local/staging only. |
 
@@ -269,7 +269,7 @@ Builds `PLAN.md` from a phase goal. Goal-backward planning: start from the AC (a
 
 ### Executor (`agents/executor.md`)
 
-Implements `PLAN.md` tasks one by one, atomic commits. Reads the wave grouping and parallelizes within a wave. Applies the R1-R4 deviation protocol. Default runtime: Codex (via `codex:codex-rescue`). Falls back to Claude Sonnet when `executor_model: sonnet` is set or Codex is unavailable.
+Implements `PLAN.md` tasks one by one, atomic commits. Reads the wave grouping and parallelizes within a wave. Applies the R1-R4 deviation protocol. Default runtime: Sonnet sub-agent. Codex is the opt-in volume path (`executor_model: codex`, requires `codex` in `executors.available`); `executor_model: opus` deepens the Claude path for novel architecture.
 
 ### Simplifier (`agents/simplifier.md`)
 
@@ -305,7 +305,7 @@ OWASP top-10 scan on every production phase: auth, input validation, injection, 
 
 ### Debugger (`agents/debugger.md`)
 
-Auto-triggered on FAIL across the pipeline. Reads the failing artifact, opens the failing route in a headless browser (for frontend failures), takes a screenshot, writes `DEBUG.md` with root cause and proposed fix. Default model: Opus; Sonnet is an explicit `debug_model: sonnet` cost override.
+Auto-triggered on FAIL across the pipeline. Reads the failing artifact, opens the failing route in a headless browser (for frontend failures), takes a screenshot, writes `DEBUG.md` with root cause and fix. Dispatched at one of three tiers keyed to viciousness, not severity: `normal` (reasoning model, effort high — routine failures, even CRITICAL ones with clear scope), `high` (Fable, high — multi-layer bugs, 3+ issue adversarial fails), `max` (Fable, max effort via the `debugger-max` variant — flaky, can't-reproduce, races, 2+ failed fix attempts). Resolution: `/riff:debug --tier` flag → auto-mapping → `debugger.default_tier`. It diagnoses and verifies at its tier but delegates each mechanical fix to a `debugger.delegation.mechanical_worker` sub-agent (default Sonnet: edit, typecheck, biome, tests, atomic commit). `debug_model: sonnet` stays as the explicit cost override.
 
 ### Improver (`agents/improver.md`)
 
@@ -421,14 +421,16 @@ Details: `hooks/README.md` § Buckets.
 
 ## Unattended runs: /riff:wave
 
-`/riff:wave` bundles N parallel-eligible phases and delegates execution to Codex. Opus plans, Codex executes, and opt-in smoke/browser checks prove it works.
+`/riff:wave` bundles N parallel-eligible phases and delegates execution to the configured executor. Opus plans, the executor builds, and opt-in smoke/browser checks prove it works. Default executor: parallel Sonnet workers in the same session (`wave.executor: sonnet`); Codex is the opt-in volume path (`--executor codex` or `wave.executor: codex`).
 
 Eligibility: phase has `status: todo`, `mode: AFK`, `provider_mode != production`, all upstream `depends_on` are `done`.
 
-Two routes (decided per Step 4 of `commands/wave.md`):
+Routes (decided per Step 4 of `commands/wave.md`):
 
-- **In-process** — ≤1 phase under 30 min: spawned via the `codex:codex-rescue` skill, blocks Claude until done.
-- **Out-of-process** — ≥2 phases or over 30 min: Claude prints the exact `codex --dangerously-bypass-approvals-and-sandbox` command, the user runs it in a separate Codex terminal. Come back with `/riff:wave --resume W{N}`.
+- **Sonnet workers (default)** — one sub-agent per phase, parallel or in dependency order, same RESULT.md contract. No Codex required, nothing leaves the session.
+- **codex-exec in-session** (Codex opt-in default) — the session runs `codex exec` headless in the background and auto-reconciles on exit.
+- **In-process Codex** — ≤1 phase under 30 min: spawned via the `codex:codex-rescue` skill, blocks Claude until done.
+- **Paste / out-of-process** (Codex legacy fallback) — Claude prints the exact `codex --dangerously-bypass-approvals-and-sandbox` command, the user runs it in a separate Codex terminal. Come back with `/riff:wave --resume W{N}`.
 
 It stops on: FAIL on any phase, security BLOCKED, smoke/browser-check FAIL after fix-retest cycles, or scope drift. Phases marked `mode: HITL` never enter a wave.
 
@@ -458,13 +460,13 @@ Details: `dashboard/README.md`.
 
 ### Auto-debug
 
-Runs automatically on FAIL across the pipeline. Reads the failing artifact, opens the failing route in a headless browser when relevant (Lightpanda + chrome-devtools-mcp), attaches screenshots to `DEBUG.md`, proposes and applies a fix. On RESOLVED, the failed step re-runs.
+Runs automatically on FAIL across the pipeline. Reads the failing artifact, opens the failing route in a headless browser when relevant (Lightpanda + chrome-devtools-mcp), attaches screenshots to `DEBUG.md`, diagnoses at its dispatch tier (normal/high/max — see the Debugger agent section), and has Sonnet workers apply the fixes. On RESOLVED, the failed step re-runs.
 
 Limit: 2 attempts per phase. After that, the pipeline pauses for you. Re-run with `/riff:debug <bug>` for a manual third attempt.
 
 ### Manual debug
 
-`/riff:debug <bug>` for bugs that surfaced post-merge or outside `/riff:next`. Writes `.planning/debug/YYYY-MM-DD-<slug>.md`.
+`/riff:debug <bug>` for bugs that surfaced post-merge or outside `/riff:next`. Writes `.planning/debug/YYYY-MM-DD-<slug>.md`. Force a tier with `--tier normal|high|max` (e.g. `--tier max` on a flake that already survived two fixes).
 
 ### Improver
 
@@ -529,7 +531,7 @@ Project side (after `/riff:init`):
 
 ## Model selection
 
-RIFF dispatches across 4 model families. The reasoning model (set by `profile.yaml` `models.reasoning`, ships as Opus 4.8) plans and debugs inline (cheapest — parent context already loaded). Codex reviews adversarially (different model family catches Claude blind spots). Sonnet handles security review and is the Claude executor fallback. Haiku covers mechanical background work (simplifier, doc updater, improver). The Codex CLI is optional; if missing, adversarial steps fall back to Sonnet and a warning is logged.
+RIFF dispatches across 4 model families. The reasoning model (set by `profile.yaml` `models.reasoning`, ships as Opus 4.8) plans inline (cheapest — parent context already loaded) and debugs at the normal tier; Fable takes the high/max debug tiers for vicious bugs. Codex reviews adversarially (different model family catches Claude blind spots) and is the opt-in volume executor. Sonnet is the default executor, handles security review, and applies the debugger's mechanical fixes. Haiku covers mechanical background work (simplifier, doc updater, improver). The Codex CLI is optional; if missing, adversarial steps fall back to Sonnet and a warning is logged.
 
 Full dispatch table, per-phase overrides, and budget implications: [`protocols/MODEL.md`](./protocols/MODEL.md).
 

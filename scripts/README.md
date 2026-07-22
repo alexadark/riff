@@ -146,7 +146,7 @@ node scripts/riff-codex.mjs add-phase --input "Add billing setup phase" --run
 
 **Usage:** `riff init [options]` or `node scripts/riff-init.mjs [options]`
 
-Installs RIFF into a project from the terminal. It installs Claude Code runtime files only; Codex remains the default executor runtime via skill/CLI and requires no project harness.
+Installs RIFF into a project from the terminal. It installs Claude Code runtime files only; Codex stays available as an opt-in executor via skill/CLI (the default executor is Sonnet) and requires no project harness.
 
 ```bash
 riff init

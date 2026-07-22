@@ -47,7 +47,7 @@ Contradiction on resume (re-asked question, new answer ≠ STATE.md) → STOP, s
 | **next-B** Code shipped | Step 5 SUMMARY.md, tests green | SUMMARY.md, `git diff main...HEAD`, PLAN.md |
 | **next-C** Review passed | Step 7 PASS / RESOLVED | SUMMARY.md, REVIEW.md, SECURITY.md, DEBUG.md if any, AUTHORIZATION-MATRIX.md if any |
 
-**`/riff:wave`** — 2 checkpoints / wave: after Step 3 (bundle written, before Codex launch), after Step 6 (reconcile complete). Codex execution itself runs in its own session, not subject to Claude's context budget.
+**`/riff:wave`** — 2 checkpoints / wave: after Step 3 (bundle written, before executor launch), after Step 6 (reconcile complete). A Codex opt-in run executes in its own session, not subject to Claude's context budget; the default Sonnet workers run as sub-agents whose returns stay compact (per-phase RESULT blocks, not transcripts).
 
 ## Automatic compaction checkpoint
 
