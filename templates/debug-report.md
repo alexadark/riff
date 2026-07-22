@@ -35,7 +35,7 @@ Files changed:
 
 Delegated fixes:
 
-<!-- One row per fix-plan entry (agents/debugger.md § Step 4.2). Worker = resolved
+<!-- One row per fix-plan entry (agents/debugger.md § Step 4, stage 4.2). Worker = resolved
 `debugger.delegation.mechanical_worker` (default sonnet), or `debugger (direct)`
 when the fallback path applied the fix without a worker. -->
 
