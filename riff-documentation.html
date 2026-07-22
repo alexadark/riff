@@ -583,7 +583,7 @@ footer{
 
   <div class="stats">
     <div class="stat"><div class="stat-num">15</div><div class="stat-label">Agents</div></div>
-    <div class="stat"><div class="stat-num">15</div><div class="stat-label">Commands</div></div>
+    <div class="stat"><div class="stat-num">16</div><div class="stat-label">Commands</div></div>
     <div class="stat"><div class="stat-num">18</div><div class="stat-label">Hooks</div></div>
     <div class="stat"><div class="stat-num">~20</div><div class="stat-label">Protocols</div></div>
     <div class="stat"><div class="stat-num">4</div><div class="stat-label">Model families</div></div>
@@ -705,10 +705,10 @@ footer{
 <section class="panel" id="panel-commands" role="tabpanel">
   <div class="section-head">
     <span class="section-num">№ 03</span>
-    <h1 class="section-title">The fourteen commands</h1>
+    <h1 class="section-title">The sixteen commands</h1>
   </div>
 
-  <p class="lede"><span class="dropcap">F</span>ourteen slash commands cover the whole lifecycle, from first install to the daily build loop. Rare lifecycle actions live as protocol files you trigger by simply saying a phrase.</p>
+  <p class="lede"><span class="dropcap">S</span>ixteen slash commands cover the whole lifecycle, from first install to the daily build loop and the multi-project sweep. Rare lifecycle actions live as protocol files you trigger by simply saying a phrase.</p>
 
   <h2 class="subhead">Framework — global</h2>
   <div class="table-wrap">
@@ -740,8 +740,9 @@ footer{
     <table>
       <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
       <tbody>
-        <tr><td><code>/riff:next</code></td><td><strong>The main command.</strong> Plans, executes, reviews, opens a PR for the next phase.</td></tr>
-        <tr><td><code>/riff:wave</code></td><td>Bundle N parallel-eligible phases and delegate to parallel Sonnet workers (or Codex with <code>--executor codex</code>). Opus plans, the executor builds, browser-check proves it works.</td></tr>
+        <tr><td><code>/riff:next</code></td><td><strong>The main command.</strong> Plans, executes, reviews, opens a PR for the next phase. Flags: <code>--plan-only</code> (stop after the reviewed plan), <code>--autonomous</code> (zero questions, one report — see Unattended &amp; autonomous in the Reference tab).</td></tr>
+        <tr><td><code>/riff:wave</code></td><td>Bundle N parallel-eligible phases and delegate to parallel Sonnet workers (or Codex with <code>--executor codex</code>). Opus plans, the executor builds, browser-check proves it works. Flags: <code>W{N}</code>, <code>--solo P{N}</code>, <code>--resume W{N}</code>, <code>--status</code>, <code>--scratch</code>, <code>--autonomous</code>, <code>--loop [--max-runs N]</code>, plus Codex-route switches (<code>--paste</code>, <code>--in-process</code>, <code>--out-of-process</code>).</td></tr>
+        <tr><td><code>/riff:conductor</code></td><td>Sweep every registered project, advance each safe backlog through the autonomous loop, deliver ONE consolidated report — the morning briefing. Flags: <code>--dry-run</code> (plan only), <code>--scheduled</code> (cron mode, only touches <code>auto_advance: true</code> projects).</td></tr>
         <tr><td><code>/riff:status</code></td><td>“Where am I?” — current phase, next phase, blocked phases, pending patches.</td></tr>
       </tbody>
     </table>
@@ -754,7 +755,7 @@ footer{
       <tbody>
         <tr><td><code>/riff:add-phase</code></td><td>Append a new phase to <code>ROADMAP.yaml</code>.</td></tr>
         <tr><td><code>/riff:quick &lt;task&gt;</code></td><td>A one-off that does not deserve a phase: config tweak, copy fix, dependency bump.</td></tr>
-        <tr><td><code>/riff:debug &lt;bug&gt;</code></td><td>Manual debug invocation outside the auto-debug pipeline.</td></tr>
+        <tr><td><code>/riff:debug &lt;bug&gt;</code></td><td>Manual debug invocation outside the auto-debug pipeline. <code>--tier normal|high|max</code> forces the dispatch tier (max = the vicious ones: flaky, races, repeated failed fixes).</td></tr>
         <tr><td><code>/riff:improver</code></td><td>Batch the improver across recent phases to harvest learnings into expertise files.</td></tr>
         <tr><td><code>/riff:stress</code></td><td>Adversarial + load test the whole app. Static always; with a local/staging target, parallel red-team agents and a real load ramp. Local/staging only, never production.</td></tr>
       </tbody>
@@ -1062,7 +1063,7 @@ wave 2:
     <div class="step" data-step="4"><h5>Hardcoded default</h5><p><code>balanced</code>.</p></div>
   </div>
 
-  <h2 class="subhead">Unattended runs &amp; HITL</h2>
+  <h2 class="subhead">Unattended runs, autonomy &amp; HITL</h2>
   <p><code>/riff:wave</code> bundles parallel-eligible phases and lets the configured executor — parallel Sonnet workers by default, Codex on opt-in — build while you are away. A phase qualifies when it is <code>todo</code>, tagged <code>mode: AFK</code>, not in production provider mode, and all its dependencies are done.</p>
   <div class="dev-grid">
     <div class="dev r1">
@@ -1080,6 +1081,25 @@ wave 2:
       <h5>Sandbox HITL</h5>
       <p>Provider flows in sandbox mode. Verified through the headless browser protocol instead of pausing.</p>
     </div>
+  </div>
+
+  <h2 class="subhead">Autonomous sessions</h2>
+  <p><code>--autonomous</code> (on <code>/riff:next</code> or <code>/riff:wave</code>) turns a run into a single-approval session: every decision is front-loaded into the launch window (only genuine forks are asked — everything else becomes a documented default in the run's DECISIONS ledger), the build runs with zero questions, verification is batched at the end, and the next human touchpoint is one consolidated <code>REPORT.md</code>. With <code>autonomy.auto_launch: true</code> even the launch prompt disappears — approval already happened at roadmap planning.</p>
+  <p>What happens when a phase hits the autonomy boundary (auth, money, privacy, migrations) or a gate fails depends on <code>autonomy.hold_behavior</code>:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:28%">hold_behavior</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td><code>park</code> (default)</td><td>The branch is parked, never merged unattended. A <strong>finisher</strong> file (<code>finishers/&lt;id&gt;.yaml</code>) marks it no-merge across every session — a guard script enforces it before any merge. You resolve it conversationally: “finisher F{N} ok, merge it”.</td></tr>
+        <tr><td><code>flag_and_continue</code></td><td>For operators without security/compliance judgment of their own: hold phases and judgment-gate failures merge once the functional gates pass, recorded as a non-blocking <strong>flag</strong>. All flags are reviewed once by a specialist at the production boundary (“ready to deploy” triggers the <strong>specialist gate</strong>: pending flags + a stress run, presented to the specialist, resolved via <code>flag-resolve</code>). Actual functional breaks still never merge.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><code>--loop [--max-runs N]</code> chains autonomous runs Ralph-style until the roadmap is dry, two consecutive runs merge nothing, the max is hit, or the kill switch exists (<code>touch .planning/autonomy/STOP</code> — or just say “stop the loop”; the in-flight run finishes cleanly first). Quota exhaustion pauses and schedules a wakeup; it never counts as a stop.</p>
+  <p>Above the single project sits <code>/riff:conductor</code>: it sweeps every registered project, launches the autonomous loop sequentially on each safe backlog, and delivers one consolidated report — the morning briefing. Scheduled (cron) runs only touch projects that opted in with <code>auto_advance: true</code>. And across all projects, “what's pending” runs the cross-project inbox (<code>riff-pending.mjs</code>): every finisher, unreviewed decision, and integrity issue waiting on you, in one sorted list.</p>
+  <div class="note">
+    <div class="kicker">One approval, one report</div>
+    <p>The design rule behind all of it: mid-run questions destroy your context-switch budget. Decisions move to the launch window, everything the run did lands in one report, and the only things that ever wait on you are the ones a machine should not merge alone.</p>
   </div>
 
   <h2 class="subhead">File structure</h2>

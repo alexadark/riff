@@ -24,7 +24,7 @@
 | Command          | When to run                                                                                        | Output                                                              |
 | ---------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `/riff:next`     | The main command. Plans + executes + reviews + opens PR for the next phase.                        | `PLAN.md`, `SUMMARY.md`, `REVIEW.md`, security report, USAGE.md, PR |
-| `/riff:wave [W{N}\|--solo P\|--resume W{N}]` | Bundle N parallel-eligible phases (or 1 solo) and delegate to Codex. Opus plans, Codex executes, opt-in smoke/browser checks prove it works. | `.planning/waves/W{N}.bundle.md`, `.RESULT.md`, `.SUMMARY.md` |
+| `/riff:wave [W{N}\|--solo P\|--resume W{N}\|--executor sonnet\|codex]` | Bundle N parallel-eligible phases (or 1 solo) and delegate to parallel Sonnet workers (default) or Codex (`--executor codex`). Opus plans, the executor builds, opt-in smoke/browser checks prove it works. | `.planning/waves/W{N}.bundle.md`, `.RESULT.md`, `.SUMMARY.md` |
 | `/riff:conductor [--dry-run\|--projects a,b\|--max-runs-per-project N]` | Advancing the whole portfolio unattended, or a morning briefing across every registered project.    | `.planning/conductor/<run-id>/REPORT.md` (framework root)          |
 | `/riff:status`   | "Where am I?" — shows current phase, next phase, blocked phases, pending expertise.                | Console output                                                      |
 
@@ -34,7 +34,7 @@
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | `/riff:add-phase [name] [goal]` | Append a new phase to ROADMAP.yaml. Use `depends_on` for ordering, `status: skipped` to remove.                     | Updated `ROADMAP.yaml`            |
 | `/riff:quick <task>`            | One-off task that doesn't deserve a phase (config tweak, copy fix, dependency bump).                                | Direct commit, no phase artifacts |
-| `/riff:debug <bug>`             | Manual debug invocation outside the auto-debug pipeline. For bugs that surfaced post-merge or outside `/riff:next`. | `.planning/debug/YYYY-MM-DD-[slug].md`    |
+| `/riff:debug <bug> [--tier normal\|high\|max]` | Manual debug invocation outside the auto-debug pipeline. For bugs that surfaced post-merge or outside `/riff:next`. `--tier` forces the dispatch tier (max = vicious: flaky, races, repeated failed fixes). | `.planning/debug/YYYY-MM-DD-[slug].md`    |
 | `/riff:improver [N\|--all]`     | Batch the improver across the last N phases (default 3) to harvest learnings into `.planning/expertise/.pending/`. Fallback when Step 7b auto-trigger didn't fire. | `.planning/expertise/.pending/<agent>-<phase>.md` (+ sentinels) |
 | `/riff:stress [--target <url>]`  | Adversarial + load test the whole app. Static always; with `--target`, real attacks (parallel red-team agents) + a real load ramp. Local/staging only. | `.planning/stress/YYYY-MM-DD-stress.md` |
 
@@ -63,16 +63,16 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 - **Start a brand new project** → `/riff:init` then `/riff:start`
 - **Onboard RIFF onto an existing codebase** → `/riff:init` then `/riff:map`
 - **Build the next thing on the roadmap** → `/riff:next`
-- **Walk away and let it run** → `/riff:wave` (Codex executes the bundle while you're away)
+- **Walk away and let it run** → `/riff:wave` (parallel Sonnet workers build the bundle; `--executor codex` to delegate to Codex instead)
 - **Launch an hours-long unattended session (one approval, zero questions, one report)** → `/riff:wave --autonomous` (or `/riff:next --autonomous` for a single phase). Lifecycle: `protocols/AUTONOMY.md`
 - **Let it chain runs until the roadmap is done (Ralph loop with brakes)** → `/riff:wave --autonomous --loop [--max-runs N]`. Stop anytime: say "stop the loop" or `touch .planning/autonomy/STOP`
 - **See everything waiting on me across ALL my apps** → ask Claude "what's pending" (runs `.riff/scripts/riff-pending.mjs`)
-- **Group N parallel phases into one Codex wave run** → `/riff:wave` (and `--resume W{N}` when Codex finishes)
-- **Delegate one risky/slow phase to Codex** → `/riff:wave --solo P{N}`
+- **Group N parallel phases into one wave run** → `/riff:wave` (and `--resume W{N}` after an out-of-session Codex run)
+- **Delegate one risky/slow phase on its own** → `/riff:wave --solo P{N}`
 - **Check where I left off** → `/riff:status`
 - **Add work the planner didn't think of** → `/riff:add-phase`
 - **Fix a tiny thing that doesn't need a phase** → `/riff:quick`
-- **Hunt down a bug not caught by auto-debug** → `/riff:debug`
+- **Hunt down a bug not caught by auto-debug** → `/riff:debug` (`--tier max` for the vicious ones: flaky, races, repeated failed fixes)
 - **Harvest learnings from recent phases** → `/riff:improver` (or `/riff:improver --all` for the full backlog)
 - **Re-audit a phase before merging** → ask Claude to "re-audit phase N"
 - **Pull a framework update into a project** → `/riff:resync` (or `bash .riff/riff-resync.sh` if not bootstrapped yet)
@@ -84,10 +84,10 @@ These rare lifecycle actions live as protocol files Claude reads when you say th
 ## Protocols referenced by commands
 
 - `protocols/HANDOFF.md` — session checkpoint contract for `/riff:start`, `/riff:next`, `/riff:wave`. Session bloats past safe context → propose `/clear`, reopen with STATE.md. Read at Stage / Step boundaries when 2+ heuristics fire (sub-agents, revisions, tool calls, files written).
-- `protocols/WAVE-BUNDLE.md` — assembled by `/riff:wave` Step 3 to package N phases for Codex wave execution. Defines the single contract Codex reads (goal, per-phase plans, acceptance criteria, RESULT.md shape).
+- `protocols/WAVE-BUNDLE.md` — assembled by `/riff:wave` Step 3 to package N phases for wave execution. Defines the single contract the executor reads (goal, per-phase plans, acceptance criteria, RESULT.md shape) — Sonnet workers by default, Codex on opt-in.
 - `protocols/CODEX-DELEGATION.md` — read by `/riff:wave` Steps 4-5 for the in-process vs out-of-process routing and the three prompt templates (wave, solo, solo-strict).
 - `protocols/HOOKS.md` — Claude Code project hook contract, installed events, templates, and test workflow.
-- `protocols/BROWSER-CHECK.md` — read by `/riff:wave` Step 3 (auto-enable rules) and by Codex during execution. The "prove the feature actually works" contract for wave and solo execution.
+- `protocols/BROWSER-CHECK.md` — read by `/riff:wave` Step 3 (auto-enable rules) and by the executor during execution. The "prove the feature actually works" contract for wave and solo execution.
 - `protocols/FALLOW.md` — read by `/riff:next` Step 5d for the deterministic fallow static audit on the phase diff (dead code, duplication, complexity, boundaries).
 - `protocols/DISCOVERY-DETECTION.md` — read by `/riff:start` Stage 0 to branch greenfield / starter / brownfield and route the brownfield audit-codebase prompt.
 - `protocols/DISCOVERY-DETECTION.md` § Stack Source Gate — read by `/riff:start` Stage 1 to capture how the stack decision is made (`starter-local | starter-clone | known | discussed`) so Stage 5 knows whether to run the starter clone.

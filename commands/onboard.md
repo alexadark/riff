@@ -156,8 +156,8 @@ Maps to: `user.artifact_language`. Default `en` if the user skips the question.
 > Nuance: non-commit personal notes default to `conversational_language`. Rule: "if it's going in a commit → `artifact_language`; for personal use → `conversational_language`".
 
 **Q5b. Which executors do you have installed?**
-- `claude + codex` — Claude Code + OpenAI Codex CLI (default, Codex is the executor runtime default)
-- `claude only` — Claude Code only; executor falls back to Sonnet
+- `claude + codex` — Claude Code + OpenAI Codex CLI (default; Sonnet executes by default, Codex available as the opt-in volume path)
+- `claude only` — Claude Code only; execution always runs on the Sonnet sub-agent, no Codex opt-in
 
 Maps to: `executors.available` (top-level array). `claude only` → `[claude]`, `claude + codex` → `[claude, codex]`.
 
@@ -297,7 +297,14 @@ user:
 executors:
   available: [claude, codex]
 models:
-  reasoning: opus   # strong inline model: planner, orchestration, debugger default
+  reasoning: opus   # strong inline model: planner, orchestration, debugger normal tier
+debugger:
+  default_tier: normal        # normal | high | max — tier when no --tier flag and no auto-mapping signal (max = viciousness, not severity)
+  delegation:
+    mechanical_worker: sonnet # sonnet | opus | fable — applies the debugger's fixes (edit + checks + atomic commit)
+wave:
+  reconcile_mode: both
+  executor: sonnet  # sonnet (parallel Claude workers, default) | codex (opt-in volume path)
 risk:
   sensitive_task_preference: balanced
 style:

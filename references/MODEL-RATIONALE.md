@@ -69,9 +69,9 @@ RIFF uses Haiku for:
 
 Planning quality is the single biggest leverage point in the pipeline. A bad plan = wasted execution tokens downstream. Parent already loaded all context in Steps 1–3 → inline is cheaper _and_ better than spawning. Forced via `model: opus` (a mirror of `models.reasoning`) in `/riff:next` frontmatter.
 
-#### Step 5 (Executor) — Codex runtime by default
+#### Step 5 (Executor) — Sonnet runtime by default, Codex opt-in
 
-Plan is already written — execution is mostly mechanical (write code per PLAN.md, commit, write SUMMARY). Codex is the default executor runtime via `codex:codex-rescue` / CLI. Sonnet is a fallback or explicit override (`executor_model: sonnet`) when Codex is unavailable or the phase needs Claude-specific tools. Reasoning model (`executor_model: opus`) opt-in for novel architecture, 10+ tightly coupled files, unfamiliar external APIs. Depth: Codex path uses Codex `--effort` (xhigh on `complex_execution:`); the Claude fallback runs at its model default, deepened via `executor_model: opus`.
+Plan is already written — execution is mostly mechanical (write code per PLAN.md, commit, write SUMMARY). Sonnet is the default executor runtime: Claude-native, no context hand-off, no external CLI dependency, and cheap enough for volume. Codex is the opt-in volume path (`executor_model: codex`, `--executor codex`, `wave.executor: codex`) for heavy roadmaps where preserving Claude quota matters — it requires `codex` in `executors.available`. Reasoning model (`executor_model: opus`) opt-in for novel architecture, 10+ tightly coupled files, unfamiliar external APIs. Depth: the Claude path runs at its model default, deepened via `executor_model: opus`; the Codex path uses Codex `--effort` (xhigh on `complex_execution:`).
 
 #### Step 6 (Adversarial reviewer) — Codex
 
@@ -89,6 +89,6 @@ Pattern extraction from SUMMARY + expertise files → low complexity. Non-blocki
 
 Regenerating file trees, route tables, taste pattern indexes → mechanical pattern work. No reasoning required, just diffing structure against current state.
 
-#### Debugger — reasoning model, `effort: high`
+#### Debugger — tiered dispatch, delegation of the grunt work
 
-Debug is reasoning-heavy: hypothesis formation, root cause analysis, tracing implicit assumptions in code you didn't write. Failures are high-stakes: a wrong diagnosis produces a wrong fix that may mask the real problem. Reasoning model (`models.reasoning`) default; Sonnet opt-in (`debug_model: sonnet`) for cost-sensitive cases where the failure is clearly scoped. Runs at a fixed `effort: high` (frontmatter, applied via `subagent_type` dispatch). The top triage tier — CRITICAL security, flaky/intermittent, 2+ failed fixes — escalates with a Codex second opinion (`gpt-5.5 high`) alongside the Claude debugger rather than a higher Claude effort (see `agents/debugger.md` Step 1).
+Debug is reasoning-heavy: hypothesis formation, root cause analysis, tracing implicit assumptions in code you didn't write. Failures are high-stakes: a wrong diagnosis produces a wrong fix that may mask the real problem. Dispatch is tiered on how vicious the bug is, not how severe: `normal` = reasoning model at `effort: high` (routine failures, even CRITICAL ones with clear scope), `high` = Fable at `high` (multi-layer, 3+ issue adversarial fails, verification fails), `max` = Fable at `max` via the `debugger-max` agent variant (flaky, can't-reproduce, races, 2+ failed fix attempts — the cases where a wrong mental model, not missing effort, is the risk). Resolution: `--tier` flag → auto-mapping → `debugger.default_tier`. Sonnet opt-in (`debug_model: sonnet`) survives for cost-sensitive clearly-scoped cases. Whatever the tier, the debugger only diagnoses and verifies; each mechanical fix is applied by a `debugger.delegation.mechanical_worker` sub-agent (default Sonnet) so frontier tokens never go to grunt edits. The hardest cases still add a Codex second opinion (`gpt-5.5 high`) alongside the Claude debugger — an independent model beats a deeper pass from the same one (see `agents/debugger.md` Step 1).

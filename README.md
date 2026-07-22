@@ -60,7 +60,7 @@ cd ~/my-project
 riff init
 ```
 
-`riff init` symlinks this RIFF clone into the project as `.riff/`, then installs Claude Code runtime files (commands, agents, hooks, settings). Codex remains the default executor runtime through the configured skill/CLI; it is not installed as a project harness. After installing files, init starts profile onboarding when the terminal is interactive. Use `--profile default`, `--profile custom`, or `--no-onboard` for scripted runs.
+`riff init` symlinks this RIFF clone into the project as `.riff/`, then installs Claude Code runtime files (commands, agents, hooks, settings). Codex stays available as an opt-in executor through the configured skill/CLI (the default executor is Sonnet); it is not installed as a project harness. After installing files, init starts profile onboarding when the terminal is interactive. Use `--profile default`, `--profile custom`, or `--no-onboard` for scripted runs.
 
 Or, from inside Claude Code in the project directory, run the wrapper:
 
@@ -80,7 +80,7 @@ Or, from inside Claude Code in the project directory, run the wrapper:
 
 > Most projects keep the framework profile. The per-project override is for genuinely divergent setups (stricter client work, different artifact language, workshop demo). Resolution order and edge cases: [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
 
-Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let Codex execute them while you're away. Run `/riff:dashboard` to watch progress in a browser.
+Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let the configured executor (parallel Sonnet workers by default, Codex on opt-in) build them while you're away. Run `/riff:dashboard` to watch progress in a browser.
 
 ## Key concepts
 
