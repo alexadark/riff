@@ -599,7 +599,7 @@ footer{
       <thead><tr><th>Beat</th><th>What happens</th><th>Who runs it</th></tr></thead>
       <tbody>
         <tr><td><strong>Plan</strong></td><td>Goal-backward decomposition into tasks, grouped into parallel waves, one model picked per task</td><td><span class="badge b-opus">Opus</span></td></tr>
-        <tr><td><strong>Build</strong></td><td>Tasks implemented one by one, atomic commits, deviations handled by the R1–R4 rules</td><td><span class="badge b-codex">Codex</span> <span class="badge b-sonnet">Sonnet</span></td></tr>
+        <tr><td><strong>Build</strong></td><td>Tasks implemented one by one, atomic commits, deviations handled by the R1–R4 rules</td><td><span class="badge b-sonnet">Sonnet</span> <span class="badge b-codex">Codex opt-in</span></td></tr>
         <tr><td><strong>Verify</strong></td><td>Scope check, dead-code audit, adversarial pass, security pass, optional browser smoke test</td><td><span class="badge b-codex">Codex</span> <span class="badge b-sonnet">Sonnet</span></td></tr>
         <tr><td><strong>Commit</strong></td><td>One PR per phase, learnings harvested into project taste files</td><td>Pipeline</td></tr>
       </tbody>
@@ -741,7 +741,7 @@ footer{
       <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
       <tbody>
         <tr><td><code>/riff:next</code></td><td><strong>The main command.</strong> Plans, executes, reviews, opens a PR for the next phase.</td></tr>
-        <tr><td><code>/riff:wave</code></td><td>Bundle N parallel-eligible phases and delegate to Codex. Opus plans, Codex executes, browser-check proves it works.</td></tr>
+        <tr><td><code>/riff:wave</code></td><td>Bundle N parallel-eligible phases and delegate to parallel Sonnet workers (or Codex with <code>--executor codex</code>). Opus plans, the executor builds, browser-check proves it works.</td></tr>
         <tr><td><code>/riff:status</code></td><td>“Where am I?” — current phase, next phase, blocked phases, pending patches.</td></tr>
       </tbody>
     </table>
@@ -794,7 +794,7 @@ footer{
     <div class="step" data-step="4"><h5>Plan <span class="badge b-opus">Opus</span></h5><p>Goal-backward plan built inline by the planner.</p></div>
     <div class="step" data-step="4b"><h5>Plan adversarial review <span class="badge b-codex">Codex</span> <span class="badge b-gate">gated</span></h5><p>Challenge optimistic plans, missing edge cases, ambiguous task boundaries.</p></div>
     <div class="step" data-step="4c"><h5>Pre-exec explanation <span class="badge b-haiku">Haiku</span></h5><p>Plain-language summary for the dashboard. Fail-silent.</p></div>
-    <div class="step" data-step="5"><h5>Execute <span class="badge b-codex">Codex</span></h5><p>Implement tasks one by one, atomic commits, parallelize within a wave, apply R1–R4 deviations.</p></div>
+    <div class="step" data-step="5"><h5>Execute <span class="badge b-sonnet">Sonnet</span></h5><p>Implement tasks one by one, atomic commits, parallelize within a wave, apply R1–R4 deviations. Codex on opt-in (<code>executor_model: codex</code>).</p></div>
     <div class="step" data-step="5b"><h5>Simplify <span class="badge b-haiku">Haiku</span> <span class="badge b-gate">gated</span></h5><p>Structural smell pass on the diff: premature abstraction, misnaming, dead branches.</p></div>
     <div class="step" data-step="5c"><h5>Scope check <span class="badge b-gate">mechanical</span></h5><p><code>scope-check.mjs</code> diffs the plan against the summary. No LLM. Flags silently dropped tasks.</p></div>
     <div class="step" data-step="5d"><h5>Fallow audit <span class="badge b-gate">mechanical</span></h5><p>Dead code, duplication, complexity, boundary violations on the diff. Sub-second, deterministic.</p></div>
@@ -833,6 +833,8 @@ footer{
 
   <h2 class="subhead">Auto-debug</h2>
   <p>If any step fails (executor crash, scope-check FAIL, adversarial FAIL, security BLOCKED, smoke fail), the pipeline routes to the debugger. It reads the failing artifact, opens the failing route in a browser if relevant, attaches screenshots, writes <code>DEBUG.md</code>, and proposes a fix. On RESOLVED, the failed step re-runs.</p>
+  <p>The debugger is dispatched at one of three tiers, and the tier tracks how <em>vicious</em> the bug is, not how severe. <strong>normal</strong> (the reasoning model, default Opus, at high effort) covers routine executor failures, deterministic test failures, and clear-scope security failures — even CRITICAL ones. <strong>high</strong> (Fable, high effort) covers adversarial failures with 3+ distinct issues, multi-layer bugs spanning services, and "tests pass but behavior is wrong". <strong>max</strong> (Fable, max effort) is reserved for the bugs that fight back: intermittent or flaky failures, "can't reproduce", race conditions, and anything that already survived two fix attempts. Pick a tier by hand with <code>/riff:debug --tier normal|high|max</code>, or set <code>debugger.default_tier</code> in the profile; otherwise the auto-mapping above applies.</p>
+  <p>Whatever the tier, the debugger only <em>thinks</em> at that tier. Once the root cause is confirmed, each mechanical fix is applied by a spawned Sonnet worker (edit, typecheck, biome, tests, atomic commit), and the debugger returns at its own tier to verify the diff. <code>DEBUG.md</code> logs which fixes went to which worker. The worker model is <code>debugger.delegation.mechanical_worker</code> (default <code>sonnet</code>; bump to <code>opus</code>/<code>fable</code> when the fix itself is subtle).</p>
   <div class="note">
     <div class="kicker">Hard limit</div>
     <p>Two debug attempts per phase. After that, the pipeline pauses for you. Re-run with <code>/riff:debug &lt;bug&gt;</code> for a manual third attempt.</p>
@@ -867,9 +869,9 @@ wave 2:
     </div>
     <div class="card">
       <h4>Executor</h4>
-      <div class="role">Implements tasks · default Codex</div>
-      <p>Implements the plan task by task with atomic commits, parallelizes within a wave, applies the R1–R4 deviation protocol. Falls back to Sonnet when Codex is unavailable.</p>
-      <div class="meta">runtime · <b>Codex</b> → Sonnet fallback</div>
+      <div class="role">Implements tasks · default Sonnet</div>
+      <p>Implements the plan task by task with atomic commits, parallelizes within a wave, applies the R1–R4 deviation protocol. Codex is the opt-in volume path (<code>executor_model: codex</code>, <code>--executor codex</code>).</p>
+      <div class="meta">runtime · <b>Sonnet</b> · Codex opt-in</div>
     </div>
     <div class="card">
       <h4>Adversarial reviewer</h4>
@@ -920,8 +922,8 @@ wave 2:
     </div>
     <div class="card card--alt">
       <h4>Debugger</h4>
-      <div class="role">Auto-triggered on FAIL · Opus</div>
-      <p>Reads the failing artifact, opens the failing route in a headless browser, screenshots it, writes <code>DEBUG.md</code> with root cause and fix.</p>
+      <div class="role">Auto-triggered on FAIL · tiered Opus → Fable</div>
+      <p>Reads the failing artifact, opens the failing route in a headless browser, screenshots it, writes <code>DEBUG.md</code> with root cause and fix. Three dispatch tiers keyed to viciousness, not severity: normal (Opus/high), high (Fable/high), max (Fable/max — flaky, can't-reproduce, races, repeated failed fixes). Diagnoses at its tier, delegates mechanical fixes to Sonnet workers.</p>
     </div>
     <div class="card card--alt">
       <h4>Improver</h4>
@@ -981,16 +983,17 @@ wave 2:
   </div>
 
   <h2 class="subhead">Model selection</h2>
-  <p>RIFF dispatches across three Claude families plus the Codex CLI. Each family is used where it is strongest.</p>
+  <p>RIFF dispatches across four Claude tiers plus the Codex CLI. Each is used where it is strongest.</p>
   <div class="table-wrap">
     <table>
-      <caption>Four families, one job each</caption>
+      <caption>Five tiers, one job each</caption>
       <thead><tr><th style="width:18%">Family</th><th>When used</th></tr></thead>
       <tbody>
-        <tr><td><span class="badge b-opus">Opus</span></td><td>Planning (default). Debug (default). Adversarial fallback when Codex is unavailable.</td></tr>
-        <tr><td><span class="badge b-sonnet">Sonnet</span></td><td>Claude fallback execution. Security review. Debug cost override. General-purpose work.</td></tr>
+        <tr><td><span class="badge b-opus">Opus</span></td><td>Planning (default). Debug at the normal tier (default). Adversarial fallback when Codex is unavailable.</td></tr>
+        <tr><td><span class="badge b-opus">Fable</span></td><td>Debug at the high and max tiers — vicious bugs only (flaky, can’t-reproduce, races, repeated failed fixes).</td></tr>
+        <tr><td><span class="badge b-sonnet">Sonnet</span></td><td>Default execution (solo and waves). Security review. Mechanical debug-fix workers. Debug cost override.</td></tr>
         <tr><td><span class="badge b-haiku">Haiku</span></td><td>Simplifier. Pre-exec and post-mortem explanations for the dashboard.</td></tr>
-        <tr><td><span class="badge b-codex">Codex</span></td><td>Adversarial review (different model family, catches Claude’s blind spots).</td></tr>
+        <tr><td><span class="badge b-codex">Codex</span></td><td>Adversarial review (different model family, catches Claude’s blind spots). Opt-in volume execution.</td></tr>
       </tbody>
     </table>
   </div>
@@ -1003,11 +1006,12 @@ wave 2:
         <tr><td>Plan</td><td><span class="badge b-opus">Opus</span></td><td><code>planner_model:</code> per phase</td></tr>
         <tr><td>Plan adversarial</td><td><span class="badge b-codex">Codex</span></td><td>Opus fallback</td></tr>
         <tr><td>Pre-exec explanation</td><td><span class="badge b-haiku">Haiku</span></td><td>—</td></tr>
-        <tr><td>Execute</td><td><span class="badge b-codex">Codex</span></td><td><code>executor_model: sonnet</code></td></tr>
+        <tr><td>Execute</td><td><span class="badge b-sonnet">Sonnet</span></td><td><code>executor_model: codex</code> (opt-in) or <code>opus</code></td></tr>
         <tr><td>Simplify</td><td><span class="badge b-haiku">Haiku</span></td><td><code>simplify_model:</code></td></tr>
         <tr><td>Adversarial review</td><td><span class="badge b-codex">Codex</span></td><td>Opus fallback</td></tr>
         <tr><td>Security review</td><td><span class="badge b-sonnet">Sonnet</span></td><td><code>security_model:</code></td></tr>
         <tr><td>Improver</td><td><span class="badge b-haiku">Haiku</span></td><td>gated</td></tr>
+        <tr><td>Debug</td><td><span class="badge b-opus">Opus</span> tier normal · <span class="badge b-opus">Fable</span> tiers high/max</td><td><code>--tier</code>, <code>debugger.default_tier</code>, <code>debug_model:</code></td></tr>
       </tbody>
     </table>
   </div>
@@ -1040,6 +1044,9 @@ wave 2:
         <tr><td>style.allow_jargon</td><td>first_mention</td></tr>
         <tr><td>style.when_uncertain</td><td>important_only</td></tr>
         <tr><td>budget.default_quality</td><td>balanced</td></tr>
+        <tr><td>debugger.default_tier</td><td>normal (high and max escalate to Fable — viciousness, not severity)</td></tr>
+        <tr><td>debugger.delegation.mechanical_worker</td><td>sonnet (applies the debugger’s fixes: edit, checks, atomic commit)</td></tr>
+        <tr><td>wave.executor</td><td>sonnet (Codex opt-in via <code>--executor codex</code>)</td></tr>
         <tr><td>languages</td><td>English (conversational, artifact, narrative)</td></tr>
         <tr><td>notifications.channel</td><td>none</td></tr>
       </tbody>
@@ -1056,7 +1063,7 @@ wave 2:
   </div>
 
   <h2 class="subhead">Unattended runs &amp; HITL</h2>
-  <p><code>/riff:wave</code> bundles parallel-eligible phases and lets Codex execute while you are away. A phase qualifies when it is <code>todo</code>, tagged <code>mode: AFK</code>, not in production provider mode, and all its dependencies are done.</p>
+  <p><code>/riff:wave</code> bundles parallel-eligible phases and lets the configured executor — parallel Sonnet workers by default, Codex on opt-in — build while you are away. A phase qualifies when it is <code>todo</code>, tagged <code>mode: AFK</code>, not in production provider mode, and all its dependencies are done.</p>
   <div class="dev-grid">
     <div class="dev r1">
       <span class="tag" style="font-size:1.1rem;">AFK</span>
@@ -1186,7 +1193,7 @@ wave 2:
       <div class="farrow">↓</div>
       <div class="fnode fnode--codex">Plan adversarial<small>Codex · gated</small></div>
       <div class="farrow"><span>pass</span>↓</div>
-      <div class="fnode fnode--codex">Executor<small>Codex</small></div>
+      <div class="fnode fnode--sonnet">Executor<small>Sonnet · Codex opt-in</small></div>
       <div class="farrow">↓</div>
       <div class="fnode fnode--mech">Scope check<small>mechanical · no LLM</small></div>
       <div class="farrow"><span>splits — parallel</span>↓</div>
@@ -1196,7 +1203,7 @@ wave 2:
       </div>
       <div class="farrow"><span>both pass</span>↓</div>
       <div class="fnode fnode--end">Pull request</div>
-      <div class="fnote">on FAIL or BLOCKED → Debugger (Opus) → retry · max 2 attempts</div>
+      <div class="fnote">on FAIL or BLOCKED → Debugger (tiered: Opus, Fable on vicious bugs; Sonnet applies the fixes) → retry · max 2 attempts</div>
     </div>
   </div>
 
