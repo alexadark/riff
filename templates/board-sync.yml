@@ -18,7 +18,7 @@ jobs:
       - name: Sync
         env:
           RIFF_BOARD_URL: ${{ secrets.RIFF_BOARD_URL }}
-          RIFF_BOARD_TOKEN: ${{ secrets.RIFF_BOARD_TOKEN }}
+          RIFF_BOARD_SYNC_TOKEN: ${{ secrets.RIFF_BOARD_SYNC_TOKEN }}
         run: |
           curl -fsSL https://raw.githubusercontent.com/alexadark/riff/main/scripts/board-sync.mjs -o board-sync.mjs
           node board-sync.mjs .

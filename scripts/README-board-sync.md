@@ -9,7 +9,8 @@ particular, it is never needed in a project repo's CI).
 
 ## What it does
 
-1. Reads `ROADMAP.yaml` from a target repo.
+1. Reads `ROADMAP-board.yaml` from a target repo if it exists; otherwise falls back to
+   `ROADMAP.yaml`. Prints which file it read (e.g. `Reading: ROADMAP-board.yaml`).
 2. Validates it and maps each phase's status to the board's status vocabulary.
 3. POSTs the project + phases to `${RIFF_BOARD_URL}/api/sync/roadmap`, authenticated with
    a bearer token.
@@ -39,25 +40,36 @@ node ~/DEV/frameworks/riff/scripts/board-sync.mjs --dry-run
 ```
 
 `--dry-run` only parses and validates the YAML — it does not require
-`RIFF_BOARD_URL`/`RIFF_BOARD_TOKEN` to be set.
+`RIFF_BOARD_URL`/`RIFF_BOARD_SYNC_TOKEN` to be set.
 
-## Setting RIFF_BOARD_URL and RIFF_BOARD_TOKEN
+## Setting RIFF_BOARD_URL and RIFF_BOARD_SYNC_TOKEN
 
 The script needs two environment variables for a live sync:
 
 - `RIFF_BOARD_URL` — the board app's base URL, e.g. `https://riff-boards.vercel.app`.
-- `RIFF_BOARD_TOKEN` — the `SYNC_API_TOKEN` value from the board's Vercel environment
-  variables. Sent as `Authorization: Bearer ${RIFF_BOARD_TOKEN}`.
+- `RIFF_BOARD_SYNC_TOKEN` — the `SYNC_API_TOKEN` value from the board's Vercel environment
+  variables. Sent as `Authorization: Bearer ${RIFF_BOARD_SYNC_TOKEN}`.
 
 ```bash
 export RIFF_BOARD_URL="https://riff-boards.vercel.app"
-export RIFF_BOARD_TOKEN="..."
+export RIFF_BOARD_SYNC_TOKEN="..."
 node ~/DEV/frameworks/riff/scripts/board-sync.mjs
 ```
 
 If either is missing (and `--dry-run` was not passed), the script prints this guidance and
 exits non-zero — it never silently falls back to anything, and it never touches a database
 connection string.
+
+## ROADMAP-board.yaml fallback
+
+Some projects have a large, non-standard `ROADMAP.yaml` that can't be converted wholesale
+to the board's format (for example, a roadmap with dozens of ad-hoc `phase-N:` keys and
+extra fields the board doesn't understand). For those projects, create a
+`ROADMAP-board.yaml` alongside the original `ROADMAP.yaml` — a curated slice in the
+standard format below (see it for the exact shape). The script prefers
+`<repo>/ROADMAP-board.yaml` when it exists and only falls back to `<repo>/ROADMAP.yaml`
+when it doesn't. The original `ROADMAP.yaml` is never read or modified when a
+`ROADMAP-board.yaml` is present.
 
 ## ROADMAP.yaml format expected
 
@@ -119,7 +131,7 @@ the script still syncs normally, just with `prune: false`.
 
 `POST ${RIFF_BOARD_URL}/api/sync/roadmap`
 
-Headers: `Authorization: Bearer ${RIFF_BOARD_TOKEN}`, `Content-Type: application/json`.
+Headers: `Authorization: Bearer ${RIFF_BOARD_SYNC_TOKEN}`, `Content-Type: application/json`.
 
 Request body:
 
@@ -155,7 +167,7 @@ On any non-2xx response, the script prints the status code and response body, th
 
 Copy `templates/board-sync.yml` from this repo into the project repo as
 `.github/workflows/board-sync.yml`, and set two repo secrets: `RIFF_BOARD_URL` and
-`RIFF_BOARD_TOKEN`. See that template file for the full workflow and a note about the
+`RIFF_BOARD_SYNC_TOKEN`. See that template file for the full workflow and a note about the
 `riff` repo's visibility (public vs private) affecting how the template downloads
 `board-sync.mjs`.
 

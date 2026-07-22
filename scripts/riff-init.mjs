@@ -258,19 +258,31 @@ function ensurePlanning(scope) {
   return true;
 }
 
+function installCommandsDir(sourceDir, namespace) {
+  for (const entry of readdirSync(sourceDir)) {
+    const sourcePath = path.join(sourceDir, entry);
+    if (lstatSync(sourcePath).isDirectory()) {
+      // One level of subdir under commands/ becomes its own namespace, e.g.
+      // commands/riff-board/msg.md -> .claude/commands/riff-board/msg.md
+      // (slash command /riff-board:msg), instead of nesting under riff/.
+      installCommandsDir(sourcePath, entry);
+      continue;
+    }
+    if (entry.endsWith('.md')) {
+      symlinkRelative(sourcePath, path.join(`.claude/commands/${namespace}`, entry), {
+        viaRiff: true,
+      });
+    }
+  }
+}
+
 function installClaudeRuntime() {
   ensureDir('.claude/commands/riff');
   ensureDir('.claude/agents/riff');
   ensureDir('.claude/hooks/riff');
   ensureDir('.claude/skills');
 
-  for (const file of readdirSync(path.join(FRAMEWORK_ROOT, 'commands'))) {
-    if (file.endsWith('.md')) {
-      symlinkRelative(path.join(FRAMEWORK_ROOT, 'commands', file), path.join('.claude/commands/riff', file), {
-        viaRiff: true,
-      });
-    }
-  }
+  installCommandsDir(path.join(FRAMEWORK_ROOT, 'commands'), 'riff');
   for (const file of readdirSync(path.join(FRAMEWORK_ROOT, 'agents'))) {
     if (file.endsWith('.md')) {
       symlinkRelative(path.join(FRAMEWORK_ROOT, 'agents', file), path.join('.claude/agents/riff', file), {

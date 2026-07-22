@@ -7,9 +7,11 @@
 //   node ~/DEV/frameworks/riff/scripts/board-sync.mjs [path-to-repo] [--prune] [--dry-run]
 //
 // path-to-repo defaults to the current working directory. The script looks
-// for <path-to-repo>/ROADMAP.yaml.
+// for <path-to-repo>/ROADMAP-board.yaml first (a curated slice for projects
+// whose full ROADMAP.yaml is huge or non-standard); if that file doesn't
+// exist, it falls back to <path-to-repo>/ROADMAP.yaml.
 //
-// RIFF_BOARD_URL and RIFF_BOARD_TOKEN must be set in the environment (see
+// RIFF_BOARD_URL and RIFF_BOARD_SYNC_TOKEN must be set in the environment (see
 // scripts/README-board-sync.md for setup). Neither is required for --dry-run.
 //
 // Expected ROADMAP.yaml shape (additional RIFF-technical fields — priority,
@@ -179,7 +181,10 @@ async function postRoadmap({ boardUrl, token, project, phases, prune }) {
 async function main() {
   const { positional, prune, dryRun } = parseArgs(process.argv.slice(2));
   const targetDir = path.resolve(positional[0] ?? process.cwd());
-  const yamlPath = path.join(targetDir, "ROADMAP.yaml");
+  const boardYamlPath = path.join(targetDir, "ROADMAP-board.yaml");
+  const yamlPath = existsSync(boardYamlPath) ? boardYamlPath : path.join(targetDir, "ROADMAP.yaml");
+
+  console.log(`Reading: ${path.basename(yamlPath)}`);
 
   const { displayName, slug, githubUrl, phases } = loadRoadmap(yamlPath);
 
@@ -201,16 +206,16 @@ async function main() {
   }
 
   const boardUrl = process.env.RIFF_BOARD_URL;
-  const token = process.env.RIFF_BOARD_TOKEN;
+  const token = process.env.RIFF_BOARD_SYNC_TOKEN;
 
   if (!boardUrl || !token) {
     fail(
       [
-        "RIFF_BOARD_URL and/or RIFF_BOARD_TOKEN is not set.",
+        "RIFF_BOARD_URL and/or RIFF_BOARD_SYNC_TOKEN is not set.",
         "",
         "Set both before running this script, for example:",
         '  export RIFF_BOARD_URL="https://riff-boards.vercel.app"',
-        '  export RIFF_BOARD_TOKEN="..."   # the SYNC_API_TOKEN value from the board\'s Vercel env',
+        '  export RIFF_BOARD_SYNC_TOKEN="..."   # the SYNC_API_TOKEN value from the board\'s Vercel env',
         "",
         "Or run with --dry-run to validate ROADMAP.yaml without contacting the board.",
       ].join("\n"),
