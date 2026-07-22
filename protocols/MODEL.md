@@ -24,7 +24,7 @@ Depth comes from the `effort:` frontmatter on `subagent_type`-dispatched agents,
 | Step 7b: Improver                                      | `subagent_type: improver` (background) | **Haiku**            | `effort: low` (frontmatter)                                  |
 | Step 8a: Doc updater                                   | Sub-agent              | **Haiku**                            | model default (inline prompt, no agent file)                 |
 | Quarterly incident review adversarial pass             | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
-| Debugger (auto-trigger or `/riff:debug`)               | `subagent_type: debugger` | **Reasoning model** (default), Sonnet opt-in | `effort: high` (frontmatter); Codex second opinion for CRITICAL/flaky (see § Debugger) |
+| Debugger (auto-trigger or `/riff:debug`)               | `subagent_type: debugger` (tiers `normal`/`high`) or `debugger-max` (tier `max`) | **Tiered**: reasoning model (`normal`), Fable (`high`, `max`); Sonnet on `debug_model:` | `effort: high` frontmatter (`normal`/`high`), `effort: max` via `debugger-max` variant; Codex second opinion for CRITICAL/flaky (see § Debugger) |
 
 ## Codex model + effort
 
@@ -84,13 +84,14 @@ How this maps to RIFF's spawn mechanism:
 - **Executor (Step 5)** — default path is Codex (depth via `--effort`); the Claude fallback and the multi-task wave agents are spawned with per-task context, depth via `executor_model: opus` / `complex_execution`. Not converted to `subagent_type` (the wave mechanism owns that spawn).
 - **Codex steps** — adversarial reviewers, deep-auditor, Codex second opinions. Depth via the `--effort` flag RIFF passes into the rescue prompt.
 
-Per-agent effort (frontmatter): security-reviewer `high`, debugger `high`, simplifier `medium`, improver `low`. Stress: red-teamer `high`, load-tester `medium`. A sub-agent with no `effort:` inherits the session effort.
+Per-agent effort (frontmatter): security-reviewer `high`, debugger `high`, debugger-max `max` (the named-variant mechanism in action — see § Debugger selection), simplifier `medium`, improver `low`. Stress: red-teamer `high`, load-tester `medium`. A sub-agent with no `effort:` inherits the session effort.
 
 | Want more depth on… | Lever |
 | --- | --- |
 | Planner / orchestration (inline) | session effort + `ultrathink` |
 | Security review | edit `security-reviewer` `effort:`; `security_model: opus` for the model |
-| Simplifier / improver / debugger | edit the agent's `effort:` frontmatter |
+| Simplifier / improver | edit the agent's `effort:` frontmatter |
+| Debugger | dispatch tier: `/riff:debug --tier high|max` or `debugger.default_tier` (see § Debugger selection) |
 | Execution (Claude path) | `executor_model: opus`; (Codex path) `codex_effort` / `complex_execution` |
 | Any Codex step | `--effort` (`minimal | medium | high | xhigh`) |
 
@@ -111,7 +112,19 @@ The security-reviewer is dispatched by `subagent_type: security-reviewer` at a f
 
 ### Debugger selection
 
-The debugger is dispatched by `subagent_type: debugger` at a fixed `effort: high` (frontmatter); `debug_model: sonnet` opts the model down for clearly-scoped failures. The old per-triage-tier keyword range (`ultrathink`→none) was inert and is removed. For the top tier — `security_fail` CRITICAL, flaky/intermittent, 2+ failed fix attempts, or a context-dependent signature per `protocols/DEBUGGING.md` § Triage with a first attempt failed — escalate with a Codex second opinion (`codex:codex-rescue`, `gpt-5.6-sol high` <!-- TODO(model-id): confirm gpt-5.6-sol exists -->) alongside the Claude debugger: an independent diagnosis beats a deeper pass from the same model. Bench (2026-07-12): `sol-high` matched Opus-max on the hardest debug replay, 0.40 each. See `agents/debugger.md` Step 1.
+The debugger is dispatched at one of three explicit tiers, resolved by the dispatcher before spawn (canonical table: `agents/debugger.md` § Tiers). Priority: `/riff:debug --tier` flag → auto-mapping from failure type + triage signals → `profile.yaml` `debugger.default_tier` (default `normal`).
+
+| Tier   | Model                                | Effort | Mechanism |
+| ------ | ------------------------------------ | ------ | --------- |
+| normal | `models.reasoning` (default `opus`)  | high   | `subagent_type: debugger` |
+| high   | `fable`                              | high   | `subagent_type: debugger`, `model: fable` |
+| max    | `fable`                              | max    | `subagent_type: debugger-max` (its `effort: max` frontmatter — the Agent tool has no per-call effort param) |
+
+**Max is a viciousness signal, not a severity signal.** `normal` covers routine `executor_fail`, deterministic `test_fail`, and clear-scope `security_fail` regardless of severity; `high` covers `adversarial_fail` with 3+ distinct issues, multi-layer bugs spanning services, and `verification_fail`; `max` covers intermittent/flaky failures, "can't reproduce", race conditions, and 2+ failed fix attempts on the same issue. `debug_model: sonnet` still opts the model down for clearly-scoped failures. No `debugger:` profile block → `normal`, exactly the pre-tier behavior.
+
+Regardless of tier, the debugger only diagnoses and verifies at its own model — mechanical fix application is delegated to `debugger.delegation.mechanical_worker` sub-agents (default `sonnet`), see `agents/debugger.md` Step 4.2.
+
+The old per-triage-tier keyword range (`ultrathink`→none) was inert and is removed. For the hardest cases — `security_fail` CRITICAL, flaky/intermittent, 2+ failed fix attempts, or a context-dependent signature per `protocols/DEBUGGING.md` § Triage with a first attempt failed — escalate with a Codex second opinion (`codex:codex-rescue`, `gpt-5.6-sol high` <!-- TODO(model-id): confirm gpt-5.6-sol exists -->) alongside the Claude debugger: an independent diagnosis beats a deeper pass from the same model. Bench (2026-07-12): `sol-high` matched Opus-max on the hardest debug replay, 0.40 each. See `agents/debugger.md` Step 1.
 
 ## Budget and model resolution
 
@@ -163,7 +176,7 @@ phases:
     security_critical: true     # security-reviewer is already fixed at effort: high; this adds the Step 6 Codex adversarial pass + `security_model: opus`
     security_model: sonnet      # sonnet (default) | opus — opt-in reasoning model for security-critical phases
     auto_debug: false           # disable auto-debug triggers for this phase
-    debug_model: sonnet         # use Sonnet instead of Opus for the debugger
+    debug_model: sonnet         # override the debugger's tier-resolved model (cost knob; see § Debugger selection)
     planner_model: codex        # codex | opus — which model plans this phase (default: profile.yaml models.reasoning; `fable` accepted as legacy alias)
     simplify: true              # force simplifier on (or false to skip)
     plan_adversarial: true      # force plan adversarial on (or false to skip)

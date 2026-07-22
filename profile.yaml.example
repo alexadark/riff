@@ -46,6 +46,19 @@ codex:
                                    # must accept flags: -a -x -v -m -bundle <path>
                                    # default: /apex. Set to any skill that honors the same flag contract.
 
+debugger:
+  default_tier: normal             # normal | high | max — dispatch tier when no /riff:debug --tier
+                                   # flag and no auto-mapping signal matches (agents/debugger.md § Tiers).
+                                   # normal: models.reasoning at effort high (pre-tier behavior).
+                                   # high: fable at effort high. max: fable at effort max.
+                                   # Max is a viciousness signal (flaky, can't-reproduce, races,
+                                   # 2+ failed fix attempts), not a severity signal.
+  delegation:
+    mechanical_worker: sonnet      # sonnet | opus | fable — model the debugger spawns to APPLY
+                                   # each fix (edit + typecheck + biome + tests + atomic commit)
+                                   # after diagnosing at its own tier. Bump only when the fix
+                                   # itself is subtle enough to need reasoning.
+
 risk:
   sensitive_task_preference: balanced  # cautious | balanced | fast
 
