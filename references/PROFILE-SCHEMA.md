@@ -28,9 +28,23 @@ models:
                           # rotates. Sub-agents read it at the call site; the parent
                           # force in command frontmatter is a static mirror.
 
+debugger:
+  default_tier: <normal | high | max>  # default: normal — tier used when no --tier flag
+                          # and no auto-mapping signal matches. Tiers (agents/debugger.md § Tiers):
+                          # normal = models.reasoning at effort high (pre-tier behavior),
+                          # high = fable at effort high, max = fable at effort max.
+                          # Max is a viciousness signal (flaky, can't-reproduce, races,
+                          # repeated failed fixes), not a severity signal.
+  delegation:
+    mechanical_worker: <sonnet | opus | fable>  # default: sonnet — model the debugger
+                          # spawns to APPLY each fix (edit + typecheck + biome + tests +
+                          # atomic commit) after diagnosing at its own tier. Override to
+                          # opus/fable only when the fix itself needs reasoning.
+                          # Block absent → normal tier + sonnet worker: today's behavior.
+
 wave:
   reconcile_mode: <hooks | sonnet | both | off>  # default: both — see protocols/WAVE-RECONCILE.md § Modes
-  executor: <codex | sonnet>  # default: codex — see commands/wave.md (Executor resolution)
+  executor: <codex | sonnet>  # default: sonnet — Codex is opt-in for volume work; see commands/wave.md (Executor resolution)
   codex_exec:                  # codex sub-mode, applies when executor == codex
     run_mode: <codex-exec-in-session | paste>  # default: codex-exec-in-session (mode C).
                           # codex-exec-in-session: the session runs `codex exec` headless in the

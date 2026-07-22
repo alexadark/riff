@@ -1,5 +1,5 @@
 ---
-description: Bundle N parallel-eligible phases and delegate execution to Codex or parallel Sonnet workers (or run solo)
+description: Bundle N parallel-eligible phases and delegate execution to parallel Sonnet workers (default) or Codex (or run solo)
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Agent
 model: opus  # static mirror of profile.yaml models.reasoning (frontmatter can't read config); keep in sync
 ---
@@ -8,7 +8,7 @@ model: opus  # static mirror of profile.yaml models.reasoning (frontmatter can't
 
 Group wave-eligible phases into a wave run. The session frontier model plans, the configured executor builds, opt-in smoke/browser checks prove it works.
 
-**Executor resolution:** `--executor codex|sonnet` flag → `profile.yaml § wave.executor` → default `codex`. `codex` delegates to the Codex CLI (Steps 4-5b). `sonnet` runs parallel Claude sub-agent workers (Step 5c) — no Codex required.
+**Executor resolution:** `--executor codex|sonnet` flag → `profile.yaml § wave.executor` → default `sonnet`. `sonnet` (default) runs parallel Claude sub-agent workers (Step 5c) — no Codex required. `codex` is the opt-in volume path, delegating to the Codex CLI (Steps 4-5b).
 
 **Codex sub-mode (mode C is the default):** when the executor is `codex`, the default flow is **codex-exec-in-session** (`profile.yaml § wave.codex_exec.run_mode: codex-exec-in-session`). The RIFF session launches `codex exec` headless in the background and auto-reconciles (Step 6) when it exits, so the user never pastes a prompt and is interrupted only on a FAIL verdict or an HITL phase. The legacy paste flow (open a separate Codex terminal, paste the prompt) is the **fallback** — used when `wave.codex_exec.run_mode` is unset/`paste` or the user passes `--paste`. Both render the same `W{N}.prompt.md`; mode C just runs it for the user instead of handing it over.
 
@@ -20,7 +20,7 @@ Group wave-eligible phases into a wave run. The session frontier model plans, th
 |---|---|
 | `/riff:wave` | Auto-pick next wave from ROADMAP.yaml, propose, await confirmation |
 | `/riff:wave W3` | Build wave `W3` explicitly (must reference an existing wave id or phase set) |
-| `/riff:wave --solo P12` | Single-phase Codex delegation (no parallel, but same prompt machinery) |
+| `/riff:wave --solo P12` | Single-phase delegation to the configured executor (no parallel, but same prompt machinery) |
 | `/riff:wave --resume W3` | Read `.planning/waves/W3.RESULT.md`, reconcile, update ROADMAP |
 | `/riff:wave --status` | List active/pending/done waves |
 | `/riff:wave --scratch` | Run the wave with security gates downgraded to warnings. See § Scratch mode below |
@@ -189,9 +189,9 @@ Output: .planning/waves/W{N}.RESULT.md
 
 Stop. User runs Codex, comes back with `/riff:wave --resume W{N}`.
 
-## Step 5c: Sonnet workers route (`--executor sonnet`)
+## Step 5c: Sonnet workers route (default)
 
-Claude-native alternative when Codex is unavailable or the user prefers Claude executors. Same bundle, same RESULT.md contract, same reconcile.
+The default executor route — Claude-native, no Codex required. Also the fallback when the Codex opt-in is unavailable. Same bundle, same RESULT.md contract, same reconcile.
 
 1. **Usage guard first** — see § Usage guard. Do not launch workers above the threshold.
 2. Record `wave_W{N}_base_sha: $(git rev-parse HEAD)` in STATE.md (same as Step 5a).

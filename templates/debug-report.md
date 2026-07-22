@@ -4,6 +4,10 @@
 
 [executor_fail / test_fail / adversarial_fail / security_fail / user_reported]
 
+## Dispatch tier
+
+[normal / high / max] — [resolved via: --tier flag / auto-mapping / profile default]
+
 ## Triage tier
 
 [Escalate / Standard / Routine / Trivial] — [justification]
@@ -28,6 +32,16 @@
 Files changed:
 
 - [file:lines]
+
+Delegated fixes:
+
+<!-- One row per fix-plan entry (agents/debugger.md § Step 4, stage 4.2). Worker = resolved
+`debugger.delegation.mechanical_worker` (default sonnet), or `debugger (direct)`
+when the fallback path applied the fix without a worker. -->
+
+| Fix | Worker | Commit | Checks |
+| --- | ------ | ------ | ------ |
+| [one-line fix description] | [sonnet / opus / fable / debugger (direct)] | [hash] | [tsc / biome / tests — pass or fail each] |
 
 ## Verification
 

@@ -17,14 +17,14 @@ Depth comes from the `effort:` frontmatter on `subagent_type`-dispatched agents,
 | `/riff:start` Stage 4.5: Roadmap adversarial           | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
 | Step 4: Planner                                        | **Inline** (parent)    | **Reasoning model** (parent)         | session effort; `ultrathink` for architecture/novel (works inline — see § Planner) |
 | Step 4b: Plan adversarial review                       | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
-| Step 5: Executor                                       | Sub-agent              | **Codex** (default), Sonnet/Opus on opt-in | Codex `--effort` (xhigh on `complex_execution:`); Claude fallback at model default, deepen via `executor_model: opus` (not `subagent_type`-dispatched) |
+| Step 5: Executor                                       | Sub-agent              | **Sonnet** (default), Codex/Opus on opt-in | Claude path at model default, deepen via `executor_model: opus`; Codex opt-in via `--effort` (xhigh on `complex_execution:`) (not `subagent_type`-dispatched) |
 | Step 5b: Simplifier                                    | `subagent_type: simplifier` | **Haiku**                       | `effort: medium` (frontmatter)                               |
 | Step 6: Adversarial review                             | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
 | Step 7: Security review                                | `subagent_type: security-reviewer` | **Sonnet**               | `effort: high` (frontmatter); `security_model: opus` for the model |
 | Step 7b: Improver                                      | `subagent_type: improver` (background) | **Haiku**            | `effort: low` (frontmatter)                                  |
 | Step 8a: Doc updater                                   | Sub-agent              | **Haiku**                            | model default (inline prompt, no agent file)                 |
 | Quarterly incident review adversarial pass             | Sub-agent              | **Codex (GPT)**                      | `--effort` (see § Codex model + effort)                       |
-| Debugger (auto-trigger or `/riff:debug`)               | `subagent_type: debugger` | **Reasoning model** (default), Sonnet opt-in | `effort: high` (frontmatter); Codex second opinion for CRITICAL/flaky (see § Debugger) |
+| Debugger (auto-trigger or `/riff:debug`)               | `subagent_type: debugger` (tiers `normal`/`high`) or `debugger-max` (tier `max`) | **Tiered**: reasoning model (`normal`), Fable (`high`, `max`); Sonnet on `debug_model:` | `effort: high` frontmatter (`normal`/`high`), `effort: max` via `debugger-max` variant; Codex second opinion for CRITICAL/flaky (see § Debugger) |
 
 ## Codex model + effort
 
@@ -32,7 +32,7 @@ The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF reso
 
 | Step                                       | Budget   | Model           | Effort    |
 | ------------------------------------------ | -------- | --------------- | --------- |
-| Step 5 executor                            | any      | `gpt-5.5`       | `high`    |
+| Step 5 executor (opt-in — default is Sonnet) | any    | `gpt-5.5`       | `high`    |
 | Step 4b plan adversarial                   | any      | `gpt-5.5`       | `medium`  |
 | Step 6 post-build adversarial              | frugal   | `gpt-5.4-mini`  | `minimal` |
 | Step 6 post-build adversarial              | balanced | `gpt-5.4`       | `medium`  |
@@ -43,7 +43,7 @@ The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF reso
 
 ### § Codex model+effort rationale
 
-- **Step 5 executor:** Codex is strong at guided execution and the Codex quota is generous (Plus $100 plan, not rationed). Run the frontier model at high effort on every phase — `gpt-5.5 high`. This is the asymmetric-budget policy: spend freely on Codex, stay conservative on Claude (the reasoning model for the planner, Sonnet as the executor fallback, Haiku for mechanical steps). Per-phase `executor_model: sonnet|opus` still forces the Claude fallback when a phase needs Claude-specific tools.
+- **Step 5 executor (opt-in path):** the default executor is now Sonnet (Claude-native, no context hand-off, no external CLI dependency). Codex remains the opt-in volume path — `executor_model: codex` per phase or `--executor codex` on `/riff:wave` — and when opted in, it runs the frontier model at high effort (`gpt-5.5 high`): Codex is strong at guided execution and the Codex quota is generous (Plus $100 plan, not rationed), so opting in preserves Claude quota on heavy roadmaps. The asymmetric-budget policy still applies to review: Codex stays the second opinion on adversarial passes regardless of the executor choice.
 - **Step 4b:** the `auto` gate already filters for complex phases. Once it fires, you're in expensive-correction territory — `gpt-5.5 medium` is justified. Frequency is low (~1-2/day on a typical roadmap) so Plus quota is fine.
 - **Step 6:** highest-frequency Codex call. Default `gpt-5.4 medium` is the sweet spot ($2.50/$15 MTok, 20-100 msg/5h). `frugal` drops to `gpt-5.4-mini minimal`, `max` bumps to `gpt-5.5 medium`.
 - **Stage 2.5:** architecture findings cost ~100x to fix later — `high` effort is justified.
@@ -52,16 +52,18 @@ The `codex:codex-rescue` skill accepts `--model` and `--effort` flags. RIFF reso
 
 ### Executor runtime resolution (Step 5)
 
-The executor defaults to Codex via the `codex:codex-rescue` skill (in-process, blocks until done). Fallback chain (highest wins):
+The executor defaults to a **Sonnet sub-agent**. Codex is opt-in for volume work. Resolution chain (highest wins):
 
-1. Per-phase `executor_model:` in ROADMAP.yaml (`sonnet` or `opus` forces Claude sub-agent)
+1. Per-phase `executor_model:` in ROADMAP.yaml (`codex` opts into Codex; `sonnet`/`opus` pins the Claude sub-agent model)
 2. PLAN.md `## Model Recommendation` (ROADMAP override beats this)
-3. `executors.available` in profile.yaml (if `codex` absent, fall back to Sonnet)
-4. Default: `codex`
+3. `executors.available` in profile.yaml (if `codex` absent, `executor_model: codex` is invalid and falls back to Sonnet with a warning)
+4. Default: `sonnet`
 
-When Codex executes: the orchestrator invokes `codex:codex-rescue` with the execution skill (resolved per `codex.execution_skill` in profile.yaml). The skill receives the PLAN.md path, branch name, and execution contract.
+When Codex executes (opt-in): the orchestrator invokes `codex:codex-rescue` with the execution skill (resolved per `codex.execution_skill` in profile.yaml). The skill receives the PLAN.md path, branch name, and execution contract.
 
-When Claude executes: standard sub-agent spawn with `model: sonnet` (or `opus`), same prompt as today.
+When Claude executes (default): standard sub-agent spawn with `model: sonnet` (or `opus`), same prompt as before.
+
+This flip covers VOLUME work only. The adversarial-review path is untouched: Steps 4b and 6, Stages 2.5 and 4.5, and the incident pass stay on Codex — the cross-family second opinion is the point there.
 
 ### Resolution chain (Codex review)
 
@@ -81,16 +83,17 @@ How this maps to RIFF's spawn mechanism:
 
 - **Inline (parent)** — planner, orchestration. Depth = the session effort. Opus defaults to `high`. A one-off `ultrathink` in the inline prompt works (main thread).
 - **Sub-agents dispatched by `subagent_type`** — security-reviewer, simplifier, improver, debugger (and the stress agents). RIFF spawns these with `subagent_type: <name>`, so the agent file is the system prompt and its **`effort:` frontmatter is the real depth lever**. The Agent tool has no per-call effort param, so the frontmatter value is fixed per agent; a `model:` override on the call still applies on top. To change a tier, edit the agent's `effort:` (or add a named variant). `ultrathink` in the spawn prompt still does nothing — use frontmatter.
-- **Executor (Step 5)** — default path is Codex (depth via `--effort`); the Claude fallback and the multi-task wave agents are spawned with per-task context, depth via `executor_model: opus` / `complex_execution`. Not converted to `subagent_type` (the wave mechanism owns that spawn).
+- **Executor (Step 5)** — default path is a Sonnet sub-agent (and the multi-task wave workers), spawned with per-task context, depth via `executor_model: opus` / `complex_execution`. The Codex opt-in path gets depth via `--effort`. Not converted to `subagent_type` (the wave mechanism owns that spawn).
 - **Codex steps** — adversarial reviewers, deep-auditor, Codex second opinions. Depth via the `--effort` flag RIFF passes into the rescue prompt.
 
-Per-agent effort (frontmatter): security-reviewer `high`, debugger `high`, simplifier `medium`, improver `low`. Stress: red-teamer `high`, load-tester `medium`. A sub-agent with no `effort:` inherits the session effort.
+Per-agent effort (frontmatter): security-reviewer `high`, debugger `high`, debugger-max `max` (the named-variant mechanism in action — see § Debugger selection), simplifier `medium`, improver `low`. Stress: red-teamer `high`, load-tester `medium`. A sub-agent with no `effort:` inherits the session effort.
 
 | Want more depth on… | Lever |
 | --- | --- |
 | Planner / orchestration (inline) | session effort + `ultrathink` |
 | Security review | edit `security-reviewer` `effort:`; `security_model: opus` for the model |
-| Simplifier / improver / debugger | edit the agent's `effort:` frontmatter |
+| Simplifier / improver | edit the agent's `effort:` frontmatter |
+| Debugger | dispatch tier: `/riff:debug --tier high|max` or `debugger.default_tier` (see § Debugger selection) |
 | Execution (Claude path) | `executor_model: opus`; (Codex path) `codex_effort` / `complex_execution` |
 | Any Codex step | `--effort` (`minimal | medium | high | xhigh`) |
 
@@ -111,7 +114,19 @@ The security-reviewer is dispatched by `subagent_type: security-reviewer` at a f
 
 ### Debugger selection
 
-The debugger is dispatched by `subagent_type: debugger` at a fixed `effort: high` (frontmatter); `debug_model: sonnet` opts the model down for clearly-scoped failures. The old per-triage-tier keyword range (`ultrathink`→none) was inert and is removed. For the top tier — `security_fail` CRITICAL, flaky/intermittent, 2+ failed fix attempts, or a context-dependent signature per `protocols/DEBUGGING.md` § Triage with a first attempt failed — escalate with a Codex second opinion (`codex:codex-rescue`, `gpt-5.6-sol high` <!-- TODO(model-id): confirm gpt-5.6-sol exists -->) alongside the Claude debugger: an independent diagnosis beats a deeper pass from the same model. Bench (2026-07-12): `sol-high` matched Opus-max on the hardest debug replay, 0.40 each. See `agents/debugger.md` Step 1.
+The debugger is dispatched at one of three explicit tiers, resolved by the dispatcher before spawn (canonical table: `agents/debugger.md` § Tiers). Priority: `/riff:debug --tier` flag → auto-mapping from failure type + triage signals → `profile.yaml` `debugger.default_tier` (default `normal`).
+
+| Tier   | Model                                | Effort | Mechanism |
+| ------ | ------------------------------------ | ------ | --------- |
+| normal | `models.reasoning` (default `opus`)  | high   | `subagent_type: debugger` |
+| high   | `fable`                              | high   | `subagent_type: debugger`, `model: fable` |
+| max    | `fable`                              | max    | `subagent_type: debugger-max` (its `effort: max` frontmatter — the Agent tool has no per-call effort param) |
+
+**Max is a viciousness signal, not a severity signal.** `normal` covers routine `executor_fail`, deterministic `test_fail`, and clear-scope `security_fail` regardless of severity; `high` covers `adversarial_fail` with 3+ distinct issues, multi-layer bugs spanning services, and `verification_fail`; `max` covers intermittent/flaky failures, "can't reproduce", race conditions, and 2+ failed fix attempts on the same issue. `debug_model: sonnet` still opts the model down for clearly-scoped failures. No `debugger:` profile block → `normal`, exactly the pre-tier behavior.
+
+Regardless of tier, the debugger only diagnoses and verifies at its own model — mechanical fix application is delegated to `debugger.delegation.mechanical_worker` sub-agents (default `sonnet`), see `agents/debugger.md` Step 4.2.
+
+The old per-triage-tier keyword range (`ultrathink`→none) was inert and is removed. For the hardest cases — `security_fail` CRITICAL, flaky/intermittent, 2+ failed fix attempts, or a context-dependent signature per `protocols/DEBUGGING.md` § Triage with a first attempt failed — escalate with a Codex second opinion (`codex:codex-rescue`, `gpt-5.6-sol high` <!-- TODO(model-id): confirm gpt-5.6-sol exists -->) alongside the Claude debugger: an independent diagnosis beats a deeper pass from the same model. Bench (2026-07-12): `sol-high` matched Opus-max on the hardest debug replay, 0.40 each. See `agents/debugger.md` Step 1.
 
 ## Budget and model resolution
 
@@ -120,8 +135,8 @@ The debugger is dispatched by `subagent_type: debugger` at a fixed `effort: high
 Gates which executor models the planner may recommend.
 
 - **Allowed values:** `[claude, codex]` (default) | `[claude]`
-- **Default when missing:** treated as `[claude, codex]` — Codex is the default executor runtime.
-- **Effect:** if `codex` is not present in the list, the planner must never emit `executor_model: codex` in PLAN.md's Model Recommendation. If only `[claude]`, executor falls back to Sonnet sub-agent.
+- **Default when missing:** treated as `[claude, codex]` — Codex is available as an opt-in executor (the default executor runtime is Sonnet).
+- **Effect:** if `codex` is not present in the list, the planner must never emit `executor_model: codex` in PLAN.md's Model Recommendation. If only `[claude]`, the Codex opt-in is unavailable and execution always runs on the Sonnet sub-agent.
 - **Cross-reference:** see `commands/onboard.md` § Questions for setup guidance; `.riff/scripts/riff-init.mjs` `PRESETS.default` for the baseline profile defaults.
 
 Every decision (model choice, whether to run optional pipeline steps) resolves through this chain. Highest wins:
@@ -135,9 +150,9 @@ Every decision (model choice, whether to run optional pipeline steps) resolves t
 
 | Budget | Optional pipeline steps (defaults) | Model defaults |
 | ------ | ---------------------------------- | -------------- |
-| `frugal` | `simplify: false`, `arch_adversarial: false`, `plan_adversarial: false`, `roadmap_adversarial: false`, `adversarial: false`, improver off | Codex for execution (default), Haiku/Sonnet for lightweight steps, never the reasoning model by default |
-| `balanced` | `simplify: auto`, `arch_adversarial: auto`, `plan_adversarial: auto`, `roadmap_adversarial: auto`, `adversarial: auto`, improver per existing heuristic | Codex for execution (default), Sonnet on `executor_model: sonnet` override, reasoning model for planner (default) |
-| `max` | `simplify: auto`, `arch_adversarial: auto` (bias toward running), `plan_adversarial: auto` (bias toward running), `roadmap_adversarial: auto` (bias toward running), `adversarial: auto` (bias toward running), improver per heuristic | Codex for execution (default), reasoning model for planner and security-critical execution |
+| `frugal` | `simplify: false`, `arch_adversarial: false`, `plan_adversarial: false`, `roadmap_adversarial: false`, `adversarial: false`, improver off | Sonnet for execution (default; Codex on opt-in), Haiku/Sonnet for lightweight steps, never the reasoning model by default |
+| `balanced` | `simplify: auto`, `arch_adversarial: auto`, `plan_adversarial: auto`, `roadmap_adversarial: auto`, `adversarial: auto`, improver per existing heuristic | Sonnet for execution (default; Codex on opt-in via `executor_model: codex`), reasoning model for planner (default) |
+| `max` | `simplify: auto`, `arch_adversarial: auto` (bias toward running), `plan_adversarial: auto` (bias toward running), `roadmap_adversarial: auto` (bias toward running), `adversarial: auto` (bias toward running), improver per heuristic | Sonnet for execution (default; Codex on opt-in), reasoning model for planner and security-critical execution |
 
 Per-phase flags always win over budget defaults.
 
@@ -158,12 +173,12 @@ phases:
 ```yaml
 phases:
   - id: 42
-    executor_model: opus        # force the reasoning model for execution (novel architecture only; default: codex, fallback: sonnet; `fable` accepted as legacy alias)
-    complex_execution: true     # Codex path: bump codex_effort to xhigh. Claude fallback: deepen via executor_model: opus (no per-call effort override)
+    executor_model: opus        # execution model: sonnet (default) | opus (novel architecture only) | codex (opt-in volume path; `fable` accepted as legacy alias for opus)
+    complex_execution: true     # Claude path (default): deepen via executor_model: opus (no per-call effort override). Codex opt-in path: bump codex_effort to xhigh
     security_critical: true     # security-reviewer is already fixed at effort: high; this adds the Step 6 Codex adversarial pass + `security_model: opus`
     security_model: sonnet      # sonnet (default) | opus — opt-in reasoning model for security-critical phases
     auto_debug: false           # disable auto-debug triggers for this phase
-    debug_model: sonnet         # use Sonnet instead of Opus for the debugger
+    debug_model: sonnet         # override the debugger's tier-resolved model (cost knob; see § Debugger selection)
     planner_model: codex        # codex | opus — which model plans this phase (default: profile.yaml models.reasoning; `fable` accepted as legacy alias)
     simplify: true              # force simplifier on (or false to skip)
     plan_adversarial: true      # force plan adversarial on (or false to skip)

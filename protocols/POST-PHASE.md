@@ -87,7 +87,13 @@ Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected,
 
 Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 
-**Dispatch:** Agent tool, `subagent_type: debugger` (its `effort: high` frontmatter applies), `model` = `profile.yaml` `models.reasoning` (default `opus`), or `sonnet` if `debug_model: sonnet`.
+**Dispatch:** resolve the debugger tier first (`agents/debugger.md` § Tiers — auto-mapping beats `profile.yaml` `debugger.default_tier`; max = viciousness, not severity):
+
+- `normal` (routine `executor_fail`, deterministic `test_fail`, clear-scope `security_fail` regardless of severity) → `subagent_type: debugger`, `model` = `profile.yaml` `models.reasoning` (default `opus`)
+- `high` (`adversarial_fail` with 3+ distinct issues, multi-layer bug spanning services, `verification_fail`) → `subagent_type: debugger`, `model: fable`
+- `max` (intermittent / flaky, "can't reproduce", race condition, 2+ failed fix attempts on the same issue) → `subagent_type: debugger-max`, `model: fable` (its `effort: max` frontmatter applies)
+
+Per-phase `debug_model: sonnet` still overrides the resolved model. Include the resolved tier in the prompt. The debugger delegates mechanical fixes to `debugger.delegation.mechanical_worker` (default `sonnet`) per `agents/debugger.md` Step 4.2.
 
 **Prompt** (the agent spec carries the procedure; pass only context):
 
@@ -98,7 +104,7 @@ Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
 **After completion:**
 
 - DEBUG.md `RESOLVED` → re-run originating step, UNLESS all of these hold:
-  - debugger ran with the default reasoning model (not a `debug_model: sonnet` override)
+  - debugger ran at its tier-resolved model (not a `debug_model: sonnet` cost override)
   - debugger's verification block in DEBUG.md reports tests green + tsc clean
   - every finding in the originating artifact has a corresponding new test locking the fix
 

@@ -136,7 +136,7 @@ If `--plan-only`: STOP here. PLAN.md, PLAN-REVIEW.md, EXPLAIN.{{LEVEL}}.md are t
 
 ### Step 5: Execute
 
-Resolve executor runtime, record `phase_base_sha`, run Codex by default or Claude fallback, then check crash residue. Full procedure: [`protocols/EXECUTION.md`](../protocols/EXECUTION.md) § Step 5 executor orchestration.
+Resolve executor runtime, record `phase_base_sha`, run the Sonnet sub-agent by default (Codex on `executor_model: codex` opt-in), then check crash residue. Full procedure: [`protocols/EXECUTION.md`](../protocols/EXECUTION.md) § Step 5 executor orchestration.
 
 Crash residue can trigger auto-debug, manual resume halt, abort with `CRASHED`, or clean `CRASH.json` removal on success.
 

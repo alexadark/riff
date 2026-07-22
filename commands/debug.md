@@ -1,7 +1,7 @@
 ---
 description: Ad-hoc debug on the current RIFF project, outside the auto-trigger pipeline flow
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion
-args: "<bug description>"
+args: "<bug description> [--tier normal|high|max]"
 ---
 
 # /riff:debug
@@ -24,11 +24,26 @@ If a session file exists for the same issue: note its path — you will pass it 
 
 ## Step 3: Spawn debugger — sub-agent
 
-Agent tool, `subagent_type: debugger` (its `effort: high` frontmatter applies), `model:` resolved from `profile.yaml` `models.reasoning` (default `opus`). Per-phase `debug_model: sonnet` overrides it.
+Resolve the tier first (`agents/debugger.md` § Tiers), highest wins:
+
+1. `--tier normal|high|max` flag on this invocation
+2. Auto-mapping from the bug description (max = viciousness, not severity: intermittent / flaky / "can't reproduce" / race condition / 2+ failed fix attempts → `max`; multi-layer or 3+ distinct issues → `high`; else no auto-match)
+3. `profile.yaml` `debugger.default_tier` (default `normal`)
+
+Dispatch by tier:
+
+| Tier   | Agent call                                                                                  |
+| ------ | ------------------------------------------------------------------------------------------- |
+| normal | `subagent_type: debugger`, `model:` from `profile.yaml` `models.reasoning` (default `opus`) |
+| high   | `subagent_type: debugger`, `model: fable`                                                   |
+| max    | `subagent_type: debugger-max`, `model: fable` (its `effort: max` frontmatter applies)       |
+
+Per-phase `debug_model: sonnet` in ROADMAP.yaml still overrides the resolved model. Mechanical fixes are delegated by the debugger itself to `debugger.delegation.mechanical_worker` (default `sonnet`) — see `agents/debugger.md` Step 4.2.
 
 Prompt MUST include:
 
 - Bug description from the user's `/riff:debug` argument (verbatim)
+- Resolved dispatch tier: `tier: normal|high|max` and how it was chosen (flag / auto-mapping / profile default)
 - Branch name: `git branch --show-current`
 - `failure_type: user_reported`
 - Phase path `.planning/phases/N-slug/` if currently on a phase branch

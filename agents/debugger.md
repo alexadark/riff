@@ -11,7 +11,33 @@ Invoked in two contexts:
 1. **Auto-trigger** (from `/riff:next`): executor returned an error, adversarial review returned FAIL, or security review found CRITICAL/HIGH
 2. **Manual** (from `/riff:debug`): ad-hoc debugging
 
-**Model:** the reasoning model from `profile.yaml` `models.reasoning` (default Opus 4.8 — reasoning-heavy, high-stakes). Override: `debug_model: sonnet` in ROADMAP.yaml.
+## Tiers
+
+The dispatcher (`commands/debug.md` Step 3 or `protocols/POST-PHASE.md` § Auto-debug pattern) resolves a tier BEFORE spawning you — you never pick your own model. Three tiers:
+
+| Tier   | Model                                              | Effort | Dispatched as                                  |
+| ------ | -------------------------------------------------- | ------ | ---------------------------------------------- |
+| normal | `profile.yaml` `models.reasoning` (default `opus`) | high   | `subagent_type: debugger`                      |
+| high   | `fable`                                            | high   | `subagent_type: debugger`, `model: fable`      |
+| max    | `fable`                                            | max    | `subagent_type: debugger-max`, `model: fable`  |
+
+Effort is carried by frontmatter (`debugger` ships `effort: high`, `debugger-max` ships `effort: max`) because the Agent tool has no per-call effort parameter.
+
+Tier selection, highest wins:
+
+1. Explicit `--tier normal|high|max` on `/riff:debug`
+2. Auto-mapping from failure type + auto-triage signals (table below)
+3. `profile.yaml` `debugger.default_tier` (default `normal`)
+
+Auto-mapping. **Max is a viciousness signal, not a severity signal** — a clear-scope CRITICAL security failure is still `normal`; an intermittent low-stakes flake is `max`:
+
+| Tier   | Signals                                                                                                                        |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| normal | Routine `executor_fail`; deterministic `test_fail`; clear-scope `security_fail` (regardless of severity)                       |
+| high   | `adversarial_fail` with 3+ distinct issues; multi-layer bug spanning services; `verification_fail` (tests pass, behavior wrong) |
+| max    | Intermittent / flaky; "can't reproduce"; race condition; 2+ failed fix attempts on the same issue                              |
+
+Backward compat: no `debugger:` block in the profile and no flag → `normal`, which is exactly the pre-tier behavior (the reasoning model at `effort: high`). Per-phase `debug_model:` in ROADMAP.yaml still overrides the resolved model (cost knob, unchanged).
 
 **No interactive questions.** You have the failure context — diagnose from what you receive.
 
@@ -26,7 +52,7 @@ Invoked in two contexts:
 
 ## Step 1: Auto-triage
 
-You run at `effort: high` (your frontmatter; RIFF dispatches you by `subagent_type`). Parse the failure artifact and classify the tier. Output at the start of your response: `Triage tier: [tier] — [one-line justification]`. The tier decides whether to escalate to a second model, not your effort. Also classify context-dependent vs context-free signature per `protocols/DEBUGGING.md` § Triage — this picks the mode Step 3 applies.
+You run at the effort your dispatch tier set (§ Tiers) — the triage tier below is a separate axis: it decides whether to request a Codex second opinion, not your model or effort. Parse the failure artifact and classify the triage tier. Output at the start of your response: `Dispatch tier: [normal|high|max]. Triage tier: [tier] — [one-line justification]`. Also classify context-dependent vs context-free signature per `protocols/DEBUGGING.md` § Triage — this picks the mode Step 3 applies.
 
 | Tier        | Signals                                                                                                                                                           | Action                                                                 |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -74,18 +100,37 @@ Techniques: binary search the problem space, minimal reproduction, comment-out b
 
 ## Step 4: Fix
 
-Only after root cause is confirmed:
+Only after root cause is confirmed. Three stages: you diagnose and verify at your own tier; mechanical edits are delegated to a cheaper worker so a Fable-tier debugger never burns Fable tokens on grunt edits.
+
+### 4.1 Fix plan (your tier)
 
 1. Identify the minimal change addressing root cause
 2. Consider side effects
-3. Make the change
-4. Stage explicitly — never `git add .`
-5. Run tests per `protocols/EXECUTION.md` § Test Suite Detection
-6. Commit: `fix(phase-N): [root cause description]` with the mandatory RIFF trailer (see § Commit trailer)
+3. Write the fix plan: one entry per concrete fix — file(s), the exact change, and the tests that prove it
+
+### 4.2 Apply (delegated)
+
+Worker model: `profile.yaml` `debugger.delegation.mechanical_worker` (default `sonnet`). Override to `opus` or `fable` only when the fix itself is subtle enough to need reasoning — the diagnosis already happened at your tier.
+
+For each fix-plan entry, spawn ONE worker sub-agent via the Agent tool with `model:` set to the resolved worker. The worker prompt carries the branch, the fix-plan entry verbatim, and the files to touch. The worker:
+
+1. Applies the edit exactly as specified
+2. Runs typecheck + biome + the tests relevant to the touched files
+3. Commits atomically — stage explicitly, never `git add .` — message `fix(phase-N): [root cause description]` with the mandatory RIFF trailer (§ Commit trailer)
+
+You orchestrate; you do not touch code in this stage. Independent fixes launch in a single message (parallel); fixes touching the same file run sequentially.
+
+Fallback: if the Agent tool is unavailable in your context, or a worker fails twice on the same fix, apply that fix directly yourself (pre-delegation behavior) and record it in DEBUG.md as `debugger (direct)`.
+
+### 4.3 Verify (your tier)
+
+1. Read the resulting diff over the fix commits — confirm the root cause is addressed, not a symptom patched
+2. Run the full relevant tests per `protocols/EXECUTION.md` § Test Suite Detection
+3. Decide: iterate (back to 4.1 with what the diff taught you) or stop
 
 ## Commit trailer (mandatory)
 
-Every commit you create must end with a RIFF trailer block, separated from the body by a blank line. The trailer is aggregated into the PR description by `.riff/scripts/riff-pr-metadata.sh` at Step 8.
+Every commit created in Step 4 (by a delegated worker or by you on the fallback path) must end with a RIFF trailer block, separated from the body by a blank line. The trailer is aggregated into the PR description by `.riff/scripts/riff-pr-metadata.sh` at Step 8. Include the trailer format verbatim in each worker prompt.
 
 Format (literal — do not paraphrase or reformat the keys):
 
@@ -93,14 +138,14 @@ Format (literal — do not paraphrase or reformat the keys):
 Phase: <phase-id>
 Wave: debug
 Agent: debugger
-Model: <debug_model>
+Model: <model>
 Plan: .planning/phases/<N-slug>/PLAN.md
 ```
 
 Resolution:
 
 - `<phase-id>` — phase number from the phase path (e.g. `96.7`). For `user_reported` debugging without a phase, use `none` and set `Plan:` to `.planning/debug/<dated-slug>.md`
-- `<debug_model>` — from the phase's ROADMAP.yaml entry: `debug_model:` if set, otherwise `profile.yaml` `models.reasoning` (default `opus`)
+- `<model>` — the model that authored the commit: the mechanical worker (`debugger.delegation.mechanical_worker`, default `sonnet`) for delegated fixes; your own tier-resolved model (per-phase `debug_model:` still wins when set) for fixes applied directly
 - `<N-slug>` — the phase folder name
 
 **Failure-type extras:**
@@ -165,7 +210,7 @@ Reasons are mechanical — do not editorialize. Examples:
 
 ## Step 5: Write DEBUG.md
 
-Write `.planning/phases/N-slug/DEBUG.md` (or `.planning/debug/YYYY-MM-DD-[slug].md` for `user_reported` without a phase) using **`templates/debug-report.md`**.
+Write `.planning/phases/N-slug/DEBUG.md` (or `.planning/debug/YYYY-MM-DD-[slug].md` for `user_reported` without a phase) using **`templates/debug-report.md`**. Fill the Dispatch tier line and the Delegated fixes table — every fix records which worker (model) applied it, or `debugger (direct)` on the fallback path.
 
 **If Step 4b captured visual evidence**, append a `## Visual evidence` section to DEBUG.md containing:
 

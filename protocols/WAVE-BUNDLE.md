@@ -2,7 +2,7 @@
 
 How `/riff:wave` Step 3 assembles `.planning/waves/W{N}.bundle.md`.
 
-The bundle is the **single contract** the wave executor reads — Codex by default, Sonnet workers when the wave runs with `--executor sonnet` (see `commands/wave.md` § Step 5c). Everything the executor needs to one-shot the wave must be in it; the executor does not navigate the wider RIFF docs.
+The bundle is the **single contract** the wave executor reads — Sonnet workers by default, Codex when the wave runs with the `--executor codex` opt-in (see `commands/wave.md` § Step 5c). Everything the executor needs to one-shot the wave must be in it; the executor does not navigate the wider RIFF docs.
 
 ## File location
 

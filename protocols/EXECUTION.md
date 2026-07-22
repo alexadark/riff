@@ -44,7 +44,7 @@ Parent has read state + ROADMAP + previous SUMMARY. Do NOT spawn a sub-agent. Ru
 1. Re-read if not in context: `agents/planner.md` (goal-backward, AC rules, HITL/AFK, TDD mode, anti-patterns), `taste.md`, `.planning/expertise/planner.md`, previous SUMMARY.md. If PLAN-REVIEW.md exists (revision cycle), read it and address every `BLOCKER` before rewriting PLAN.md.
 2. [KEYWORD] Draft the plan. Break into waves. Mark independent tasks `parallel: [task-A, task-B]` (independent = zero shared files).
 3. Write PLAN.md. Do NOT update STATE.md or ROADMAP.yaml.
-4. Include `## Model Recommendation`: default `executor_model: codex`. Recommend `sonnet` only when Codex is unavailable or a phase needs Claude-specific tools; recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs.
+4. Include `## Model Recommendation`: default `executor_model: sonnet`. Recommend `codex` only as an explicit volume opt-in (heavy roadmap, user preserving Claude quota — requires `codex` in `executors.available`); recommend `opus` ONLY for novel architecture, 10+ tightly coupled files, unfamiliar external APIs.
 
 **Prompt capture:** one-line note of inputs + brief → PROMPTS.md § Planner (inline — no sub-agent).
 
@@ -113,20 +113,13 @@ If `profile.yaml` is missing, fall back to the default profile (see `commands/on
 
 ## Step 5 executor orchestration
 
-**Runtime resolution:** see [`MODEL.md`](./MODEL.md) § Executor runtime resolution. Default: **Codex** (via `codex:codex-rescue` in-process). Falls back to Claude sub-agent (Sonnet) when `executor_model: sonnet` or `codex` not in `executors.available`.
+**Runtime resolution:** see [`MODEL.md`](./MODEL.md) § Executor runtime resolution. Default: **Sonnet sub-agent**. Codex is opt-in via `executor_model: codex` (per phase) and requires `codex` in `executors.available`.
 
-**Effort:** Codex default path uses Codex effort (bumped to `xhigh` when `complex_execution: true`); the Claude fallback runs at the executor's frontmatter `effort: medium`. **Parallel tasks** marked `parallel:` MUST launch as separate sub-agents in a single message; sequential tasks stay inline within the executor.
+**Effort:** the Sonnet default path runs at the executor's frontmatter `effort: medium`, deepened via `executor_model: opus`; the Codex opt-in path uses Codex effort (bumped to `xhigh` when `complex_execution: true`). **Parallel tasks** marked `parallel:` MUST launch as separate sub-agents in a single message; sequential tasks stay inline within the executor.
 
-#### Route A: Codex executor (default)
+Record `phase_base_sha: $(git rev-parse HEAD)` in STATE.md before invoking either route.
 
-Invoke `codex:codex-rescue` with the configured execution skill (profile.yaml `codex.execution_skill`). Prompt uses CODEX-DELEGATION Template B (solo) or Template C (solo-strict when `complex_execution: true`):
-- Branch: `riff/phase-N-slug`
-- PLAN.md path: `.planning/phases/N-slug/PLAN.md`
-- Model + effort: resolved per MODEL.md § Codex model + effort
-
-Record `phase_base_sha: $(git rev-parse HEAD)` in STATE.md before invocation.
-
-#### Route B: Claude sub-agent (fallback)
+#### Route A: Claude sub-agent (default)
 
 Agent prompt (give paths, do NOT paste file contents):
 - Branch: `riff/phase-N-slug`
@@ -135,7 +128,16 @@ Agent prompt (give paths, do NOT paste file contents):
 
 **Prompt capture:** PROMPTS.md § Executor.
 
-**After the executor sub-agent returns, check for crash residue.** Full procedure (CRASH.json schema + 3 AskUserQuestion sub-cases): [`POST-PHASE.md`](./POST-PHASE.md) § Executor crash residue.
+#### Route B: Codex executor (opt-in via `executor_model: codex`)
+
+Invoke `codex:codex-rescue` with the configured execution skill (profile.yaml `codex.execution_skill`). Prompt uses CODEX-DELEGATION Template B (solo) or Template C (solo-strict when `complex_execution: true`):
+- Branch: `riff/phase-N-slug`
+- PLAN.md path: `.planning/phases/N-slug/PLAN.md`
+- Model + effort: resolved per MODEL.md § Codex model + effort
+
+If Codex is unavailable (CLI missing, skill missing), fall back to Route A with a one-line warning.
+
+**After the executor returns, check for crash residue.** Full procedure (CRASH.json schema + 3 AskUserQuestion sub-cases): [`POST-PHASE.md`](./POST-PHASE.md) § Executor crash residue.
 
 1. **SUMMARY.md absent** → silent crash. Write `CRASH.json` (`crash_type: executor_silent_exit`, `verdict: pending`). Prompt **Trigger auto-debug** (`failure_type: executor_silent_exit`, `artifact: CRASH.json`) / **Resume manually** (halt, Step 0 detects partial state on next run) / **Abort** (set `verdict: abandoned`, STATE.md `## Active Phase` Step → `CRASHED`).
 2. **SUMMARY.md exists with `FAILED` / `ERROR` / `unresolved`** → auto-debug with `failure_type: executor_fail`, `artifact: SUMMARY.md`.

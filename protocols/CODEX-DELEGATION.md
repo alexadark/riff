@@ -2,6 +2,8 @@
 
 How RIFF hands work to Codex, for both **waves** (N phases) and **solo** (1 phase).
 
+**Scope:** this is the Codex-specific opt-in path, not the default. The default executor for volume work is Sonnet (`protocols/MODEL.md` § Executor runtime resolution; `commands/wave.md` Step 5c). This protocol applies when the user opts in via `executor_model: codex`, `--executor codex`, or `wave.executor: codex`. The adversarial-review path is separate and unchanged — Codex stays the cross-family second opinion there regardless of executor choice.
+
 ## Routing decision
 
 `/riff:wave` Step 4 calls this protocol. The decision rule:
