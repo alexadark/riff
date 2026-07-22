@@ -69,9 +69,10 @@ wave:
   # Reconcile pass run by /riff:wave --resume Step 6.
   # Valid: hooks | sonnet | both | off. See protocols/WAVE-RECONCILE.md § Modes.
   reconcile_mode: both
-  # Wave executor: codex (delegate to Codex CLI) | sonnet (parallel Claude sub-agent workers).
+  # Wave executor: sonnet (parallel Claude sub-agent workers, default) | codex
+  # (opt-in delegation to the Codex CLI for volume work).
   # Override per wave with /riff:wave --executor. See commands/wave.md § Step 5c.
-  executor: codex
+  executor: sonnet
   # Codex sub-mode (mode C, default). codex-exec-in-session: the RIFF session runs
   # `codex exec` headless in the background and auto-reconciles on exit — no manual
   # paste, interrupt only on FAIL/HITL. Set run_mode to `paste` for the legacy flow.

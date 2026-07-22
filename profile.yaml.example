@@ -37,8 +37,10 @@ user:
 
 executors:
   available: [claude, codex]       # which executors the planner may recommend
-                                   # missing → [claude, codex] (Codex is the default executor runtime)
-                                   # set to [claude] to force Claude Sonnet as executor
+                                   # missing → [claude, codex]. The default executor is Sonnet;
+                                   # codex in this list makes the Codex opt-in path available
+                                   # (executor_model: codex per phase, --executor codex per wave)
+                                   # set to [claude] to disable the Codex opt-in entirely
                                    # requires Codex CLI installed + codex:codex-rescue skill
 
 codex:

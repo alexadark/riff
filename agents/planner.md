@@ -54,11 +54,9 @@ See `.riff/protocols/EXECUTION.md` § Wave Execution. Within each wave, mark zer
 
 End PLAN.md with `## Model Recommendation`:
 
-- `executor_model: codex` (default) — most phases: schema, service wiring, UI, tests, CRUD, refactors, test writing
-- `executor_model: sonnet` — when Codex is unavailable, or when the phase needs tight Claude sub-agent integration (e.g. MCP tools, Claude-specific skills)
+- `executor_model: sonnet` (default) — most phases: schema, service wiring, UI, tests, CRUD, refactors, test writing
+- `executor_model: codex` — explicit volume opt-in (heavy roadmap, preserving Claude quota). Requires `codex` in `executors.available`; never emit it otherwise
 - `executor_model: opus` — ONLY for novel architecture, complex refactoring across 10+ tightly coupled files, unfamiliar external API integration (forces the Claude reasoning model; `fable` accepted as legacy alias)
-
-If `executors.available` does not contain `codex`, fall back to `sonnet` as default.
 
 ### Planner-model recommendation
 
