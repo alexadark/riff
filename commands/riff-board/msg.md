@@ -1,7 +1,7 @@
 ---
 description: Send a message to a partner via the riff-board messages API
 allowed-tools: Bash
-args: "<recipient> <message text> [--from <name>]"
+args: "<recipient> <message text> [--from <name>] [--project <slug>]"
 ---
 
 # /riff-board:msg
@@ -14,6 +14,7 @@ Usage:
 /riff-board:msg ian check this PR
 /riff-board:msg alex remember to update the roadmap tomorrow
 /riff-board:msg ian --from alex ping when you're back
+/riff-board:msg ian --project ai-interviewer bug on the recording flow
 ```
 
 ## What You Do
@@ -23,8 +24,9 @@ Usage:
 `$ARGUMENTS` is the raw text after the command name. Parse it like this:
 
 1. Look for a `--from <name>` pair anywhere in the arguments. If present, remove it from the string and remember `<name>` as the sender override. If absent, the sender defaults to `Alex` (the sole admin on the board).
-2. Of what remains, the **first whitespace-separated token** is the recipient name (`to`).
-3. **Everything after that first token** is the message body (`body`), verbatim — preserve spacing/punctuation, don't trim internal content, just strip leading/trailing whitespace.
+2. Look for a `--project <slug>` pair anywhere in the arguments. If present, remove it and remember `<slug>` as the project override (Step 4 will use it directly, no inference).
+3. Of what remains, the **first whitespace-separated token** is the recipient name (`to`).
+4. **Everything after that first token** is the message body (`body`), verbatim — preserve spacing/punctuation, don't trim internal content, just strip leading/trailing whitespace.
 
 If there's no recipient token or no body text, stop and ask the user for both — do not guess or send a partial message.
 
@@ -53,18 +55,37 @@ Do not attempt the request without both values set.
 - Default: `Alex`.
 - If the user passed `--from <name>` in Step 1, capitalize the first letter of `<name>` and use that instead (e.g. `--from ian` → `Ian`).
 
-### Step 4: Infer the `project` field (best effort, optional)
+### Step 4: Determine the `project` slug
 
-1. Get the current directory's folder name:
-   ```bash
-   basename "$PWD"
-   ```
-2. Kebab-case it (lowercase, spaces/underscores → hyphens, strip anything that isn't `a-z0-9-`, collapse repeats, trim leading/trailing hyphens).
-3. Sanity-check it looks like a real RIFF project slug — e.g. the current directory has a `.riff/` symlink or a `ROADMAP.yaml`:
-   ```bash
-   test -e .riff && echo "riff-project" || echo "not-a-riff-project"
-   ```
-4. If it looks like a RIFF project, include the kebab-cased slug as `project` in the request body. Otherwise, **omit** the `project` field entirely (do not send an empty string or a guess) — the board treats project as optional, and a wrong slug will make the whole request fail with a 400.
+Rules, in order of precedence:
+
+**A. Explicit override wins.** If Step 1 captured a `--project <slug>` value, use that verbatim. Skip the inference below.
+
+**B. Infer from the current repo.** Otherwise, read the project slug from the local roadmap file. This is the same slug board-sync.mjs uses, so it will always match the board:
+
+```bash
+# Prefer ROADMAP-board.yaml (curated slice for board), fall back to ROADMAP.yaml.
+for f in ROADMAP-board.yaml ROADMAP.yaml; do
+  if [ -f "$f" ]; then
+    # Extract board.slug if present, otherwise kebab-case the top-level `name:` value.
+    slug=$(awk '
+      /^board:/ { in_board=1; next }
+      in_board && /^  slug:/ { gsub(/["'\''[:space:]]/, "", $2); print $2; exit }
+      /^[^ ]/ && !/^board:/ { in_board=0 }
+      /^name:/ && !name { gsub(/^name:[[:space:]]*/, ""); gsub(/["'\'']/, ""); name=$0 }
+      END { if (!found && name) { gsub(/[^a-zA-Z0-9]+/, "-", name); print tolower(name) } }
+    ' "$f")
+    if [ -n "$slug" ]; then
+      echo "detected project: $slug (from $f)"
+      break
+    fi
+  fi
+done
+```
+
+**C. No fallback to folder name.** If neither A nor B produced a slug, omit the `project` field entirely — do NOT guess from `basename $PWD`, because the folder name rarely matches the board slug (e.g. folder `ignite-search-web` maps to slug `authentic-video`). Wrong slug → 400. Better to send no project than the wrong one.
+
+Report to the user in Step 6 which project (if any) was tagged, so ambiguity is always visible.
 
 ### Step 5: Send the message
 
@@ -117,12 +138,25 @@ Common failure reasons: missing/wrong bearer token (`401`), unknown `from`/`to` 
 
 Parse the last line of the curl output as the HTTP status code and everything before it as the JSON body.
 
-- Status `200` and `"ok":true` → tell the user the message was sent, to whom, and (if set) which project it was tagged with.
+- Status `200` and `"ok":true` → tell the user in ONE line:
+  - `from → to` (both names)
+  - the project tag: either `[project: <slug>]` if one was sent, or `[no project]` if none — never leave this ambiguous
+  - the source of the project value: `(explicit --project)`, `(from ROADMAP.yaml)`, or `(no project detected)` — so the user knows where it came from
 - Anything else → surface the `error` field from the response verbatim, plus the HTTP status code. Do not retry automatically — most failures (unknown name, unknown project slug, bad token) need a human fix, not a retry.
+
+Example success line:
+```
+Sent Alex → Ian [project: ai-interviewer] (from ROADMAP-board.yaml)
+```
+Or, without a project:
+```
+Sent Alex → Ian [no project] (no roadmap file in this repo)
+```
 
 ## Anti-patterns
 
 - Don't invent a `from`/`to` name that wasn't explicitly given or defaulted — if the recipient token is ambiguous, ask.
-- Don't guess a `project` slug when Step 4's check fails — omit the field instead of sending a wrong slug.
+- Don't derive the project from `basename $PWD` — folder names don't match board slugs (see Step 4C).
+- Don't guess a `project` slug when Step 4 produces nothing — omit the field instead of sending a wrong slug.
 - Don't print the raw `RIFF_BOARD_MSG_TOKEN` value anywhere in output.
 - Don't swallow a non-200 response as a soft success — a `400`/`401`/`403` means nothing was sent.
