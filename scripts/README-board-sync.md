@@ -86,7 +86,8 @@ phases:
     status: done                # todo | in-progress | done | blocked | skipped
     description: |              # optional; becomes the phase body (markdown)
       Alex and Ian can log in by picking their name.
-    # Additional RIFF-technical fields (priority, mode, depends_on, tags, milestone,
+    priority: high               # optional; passed through as-is to the board
+    # Additional RIFF-technical fields (mode, depends_on, tags, milestone,
     # etc.) are read and ignored — they don't affect the board.
 ```
 

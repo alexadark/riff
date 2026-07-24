@@ -29,6 +29,7 @@
 //       status: done            # todo | in-progress | done | blocked | skipped
 //       description: |          # optional; becomes the phase body (markdown)
 //         Alex and Ian can log in by picking their name.
+//       priority: high          # optional; passed through as-is to the board
 //
 // Status mapping (YAML -> board):
 //   todo         -> planned
@@ -139,6 +140,7 @@ function loadRoadmap(yamlPath) {
       orderIndex: String(phase.id ?? index + 1),
     };
     if (phase.description) phasePayload.body = phase.description;
+    if (phase.priority) phasePayload.priority = phase.priority;
     return phasePayload;
   });
 
