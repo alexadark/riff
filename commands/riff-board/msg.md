@@ -32,21 +32,41 @@ If there's no recipient token or no body text, stop and ask the user for both �
 
 ### Step 1.5: Rewrite the body
 
-The body must always be sent in **English**, **direct**, and **in bullet points** when there is more than one idea. This is the standard partner comms format on the board — Ian scans it fast.
+Rewrite the message to the standard partner comms format: **direct**, **bullet-pointed** when there are 2+ ideas, no fluff. The recipient scans it fast.
 
-Rules:
-- If the raw body is French (or franglais), translate to English silently. No preamble like "Here's the translation:".
-- Drop filler and hedging: "je pense que", "peut-être", "il faudrait", "if you have time" — cut them.
+**Language.** Check the env var `RIFF_BOARD_MSG_TARGET_LANG`:
+
+```bash
+echo "target_lang=$RIFF_BOARD_MSG_TARGET_LANG"
+```
+
+- If set (e.g. `en`, `fr`, `es`, `de`), translate the body silently to that language. No preamble like "Here's the translation:".
+- If unset or empty, keep the body in whatever language the user dictated.
+
+**Structure and voice.** Always apply:
+- Drop filler and hedging: "I think that", "maybe", "we should probably", "if you have time" — cut them.
 - Split ideas into `-` bullets, one per line, when there are 2+ points. A single sentence stays a single sentence.
 - Keep proper nouns, file paths, URLs, and technical terms untouched.
 - Preserve intent and priority. Do not soften.
 
+**Tone: peer to peer, never a memo.** The recipient is a business partner, not a client and not a manager.
+
+- Short. If it reads like a report, cut it in half. No preamble, no sign-off, no thanks-in-advance.
+- Markdown is fine (`##` headings, `-` bullets, `**bold**`) and preferred over plain text walls.
+- No deference and no permission-seeking: drop "your call", "if you have time", "would you mind", "let me know if that works".
+- No phase numbers, no internal ticket references, no RIFF jargon. Say what is broken and what unblocks it in plain words.
+- Never ask the partner to design or decide something the sender can decide alone (DB schemas, field mappings, technical conventions). Ask only for what the sender genuinely cannot produce: access, credentials, prices, commercial decisions.
+- **Never ask for access the sender already has.** Before writing any credential or access request, check what's already available: `.env` files in the project, environment variables, DNS records (`dig`), and whether the key actually works (a real API call, not an assumption). Drop every ask that comes back already satisfied, and tell the sender what you found.
+- Never ask a question the sender could answer by checking. Verify first (DNS, dashboards, repo state), then make a concrete ask.
+- No wall-clock time estimates ("30-45 min", "a few hours") unless the user explicitly asks for them.
+- One clear ask per bullet, lead with the ask in bold, then one line of why.
+
 ### Step 1.6: Preview if the input is long
 
-Before sending, if the RAW dictated body is longer than ~30 words OR the rewrite in Step 1.5 changed the structure (translation, bullets, cuts), preview the final English body to the user in ONE block, then ask:
+Before sending, if the RAW dictated body is longer than ~30 words OR the rewrite in Step 1.5 changed the structure (translation, bullets, cuts), preview the final rewritten body to the user in ONE block, then ask:
 
 ```
-Preview → Ian [project: <slug or none>]:
+Preview → <recipient> [project: <slug or none>]:
 - point 1
 - point 2
 - point 3
@@ -54,7 +74,7 @@ Preview → Ian [project: <slug or none>]:
 Send? (y/n)
 ```
 
-Wait for confirmation. If `y` (or the user just says "vas-y", "envoie", "yes", "ok"), send. If `n` or the user proposes edits, apply the edits and re-preview. Do not send without confirmation on long or rewritten messages.
+Wait for confirmation. If `y` (or the user just says "yes", "ok", "send", "vas-y", "envoie", or equivalent in their language), send. If `n` or the user proposes edits, apply the edits and re-preview. Do not send without confirmation on long or rewritten messages.
 
 Short one-liner messages (no translation, no restructuring) can go directly to Step 5 without preview.
 
@@ -72,11 +92,13 @@ echo "RIFF_BOARD_MSG_TOKEN=${RIFF_BOARD_MSG_TOKEN:+set}"
 If **either** `RIFF_BOARD_URL` or `RIFF_BOARD_MSG_TOKEN` is empty, stop and tell the user to add both to `~/.zshrc`, then restart their shell (or `source ~/.zshrc`) and re-run the command:
 
 ```bash
-export RIFF_BOARD_URL="https://riff-boards.vercel.app"
-export RIFF_BOARD_MSG_TOKEN="..."   # the MESSAGES_API_TOKEN value from the board's Vercel env
+export RIFF_BOARD_URL="https://<your-board>"
+export RIFF_BOARD_MSG_TOKEN="..."       # MESSAGES_API_TOKEN value from the board's env
+# optional: translate the message body to this language before sending
+export RIFF_BOARD_MSG_TARGET_LANG="en"  # any ISO 639-1 code, or leave unset to keep input language
 ```
 
-Do not attempt the request without both values set.
+Do not attempt the request without both values set. `RIFF_BOARD_MSG_TARGET_LANG` is optional.
 
 ### Step 3: Determine `from`
 
