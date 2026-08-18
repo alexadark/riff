@@ -10,6 +10,8 @@ This is the supported script reference. Script internals under `scripts/lib/` ar
 | `../riff` | `riff next --phase <id> --task <bounded-request>` | Runs one native stage through the provider selected by the active profile. |
 | `../riff` | `riff phase <list|add|set-status>` | Manages roadmap phases with full-roadmap validation and rollback on invalid edits. |
 | `../riff` | `riff status [--json]` | Reports authoritative roadmap, wave, stage, and next-action state. |
+| `../riff` | `riff wave --autonomous [--loop]` | Runs ready roadmap work and persists an `awaiting_human` verification request only at explicit dependency-ready confirmation boundaries. |
+| `../riff` | `riff wave --approve --run <id> --phase <id> --evidence "Checked: <scope>; Observed: <result>; Expected: <expected result>"` | Validates the immutable request, records a bound approval receipt, and continues the same wave run. |
 | `../riff` | `riff resync` | Reconciles RIFF-owned runtime links after RIFF changes. |
 | `../riff` | `riff doctor [--ci]` | Checks framework citations, adapter contracts, and profile reads. `--ci` fails only on errors. |
 | `../riff-resync.sh` | Internal implementation, do not invoke directly | Implements the `riff resync` CLI operation. Use `riff resync`, `$resync`, `$riff:resync`, or `/riff:resync`. |

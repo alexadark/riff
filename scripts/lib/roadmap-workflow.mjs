@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import yaml from 'js-yaml';
 
@@ -8,9 +9,11 @@ function fail(message) { throw new Error(message); }
 export function atomicWrite(file, content) {
   const directory = path.dirname(file);
   fs.mkdirSync(directory, { recursive: true });
-  if (fs.existsSync(file)) {
+  try {
     const stat = fs.lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink()) fail(`refusing to replace non-regular artifact: ${file}`);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
   }
   const temporary = path.join(directory, `.${path.basename(file)}.tmp-${process.pid}-${Date.now()}`);
   const descriptor = fs.openSync(temporary, 'wx', 0o600);
@@ -171,12 +174,16 @@ export function requiresConfirmation(phase) {
   const modes = phase.mode.map((value) => value.toUpperCase());
   const tags = phase.tags.map((value) => value.toLowerCase());
   const text = `${phase.title} ${phase.goal} ${phase.tasks.join(' ')} ${phase.hitlReason || ''}`.toLowerCase();
+  const actionText = [phase.title, phase.goal, ...phase.tasks].join('\n').toLowerCase();
   const explicitHumanVerification = tags.some((tag) => [
     'visual-verification', 'functional-verification', 'manual-verification', 'human-verification',
   ].includes(tag));
   const realWorldVerification = /\b(?:visual acceptance|manual browser|human functional|functional verification|physical device|real payment checkout|real (?:oauth|sso|mfa|2fa)|(?:oauth|sso|mfa|2fa) (?:browser|flow verification)|dns cutover)\b/.test(text);
   const destructiveBoundary = tags.some((tag) => ['destructive', 'promotion', 'deploy', 'production-cutover'].includes(tag))
-    || /\b(?:irreversible|production (?:deploy|deployment|cutover)|dns cutover|promot(?:e|ion))\b/.test(text);
+    || /\b(?:irreversible|production (?:deploy|deployment|cutover)|dns cutover|promot(?:e|ion))\b/.test(text)
+    || /\b(?:delete|remove|destroy|wipe|drop)\b[^.\n]{0,120}\b(?:production|customer records?|database records?)\b/.test(actionText)
+    || /\bdeploy\s+(?:the\s+)?(?:application|app|service|release)\s+(?:to|into)\s+(?:staging|production)\b/.test(actionText)
+    || /\bpublish\s+(?:the\s+)?(?:release|application|app|package)(?:\s+(?:to|for)\b|[.!;:]|$)/m.test(actionText);
   const securityOnly = tags.length > 0
     && tags.every((tag) => ['security', 'security_critical', 'auth', 'authorization', 'authentication', 'payment-security'].includes(tag))
     && !explicitHumanVerification && !realWorldVerification && !destructiveBoundary;
@@ -185,6 +192,28 @@ export function requiresConfirmation(phase) {
   // destructive, visual, or functional boundary.
   return phase.confirmationRequired || destructiveBoundary || explicitHumanVerification || realWorldVerification
     || (modes.includes('HITL') && !securityOnly);
+}
+
+export function phaseVerificationMetadata(phase) {
+  return {
+    id: phase.id,
+    slug: phase.slug,
+    title: phase.title,
+    priority: phase.priority,
+    mode: phase.mode,
+    depends_on: phase.dependsOn,
+    goal: phase.goal,
+    tasks: phase.tasks,
+    constraints: phase.constraints,
+    tags: phase.tags,
+    provider_mode: phase.providerMode,
+    hitl_reason: phase.hitlReason,
+    confirmation_required: phase.confirmationRequired,
+  };
+}
+
+export function phaseVerificationMetadataSha256(phase) {
+  return createHash('sha256').update(JSON.stringify(phaseVerificationMetadata(phase))).digest('hex');
 }
 
 export function phaseIsReady(phase, phases, completedThisRun = new Set()) {
@@ -201,6 +230,16 @@ export function selectReadyPhases(roadmap, { requestedIds, completedThisRun = ne
   return roadmap.phases.filter((phase) => (!requested || requested.has(phase.id))
     && phaseIsReady(phase, roadmap.phases, completedThisRun)
     && !requiresConfirmation(phase));
+}
+
+// Confirmation eligibility is intentionally separate from ordinary readiness.
+// The wave runner may admit one receipt-backed phase without making all HITL
+// work generally autonomous.
+export function selectReadyConfirmationPhases(roadmap, { requestedIds, completedThisRun = new Set() } = {}) {
+  const requested = requestedIds?.length ? new Set(requestedIds.map(String)) : null;
+  return roadmap.phases.filter((phase) => (!requested || requested.has(phase.id))
+    && phaseIsReady(phase, roadmap.phases, completedThisRun)
+    && requiresConfirmation(phase));
 }
 
 export function remainingPhases(roadmap, requestedIds) {

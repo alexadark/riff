@@ -18,12 +18,13 @@ Run the native single-project wave engine from the invoking project's Git root.
    - Explicit phase set: `riff wave --autonomous --phases <comma-separated-ids>`.
    - Continue through newly unlocked frontiers: `riff wave --autonomous --loop`.
    - Resume the active interrupted run: `riff wave --resume`.
+   - Record completed human verification and continue that run: `riff wave --approve --run <id> --phase <id> --evidence "Checked: <scope>; Observed: <result>; Expected: <expected result>"`.
    - Inspect the active run: `riff wave --status`.
 4. Invoke the project-local executable as `<git-root>/.riff/riff wave ...` and
    pass `--project-root <git-root>`.
 5. Pass `--provider codex|claude` only when the user explicitly requests a
    one-run override. Otherwise the active project profile owns provider choice.
-6. Return the engine's state, stop reason, and exact resume command.
+6. Return the engine's state, stop reason, and exact approval or resume command.
 
 ## Autonomous contract
 
@@ -31,7 +32,11 @@ The engine selects ready roadmap phases, respects `depends_on`, and invokes the
 native `riff next` runner once per phase. It doesn't ask for confirmation
 between ordinary phases. `--loop` recomputes readiness after every completed
 frontier and continues until the roadmap is dry, a real blocker exists, a
-configured cap is reached, or explicit human verification is required.
+configured cap is reached, or explicit human verification is required. At that
+boundary it creates one persisted request for the first dependency-ready phase.
+After a structured evidence note is supplied with `--approve` using `Checked`,
+`Observed`, and `Expected` fields, it validates the request and approval receipt
+and continues the same run automatically.
 
 Security-sensitive implementation remains autonomous. Security hooks run once
 after the product phases in the wave or loop. Only a reproducible blocking

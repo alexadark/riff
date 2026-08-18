@@ -85,7 +85,7 @@ All forms require explicit `--phase` and `--task` values. The provider-neutral t
   --task "Apply the approved brand foundation within the named file boundaries."
 ```
 
-The runner creates plan, review, summary, scope, and state artifacts under `.planning/`. It completes only after every stage passes. Promotion remains a separate action requiring your confirmation.
+The runner creates plan, review, summary, scope, and state artifacts under `.planning/`. It completes only after every stage passes. RIFF never deploys or promotes implicitly; an explicit approved roadmap phase may perform that work.
 
 To run the next ready roadmap frontier without routine pauses:
 
@@ -101,7 +101,10 @@ dry or a real stop condition is reached:
 ```
 
 Use `$wave` or `$riff:wave` in Codex, `/riff:wave --autonomous --loop` in
-Claude Code, and `riff wave --resume` after an interruption. Security-sensitive
+Claude Code, and `riff wave --resume` after an interruption. When RIFF reaches
+an explicit verification boundary, it prints the exact `riff wave --approve
+--run <id> --phase <id> --evidence "Checked: <scope>; Observed: <result>; Expected: <expected result>"` command. That command records
+structured human evidence and continues the same run. Security-sensitive
 implementation remains autonomous; security hooks run once after product
 phases. Only explicit visual or functional verification, destructive work,
 promotion, a blocking failure, or an operator cap stops the loop.

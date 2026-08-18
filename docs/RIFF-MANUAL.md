@@ -108,6 +108,9 @@ worker waves inside one `PLAN.md`.
 # Resume the active persisted run after an interruption.
 ./.riff/riff wave --resume
 
+# Record completed human verification and automatically continue this run.
+./.riff/riff wave --approve --run W-... --phase ID --evidence "Checked: checkout confirmation screen; Observed: order ID and success banner appeared; Expected: successful checkout confirmation"
+
 # Inspect the active run without changing it.
 ./.riff/riff wave --status
 ```
@@ -126,7 +129,12 @@ product promotion. Post-promotion failures remain blocked for inspection.
 Ordinary and security-sensitive implementation doesn't pause the loop.
 Security hooks run once after product phases. Explicit visual or functional
 human verification, destructive boundaries, promotion, a blocking failure, or
-an operator cap stops execution. Waves never commit, merge, deploy, or promote.
+an operator cap stops execution. A dependency-ready confirmation phase creates
+one immutable request under `.planning/riff-wave/`; it never requests a future
+blocked phase. Supply `Checked: <scope>; Observed: <result>; Expected: <expected result>`
+with the printed `--approve` command to bind a receipt and resume the same run.
+Waves never commit, merge, deploy, or promote implicitly; an explicitly approved
+roadmap phase may perform a deployment or promotion.
 
 ## What `$riff:next` does
 

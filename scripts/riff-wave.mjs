@@ -7,12 +7,14 @@ import { fileURLToPath } from 'node:url';
 import {
   atomicWrite,
   loadRoadmap,
+  phaseVerificationMetadataSha256,
   phaseKey,
   phaseTask,
   remainingPhases,
   requiresConfirmation,
   resolveFrameworkRoot,
   resolveProjectRoot,
+  selectReadyConfirmationPhases,
   selectReadyPhases,
   updatePhaseStatus,
   validateRoadmap,
@@ -23,6 +25,7 @@ import { dispatchReadOnlyRole } from './lib/read-only-role-dispatch.mjs';
 import { gitEnvironment } from './lib/model-dispatch.mjs';
 import { loadCodexRoutes } from './lib/runtime-routes.mjs';
 import { loadClaudeRoutes, providerAdapterIdentity } from './lib/runtime-provider.mjs';
+import { assertWaveRunId, readActiveWaveRun, readRegularJson, readWaveState, secureWaveRoot } from './lib/wave-state.mjs';
 
 const scriptFrameworkRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RETRY_SAFE_STATES = new Set(['initialized', 'controller_passed', 'plan_validated', 'plan_reviewed', 'worker_dispatched', 'failed']);
@@ -32,7 +35,7 @@ const SECURITY_VERDICTS = new Set(['PASS', 'PASS_WITH_NOTES', 'FAIL']);
 function fail(message) { throw new Error(message); }
 
 function parseArgs(argv) {
-  const options = { autonomous: false, loop: false, resume: false, requestedIds: [] };
+  const options = { autonomous: false, loop: false, resume: false, approve: false, requestedIds: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     const next = () => {
@@ -44,7 +47,10 @@ function parseArgs(argv) {
     if (value === '--autonomous') options.autonomous = true;
     else if (value === '--loop') { options.loop = true; options.autonomous = true; }
     else if (value === '--resume') { options.resume = true; options.autonomous = true; }
+    else if (value === '--approve') { options.approve = true; options.resume = true; options.autonomous = true; }
     else if (value === '--run') options.runId = next();
+    else if (value === '--phase') options.approvalPhaseId = next();
+    else if (value === '--evidence') options.approvalEvidence = next();
     else if (value === '--phases') options.requestedIds = next().split(',').map((entry) => entry.trim()).filter(Boolean);
     else if (value === '--max-phases') options.maxPhases = Number.parseInt(next(), 10);
     else if (value === '--max-runs') options.maxRuns = Number.parseInt(next(), 10);
@@ -57,6 +63,8 @@ function parseArgs(argv) {
   if (options.provider && !['codex', 'claude'].includes(options.provider)) fail('--provider must be codex or claude');
   if (options.maxPhases !== undefined && (!Number.isInteger(options.maxPhases) || options.maxPhases < 1)) fail('--max-phases must be a positive integer');
   if (options.maxRuns !== undefined && (!Number.isInteger(options.maxRuns) || options.maxRuns < 1)) fail('--max-runs must be a positive integer');
+  if (options.approve && (!options.runId || !options.approvalPhaseId || options.approvalEvidence === undefined)) fail('--approve requires --run, --phase, and --evidence');
+  if (!options.approve && (options.approvalPhaseId !== undefined || options.approvalEvidence !== undefined)) fail('--phase and --evidence require --approve');
   return options;
 }
 
@@ -64,9 +72,11 @@ function runId() {
   return `W-${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')}`;
 }
 
-function stateRoot(projectRoot) { return path.join(projectRoot, '.planning', 'riff-wave'); }
-function stateFile(projectRoot, id) { return path.join(stateRoot(projectRoot), `${id}.json`); }
+function stateRoot(projectRoot, create = false) { return secureWaveRoot(projectRoot, { create }); }
+function stateFile(projectRoot, id) { return path.join(stateRoot(projectRoot), `${assertWaveRunId(id)}.json`); }
 function activeFile(projectRoot) { return path.join(stateRoot(projectRoot), 'active.json'); }
+function verificationRequestFile(projectRoot, state, phase) { return path.join(stateRoot(projectRoot), `${assertWaveRunId(state.run)}--${phaseKey(phase)}.verification-request.json`); }
+function verificationReceiptFile(projectRoot, state, phase) { return path.join(stateRoot(projectRoot), `${assertWaveRunId(state.run)}--${phaseKey(phase)}.verification-approval.json`); }
 
 function readJson(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
@@ -74,13 +84,15 @@ function readJson(file) {
 }
 
 function writeState(projectRoot, state) {
+  assertWaveRunId(state.run);
+  stateRoot(projectRoot, true);
   state.updated_at = new Date().toISOString();
   atomicWrite(stateFile(projectRoot, state.run), `${JSON.stringify(state, null, 2)}\n`);
   if (state.state !== 'completed') {
     atomicWrite(activeFile(projectRoot), `${JSON.stringify({ run: state.run }, null, 2)}\n`);
-  } else if (fs.existsSync(activeFile(projectRoot))) {
-    const active = readJson(activeFile(projectRoot));
-    if (active?.run === state.run) fs.unlinkSync(activeFile(projectRoot));
+  } else {
+    const active = readActiveWaveRun(projectRoot);
+    if (active === state.run) fs.unlinkSync(activeFile(projectRoot));
   }
 }
 
@@ -90,8 +102,8 @@ function processExists(pid) {
 }
 
 function acquireLease(projectRoot, id) {
-  const root = stateRoot(projectRoot);
-  fs.mkdirSync(root, { recursive: true });
+  assertWaveRunId(id);
+  const root = stateRoot(projectRoot, true);
   const lease = path.join(root, 'lease.json');
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -125,18 +137,22 @@ function safeToRetry(native) {
 }
 
 function latestState(projectRoot, requestedRun) {
-  const active = readJson(activeFile(projectRoot));
-  const id = requestedRun || active?.run;
+  if (requestedRun !== undefined) assertWaveRunId(requestedRun);
+  const id = requestedRun || readActiveWaveRun(projectRoot);
   if (!id) fail('no resumable RIFF autonomous wave exists');
-  const state = readJson(stateFile(projectRoot, id));
-  if (!state) fail(`RIFF wave state is missing or malformed: ${id}`);
-  return state;
+  return readWaveState(projectRoot, id);
 }
 
 function makeState(projectRoot, options) {
   const id = options.runId || runId();
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) fail(`invalid wave run identifier: ${id}`);
-  if (fs.existsSync(stateFile(projectRoot, id))) fail(`RIFF wave run already exists: ${id}; use --resume --run ${id}`);
+  assertWaveRunId(id);
+  stateRoot(projectRoot, true);
+  try {
+    fs.lstatSync(stateFile(projectRoot, id));
+    fail(`RIFF wave run already exists: ${id}; use --resume --run ${id}`);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
   return {
     schema_version: 1,
     run: id,
@@ -216,6 +232,199 @@ function sha256(value) {
 
 function isSha256(value) {
   return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+}
+
+function verificationReason(phase) {
+  return phase.hitlReason || `confirmation_required:${phase.id}`;
+}
+
+function verificationChecks(phase) {
+  return phase.tasks.length ? phase.tasks : [phase.goal || phase.title];
+}
+
+function validationEvidence(note) {
+  if (typeof note !== 'string') fail('approval evidence must use the required Checked/Observed/Expected format');
+  const normalized = note.trim();
+  const match = normalized.match(/^Checked:\s*([^;]+);\s*Observed:\s*([^;]+);\s*Expected:\s*([^;]+)$/);
+  const values = match ? match.slice(1).map((value) => value.trim()) : [];
+  const generic = /^(?:approved|approve|looks good|lgtm|done|yes|ok|okay|verified|success|passed?)\.?$/i;
+  if (!match || normalized.length > 1000 || values.some((value) => value.length < 12 || generic.test(value))) {
+    fail('approval evidence must use: Checked: <scope>; Observed: <result>; Expected: <expected result>');
+  }
+  return normalized;
+}
+
+function readRegularJsonArtifact(file, label) {
+  const artifact = readRegularJson(file, label);
+  return artifact ? { value: artifact.value, sha256: sha256(artifact.bytes) } : null;
+}
+
+function exactKeys(value, keys) {
+  return isRecord(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
+}
+
+function verificationExpectation(projectRoot, state, phase) {
+  return {
+    requestPath: path.relative(projectRoot, verificationRequestFile(projectRoot, state, phase)),
+    receiptPath: path.relative(projectRoot, verificationReceiptFile(projectRoot, state, phase)),
+    metadataSha256: phaseVerificationMetadataSha256(phase),
+    reason: verificationReason(phase),
+    checks: verificationChecks(phase),
+  };
+}
+
+function validateRequestArtifact(projectRoot, state, phase, verification) {
+  const expected = verificationExpectation(projectRoot, state, phase);
+  if (!isRecord(verification) || !['pending', 'approved', 'consumed'].includes(verification.status)
+    || verification.request_path !== expected.requestPath || verification.phase_metadata_sha256 !== expected.metadataSha256
+    || verification.reason !== expected.reason || JSON.stringify(verification.checks) !== JSON.stringify(expected.checks)
+    || !isSha256(verification.request_sha256)) fail(`human verification request state is invalid for phase ${phase.id}`);
+  const request = readRegularJsonArtifact(path.join(projectRoot, verification.request_path), `human verification request for phase ${phase.id}`);
+  if (!request || request.sha256 !== verification.request_sha256) fail(`human verification request is missing or tampered for phase ${phase.id}`);
+  const body = request.value;
+  if (!exactKeys(body, ['schema_version', 'run', 'provider', 'phase_id', 'phase_metadata_sha256', 'reason', 'checks', 'nonce', 'requested_at'])
+    || body.schema_version !== 1 || body.run !== state.run || body.provider !== state.selected_provider
+    || body.phase_id !== phase.id || body.phase_metadata_sha256 !== expected.metadataSha256
+    || body.reason !== expected.reason || JSON.stringify(body.checks) !== JSON.stringify(expected.checks)
+    || typeof body.nonce !== 'string' || body.nonce.length < 16 || typeof body.requested_at !== 'string' || !body.requested_at) {
+    fail(`human verification request is invalid for phase ${phase.id}`);
+  }
+  return { expected, request };
+}
+
+function validateReceiptArtifact(projectRoot, state, phase, verification, request) {
+  const expected = verificationExpectation(projectRoot, state, phase);
+  if (!verification.receipt_path || verification.receipt_path !== expected.receiptPath || !isSha256(verification.receipt_sha256)) fail(`human verification approval state is invalid for phase ${phase.id}`);
+  const receipt = readRegularJsonArtifact(path.join(projectRoot, verification.receipt_path), `human verification approval for phase ${phase.id}`);
+  if (!receipt || receipt.sha256 !== verification.receipt_sha256) fail(`human verification approval is missing or tampered for phase ${phase.id}`);
+  const body = receipt.value;
+  if (!exactKeys(body, ['schema_version', 'run', 'provider', 'phase_id', 'phase_metadata_sha256', 'request_sha256', 'evidence_note', 'evidence_sha256', 'approved_at'])
+    || body.schema_version !== 1 || body.run !== state.run || body.provider !== state.selected_provider
+    || body.phase_id !== phase.id || body.phase_metadata_sha256 !== expected.metadataSha256
+    || body.request_sha256 !== request.sha256 || typeof body.evidence_note !== 'string'
+    || body.evidence_sha256 !== sha256(body.evidence_note) || typeof body.approved_at !== 'string' || !body.approved_at) {
+    fail(`human verification approval is invalid for phase ${phase.id}`);
+  }
+  validationEvidence(body.evidence_note);
+  return receipt;
+}
+
+function createVerificationRequest(projectRoot, state, phase) {
+  const record = phaseRecord(state, phase);
+  if (record.verification) return validateRequestArtifact(projectRoot, state, phase, record.verification);
+  const expected = verificationExpectation(projectRoot, state, phase);
+  const requestFile = verificationRequestFile(projectRoot, state, phase);
+  try {
+    fs.lstatSync(requestFile);
+    fail(`human verification request already exists without state for phase ${phase.id}`);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const body = {
+    schema_version: 1,
+    run: state.run,
+    provider: state.selected_provider,
+    phase_id: phase.id,
+    phase_metadata_sha256: expected.metadataSha256,
+    reason: expected.reason,
+    checks: expected.checks,
+    nonce: randomBytes(16).toString('hex'),
+    requested_at: new Date().toISOString(),
+  };
+  const text = `${JSON.stringify(body, null, 2)}\n`;
+  atomicWrite(requestFile, text);
+  record.verification = {
+    status: 'pending', request_path: expected.requestPath, request_sha256: sha256(text),
+    phase_metadata_sha256: expected.metadataSha256, reason: expected.reason, checks: expected.checks,
+  };
+  writeState(projectRoot, state);
+  return { expected, request: { value: body, sha256: sha256(text) } };
+}
+
+function recordApproval(projectRoot, state, phase, evidence) {
+  const record = phaseRecord(state, phase);
+  const verification = record.verification;
+  const note = validationEvidence(evidence);
+  const { expected, request } = validateRequestArtifact(projectRoot, state, phase, verification);
+  if (verification.status === 'consumed') {
+    const receipt = validateReceiptArtifact(projectRoot, state, phase, verification, request);
+    if (receipt.value.evidence_sha256 !== sha256(note)) fail(`approval evidence does not match the consumed verification for phase ${phase.id}`);
+    return { idempotent: true };
+  }
+  const receiptFile = verificationReceiptFile(projectRoot, state, phase);
+  let receipt = readRegularJsonArtifact(receiptFile, `human verification approval for phase ${phase.id}`);
+  if (receipt) {
+    const body = receipt.value;
+    if (body.evidence_sha256 !== sha256(note)) fail(`approval evidence does not match the existing verification for phase ${phase.id}`);
+  } else {
+    const body = {
+      schema_version: 1,
+      run: state.run,
+      provider: state.selected_provider,
+      phase_id: phase.id,
+      phase_metadata_sha256: expected.metadataSha256,
+      request_sha256: request.sha256,
+      evidence_note: note,
+      evidence_sha256: sha256(note),
+      approved_at: new Date().toISOString(),
+    };
+    const text = `${JSON.stringify(body, null, 2)}\n`;
+    atomicWrite(receiptFile, text);
+    receipt = { value: body, sha256: sha256(text) };
+  }
+  const candidate = {
+    ...verification,
+    status: 'approved',
+    receipt_path: expected.receiptPath,
+    receipt_sha256: receipt.sha256,
+    approved_at: receipt.value.approved_at,
+  };
+  validateReceiptArtifact(projectRoot, state, phase, candidate, request);
+  Object.assign(verification, candidate);
+  writeState(projectRoot, state);
+  return { idempotent: false };
+}
+
+function approvedVerification(projectRoot, state, phase) {
+  const verification = state.phases.find((entry) => entry.id === phase.id)?.verification;
+  if (!verification || !['approved', 'consumed'].includes(verification.status)) return false;
+  const { request } = validateRequestArtifact(projectRoot, state, phase, verification);
+  validateReceiptArtifact(projectRoot, state, phase, verification, request);
+  return verification.status === 'approved';
+}
+
+function consumeVerification(projectRoot, state, phase) {
+  const record = phaseRecord(state, phase);
+  if (!record.verification) {
+    if (requiresConfirmation(phase)) fail(`human verification approval is missing for phase ${phase.id}`);
+    return;
+  }
+  if (!['approved', 'consumed'].includes(record.verification.status)) fail(`human verification approval is missing for phase ${phase.id}`);
+  const { request } = validateRequestArtifact(projectRoot, state, phase, record.verification);
+  validateReceiptArtifact(projectRoot, state, phase, record.verification, request);
+  if (record.verification.status === 'consumed') return;
+  record.verification.status = 'consumed';
+  record.verification.consumed_at = new Date().toISOString();
+}
+
+function reconcileCompletedVerifications(projectRoot, roadmap, state) {
+  let reconciled = false;
+  for (const record of state.phases) {
+    if (record?.status !== 'completed' || !['approved', 'consumed'].includes(record.verification?.status)) continue;
+    const phase = roadmap.phases.find((entry) => entry.id === record.id);
+    if (!phase) fail(`completed verification phase is missing from ROADMAP.yaml: ${record.id}`);
+    const previous = record.verification.status;
+    consumeVerification(projectRoot, state, phase);
+    reconciled ||= previous !== record.verification.status;
+  }
+  return reconciled;
+}
+
+function humanVerificationArtifactInvalid(projectRoot, state) {
+  state.state = 'blocked';
+  state.stop_reason = 'human_verification_artifact_invalid';
+  writeState(projectRoot, state);
+  return state;
 }
 
 function lstatKind(stat) {
@@ -516,7 +725,12 @@ function completeSemanticSecurity(projectRoot, frameworkRoot, state, mechanical,
   return { verdict: validated.verdict, receipt, artifactSha256: receipt.artifact_sha256 };
 }
 
-function completeAfterSecurity(projectRoot, frameworkRoot, state, stopReason, beforeFinalSecurityScan, semanticDispatch) {
+function completeAfterSecurity(projectRoot, frameworkRoot, roadmap, state, stopReason, beforeFinalSecurityScan, semanticDispatch) {
+  try {
+    if (reconcileCompletedVerifications(projectRoot, roadmap, state)) writeState(projectRoot, state);
+  } catch {
+    return humanVerificationArtifactInvalid(projectRoot, state);
+  }
   const existing = existingFinalSecurity(projectRoot, state);
   if (existing.status === 'invalid') {
     state.state = 'blocked';
@@ -537,6 +751,11 @@ function completeAfterSecurity(projectRoot, frameworkRoot, state, stopReason, be
     state.final_security_attempt = attempt;
     writeState(projectRoot, state);
     beforeFinalSecurityScan?.({ projectRoot, state, input });
+    try {
+      if (reconcileCompletedVerifications(projectRoot, roadmap, state)) writeState(projectRoot, state);
+    } catch {
+      return humanVerificationArtifactInvalid(projectRoot, state);
+    }
     const generated = runFinalSecurityGate(projectRoot, frameworkRoot, state, { ...input, nonce: attempt.nonce });
     security = generated.report;
     state.final_security_attempt = { ...attempt, status: 'completed', completed_at: new Date().toISOString(), artifact_sha256: generated.artifact_sha256 };
@@ -553,6 +772,11 @@ function completeAfterSecurity(projectRoot, frameworkRoot, state, stopReason, be
     state.state = 'blocked';
     state.stop_reason = 'final_semantic_security_findings';
   } else {
+    try {
+      if (reconcileCompletedVerifications(projectRoot, roadmap, state)) writeState(projectRoot, state);
+    } catch {
+      return humanVerificationArtifactInvalid(projectRoot, state);
+    }
     state.state = 'completed';
     state.stop_reason = stopReason;
     state.current = null;
@@ -584,6 +808,7 @@ function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invok
       previous.status = 'completed';
       previous.completed_at = native.updated_at || new Date().toISOString();
       record.status = 'completed';
+      consumeVerification(projectRoot, state, phase);
       updatePhaseStatus(roadmap, phase.id, 'done');
       state.current = null;
       writeState(projectRoot, state);
@@ -624,6 +849,7 @@ function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invok
     attempt.status = 'completed';
     attempt.completed_at = new Date().toISOString();
     record.status = 'completed';
+    consumeVerification(projectRoot, state, phase);
     updatePhaseStatus(roadmap, phase.id, 'done');
     state.current = null;
     writeState(projectRoot, state);
@@ -667,10 +893,14 @@ function recoverFailedPhase({ projectRoot, frameworkRoot, roadmap, state, phase,
 
 function printStatus(state) {
   const completed = state.phases.filter((phase) => phase.status === 'completed').length;
+  const pending = state.phases.find((phase) => phase.verification?.status === 'pending');
   process.stdout.write(`RIFF wave ${state.run}\nState: ${state.state}\nMode: ${state.mode}\nCompleted phases: ${completed}/${state.phases.length}\n`);
   if (state.current) process.stdout.write(`Current: phase ${state.current.phase_id} (${state.current.native_phase})\n`);
   if (state.stop_reason) process.stdout.write(`Stop reason: ${state.stop_reason}\n`);
-  if (state.state !== 'completed') process.stdout.write(`Resume: riff wave --resume --run ${state.run}\n`);
+  if (pending) {
+    process.stdout.write(`Pending verification: phase ${pending.id} (${pending.verification.reason})\n`);
+    process.stdout.write(`Approve: riff wave --approve --run ${state.run} --phase ${pending.id} --evidence "Checked: <scope>; Observed: <result>; Expected: <expected result>"\n`);
+  } else if (state.state !== 'completed') process.stdout.write(`Resume: riff wave --resume --run ${state.run}\n`);
 }
 
 export function runAutonomousWave(options = {}, dependencies = {}) {
@@ -680,7 +910,7 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
   const beforeFinalSecurityScan = dependencies.beforeFinalSecurityScan;
   const semanticDispatch = dependencies.semanticDispatch;
   let state = options.resume ? latestState(projectRoot, options.runId) : makeState(projectRoot, options);
-  if (options.resume && state.state === 'completed') fail(`RIFF wave ${state.run} is already completed`);
+  if (options.resume && state.state === 'completed' && !options.approve) fail(`RIFF wave ${state.run} is already completed`);
   const release = acquireLease(projectRoot, state.run);
   try {
     if (!options.resume && (finalSecurityArtifactExists(projectRoot, state) || semanticSecurityArtifactsExist(projectRoot, state))) fail(`RIFF wave run already has a final security artifact: ${state.run}`);
@@ -689,8 +919,22 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
     const cap = resolveWaveProfile(projectRoot, frameworkRoot, state);
     if (options.resume && options.provider && options.provider !== state.selected_provider) fail('selected provider cannot change while resuming a wave');
     for (const id of state.requested_phase_ids) if (!roadmap.phases.some((phase) => phase.id === id)) fail(`requested phase is missing from ROADMAP.yaml: ${id}`);
+    if (options.approve) {
+      const phase = roadmap.phases.find((entry) => entry.id === String(options.approvalPhaseId));
+      if (!phase) fail(`approval phase is missing from ROADMAP.yaml: ${options.approvalPhaseId}`);
+      const approval = recordApproval(projectRoot, state, phase, options.approvalEvidence);
+      if (state.state === 'completed') {
+        if (!approval.idempotent) fail(`RIFF wave ${state.run} is already completed`);
+        return state;
+      }
+    }
     state.state = 'running';
     state.stop_reason = null;
+    try {
+      reconcileCompletedVerifications(projectRoot, roadmap, state);
+    } catch {
+      return humanVerificationArtifactInvalid(projectRoot, state);
+    }
     writeState(projectRoot, state);
     const completedThisRun = new Set(state.phases.filter((phase) => phase.status === 'completed').map((phase) => phase.id));
     let resumeCurrent = options.resume && state.current ? String(state.current.phase_id) : null;
@@ -706,6 +950,7 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
       const record = state.phases.find((entry) => entry.id === resumeCurrent);
       const native = record?.attempts?.length ? nativeState(projectRoot, record.attempts.at(-1).native_phase) : null;
       if (phase && native?.state === 'completed') {
+        if (requiresConfirmation(phase) && !approvedVerification(projectRoot, state, phase)) fail(`human verification approval is missing for phase ${phase.id}`);
         const reconciled = attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: true });
         if (!reconciled.completed) return stopWithoutSecurity(projectRoot, state, reconciled.reason);
         completedThisRun.add(phase.id);
@@ -722,7 +967,7 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
     while (true) {
       const remaining = remainingPhases(roadmap, state.requested_phase_ids);
       if (!remaining.length) {
-        return completeAfterSecurity(projectRoot, frameworkRoot, state, state.mode === 'loop' ? 'roadmap_dry' : 'requested_wave_complete', beforeFinalSecurityScan, semanticDispatch);
+        return completeAfterSecurity(projectRoot, frameworkRoot, roadmap, state, state.mode === 'loop' ? 'roadmap_dry' : 'requested_wave_complete', beforeFinalSecurityScan, semanticDispatch);
       }
       if (state.max_phases && phasesCompletedThisInvocation >= state.max_phases) {
         return stopWithoutSecurity(projectRoot, state, 'max_phases_reached', 'paused');
@@ -737,9 +982,18 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
         ready = resumed ? [resumed, ...ready.filter((phase) => phase.id !== resumeCurrent)] : ready;
       }
       if (!ready.length) {
-        const confirmation = remaining.filter(requiresConfirmation);
-        const reason = confirmation.length ? `confirmation_required:${confirmation.map((phase) => phase.id).join(',')}` : 'no_work_ready';
-        return stopWithoutSecurity(projectRoot, state, reason);
+        const confirmation = selectReadyConfirmationPhases(roadmap, {
+          requestedIds: state.requested_phase_ids,
+          completedThisRun,
+        });
+        if (!confirmation.length) return stopWithoutSecurity(projectRoot, state, 'no_work_ready');
+        const phase = confirmation[0];
+        if (approvedVerification(projectRoot, state, phase)) {
+          ready = [phase];
+        } else {
+          createVerificationRequest(projectRoot, state, phase);
+          return stopWithoutSecurity(projectRoot, state, `confirmation_required:${phase.id}`, 'awaiting_human');
+        }
       }
 
       const waveNumber = state.waves.length + 1;
@@ -757,6 +1011,7 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
         const previous = record.attempts.at(-1);
         const previousNative = previous ? nativeState(projectRoot, previous.native_phase) : null;
         let result;
+        if (requiresConfirmation(phase) && !approvedVerification(projectRoot, state, phase)) fail(`human verification approval is missing for phase ${phase.id}`);
         if (isResume && state.mode === 'loop' && previous?.status === 'failed' && safeToRetry(previousNative) && latestRecoveryCycle(record) >= cap) {
           result = { completed: false, reason: 'recovery_cycle_cap_reached', safeToResume: true };
         } else {
@@ -788,7 +1043,7 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
       wave.completed_at = new Date().toISOString();
       writeState(projectRoot, state);
       if (state.mode !== 'loop' && state.requested_phase_ids.length === 0) {
-        return completeAfterSecurity(projectRoot, frameworkRoot, state, 'requested_wave_complete', beforeFinalSecurityScan, semanticDispatch);
+        return completeAfterSecurity(projectRoot, frameworkRoot, roadmap, state, 'requested_wave_complete', beforeFinalSecurityScan, semanticDispatch);
       }
     }
   } finally {
@@ -797,7 +1052,7 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
 }
 
 function usage() {
-  return `Usage:\n  riff wave --autonomous [--phases 1,2] [--provider codex|claude]\n  riff wave --autonomous --loop [--max-runs N] [--max-phases N]\n  riff wave --resume [--run W-...]\n  riff wave --status [--run W-...]\n`;
+  return `Usage:\n  riff wave --autonomous [--phases 1,2] [--provider codex|claude]\n  riff wave --autonomous --loop [--max-runs N] [--max-phases N]\n  riff wave --resume [--run W-...]\n  riff wave --approve --run W-... --phase ID --evidence "verification note"\n  riff wave --status [--run W-...]\n`;
 }
 
 export function main(argv = process.argv.slice(2)) {

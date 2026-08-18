@@ -88,12 +88,17 @@ roadmap is dry, no work is ready, a real blocker occurs, or explicit human
 verification is required. This is cross-phase orchestration; it is distinct
 from the worker waves inside one PLAN.
 
-Wave state is persisted under `.planning/riff-wave/`. `riff wave --resume`
+Wave state is persisted under `.planning/riff-wave/`. At a dependency-ready
+verification boundary, it records one immutable per-run, per-phase request and
+waits in `awaiting_human`; it doesn't request future dependency-blocked phases.
+`riff wave --approve --run <id> --phase <id> --evidence "<note>"` records a
+bound approval receipt and resumes that same run. `riff wave --resume`
 reconciles a completed interrupted attempt and retries only failures that
 stopped before product promotion, using a distinct native phase identifier.
 Security-sensitive work doesn't create an in-loop pause. Security hooks run
 once after product phases. Visual or functional human verification,
-destructive boundaries, and promotion remain explicit boundaries.
+destructive boundaries, and promotion remain explicit boundaries. RIFF never
+deploys or promotes implicitly; an approved boundary phase may do so explicitly.
 
 Plan and code review use fresh isolated read-only contexts. Reviewers receive independent evidence snapshots. They cannot mutate the project or inherit the worker context.
 

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, test } from 'vitest';
 import { runAutonomousWave as runNativeAutonomousWave } from '../scripts/riff-wave.mjs';
 import { requiresConfirmation } from '../scripts/lib/roadmap-workflow.mjs';
@@ -10,6 +11,7 @@ const frameworkRoot = path.resolve(import.meta.dirname, '..');
 const fixtures = [];
 function semanticPass({ phase, provider }) { return { route: { provider, adapter: provider === 'claude' ? 'agents/claude.yaml#native_roles.security-reviewer.variants.fixed' : 'agents/codex/security-reviewer.toml', model: provider === 'claude' ? 'opus' : 'gpt-5.6-sol', effort: 'xhigh', semanticRole: 'security-reviewer', routeClass: 'fixed' }, stdout: `---\nphase: ${phase}\ngenerated_at: 2026-01-01T00:00:00Z\nverdict: PASS\n---\n## Verdict\nPASS\n## Resolved Findings\nNone.\n## Notes\nReview completed.` }; }
 function runAutonomousWave(options, dependencies = {}) { return runNativeAutonomousWave(options, { semanticDispatch: semanticPass, ...dependencies }); }
+function evidence(scope = 'browser confirmation screen') { return `Checked: ${scope}; Observed: visible success result with order details; Expected: visible success result with the expected details`; }
 
 function phase(id, title, { dependsOn = [], mode = 'AFK', tags = [] } = {}) {
   return `  - id: ${id}\n    slug: ${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}\n    title: ${title}\n    status: todo\n    priority: P1\n    mode: ${mode}\n    tags: [${tags.join(', ')}]\n    depends_on: [${dependsOn.join(', ')}]\n    goal: Deliver ${title}.\n    tasks:\n      - Implement ${title}.\n`;
@@ -75,10 +77,14 @@ describe('RIFF autonomous single-project waves', () => {
     expect(requiresConfirmation({ ...base, title: 'Real payment checkout', tags: [] })).toBe(true);
     expect(requiresConfirmation({ ...base, title: 'Irreversible database migration', tags: [] })).toBe(true);
     expect(requiresConfirmation({ ...base, title: 'Production DNS cutover', tags: [] })).toBe(true);
+    expect(requiresConfirmation({ ...base, mode: ['AFK'], title: 'Delete all production customer records', tags: [] })).toBe(true);
+    expect(requiresConfirmation({ ...base, mode: ['AFK'], title: 'Deploy application to staging', tags: [] })).toBe(true);
+    expect(requiresConfirmation({ ...base, mode: ['AFK'], title: 'Publish the release', tags: [] })).toBe(true);
     expect(requiresConfirmation({ ...base, title: 'Visual acceptance', tags: ['visual-verification'] })).toBe(true);
     expect(requiresConfirmation({ ...base, mode: ['AFK'], title: 'Implement OAuth callback security', tags: ['auth'] })).toBe(false);
     expect(requiresConfirmation({ ...base, mode: ['AFK'], title: 'Harden SSO token validation', tags: ['security_critical'] })).toBe(false);
     expect(requiresConfirmation({ ...base, mode: ['AFK'], title: 'Add MFA recovery unit tests', tags: ['auth'] })).toBe(false);
+    expect(requiresConfirmation({ ...base, mode: ['AFK'], title: 'Publish release notes fixture for unit tests', tags: ['security'] })).toBe(false);
   });
 
   test('loops across dependency frontiers and stops at confirmation-required work', () => {
@@ -90,7 +96,7 @@ describe('RIFF autonomous single-project waves', () => {
     const calls = [];
     const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-loop-test' }, { invokeNext: completeNext(root, calls) });
     expect(calls.map((call) => call.task)).toEqual(expect.arrayContaining(['Deliver Foundation. Complete these phase tasks: Implement Foundation.', 'Deliver Security Hardening. Complete these phase tasks: Implement Security Hardening.']));
-    expect(state.state).toBe('blocked');
+    expect(state.state).toBe('awaiting_human');
     expect(state.stop_reason).toBe('confirmation_required:3');
     expect(state.final_security).toBeUndefined();
     expect(fs.existsSync(path.join(root, '.planning/riff-wave/W-loop-test.security.json'))).toBe(false);
@@ -136,7 +142,7 @@ describe('RIFF autonomous single-project waves', () => {
     const waveRoot = path.join(root, '.planning', 'riff-wave');
     fs.mkdirSync(waveRoot, { recursive: true });
     const persisted = {
-      schema_version: 1, run: 'W-split-test', state: 'running', mode: 'wave', provider_override: null,
+      schema_version: 1, run: 'W-split-test', state: 'running', mode: 'wave', provider_override: null, selected_provider: 'codex',
       requested_phase_ids: [], max_phases: null, max_runs: null,
       waves: [{ number: 1, phase_ids: ['1'], status: 'running' }],
       phases: [{ id: '1', slug: 'split-brain-completion', title: 'Split Brain Completion', status: 'running', attempts: [{ attempt: 1, native_phase: nativePhase, status: 'running' }] }],
@@ -514,7 +520,7 @@ describe('RIFF autonomous single-project waves', () => {
     fs.mkdirSync(waveRoot, { recursive: true });
     fs.writeFileSync(path.join(nextRoot, `${nativePhase}.json`), `${JSON.stringify({ state: 'controller_passed', previous_state: 'plan_validated' })}\n`);
     const persisted = {
-      schema_version: 1, run: 'W-running-attempt-test', state: 'running', mode: 'loop', provider_override: null,
+      schema_version: 1, run: 'W-running-attempt-test', state: 'running', mode: 'loop', provider_override: null, selected_provider: 'codex',
       requested_phase_ids: [], max_phases: null, max_runs: null,
       waves: [{ number: 1, phase_ids: ['1'], status: 'running' }],
       phases: [{ id: '1', slug: 'persisted-running-attempt', title: 'Persisted Running Attempt', status: 'running', attempts: [{ attempt: 1, native_phase: nativePhase, recovery_cycle: 0, status: 'running' }] }],
@@ -651,5 +657,179 @@ describe('RIFF autonomous single-project waves', () => {
     }
     const root = fixture(phase(1, 'Claude Semantic')); const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: false, requestedIds: [], runId: 'W-claude-semantic', provider: 'claude' }, { invokeNext: completeNext(root, []) });
     expect(state.final_semantic_security).toMatchObject({ provider: 'claude', adapter: 'agents/claude.yaml#native_roles.security-reviewer.variants.fixed', model: 'opus', effort: 'xhigh' });
+  });
+
+  test('creates one durable request for the first dependency-ready verification boundary', () => {
+    const root = fixture(`${phase(1, 'Visual Checkpoint', { mode: 'HITL', tags: ['visual-verification'] })}${phase(2, 'Future Checkpoint', { dependsOn: [1], mode: 'HITL', tags: ['visual-verification'] })}`);
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-verification-request' });
+    expect(state).toMatchObject({ state: 'awaiting_human', stop_reason: 'confirmation_required:1' });
+    expect(state.phases).toHaveLength(1);
+    const verification = state.phases[0].verification;
+    expect(verification).toMatchObject({ status: 'pending', reason: 'confirmation_required:1' });
+    const request = path.join(root, verification.request_path);
+    expect(JSON.parse(fs.readFileSync(request, 'utf8'))).toMatchObject({ run: 'W-verification-request', provider: 'codex', phase_id: '1', phase_metadata_sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-verification-request', requestedIds: [] });
+    expect(resumed.phases[0].verification.request_sha256).toBe(verification.request_sha256);
+    expect(fs.existsSync(path.join(root, '.planning/riff-wave/W-verification-request--2-future-checkpoint.verification-request.json'))).toBe(false);
+  });
+
+  test('records approval atomically, resumes the same run once, and consumes it', () => {
+    const root = fixture(phase(1, 'Manual Browser Check', { mode: 'HITL', tags: ['manual-verification'] }));
+    const first = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-verification-approve' });
+    const calls = [];
+    const complete = runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: 'W-verification-approve', approvalPhaseId: '1', approvalEvidence: 'Checked: browser checkout confirmation; Observed: success screen displayed an order ID; Expected: confirmed order with visible receipt', requestedIds: [] }, { invokeNext: completeNext(root, calls) });
+    expect(complete.state).toBe('completed');
+    expect(calls).toHaveLength(1);
+    expect(complete.phases[0].verification.status).toBe('consumed');
+    const receipt = path.join(root, complete.phases[0].verification.receipt_path);
+    expect(fs.existsSync(receipt)).toBe(true);
+    expect(fs.readdirSync(path.dirname(receipt)).some((file) => file.includes('.tmp-'))).toBe(false);
+    const repeated = runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: 'W-verification-approve', approvalPhaseId: '1', approvalEvidence: 'Checked: browser checkout confirmation; Observed: success screen displayed an order ID; Expected: confirmed order with visible receipt', requestedIds: [] }, { invokeNext: () => { throw new Error('an idempotent approval must not dispatch'); } });
+    expect(repeated.state).toBe('completed');
+  });
+
+  test('rejects missing, generic, tampered, and stale verification approvals', () => {
+    const root = fixture(phase(1, 'Visual Evidence', { mode: 'HITL', tags: ['visual-verification'] }));
+    runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-verification-reject' });
+    expect(() => runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: 'W-verification-reject', approvalPhaseId: '2', approvalEvidence: 'Checked: browser confirmation page; Observed: success banner remained visible; Expected: confirmation remains visible to the operator', requestedIds: [] })).toThrow(/missing from ROADMAP/);
+    expect(() => runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: 'W-verification-reject', approvalPhaseId: '1', approvalEvidence: 'looks good', requestedIds: [] })).toThrow(/Checked: <scope>/);
+    const stateFile = path.join(root, '.planning/riff-wave/W-verification-reject.json');
+    const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    fs.appendFileSync(path.join(root, state.phases[0].verification.request_path), 'tamper\n');
+    expect(() => runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: 'W-verification-reject', approvalPhaseId: '1', approvalEvidence: 'Checked: browser confirmation page; Observed: success banner remained visible; Expected: confirmation remains visible to the operator', requestedIds: [] })).toThrow(/malformed|tampered/);
+    const stale = fixture(phase(1, 'Stale Visual Evidence', { mode: 'HITL', tags: ['visual-verification'] }));
+    runAutonomousWave({ projectRoot: stale, autonomous: true, loop: true, requestedIds: [], runId: 'W-verification-stale' });
+    const roadmap = path.join(stale, 'ROADMAP.yaml');
+    fs.writeFileSync(roadmap, fs.readFileSync(roadmap, 'utf8').replace('Stale Visual Evidence', 'Changed Visual Evidence'));
+    expect(() => runAutonomousWave({ projectRoot: stale, approve: true, resume: true, runId: 'W-verification-stale', approvalPhaseId: '1', approvalEvidence: 'Checked: changed browser confirmation; Observed: revised screen showed the order status; Expected: revised confirmation shows the correct order status', requestedIds: [] })).toThrow(/request state is invalid/);
+  });
+
+  test('creates a distinct next request only after the first approval is consumed', () => {
+    const root = fixture(`${phase(1, 'First Manual Check', { mode: 'HITL', tags: ['manual-verification'] })}${phase(2, 'Second Manual Check', { dependsOn: [1], mode: 'HITL', tags: ['manual-verification'] })}`);
+    runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-verification-sequence' });
+    const calls = [];
+    const paused = runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: 'W-verification-sequence', approvalPhaseId: '1', approvalEvidence: 'Checked: first manual browser behavior; Observed: rendered control accepted the selected value; Expected: selected value is accepted and displayed', requestedIds: [] }, { invokeNext: completeNext(root, calls) });
+    expect(calls).toHaveLength(1);
+    expect(paused).toMatchObject({ state: 'awaiting_human', stop_reason: 'confirmation_required:2' });
+    expect(paused.phases.find((entry) => entry.id === '1').verification.status).toBe('consumed');
+    const second = paused.phases.find((entry) => entry.id === '2').verification;
+    expect(second).toMatchObject({ status: 'pending' });
+    expect(second.request_path).not.toBe(paused.phases.find((entry) => entry.id === '1').verification.request_path);
+  });
+
+  test('consumes approved verification in the same completion write and reconciles legacy crash splits', () => {
+    const root = fixture(phase(1, 'Crash Window Check', { mode: 'HITL', tags: ['manual-verification'] }));
+    const run = 'W-verification-crash-window';
+    runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: run });
+    const completed = runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: run, approvalPhaseId: '1', approvalEvidence: evidence(), requestedIds: [] }, { invokeNext: completeNext(root, []) });
+    expect(completed.phases[0].verification.status).toBe('consumed');
+    const rootState = path.join(root, '.planning/riff-wave', `${run}.json`);
+    const split = JSON.parse(fs.readFileSync(rootState, 'utf8'));
+    split.state = 'running'; split.stop_reason = null; split.phases[0].verification.status = 'approved'; delete split.phases[0].verification.consumed_at;
+    delete split.final_security; delete split.final_security_attempt; delete split.final_semantic_security; delete split.final_semantic_security_attempt;
+    fs.rmSync(path.join(root, '.planning/riff-wave', `${run}.security.json`)); fs.rmSync(path.join(root, '.planning/riff-wave', `${run}.security-review.md`)); fs.rmSync(path.join(root, '.planning/riff-wave', `${run}.security-review.routing.json`));
+    fs.writeFileSync(rootState, `${JSON.stringify(split)}\n`); fs.writeFileSync(path.join(root, '.planning/riff-wave/active.json'), `${JSON.stringify({ run })}\n`);
+    const reconciled = runAutonomousWave({ projectRoot: root, resume: true, runId: run, requestedIds: [] }, { invokeNext: () => { throw new Error('legacy completed phase must not dispatch'); } });
+    expect(reconciled.phases[0].verification.status).toBe('consumed');
+
+    const nativeRoot = fixture(phase(1, 'Native Crash Check', { mode: 'HITL', tags: ['manual-verification'] }));
+    const nativeRun = 'W-verification-native-crash';
+    runAutonomousWave({ projectRoot: nativeRoot, autonomous: true, loop: true, requestedIds: [], runId: nativeRun });
+    const nativeComplete = runAutonomousWave({ projectRoot: nativeRoot, approve: true, resume: true, runId: nativeRun, approvalPhaseId: '1', approvalEvidence: evidence('native reconciliation browser check'), requestedIds: [] }, { invokeNext: completeNext(nativeRoot, []) });
+    const nativeStatePath = path.join(nativeRoot, '.planning/riff-wave', `${nativeRun}.json`); const nativeSplit = JSON.parse(fs.readFileSync(nativeStatePath, 'utf8')); const attempt = nativeSplit.phases[0].attempts[0];
+    nativeSplit.state = 'running'; nativeSplit.stop_reason = null; nativeSplit.phases[0].status = 'running'; nativeSplit.phases[0].verification.status = 'approved'; delete nativeSplit.phases[0].verification.consumed_at; attempt.status = 'running'; nativeSplit.current = { phase_id: '1', native_phase: attempt.native_phase, attempt: 1 };
+    delete nativeSplit.final_security; delete nativeSplit.final_security_attempt; delete nativeSplit.final_semantic_security; delete nativeSplit.final_semantic_security_attempt;
+    for (const suffix of ['security.json', 'security-review.md', 'security-review.routing.json']) fs.rmSync(path.join(nativeRoot, '.planning/riff-wave', `${nativeRun}.${suffix}`));
+    fs.writeFileSync(nativeStatePath, `${JSON.stringify(nativeSplit)}\n`); fs.writeFileSync(path.join(nativeRoot, '.planning/riff-wave/active.json'), `${JSON.stringify({ run: nativeRun })}\n`);
+    const nativeReconciled = runAutonomousWave({ projectRoot: nativeRoot, resume: true, runId: nativeRun, requestedIds: [] }, { invokeNext: () => { throw new Error('native-completed reconciliation must not dispatch'); } });
+    expect(nativeReconciled.phases[0].verification.status).toBe('consumed');
+  });
+
+  test('rejects incomplete, symlinked, and mismatched verification artifacts', () => {
+    const cases = [
+      ['missing request', (root, state) => fs.rmSync(path.join(root, state.phases[0].verification.request_path))],
+      ['partial request', (root, state) => fs.writeFileSync(path.join(root, state.phases[0].verification.request_path), '{}\n')],
+      ['symlink request', (root, state) => { const file = path.join(root, state.phases[0].verification.request_path); fs.rmSync(file); fs.symlinkSync('/dev/null', file); }],
+      ['provider mismatch', (root, state) => { const file = path.join(root, state.phases[0].verification.request_path); const body = JSON.parse(fs.readFileSync(file, 'utf8')); body.provider = 'claude'; const text = `${JSON.stringify(body)}\n`; fs.writeFileSync(file, text); state.phases[0].verification.request_sha256 = createHash('sha256').update(text).digest('hex'); }],
+      ['run mismatch', (root, state) => { const file = path.join(root, state.phases[0].verification.request_path); const body = JSON.parse(fs.readFileSync(file, 'utf8')); body.run = 'W-other-run'; const text = `${JSON.stringify(body)}\n`; fs.writeFileSync(file, text); state.phases[0].verification.request_sha256 = createHash('sha256').update(text).digest('hex'); }],
+      ['phase mismatch', (root, state) => { const file = path.join(root, state.phases[0].verification.request_path); const body = JSON.parse(fs.readFileSync(file, 'utf8')); body.phase_id = '99'; const text = `${JSON.stringify(body)}\n`; fs.writeFileSync(file, text); state.phases[0].verification.request_sha256 = createHash('sha256').update(text).digest('hex'); }],
+    ];
+    for (const [label, mutate] of cases) {
+      const root = fixture(phase(1, `Artifact ${label}`, { mode: 'HITL', tags: ['manual-verification'] })); const run = `W-${label.replace(/\s+/g, '-')}`;
+      runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: run });
+      const statePath = path.join(root, '.planning/riff-wave', `${run}.json`); const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+      mutate(root, state); fs.writeFileSync(statePath, `${JSON.stringify(state)}\n`);
+      expect(() => runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: run, approvalPhaseId: '1', approvalEvidence: evidence(), requestedIds: [] }), label).toThrow(/request|regular file|malformed/);
+    }
+  });
+
+  test('requests only the first of parallel gates, including destructive and promotion boundaries', () => {
+    const root = fixture(`${phase(1, 'Visual Gate', { mode: 'HITL', tags: ['visual-verification'] })}${phase(2, 'Production Promotion', { mode: 'HITL', tags: ['promotion'] })}${phase(3, 'Destructive Cutover', { mode: 'HITL', tags: ['destructive'] })}`);
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-parallel-gates' });
+    expect(state).toMatchObject({ state: 'awaiting_human', stop_reason: 'confirmation_required:1' });
+    expect(state.phases.map((entry) => entry.id)).toEqual(['1']);
+  });
+
+  test('rejects missing, partial, tampered, and symlinked approval receipts', () => {
+    const cases = [
+      ['missing receipt', (file) => fs.rmSync(file)],
+      ['partial receipt', (file) => fs.writeFileSync(file, '{}\n')],
+      ['tampered receipt', (file) => fs.appendFileSync(file, 'tamper\n')],
+      ['symlink receipt', (file) => { fs.rmSync(file); fs.symlinkSync('/dev/null', file); }],
+    ];
+    for (const [label, mutate] of cases) {
+      const root = fixture(phase(1, `Receipt ${label}`, { mode: 'HITL', tags: ['manual-verification'] })); const run = `W-receipt-${label.replace(/\s+/g, '-')}`;
+      runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: run });
+      const done = runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: run, approvalPhaseId: '1', approvalEvidence: evidence(), requestedIds: [] }, { invokeNext: completeNext(root, []) });
+      mutate(path.join(root, done.phases[0].verification.receipt_path));
+      expect(() => runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: run, approvalPhaseId: '1', approvalEvidence: evidence(), requestedIds: [] }), label).toThrow(/approval|regular file|malformed/);
+    }
+  });
+
+  test('CLI help exposes approval syntax and rejects incomplete approval parsing', () => {
+    const script = path.join(frameworkRoot, 'scripts/riff-wave.mjs');
+    expect(execFileSync(process.execPath, [script, '--help'], { encoding: 'utf8' })).toContain('--approve --run W-... --phase ID --evidence');
+    expect(() => execFileSync(process.execPath, [script, '--approve', '--run', 'W-parse'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).toThrow(/--approve requires --run, --phase, and --evidence/);
+  });
+
+  test('keeps approval eligible across a safe retry and consumes it only after completion', () => {
+    const root = fixture(phase(1, 'Retry Evidence Check', { mode: 'HITL', tags: ['manual-verification'] })); const calls = [];
+    runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-approved-retry' });
+    const state = runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: 'W-approved-retry', approvalPhaseId: '1', approvalEvidence: evidence('retry browser evidence'), requestedIds: [] }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        calls.push(nativePhase); const file = path.join(root, '.planning/riff-next', `${nativePhase}.json`); fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: calls.length === 1 ? 'failed' : 'completed', previous_state: calls.length === 1 ? 'controller_passed' : 'post_review_mechanics_passed' })}\n`);
+        return { status: calls.length === 1 ? 1 : 0, signal: null };
+      },
+    });
+    expect(calls).toHaveLength(2); expect(state.phases[0].verification.status).toBe('consumed');
+  });
+
+  test('blocks before final security when a consumed verification request or receipt disappears', () => {
+    for (const target of ['request_path', 'receipt_path']) {
+      const root = fixture(phase(1, `Final Gate ${target}`, { mode: 'HITL', tags: ['manual-verification'] })); const run = `W-final-gate-${target}`;
+      runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: run });
+      const blocked = runAutonomousWave({ projectRoot: root, approve: true, resume: true, runId: run, approvalPhaseId: '1', approvalEvidence: evidence(`final security ${target}`), requestedIds: [] }, {
+        invokeNext: completeNext(root, []),
+        beforeFinalSecurityScan: ({ projectRoot, state }) => fs.rmSync(path.join(projectRoot, state.phases[0].verification[target])),
+      });
+      expect(blocked).toMatchObject({ state: 'blocked', stop_reason: 'human_verification_artifact_invalid' });
+      expect(fs.existsSync(path.join(root, '.planning/riff-wave', `${run}.security.json`))).toBe(false);
+      const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: run, requestedIds: [] });
+      expect(resumed).toMatchObject({ state: 'blocked', stop_reason: 'human_verification_artifact_invalid' });
+    }
+  });
+
+  test('fails closed for traversal, alias-copy, symlinked state, and symlinked state ancestors', () => {
+    const root = fixture(phase(1, 'State Guard'));
+    expect(() => runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: '../escape' })).toThrow(/invalid wave run identifier/);
+    const run = 'W-state-guard'; runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: run, maxPhases: 1 }, { invokeNext: completeNext(root, []) });
+    const stateFile = path.join(root, '.planning/riff-wave', `${run}.json`); const copied = JSON.parse(fs.readFileSync(stateFile, 'utf8')); copied.run = 'W-alias-copy'; fs.writeFileSync(stateFile, `${JSON.stringify(copied)}\n`);
+    expect(() => runAutonomousWave({ projectRoot: root, resume: true, runId: run, requestedIds: [] })).toThrow(/missing or malformed/);
+    const fileRoot = fixture(phase(1, 'State File Guard')); runAutonomousWave({ projectRoot: fileRoot, autonomous: true, loop: true, requestedIds: [], runId: 'W-state-file-guard', maxPhases: 1 }, { invokeNext: completeNext(fileRoot, []) });
+    const guarded = path.join(fileRoot, '.planning/riff-wave/W-state-file-guard.json'); const target = `${guarded}.target`; fs.renameSync(guarded, target); fs.symlinkSync(target, guarded);
+    expect(() => runAutonomousWave({ projectRoot: fileRoot, resume: true, runId: 'W-state-file-guard', requestedIds: [] })).toThrow(/regular file/);
+    const symlinkRoot = fixture(phase(1, 'Symlink Guard')); const waveRoot = path.join(symlinkRoot, '.planning/riff-wave'); fs.symlinkSync('/tmp', waveRoot);
+    expect(() => runAutonomousWave({ projectRoot: symlinkRoot, autonomous: true, loop: true, requestedIds: [], runId: 'W-symlink-root' })).toThrow(/ancestor must be a real directory/);
   });
 });
