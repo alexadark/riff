@@ -245,6 +245,51 @@ button {
   gap: 12px;
 }
 
+/* Native wave is persisted terminal state. Keep this compact so it informs the
+   board without competing with the phase columns. */
+.native-wave-panel {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.native-wave-panel.invalid { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.native-wave-head, .native-wave-title, .native-wave-facts, .native-wave-row, .native-verification {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.native-wave-head { justify-content: space-between; }
+.native-wave-title { font-weight: 600; }
+.native-wave-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.native-wave-panel.invalid .native-wave-dot { background: var(--danger); }
+.native-wave-state { color: var(--fg-muted); font-size: 11px; }
+.native-wave-run { color: var(--fg-subtle); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.native-wave-facts { flex-wrap: wrap; color: var(--fg-muted); font-size: 12px; }
+.native-stop, .native-wave-error, .native-invalid-text { color: var(--danger); }
+.native-wave-row, .native-verification { align-items: baseline; flex-wrap: wrap; font-size: 12px; }
+.native-label { flex: 0 0 76px; color: var(--fg-subtle); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.native-truncate { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.native-verification { padding-top: 6px; border-top: 1px solid var(--border); }
+.native-verification.invalid { color: var(--danger); }
+.proj-native { color: var(--accent); font-size: 11px; line-height: 1.35; }
+.proj-native.invalid { color: var(--danger); }
+
+@media (max-width: 700px) {
+  .native-wave-head { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .native-wave-row, .native-verification { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .native-label { flex-basis: auto; }
+  .native-truncate { max-width: 100%; }
+}
+
 @media (max-width: 1100px) {
   .kanban {
     grid-template-columns: repeat(5, 280px);

@@ -6,7 +6,8 @@ export type WatcherEvent =
   | { type: "roadmap_changed" }
   | { type: "state_changed" }
   | { type: "phase_changed"; id: number; files: string[] }
-  | { type: "uxtest_runs_changed"; files: string[] };
+  | { type: "uxtest_runs_changed"; files: string[] }
+  | { type: "native_wave_changed"; files: string[] };
 
 export type WatcherListener = (event: WatcherEvent) => void;
 
@@ -27,6 +28,7 @@ export class ProjectWatcher {
   private pendingPhase = new Map<number, PendingPhaseChange>();
   private pendingTopLevel = new Set<string>();
   private pendingUxRuns = new Set<string>();
+  private pendingNativeWave = new Set<string>();
 
   constructor(private readonly projectRoot: string) {}
 
@@ -36,9 +38,11 @@ export class ProjectWatcher {
     const targets = [
       join(this.projectRoot, "ROADMAP.yaml"),
       join(this.projectRoot, "STATE.md"),
-      join(this.projectRoot, ".planning", "phases"),
+      // Watch the planning root itself so a later-created riff-wave/riff-next
+      // directory is observed too. Chokidar follows children after creation.
+      join(this.projectRoot, ".planning"),
       join(this.projectRoot, ".uxtest"),
-    ].filter((p) => existsSync(p));
+    ].filter((p) => p === join(this.projectRoot, ".planning") || existsSync(p));
 
     if (targets.length === 0) {
       console.warn(`[watcher] no targets to watch under ${this.projectRoot}`);
@@ -70,6 +74,7 @@ export class ProjectWatcher {
     this.pendingPhase.clear();
     this.pendingTopLevel.clear();
     this.pendingUxRuns.clear();
+    this.pendingNativeWave.clear();
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
@@ -99,6 +104,11 @@ export class ProjectWatcher {
     }
 
     const segments = rel.split(sep);
+    if (segments[0] === ".planning" && (segments[1] === "riff-wave" || segments[1] === "riff-next")) {
+      this.pendingNativeWave.add(segments.join("/"));
+      this.scheduleFlush("native:wave");
+      return;
+    }
     if (segments[0] === ".planning" && segments[1] === "phases" && segments[2]) {
       const folder = segments[2];
       const filename = segments.slice(3).join("/") || folder;
@@ -154,6 +164,12 @@ export class ProjectWatcher {
       const files = [...this.pendingUxRuns];
       this.pendingUxRuns = new Set<string>();
       this.broadcast({ type: "uxtest_runs_changed", files });
+      return;
+    }
+    if (key === "native:wave") {
+      const files = [...this.pendingNativeWave];
+      this.pendingNativeWave = new Set<string>();
+      this.broadcast({ type: "native_wave_changed", files });
     }
   }
 

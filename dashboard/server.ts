@@ -23,6 +23,7 @@ import {
   type GateEntry,
 } from "./parsers/phase.ts";
 import { parseProjectState } from "./parsers/state.ts";
+import { parseNativeWave } from "./parsers/wave.ts";
 import {
   BootstrapRunner,
   generateExplanation,
@@ -339,6 +340,7 @@ app.get("/api/projects", (c) => {
         progress: progressOf(null),
         active_phase: null,
         state: null,
+        native_wave: null,
         last_modified_ms: null,
       };
     }
@@ -351,6 +353,7 @@ app.get("/api/projects", (c) => {
       progress: progressOf(roadmap),
       active_phase: activePhase(roadmap),
       state: parseProjectState(entry.root),
+      native_wave: parseNativeWave(entry.root),
       last_modified_ms: lastModifiedMs(entry.root),
     };
   });
@@ -475,6 +478,7 @@ app.get("/api/projects/:slug", (c) => {
     progress: progressOf(roadmap),
     active_phase: activePhase(roadmap),
     state: parseProjectState(ctx.root),
+    native_wave: parseNativeWave(ctx.root),
     config: { level: liveConfig.level, language: liveConfig.language },
     bootstrap_status: ctx.bootstrap.getStatus(),
     has_preview,

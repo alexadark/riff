@@ -479,6 +479,12 @@
           ])
         : el("div", { class: "proj-active fg-muted" }, "Complete");
 
+      const native = p.native_wave;
+      const nativeIndicator = native && native.status !== "none"
+        ? el("div", { class: `proj-native ${native.status === "invalid" ? "invalid" : ""}` },
+            native.status === "invalid" ? "Native wave: invalid" : `Native: ${native.state || "unknown"} · ${native.provider || "provider unknown"}`)
+        : null;
+
       const counts = [];
       if (done) counts.push({ k: "done", v: done });
       if (inProg) counts.push({ k: "in-progress", v: inProg });
@@ -504,7 +510,7 @@
         el("span", { class: "proj-bar-label mono fg-muted small" }, `${done}/${total}`),
       ]);
 
-      body = el("div", { class: "proj-body" }, [active, barRow, countsRow]);
+      body = el("div", { class: "proj-body" }, [active, nativeIndicator, barRow, countsRow]);
     }
 
     const footer = el("div", { class: "proj-footer fg-subtle small" }, [
@@ -633,6 +639,72 @@
     return el("div", { class: "column" + (collapsed ? " collapsed" : "") }, [header, cards]);
   }
 
+  function nativeValue(value, fallback = "—") {
+    return value == null || value === "" ? fallback : String(value);
+  }
+
+  function buildNativeWavePanel(wave) {
+    if (!wave || wave.status === "none") return null;
+    const panel = el("section", { class: `native-wave-panel ${wave.status === "invalid" ? "invalid" : ""}` });
+    const title = el("div", { class: "native-wave-title" }, [
+      el("span", { class: "native-wave-dot" }),
+      el("span", null, "Native wave"),
+      el("span", { class: "native-wave-state mono" }, wave.status === "invalid" ? "invalid" : nativeValue(wave.state)),
+    ]);
+    panel.appendChild(el("div", { class: "native-wave-head" }, [title,
+      el("span", { class: "native-wave-run mono", title: nativeValue(wave.run) }, nativeValue(wave.run)),
+    ]));
+    if (wave.status === "invalid") {
+      panel.appendChild(el("div", { class: "native-wave-error" }, nativeValue(wave.error, "Native wave state is invalid.")));
+      return panel;
+    }
+    const facts = el("div", { class: "native-wave-facts" }, [
+      el("span", null, `Provider: ${nativeValue(wave.provider)}`),
+      el("span", null, `Override: ${nativeValue(wave.provider_override)}`),
+      el("span", null, `Mode: ${nativeValue(wave.mode)}`),
+      wave.current ? el("span", null, `Current: phase ${nativeValue(wave.current.phase_id)} (${nativeValue(wave.current.native_phase)})`) : null,
+      wave.stop_reason ? el("span", { class: "native-stop" }, `Stop: ${wave.stop_reason}`) : null,
+    ]);
+    panel.appendChild(facts);
+    const recovery = wave.recovery || {};
+    panel.appendChild(el("div", { class: "native-wave-row" }, [
+      el("span", { class: "native-label" }, "Recovery"),
+      el("span", { class: "fg-muted" }, `cycle ${nativeValue(recovery.latest_cycle, "0")} / cap ${nativeValue(recovery.cap)}`),
+      recovery.profile ? el("span", { class: "mono fg-subtle native-truncate", title: recovery.profile }, recovery.profile) : null,
+    ]));
+    const frontiers = Array.isArray(wave.frontiers) ? wave.frontiers.slice(-4) : [];
+    if (frontiers.length) panel.appendChild(el("div", { class: "native-wave-row" }, [
+      el("span", { class: "native-label" }, "Frontiers"),
+      el("span", { class: "fg-muted" }, frontiers.map((f) => `#${nativeValue(f.number)} ${nativeValue(f.status)} [${(f.phase_ids || []).join(", ")}]`).join(" · ")),
+    ]));
+    const attempts = (Array.isArray(wave.phase_attempts) ? wave.phase_attempts : []).flatMap((p) => (p.attempts || []).map((a) => `P${nativeValue(p.phase_id)}#${nativeValue(a.attempt)} ${nativeValue(a.status)} (${nativeValue(a.native_phase)})`)).slice(-5);
+    if (attempts.length) panel.appendChild(el("div", { class: "native-wave-row" }, [el("span", { class: "native-label" }, "Attempts"), el("span", { class: "fg-muted" }, attempts.join(" · "))]));
+    for (const verification of Array.isArray(wave.verification) ? wave.verification : []) {
+      const row = el("div", { class: `native-verification ${verification.trust === "reported" ? "" : "invalid"}` }, [
+        el("span", { class: "native-label" }, `Verify P${nativeValue(verification.phase_id)}`),
+        el("span", null, `${nativeValue(verification.status)}: ${nativeValue(verification.reason)}`),
+        verification.trust === "reported" && verification.checks?.length ? el("span", { class: "fg-muted" }, verification.checks.join("; ")) : null,
+      ]);
+      if (verification.trust === "reported") row.appendChild(el("span", { class: "fg-subtle" }, `request: ${nativeValue(verification.request)}${verification.receipt ? ` · receipt: ${verification.receipt}` : ""} · Use riff status to inspect/approve.`));
+      else row.appendChild(el("span", { class: "native-wave-error" }, "Verification artifacts are invalid or unavailable. Use riff status to inspect/approve."));
+      panel.appendChild(row);
+    }
+    const mechanical = wave.security?.mechanical;
+    const semantic = wave.security?.semantic;
+    panel.appendChild(el("div", { class: "native-wave-row native-security" }, [
+      el("span", { class: "native-label" }, "Security"),
+      el("span", { class: mechanical?.trust === "reported" ? "" : "native-invalid-text" }, `Mechanical: ${nativeValue(mechanical?.verdict)} (${nativeValue(mechanical?.trust)})`),
+      el("span", { class: semantic?.trust === "reported" ? "" : "native-invalid-text" }, `Semantic: ${nativeValue(semantic?.verdict)} (${nativeValue(semantic?.trust)})`),
+    ]));
+    const stage = wave.latest_native_stage;
+    if (stage) panel.appendChild(el("div", { class: "native-wave-row" }, [
+      el("span", { class: "native-label" }, "Native stage"),
+      el("span", { class: stage.trust === "reported" ? "fg-muted" : "native-invalid-text" }, `${nativeValue(stage.phase)}: ${nativeValue(stage.state)} (${nativeValue(stage.trust)})`),
+      stage.routing ? el("span", { class: "mono fg-subtle native-truncate", title: JSON.stringify(stage.routing) }, `routing: ${nativeValue(stage.routing.route || stage.routing.provider)}`) : null,
+    ]));
+    return panel;
+  }
+
   function renderProject() {
     const root = $("#kanban");
     const uxRoot = $("#uxruns");
@@ -669,6 +741,8 @@
     }
     uxRoot.classList.add("hidden");
     root.classList.remove("hidden");
+    const nativePanel = buildNativeWavePanel(state.project.native_wave);
+    if (nativePanel) root.appendChild(nativePanel);
     const phases = Array.isArray(state.project.phases) ? state.project.phases : [];
     const groups = groupPhases(phases);
     for (const status of COLUMN_ORDER) {
@@ -1341,6 +1415,7 @@
     es.addEventListener("state_changed", handleRoadmapChanged);
     es.addEventListener("bootstrap_status", handleBootstrap);
     es.addEventListener("uxtest_runs_changed", handleUxRunsChanged);
+    es.addEventListener("native_wave_changed", handleRoadmapChanged);
 
     es.onerror = () => {
       // EventSource auto-reconnects

@@ -1,6 +1,6 @@
 # RIFF Dashboard
 
-Local web dashboard for the RIFF framework. Reads `ROADMAP.yaml`, `STATE.md`, and `.planning/phases/**` from every registered project (kanban from the roadmap; current-position / blockers / resume command from STATE.md), and serves a kanban + phase-detail view in a browser. Read-only — driving still happens in the terminal via `/riff:next`.
+Local web dashboard for the RIFF framework. Reads `ROADMAP.yaml`, `STATE.md`, `.planning/phases/**`, and bounded persisted native-wave state from every registered project (kanban from the roadmap; current-position / blockers / resume command from STATE.md), and serves a kanban + phase-detail view in a browser. Read-only — driving still happens in the terminal via `/riff:next` or `riff wave`.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -80,6 +80,8 @@ On non-macOS platforms, the picker endpoint returns `501` and the user falls bac
 | GET    | `/api/events`                                     | SSE stream of file-change events (cross-project)                        |
 | GET    | `/`                                               | Static frontend served from `./public/`                                 |
 
+Both project list and project-detail responses include `native_wave`. It is a fail-soft, display-only projection of `.planning/riff-wave`: run state, provider, current native stage, recovery/frontier history, verification paths, and persisted security/routing evidence. Evidence is labelled `reported`, `unavailable`, or `invalid`; it is not an authoritative security or approval decision. The dashboard never invokes a model or CLI command. Use `riff status` to inspect or approve verification and `riff wave` for authoritative gates. Invalid active pointers, symlinks, malformed JSON, oversized artifacts, and escaping paths are shown as invalid state rather than being followed.
+
 ## Architecture
 
 ```
@@ -134,7 +136,7 @@ Already-generated per-phase explanations are NOT regenerated when you switch lev
 
 ## Live updates
 
-The server keeps a chokidar watcher on `.planning/phases/**`, `.uxtest/runs/**`, and `STATE.md` for every registered project. File changes (a new SUMMARY.md, an updated VERIFICATION.md, a completed UX run, etc.) emit SSE events on `GET /api/events`. The frontend re-fetches and re-renders without manual refresh.
+The server keeps a chokidar watcher on `.planning/**`, `.uxtest/runs/**`, and `STATE.md` for every registered project. File changes (a new SUMMARY.md, an updated VERIFICATION.md, a completed UX run, or persisted `riff-wave`/`riff-next` state) emit SSE events on `GET /api/events`. The frontend re-fetches and re-renders without manual refresh.
 
 This makes the dashboard a live mirror of `/riff:next` runs: while a phase is executing in the terminal, you can watch the kanban tile move and the metadata block fill in.
 
