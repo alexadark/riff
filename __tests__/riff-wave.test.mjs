@@ -27,6 +27,30 @@ function fixture(roadmapText) {
   return root;
 }
 
+function setRecoveryCap(projectRoot, cap, provider = 'codex') {
+  fs.writeFileSync(path.join(projectRoot, '.planning', 'profile.yaml'), `runtime:\n  provider: ${provider}\nautonomy:\n  debug_cycle_cap: ${cap}\n`);
+}
+
+function seedCompletedWaveForResume(projectRoot, run, changedPaths = []) {
+  const roadmap = path.join(projectRoot, 'ROADMAP.yaml');
+  const waveRoot = path.join(projectRoot, '.planning', 'riff-wave');
+  const nextRoot = path.join(projectRoot, '.planning', 'riff-next');
+  fs.writeFileSync(roadmap, fs.readFileSync(roadmap, 'utf8').replace('status: todo', 'status: done'));
+  fs.mkdirSync(waveRoot, { recursive: true });
+  fs.mkdirSync(nextRoot, { recursive: true });
+  const attempts = changedPaths.length ? [{ attempt: 1, native_phase: `1-security-resume--${run.toLowerCase()}-a1`, recovery_cycle: 0, status: 'completed' }] : [];
+  if (attempts.length) fs.writeFileSync(path.join(nextRoot, `${attempts[0].native_phase}.worker-delta.json`), `${JSON.stringify({ changed: changedPaths })}\n`);
+  const state = {
+    schema_version: 1, run, state: 'running', mode: 'loop', provider_override: null, selected_provider: 'codex',
+    requested_phase_ids: [], max_phases: null, max_runs: null, waves: [],
+    phases: attempts.length ? [{ id: '1', slug: 'security-resume', title: 'Security Resume', status: 'completed', attempts }] : [],
+    current: null, stop_reason: null, started_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  };
+  fs.writeFileSync(path.join(waveRoot, `${run}.json`), `${JSON.stringify(state)}\n`);
+  fs.writeFileSync(path.join(waveRoot, 'active.json'), `${JSON.stringify({ run })}\n`);
+  return waveRoot;
+}
+
 function completeNext(projectRoot, calls) {
   return ({ phase: nativePhase, task }) => {
     calls.push({ nativePhase, task });
@@ -66,7 +90,8 @@ describe('RIFF autonomous single-project waves', () => {
     expect(calls.map((call) => call.task)).toEqual(expect.arrayContaining(['Deliver Foundation. Complete these phase tasks: Implement Foundation.', 'Deliver Security Hardening. Complete these phase tasks: Implement Security Hardening.']));
     expect(state.state).toBe('blocked');
     expect(state.stop_reason).toBe('confirmation_required:3');
-    expect(state.final_security).toMatchObject({ verdict: 'PASS', blocking_findings: 0 });
+    expect(state.final_security).toBeUndefined();
+    expect(fs.existsSync(path.join(root, '.planning/riff-wave/W-loop-test.security.json'))).toBe(false);
     expect(state.waves.map((wave) => wave.phase_ids)).toEqual([['1'], ['2']]);
     const roadmap = fs.readFileSync(path.join(root, 'ROADMAP.yaml'), 'utf8');
     expect(roadmap.match(/status: done/g)).toHaveLength(2);
@@ -149,9 +174,387 @@ describe('RIFF autonomous single-project waves', () => {
     expect(state.state).toBe('paused');
     expect(state.stop_reason).toBe('max_phases_reached');
     expect(calls).toHaveLength(1);
+    expect(state.final_security).toBeUndefined();
+    expect(fs.existsSync(path.join(root, '.planning/riff-wave/W-capped-frontier-test.security.json'))).toBe(false);
     expect(state.waves).toEqual([
       expect.objectContaining({ phase_ids: ['1'], status: 'completed' }),
     ]);
+  });
+
+  test('automatically retries a pre-promotion loop failure with a fresh native attempt', () => {
+    const root = fixture(phase(1, 'Recoverable Work'));
+    const calls = [];
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-auto-recover-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        calls.push(nativePhase);
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        const completed = calls.length === 2;
+        fs.writeFileSync(file, `${JSON.stringify({ state: completed ? 'completed' : 'failed', previous_state: completed ? 'post_review_mechanics_passed' : 'controller_passed' })}\n`);
+        return { status: completed ? 0 : 1, signal: null };
+      },
+    });
+    expect(state.state).toBe('completed');
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).not.toBe(calls[1]);
+    expect(state.phases[0].attempts).toEqual([
+      expect.objectContaining({ recovery_cycle: 0 }),
+      expect.objectContaining({ recovery_cycle: 1, recovery_strategy: 'fresh_replan_and_reverify' }),
+    ]);
+  });
+
+  test('stops at the recovery cap without dispatching another native attempt', () => {
+    const root = fixture(phase(1, 'Exhausted Work'));
+    setRecoveryCap(root, 1);
+    const calls = [];
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-recovery-cap-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        calls.push(nativePhase);
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'controller_passed' })}\n`);
+        return { status: 1, signal: null };
+      },
+    });
+    expect(calls).toHaveLength(2);
+    expect(state.state).toBe('blocked');
+    expect(state.stop_reason).toBe('recovery_cycle_cap_reached');
+    expect(state.phases[0].attempts.map((attempt) => attempt.recovery_cycle)).toEqual([0, 1]);
+    expect(fs.existsSync(path.join(root, '.planning/riff-wave/W-recovery-cap-test.security.json'))).toBe(false);
+  });
+
+  test('fails closed when debug_cycle_cap is invalid', () => {
+    const root = fixture(phase(1, 'Invalid Recovery Profile'));
+    setRecoveryCap(root, -1);
+    expect(() => runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-invalid-recovery-cap-test' })).toThrow('autonomy.debug_cycle_cap must be a nonnegative integer no greater than 10');
+  });
+
+  test('does not retry a post-promotion failure', () => {
+    const root = fixture(phase(1, 'Promoted Failure'));
+    const calls = [];
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-post-promotion-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        calls.push(nativePhase);
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: 'review_passed', previous_state: 'reviewer_dispatched' })}\n`);
+        return { status: 1, signal: null };
+      },
+    });
+    expect(calls).toHaveLength(1);
+    expect(state.state).toBe('blocked');
+    expect(state.stop_reason).toBe('post_promotion_failure_requires_human');
+    expect(state.phases[0].attempts).toHaveLength(1);
+  });
+
+  test('reuses a valid final-security artifact after the state-write crash window', () => {
+    const root = fixture(phase(1, 'Loop Completion'));
+    const calls = [];
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-loop-security-test' }, { invokeNext: completeNext(root, calls) });
+    const waveRoot = path.join(root, '.planning', 'riff-wave');
+    const artifact = path.join(waveRoot, 'W-loop-security-test.security.json');
+    const artifactBytes = fs.readFileSync(artifact, 'utf8');
+    const completedAt = JSON.parse(artifactBytes).completed_at;
+    expect(state.state).toBe('completed');
+    expect(state.final_security).toMatchObject({ verdict: 'PASS', blocking_findings: 0 });
+    const crashWindowState = JSON.parse(fs.readFileSync(path.join(waveRoot, 'W-loop-security-test.json'), 'utf8'));
+    crashWindowState.state = 'running';
+    crashWindowState.stop_reason = null;
+    delete crashWindowState.final_security;
+    crashWindowState.final_security_attempt = { ...crashWindowState.final_security_attempt, status: 'running' };
+    delete crashWindowState.final_security_attempt.completed_at;
+    delete crashWindowState.final_security_attempt.artifact_sha256;
+    fs.writeFileSync(path.join(waveRoot, 'W-loop-security-test.json'), `${JSON.stringify(crashWindowState, null, 2)}\n`);
+    fs.writeFileSync(path.join(waveRoot, 'active.json'), `${JSON.stringify({ run: 'W-loop-security-test' })}\n`);
+    const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-loop-security-test', requestedIds: [] }, {
+      invokeNext: () => { throw new Error('completed wave must reuse its existing final-security report'); },
+    });
+    expect(resumed.state).toBe('completed');
+    expect(JSON.parse(fs.readFileSync(artifact, 'utf8')).completed_at).toBe(completedAt);
+    expect(fs.readFileSync(artifact, 'utf8')).toBe(artifactBytes);
+  });
+
+  test('rejects a dry resumable state with a valid-looking PASS report but no security-attempt marker', () => {
+    const root = fixture(phase(1, 'Unhandshaken Security Report'));
+    const waveRoot = seedCompletedWaveForResume(root, 'W-unhandshaken-security-test');
+    const artifact = path.join(waveRoot, 'W-unhandshaken-security-test.security.json');
+    const artifactBytes = `${JSON.stringify({
+      schema_version: 1, run: 'W-unhandshaken-security-test', timing: 'after_product_phases', changed_paths: [], input_sha256: '0'.repeat(64), final_security_nonce: 'forged', verdict: 'PASS', findings: [], completed_at: new Date().toISOString(),
+    })}\n`;
+    fs.writeFileSync(artifact, artifactBytes);
+    const state = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-unhandshaken-security-test', requestedIds: [] }, {
+      invokeNext: () => { throw new Error('unhandshaken reports must not be reused'); },
+    });
+    expect(state.stop_reason).toBe('final_security_artifact_invalid');
+    expect(fs.readFileSync(artifact, 'utf8')).toBe(artifactBytes);
+  });
+
+  test('rejects a stale final-security artifact when an authoritative file changes', () => {
+    const root = fixture(phase(1, 'Stale Security Evidence'));
+    const run = 'W-stale-security-test';
+    const initial = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: run }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+        fs.writeFileSync(path.join(root, 'src', 'value.mjs'), 'export const value = 1;\n');
+        const nextRoot = path.join(root, '.planning', 'riff-next');
+        fs.mkdirSync(nextRoot, { recursive: true });
+        fs.writeFileSync(path.join(nextRoot, `${nativePhase}.json`), `${JSON.stringify({ state: 'completed', previous_state: 'post_review_mechanics_passed' })}\n`);
+        fs.writeFileSync(path.join(nextRoot, `${nativePhase}.worker-delta.json`), `${JSON.stringify({ changed: ['src/value.mjs'] })}\n`);
+        return { status: 0, signal: null };
+      },
+    });
+    expect(initial.state).toBe('completed');
+    const waveRoot = path.join(root, '.planning', 'riff-wave');
+    const artifact = path.join(waveRoot, `${run}.security.json`);
+    const artifactBytes = fs.readFileSync(artifact, 'utf8');
+    const crashWindowState = JSON.parse(fs.readFileSync(path.join(waveRoot, `${run}.json`), 'utf8'));
+    crashWindowState.state = 'running';
+    crashWindowState.stop_reason = null;
+    delete crashWindowState.final_security;
+    crashWindowState.final_security_attempt = { ...crashWindowState.final_security_attempt, status: 'running' };
+    delete crashWindowState.final_security_attempt.completed_at;
+    delete crashWindowState.final_security_attempt.artifact_sha256;
+    fs.writeFileSync(path.join(waveRoot, `${run}.json`), `${JSON.stringify(crashWindowState)}\n`);
+    fs.writeFileSync(path.join(waveRoot, 'active.json'), `${JSON.stringify({ run })}\n`);
+    fs.writeFileSync(path.join(root, 'src', 'value.mjs'), 'export const value = 2;\n');
+    const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: run, requestedIds: [] }, {
+      invokeNext: () => { throw new Error('stale reports must not be replaced by a new security run'); },
+    });
+    expect(resumed.stop_reason).toBe('final_security_artifact_invalid');
+    expect(fs.readFileSync(artifact, 'utf8')).toBe(artifactBytes);
+  });
+
+  test('hashes a changed symlink without reading its target', () => {
+    const root = fixture(phase(1, 'Symlink Security Input'));
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-symlink-security-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        const sourceRoot = path.join(root, 'src');
+        const nextRoot = path.join(root, '.planning', 'riff-next');
+        fs.mkdirSync(sourceRoot, { recursive: true });
+        fs.mkdirSync(nextRoot, { recursive: true });
+        fs.writeFileSync(path.join(sourceRoot, 'secret-target.mjs'), 'export const secret = "a-very-long-hardcoded-secret";\n');
+        fs.symlinkSync('secret-target.mjs', path.join(sourceRoot, 'link.mjs'));
+        fs.writeFileSync(path.join(nextRoot, `${nativePhase}.json`), `${JSON.stringify({ state: 'completed', previous_state: 'post_review_mechanics_passed' })}\n`);
+        fs.writeFileSync(path.join(nextRoot, `${nativePhase}.worker-delta.json`), `${JSON.stringify({ changed: ['src/link.mjs'] })}\n`);
+        return { status: 0, signal: null };
+      },
+    });
+    expect(state.state).toBe('completed');
+    expect(state.final_security).toMatchObject({ verdict: 'PASS' });
+    expect(state.final_security.input_sha256).toEqual(expect.stringMatching(/^[a-f0-9]{64}$/));
+  });
+
+  test('fails closed when a changed path escapes through an ancestor symlink without reading outside content', () => {
+    const root = fixture(phase(1, 'Ancestor Symlink Security Input'));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'riff-wave-outside-'));
+    fixtures.push(outside);
+    fs.writeFileSync(path.join(outside, 'sentinel.mjs'), 'export const secret = "a-very-long-hardcoded-secret";\n');
+    fs.symlinkSync(outside, path.join(root, 'src'));
+    expect(() => runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-ancestor-symlink-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        const nextRoot = path.join(root, '.planning', 'riff-next');
+        fs.mkdirSync(nextRoot, { recursive: true });
+        fs.writeFileSync(path.join(nextRoot, `${nativePhase}.json`), `${JSON.stringify({ state: 'completed', previous_state: 'post_review_mechanics_passed' })}\n`);
+        fs.writeFileSync(path.join(nextRoot, `${nativePhase}.worker-delta.json`), `${JSON.stringify({ changed: ['src/sentinel.mjs'] })}\n`);
+        return { status: 0, signal: null };
+      },
+    })).toThrow('final-security ancestor is a symlink: src/sentinel.mjs');
+    expect(fs.existsSync(path.join(root, '.planning', 'riff-wave', 'W-ancestor-symlink-test.security.json'))).toBe(false);
+  });
+
+  test('fails closed when a security input changes between the persisted snapshot and scan', () => {
+    const root = fixture(phase(1, 'Security Snapshot Race'));
+    expect(() => runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-security-race-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        const sourceRoot = path.join(root, 'src');
+        const nextRoot = path.join(root, '.planning', 'riff-next');
+        fs.mkdirSync(sourceRoot, { recursive: true });
+        fs.mkdirSync(nextRoot, { recursive: true });
+        fs.writeFileSync(path.join(sourceRoot, 'value.mjs'), 'export const value = 1;\n');
+        fs.writeFileSync(path.join(nextRoot, `${nativePhase}.json`), `${JSON.stringify({ state: 'completed', previous_state: 'post_review_mechanics_passed' })}\n`);
+        fs.writeFileSync(path.join(nextRoot, `${nativePhase}.worker-delta.json`), `${JSON.stringify({ changed: ['src/value.mjs'] })}\n`);
+        return { status: 0, signal: null };
+      },
+      beforeFinalSecurityScan: () => fs.writeFileSync(path.join(root, 'src', 'value.mjs'), 'export const value = 2;\n'),
+    })).toThrow('final-security input changed before scan: src/value.mjs');
+    const persisted = JSON.parse(fs.readFileSync(path.join(root, '.planning', 'riff-wave', 'W-security-race-test.json'), 'utf8'));
+    expect(persisted.final_security_attempt).toMatchObject({ status: 'running' });
+    expect(fs.existsSync(path.join(root, '.planning', 'riff-wave', 'W-security-race-test.security.json'))).toBe(false);
+  });
+
+  test('rejects a preseeded final-security report before invoking a new wave', () => {
+    const root = fixture(phase(1, 'Preseeded Security Artifact'));
+    const waveRoot = path.join(root, '.planning', 'riff-wave');
+    const artifact = path.join(waveRoot, 'W-preseeded-security-test.security.json');
+    fs.mkdirSync(waveRoot, { recursive: true });
+    fs.writeFileSync(artifact, `${JSON.stringify({ schema_version: 1, run: 'W-preseeded-security-test', timing: 'after_product_phases', changed_paths: [], verdict: 'PASS', findings: [], completed_at: new Date().toISOString() })}\n`);
+    let calls = 0;
+    expect(() => runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-preseeded-security-test' }, {
+      invokeNext: () => { calls += 1; return { status: 0, signal: null }; },
+    })).toThrow('RIFF wave run already has a final security artifact');
+    expect(calls).toBe(0);
+  });
+
+  test('blocks on a malformed existing final-security artifact without replacing it', () => {
+    const root = fixture(phase(1, 'Malformed Security Artifact'));
+    const waveRoot = seedCompletedWaveForResume(root, 'W-malformed-security-test');
+    const artifact = path.join(waveRoot, 'W-malformed-security-test.security.json');
+    const artifactBytes = '{not valid json}\n';
+    fs.writeFileSync(artifact, artifactBytes);
+    const state = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-malformed-security-test', requestedIds: [] }, {
+      invokeNext: () => { throw new Error('invalid reports must not be replaced by a new security run'); },
+    });
+    expect(state.state).toBe('blocked');
+    expect(state.stop_reason).toBe('final_security_artifact_invalid');
+    expect(state.final_security).toBeUndefined();
+    expect(fs.readFileSync(artifact, 'utf8')).toBe(artifactBytes);
+  });
+
+  test('rejects a forged PASS final-security report containing a HIGH finding without overwriting it', () => {
+    const root = fixture(phase(1, 'Forged Security Verdict'));
+    const waveRoot = seedCompletedWaveForResume(root, 'W-forged-security-test', ['src/evidence.mjs']);
+    const artifact = path.join(waveRoot, 'W-forged-security-test.security.json');
+    const artifactBytes = `${JSON.stringify({
+      schema_version: 1, run: 'W-forged-security-test', timing: 'after_product_phases', changed_paths: ['src/evidence.mjs'], verdict: 'PASS',
+      findings: [{ severity: 'HIGH', source: 'test', path: 'src/evidence.mjs', message: 'forged verdict' }], completed_at: new Date().toISOString(),
+    })}\n`;
+    fs.writeFileSync(artifact, artifactBytes);
+    const state = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-forged-security-test', requestedIds: [] }, {
+      invokeNext: () => { throw new Error('forged reports must not be replaced by a new security run'); },
+    });
+    expect(state.stop_reason).toBe('final_security_artifact_invalid');
+    expect(fs.readFileSync(artifact, 'utf8')).toBe(artifactBytes);
+  });
+
+  test('rejects a final-security report whose changed paths differ from authoritative evidence', () => {
+    const root = fixture(phase(1, 'Mismatched Security Evidence'));
+    const waveRoot = seedCompletedWaveForResume(root, 'W-mismatched-security-test', ['src/evidence.mjs']);
+    const artifact = path.join(waveRoot, 'W-mismatched-security-test.security.json');
+    const artifactBytes = `${JSON.stringify({
+      schema_version: 1, run: 'W-mismatched-security-test', timing: 'after_product_phases', changed_paths: ['src/forged.mjs'], verdict: 'PASS', findings: [], completed_at: new Date().toISOString(),
+    })}\n`;
+    fs.writeFileSync(artifact, artifactBytes);
+    const state = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-mismatched-security-test', requestedIds: [] }, {
+      invokeNext: () => { throw new Error('mismatched evidence must not be replaced by a new security run'); },
+    });
+    expect(state.stop_reason).toBe('final_security_artifact_invalid');
+    expect(fs.readFileSync(artifact, 'utf8')).toBe(artifactBytes);
+  });
+
+  test('does not reset a loop recovery cycle when the resumed profile permits another attempt', () => {
+    const root = fixture(phase(1, 'Resume Recovery'));
+    setRecoveryCap(root, 1);
+    const initialCalls = [];
+    const first = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-resume-recovery-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        initialCalls.push(nativePhase);
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'controller_passed' })}\n`);
+        return { status: 1, signal: null };
+      },
+    });
+    expect(first.stop_reason).toBe('recovery_cycle_cap_reached');
+    expect(initialCalls).toHaveLength(2);
+    setRecoveryCap(root, 2);
+    const resumedCalls = [];
+    const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-resume-recovery-test', requestedIds: [] }, {
+      invokeNext: completeNext(root, resumedCalls),
+    });
+    expect(resumed.state).toBe('completed');
+    expect(resumedCalls).toHaveLength(1);
+    expect(resumed.phases[0].attempts.map((attempt) => attempt.recovery_cycle)).toEqual([0, 1, 2]);
+    expect(resumed.phases[0].attempts[2]).toMatchObject({ recovery_strategy: 'fresh_replan_and_reverify' });
+  });
+
+  test('pins the selected provider across automatic recovery and resume after a profile change', () => {
+    const root = fixture(phase(1, 'Pinned Provider Recovery'));
+    setRecoveryCap(root, 1, 'codex');
+    const automaticProviders = [];
+    const first = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-pinned-provider-test' }, {
+      invokeNext: ({ phase: nativePhase, provider }) => {
+        automaticProviders.push(provider);
+        if (automaticProviders.length === 1) setRecoveryCap(root, 1, 'claude');
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'controller_passed' })}\n`);
+        return { status: 1, signal: null };
+      },
+    });
+    expect(first.stop_reason).toBe('recovery_cycle_cap_reached');
+    expect(first.provider_override).toBeNull();
+    expect(first.selected_provider).toBe('codex');
+    expect(automaticProviders).toEqual(['codex', 'codex']);
+    setRecoveryCap(root, 2, 'claude');
+    const resumedProviders = [];
+    const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-pinned-provider-test', requestedIds: [] }, {
+      invokeNext: ({ phase: nativePhase, provider }) => {
+        resumedProviders.push(provider);
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: 'completed', previous_state: 'post_review_mechanics_passed' })}\n`);
+        return { status: 0, signal: null };
+      },
+    });
+    expect(resumed.state).toBe('completed');
+    expect(resumed.selected_provider).toBe('codex');
+    expect(resumed.provider_override).toBeNull();
+    expect(resumedProviders).toEqual(['codex']);
+  });
+
+  test('marks a persisted running native attempt interrupted on resume without retrying it', () => {
+    const root = fixture(phase(1, 'Persisted Running Attempt'));
+    setRecoveryCap(root, 0);
+    const nativePhase = '1-persisted-running-attempt--w-running-attempt-test-a1';
+    const nextRoot = path.join(root, '.planning', 'riff-next');
+    const waveRoot = path.join(root, '.planning', 'riff-wave');
+    fs.mkdirSync(nextRoot, { recursive: true });
+    fs.mkdirSync(waveRoot, { recursive: true });
+    fs.writeFileSync(path.join(nextRoot, `${nativePhase}.json`), `${JSON.stringify({ state: 'controller_passed', previous_state: 'plan_validated' })}\n`);
+    const persisted = {
+      schema_version: 1, run: 'W-running-attempt-test', state: 'running', mode: 'loop', provider_override: null,
+      requested_phase_ids: [], max_phases: null, max_runs: null,
+      waves: [{ number: 1, phase_ids: ['1'], status: 'running' }],
+      phases: [{ id: '1', slug: 'persisted-running-attempt', title: 'Persisted Running Attempt', status: 'running', attempts: [{ attempt: 1, native_phase: nativePhase, recovery_cycle: 0, status: 'running' }] }],
+      current: { phase_id: '1', native_phase: nativePhase, attempt: 1 }, stop_reason: null,
+      started_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    fs.writeFileSync(path.join(waveRoot, 'W-running-attempt-test.json'), `${JSON.stringify(persisted)}\n`);
+    fs.writeFileSync(path.join(waveRoot, 'active.json'), `${JSON.stringify({ run: 'W-running-attempt-test' })}\n`);
+    const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-running-attempt-test', requestedIds: [] }, {
+      invokeNext: () => { throw new Error('persisted running attempts must not be retried'); },
+    });
+    const attempt = resumed.phases[0].attempts[0];
+    expect(resumed.state).toBe('blocked');
+    expect(resumed.stop_reason).toBe('interrupted_requires_human');
+    expect(resumed.phases[0].status).toBe('blocked');
+    expect(attempt).toMatchObject({ status: 'interrupted', native_phase: nativePhase });
+    expect(attempt.interrupted_at).toEqual(expect.any(String));
+    expect(resumed.current).toEqual({ phase_id: '1', native_phase: nativePhase, attempt: 1 });
+    const resumedAgain = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-running-attempt-test', requestedIds: [] }, {
+      invokeNext: () => { throw new Error('interrupted attempts must stay non-retryable'); },
+    });
+    expect(resumedAgain.waves).toHaveLength(1);
+  });
+
+  test('does not retry a signaled interruption when resuming', () => {
+    const root = fixture(phase(1, 'Signaled Interruption'));
+    const first = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-signaled-interruption-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: 'controller_passed', previous_state: 'plan_validated' })}\n`);
+        return { status: null, signal: 'SIGTERM' };
+      },
+    });
+    expect(first.stop_reason).toBe('interrupted_requires_human');
+    const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-signaled-interruption-test', requestedIds: [] }, {
+      invokeNext: () => { throw new Error('signaled interruptions must not be retried'); },
+    });
+    expect(resumed.state).toBe('blocked');
+    expect(resumed.stop_reason).toBe('interrupted_requires_human');
+    expect(resumed.phases[0].attempts).toHaveLength(1);
+    expect(resumed.phases[0].attempts[0].status).toBe('interrupted');
   });
 
   test('runs security once after product work and blocks only a reproducible high finding', () => {

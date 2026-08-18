@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
   atomicWrite,
@@ -16,10 +17,12 @@ import {
   updatePhaseStatus,
   validateRoadmap,
 } from './lib/roadmap-workflow.mjs';
+import { resolveRuntimeProfile } from './lib/runtime-provider.mjs';
 
 const scriptFrameworkRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RETRY_SAFE_STATES = new Set(['initialized', 'controller_passed', 'plan_validated', 'plan_reviewed', 'worker_dispatched', 'failed']);
 const POST_PROMOTION_STATES = new Set(['mechanics_passed', 'summary_validated', 'reviewer_dispatched', 'review_passed', 'post_review_mechanics_passed', 'completed']);
+const SECURITY_VERDICTS = new Set(['PASS', 'PASS_WITH_NOTES', 'FAIL']);
 
 function fail(message) { throw new Error(message); }
 
@@ -135,6 +138,7 @@ function makeState(projectRoot, options) {
     state: 'running',
     mode: options.loop ? 'loop' : 'wave',
     provider_override: options.provider || null,
+    selected_provider: null,
     requested_phase_ids: options.requestedIds,
     max_phases: options.maxPhases || null,
     max_runs: options.maxRuns || null,
@@ -145,6 +149,21 @@ function makeState(projectRoot, options) {
     started_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
+}
+
+function resolveWaveProfile(projectRoot, frameworkRoot, state) {
+  const provider = state.provider_override === null || state.provider_override === undefined ? undefined : state.provider_override;
+  const resolved = resolveRuntimeProfile({ projectRoot, frameworkRoot, provider });
+  if (state.selected_provider === null || state.selected_provider === undefined) {
+    state.selected_provider = resolved.provider;
+  } else if (!['codex', 'claude'].includes(state.selected_provider)) {
+    fail(`invalid selected provider in RIFF wave state: ${state.selected_provider}`);
+  }
+  const cap = resolved.profile.autonomy?.debug_cycle_cap === undefined ? 3 : resolved.profile.autonomy.debug_cycle_cap;
+  if (!Number.isInteger(cap) || cap < 0 || cap > 10) fail('autonomy.debug_cycle_cap must be a nonnegative integer no greater than 10');
+  state.recovery_cycle_cap = cap;
+  state.recovery_profile = resolved.profilePath;
+  return cap;
 }
 
 function invokeNativeNext({ frameworkRoot, projectRoot, phase, task, provider }) {
@@ -176,8 +195,191 @@ function authoritativeChangedPaths(projectRoot, state) {
   return [...paths].sort();
 }
 
-function runFinalSecurityGate(projectRoot, frameworkRoot, state) {
+function isRecord(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function finalSecurityArtifact(projectRoot, state) {
+  return path.join(stateRoot(projectRoot), `${state.run}.security.json`);
+}
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function isSha256(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+}
+
+function lstatKind(stat) {
+  if (stat.isSymbolicLink()) return 'symlink';
+  if (stat.isFile()) return 'regular';
+  if (stat.isDirectory()) return 'directory';
+  if (stat.isBlockDevice()) return 'block';
+  if (stat.isCharacterDevice()) return 'character';
+  if (stat.isFIFO()) return 'fifo';
+  if (stat.isSocket()) return 'socket';
+  return 'other';
+}
+
+function readRegularFileNoFollow(file) {
+  let descriptor;
+  try {
+    descriptor = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ELOOP') return null;
+    throw error;
+  }
+  try {
+    const stat = fs.fstatSync(descriptor);
+    if (!stat.isFile()) return null;
+    return { content: fs.readFileSync(descriptor), stat };
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function validateChangedPathAncestors(projectRoot, relative) {
+  const components = relative.split('/');
+  let current = projectRoot;
+  for (const component of components.slice(0, -1)) {
+    if (!component || component === '.' || component === '..') fail(`invalid final-security path: ${relative}`);
+    current = path.join(current, component);
+    let stat;
+    try { stat = fs.lstatSync(current); }
+    catch (error) {
+      if (error.code === 'ENOENT') return false;
+      fail(`cannot inspect final-security ancestor ${relative}: ${error.message}`);
+    }
+    if (stat.isSymbolicLink()) fail(`final-security ancestor is a symlink: ${relative}`);
+    if (!stat.isDirectory()) fail(`final-security ancestor is not a directory: ${relative}`);
+  }
+  return true;
+}
+
+function snapshotChangedPath(projectRoot, relative, retry = 0) {
+  const absolute = path.join(projectRoot, relative);
+  if (!validateChangedPathAncestors(projectRoot, relative)) return { path: relative, kind: 'missing', mode: null };
+  let stat;
+  try { stat = fs.lstatSync(absolute); }
+  catch (error) {
+    if (error.code === 'ENOENT') return { path: relative, kind: 'missing', mode: null };
+    fail(`cannot inspect final-security input ${relative}: ${error.message}`);
+  }
+  const kind = lstatKind(stat);
+  const entry = { path: relative, kind, mode: stat.mode & 0o7777 };
+  if (kind === 'symlink') {
+    try { return { ...entry, target: fs.readlinkSync(absolute) }; }
+    catch (error) { fail(`cannot inspect final-security symlink ${relative}: ${error.message}`); }
+  }
+  if (kind !== 'regular') return entry;
+  const opened = readRegularFileNoFollow(absolute);
+  if (opened !== null && (opened.stat.mode & 0o7777) === entry.mode) return { ...entry, content_sha256: sha256(opened.content) };
+  if (retry < 1) return snapshotChangedPath(projectRoot, relative, retry + 1);
+  fail(`final-security input changed while hashing: ${relative}`);
+}
+
+function finalSecurityInput(projectRoot, state) {
   const changedPaths = authoritativeChangedPaths(projectRoot, state);
+  const records = changedPaths.map((relative) => snapshotChangedPath(projectRoot, relative));
+  return { changedPaths, records, input_sha256: sha256(JSON.stringify(records)) };
+}
+
+function currentRecordedRegularFile(projectRoot, record) {
+  const absolute = path.join(projectRoot, record.path);
+  if (!validateChangedPathAncestors(projectRoot, record.path)) fail(`final-security input changed before scan: ${record.path}`);
+  let stat;
+  try { stat = fs.lstatSync(absolute); }
+  catch { fail(`final-security input changed before scan: ${record.path}`); }
+  if (lstatKind(stat) !== 'regular' || (stat.mode & 0o7777) !== record.mode) fail(`final-security input changed before scan: ${record.path}`);
+  const opened = readRegularFileNoFollow(absolute);
+  if (opened === null || (opened.stat.mode & 0o7777) !== record.mode || sha256(opened.content) !== record.content_sha256) fail(`final-security input changed before scan: ${record.path}`);
+  return opened.content;
+}
+
+function finalSecuritySummary(projectRoot, state, report, artifactSha256) {
+  const artifact = finalSecurityArtifact(projectRoot, state);
+  return {
+    verdict: report.verdict,
+    artifact: path.relative(projectRoot, artifact),
+    blocking_findings: report.findings.filter((finding) => finding.severity === 'HIGH').length,
+    input_sha256: report.input_sha256,
+    artifact_sha256: artifactSha256,
+  };
+}
+
+function sameStrings(left, right) {
+  return left.length === right.length && left.every((entry, index) => entry === right[index]);
+}
+
+function validFinalSecurityReport(projectRoot, report, state) {
+  if (!isRecord(report) || report.schema_version !== 1 || report.run !== state.run || report.timing !== 'after_product_phases' || !SECURITY_VERDICTS.has(report.verdict) || !isSha256(report.input_sha256) || typeof report.final_security_nonce !== 'string' || !report.final_security_nonce) return false;
+  if (!Array.isArray(report.changed_paths) || !report.changed_paths.every((entry) => typeof entry === 'string')) return false;
+  if (!Array.isArray(report.findings) || !report.findings.every((finding) => isRecord(finding)
+    && ['severity', 'source', 'path', 'message'].every((field) => typeof finding[field] === 'string')
+    && ['HIGH', 'NOTE'].includes(finding.severity)
+    && report.changed_paths.includes(finding.path))) return false;
+  if (!sameStrings(report.changed_paths, authoritativeChangedPaths(projectRoot, state))) return false;
+  const expectedVerdict = report.findings.some((finding) => finding.severity === 'HIGH') ? 'FAIL' : report.findings.length ? 'PASS_WITH_NOTES' : 'PASS';
+  if (report.verdict !== expectedVerdict) return false;
+  return typeof report.completed_at === 'string' && report.completed_at.length > 0;
+}
+
+function validFinalSecurityAttempt(attempt) {
+  return isRecord(attempt)
+    && ['running', 'completed'].includes(attempt.status)
+    && typeof attempt.started_at === 'string' && attempt.started_at.length > 0
+    && isSha256(attempt.input_sha256)
+    && typeof attempt.nonce === 'string' && attempt.nonce.length > 0;
+}
+
+function finalSecurityArtifactExists(projectRoot, state) {
+  try {
+    fs.lstatSync(finalSecurityArtifact(projectRoot, state));
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    fail(`cannot inspect RIFF final security artifact: ${error.message}`);
+  }
+}
+
+function existingFinalSecurity(projectRoot, state) {
+  const artifact = finalSecurityArtifact(projectRoot, state);
+  const attempt = state.final_security_attempt;
+  let stat;
+  try { stat = fs.lstatSync(artifact); }
+  catch (error) {
+    if (error.code === 'ENOENT') return attempt === undefined && state.final_security === undefined ? { status: 'missing' } : { status: 'invalid' };
+    return { status: 'invalid' };
+  }
+  if (!stat.isFile() || stat.isSymbolicLink()) return { status: 'invalid' };
+  let artifactBytes;
+  let report;
+  try {
+    artifactBytes = fs.readFileSync(artifact);
+    report = JSON.parse(artifactBytes.toString('utf8'));
+  }
+  catch { return { status: 'invalid' }; }
+  if (!validFinalSecurityAttempt(attempt)) return { status: 'invalid' };
+  const input = finalSecurityInput(projectRoot, state);
+  if (attempt.input_sha256 !== input.input_sha256) return { status: 'invalid' };
+  if (!validFinalSecurityReport(projectRoot, report, state)) return { status: 'invalid' };
+  if (report.input_sha256 !== attempt.input_sha256 || report.final_security_nonce !== attempt.nonce) return { status: 'invalid' };
+  const artifactSha256 = sha256(artifactBytes);
+  if (attempt.status === 'completed' && attempt.artifact_sha256 !== artifactSha256) return { status: 'invalid' };
+  if (attempt.status === 'running' && attempt.artifact_sha256 !== undefined && attempt.artifact_sha256 !== artifactSha256) return { status: 'invalid' };
+  const summary = finalSecuritySummary(projectRoot, state, report, artifactSha256);
+  if (state.final_security !== undefined && (!isRecord(state.final_security)
+    || state.final_security.verdict !== summary.verdict
+    || state.final_security.artifact !== summary.artifact
+    || state.final_security.blocking_findings !== summary.blocking_findings
+    || state.final_security.input_sha256 !== summary.input_sha256
+    || state.final_security.artifact_sha256 !== summary.artifact_sha256)) return { status: 'invalid' };
+  return { status: 'present', report, summary, artifactSha256 };
+}
+
+function runFinalSecurityGate(projectRoot, frameworkRoot, state, input) {
+  const changedPaths = input.changedPaths;
   const findings = [];
   const secretPatterns = [
     ['AWS access key', /AKIA[0-9A-Z]{16}/],
@@ -190,10 +392,11 @@ function runFinalSecurityGate(projectRoot, frameworkRoot, state) {
   const hookEnv = { ...process.env };
   delete hookEnv.RIFF_SCRATCH_MODE;
   delete hookEnv.RIFF_WAVE_ID;
-  for (const relative of changedPaths) {
+  for (const record of input.records) {
+    if (record.kind !== 'regular') continue;
+    const relative = record.path;
     const absolute = path.join(projectRoot, relative);
-    if (!absolute.startsWith(`${projectRoot}${path.sep}`) || !fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) continue;
-    const content = fs.readFileSync(absolute, 'utf8');
+    const content = currentRecordedRegularFile(projectRoot, record).toString('utf8');
     if (!/(?:test|spec|fixture|mock|__tests__)|\.(?:png|jpe?g|gif|ico|woff2?|ttf|eot|lock)$/i.test(relative)) {
       for (const [label, pattern] of secretPatterns) {
         if (pattern.test(content)) findings.push({ severity: 'HIGH', source: 'secret-scan', path: relative, message: label });
@@ -220,24 +423,51 @@ function runFinalSecurityGate(projectRoot, frameworkRoot, state) {
       }
     }
   }
+  if (finalSecurityInput(projectRoot, state).input_sha256 !== input.input_sha256) fail('final-security input changed during scan');
   const blocking = findings.filter((finding) => finding.severity === 'HIGH');
   const report = {
     schema_version: 1,
     run: state.run,
     timing: 'after_product_phases',
     changed_paths: changedPaths,
+    input_sha256: input.input_sha256,
+    final_security_nonce: input.nonce,
     verdict: blocking.length ? 'FAIL' : findings.length ? 'PASS_WITH_NOTES' : 'PASS',
     findings,
     completed_at: new Date().toISOString(),
   };
-  const artifact = path.join(stateRoot(projectRoot), `${state.run}.security.json`);
-  atomicWrite(artifact, `${JSON.stringify(report, null, 2)}\n`);
-  state.final_security = { verdict: report.verdict, artifact: path.relative(projectRoot, artifact), blocking_findings: blocking.length };
-  return report;
+  const artifact = finalSecurityArtifact(projectRoot, state);
+  const bytes = `${JSON.stringify(report, null, 2)}\n`;
+  atomicWrite(artifact, bytes);
+  return { report, artifact_sha256: sha256(bytes) };
 }
 
-function completeAfterSecurity(projectRoot, frameworkRoot, state, stopReason) {
-  const security = runFinalSecurityGate(projectRoot, frameworkRoot, state);
+function completeAfterSecurity(projectRoot, frameworkRoot, state, stopReason, beforeFinalSecurityScan) {
+  const existing = existingFinalSecurity(projectRoot, state);
+  if (existing.status === 'invalid') {
+    state.state = 'blocked';
+    state.stop_reason = 'final_security_artifact_invalid';
+    writeState(projectRoot, state);
+    return state;
+  }
+  let security;
+  if (existing.status === 'present') {
+    security = existing.report;
+    state.final_security = existing.summary;
+    if (state.final_security_attempt.status === 'running') {
+      state.final_security_attempt = { ...state.final_security_attempt, status: 'completed', completed_at: new Date().toISOString(), artifact_sha256: existing.artifactSha256 };
+    }
+  } else {
+    const input = finalSecurityInput(projectRoot, state);
+    const attempt = { status: 'running', started_at: new Date().toISOString(), input_sha256: input.input_sha256, nonce: randomBytes(16).toString('hex') };
+    state.final_security_attempt = attempt;
+    writeState(projectRoot, state);
+    beforeFinalSecurityScan?.({ projectRoot, state, input });
+    const generated = runFinalSecurityGate(projectRoot, frameworkRoot, state, { ...input, nonce: attempt.nonce });
+    security = generated.report;
+    state.final_security_attempt = { ...attempt, status: 'completed', completed_at: new Date().toISOString(), artifact_sha256: generated.artifact_sha256 };
+    state.final_security = finalSecuritySummary(projectRoot, state, generated.report, generated.artifact_sha256);
+  }
   if (security.verdict === 'FAIL') {
     state.state = 'blocked';
     state.stop_reason = 'final_security_findings';
@@ -250,15 +480,21 @@ function completeAfterSecurity(projectRoot, frameworkRoot, state, stopReason) {
   return state;
 }
 
-function stopAfterSecurity(projectRoot, frameworkRoot, state, stopReason, stateWhenClear = 'blocked') {
-  const security = runFinalSecurityGate(projectRoot, frameworkRoot, state);
-  state.state = security.verdict === 'FAIL' ? 'blocked' : stateWhenClear;
-  state.stop_reason = security.verdict === 'FAIL' ? 'final_security_findings' : stopReason;
+function stopWithoutSecurity(projectRoot, state, stopReason, stateWhenClear = 'blocked') {
+  state.state = stateWhenClear;
+  state.stop_reason = stopReason;
   writeState(projectRoot, state);
   return state;
 }
 
-function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume }) {
+function latestRecoveryCycle(record) {
+  return record.attempts.reduce((latest, attempt, index) => {
+    const cycle = Number.isSafeInteger(attempt.recovery_cycle) && attempt.recovery_cycle >= 0 ? attempt.recovery_cycle : index;
+    return Math.max(latest, cycle);
+  }, -1);
+}
+
+function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume, recoveryCycle, recoveryStrategy }) {
   const record = phaseRecord(state, phase);
   const previous = record.attempts.at(-1);
   if (previous && previous.status !== 'completed') {
@@ -272,19 +508,36 @@ function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invok
       writeState(projectRoot, state);
       return { completed: true, reconciled: true };
     }
+    if (isResume && previous.status === 'running') {
+      previous.status = 'interrupted';
+      previous.interrupted_at = new Date().toISOString();
+      record.status = 'blocked';
+      state.current = { phase_id: phase.id, native_phase: previous.native_phase, attempt: previous.attempt };
+      writeState(projectRoot, state);
+      return { completed: false, reason: 'interrupted_requires_human', safeToResume: false };
+    }
+    if (previous.status === 'interrupted') return { completed: false, reason: 'interrupted_requires_human', safeToResume: false };
     if (!isResume) return { completed: false, reason: 'phase_failed', safeToResume: safeToRetry(native) };
     if (!safeToRetry(native)) return { completed: false, reason: 'post_promotion_interruption_requires_human', safeToResume: false };
   }
 
   const attemptNumber = record.attempts.length + 1;
   const nativePhase = `${phaseKey(phase)}--${state.run.toLowerCase()}-a${attemptNumber}`;
-  const attempt = { attempt: attemptNumber, native_phase: nativePhase, status: 'running', started_at: new Date().toISOString() };
+  const cycle = recoveryCycle === undefined ? latestRecoveryCycle(record) + 1 : recoveryCycle;
+  const attempt = {
+    attempt: attemptNumber,
+    native_phase: nativePhase,
+    recovery_cycle: cycle,
+    ...(cycle > 0 && recoveryStrategy ? { recovery_strategy: recoveryStrategy } : {}),
+    status: 'running',
+    started_at: new Date().toISOString(),
+  };
   record.status = 'running';
   record.attempts.push(attempt);
   state.current = { phase_id: phase.id, native_phase: nativePhase, attempt: attemptNumber };
   updatePhaseStatus(roadmap, phase.id, 'in-progress');
   writeState(projectRoot, state);
-  const result = invokeNext({ frameworkRoot, projectRoot, phase: nativePhase, task: phaseTask(phase), provider: state.provider_override });
+  const result = invokeNext({ frameworkRoot, projectRoot, phase: nativePhase, task: phaseTask(phase), provider: state.selected_provider });
   const native = nativeState(projectRoot, nativePhase);
   if (result?.status === 0 && native?.state === 'completed') {
     attempt.status = 'completed';
@@ -300,11 +553,35 @@ function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invok
   attempt.signal = result?.signal || null;
   attempt.native_state = native?.state || null;
   record.status = 'blocked';
-  const retryable = safeToRetry(native);
+  const retryable = !result?.signal && safeToRetry(native);
   if (!retryable) updatePhaseStatus(roadmap, phase.id, 'blocked');
   state.current = { phase_id: phase.id, native_phase: nativePhase, attempt: attemptNumber };
   writeState(projectRoot, state);
-  return { completed: false, reason: retryable ? 'phase_failed_safe_to_resume' : 'post_promotion_failure_requires_human', safeToResume: retryable };
+  return {
+    completed: false,
+    reason: retryable ? 'phase_failed_safe_to_resume' : result?.signal ? 'interrupted_requires_human' : 'post_promotion_failure_requires_human',
+    safeToResume: retryable,
+  };
+}
+
+function recoverFailedPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, result, cap }) {
+  while (!result.completed && result.safeToResume && state.mode === 'loop') {
+    const record = phaseRecord(state, phase);
+    const cycle = latestRecoveryCycle(record);
+    if (cycle >= cap) return { ...result, reason: 'recovery_cycle_cap_reached' };
+    result = attemptPhase({
+      projectRoot,
+      frameworkRoot,
+      roadmap,
+      state,
+      phase,
+      invokeNext,
+      isResume: true,
+      recoveryCycle: cycle + 1,
+      recoveryStrategy: 'fresh_replan_and_reverify',
+    });
+  }
+  return result;
 }
 
 function printStatus(state) {
@@ -319,13 +596,16 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
   const projectRoot = resolveProjectRoot(options.projectRoot);
   const frameworkRoot = resolveFrameworkRoot(projectRoot);
   const invokeNext = dependencies.invokeNext || invokeNativeNext;
+  const beforeFinalSecurityScan = dependencies.beforeFinalSecurityScan;
   let state = options.resume ? latestState(projectRoot, options.runId) : makeState(projectRoot, options);
   if (options.resume && state.state === 'completed') fail(`RIFF wave ${state.run} is already completed`);
-  if (options.resume && options.provider && options.provider !== state.provider_override) fail('provider override cannot change while resuming a wave');
   const release = acquireLease(projectRoot, state.run);
   try {
+    if (!options.resume && finalSecurityArtifactExists(projectRoot, state)) fail(`RIFF wave run already has a final security artifact: ${state.run}`);
     const roadmap = loadRoadmap(projectRoot);
     validateRoadmap(projectRoot, frameworkRoot);
+    const cap = resolveWaveProfile(projectRoot, frameworkRoot, state);
+    if (options.resume && options.provider && options.provider !== state.selected_provider) fail('selected provider cannot change while resuming a wave');
     for (const id of state.requested_phase_ids) if (!roadmap.phases.some((phase) => phase.id === id)) fail(`requested phase is missing from ROADMAP.yaml: ${id}`);
     state.state = 'running';
     state.stop_reason = null;
@@ -345,10 +625,13 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
       const native = record?.attempts?.length ? nativeState(projectRoot, record.attempts.at(-1).native_phase) : null;
       if (phase && native?.state === 'completed') {
         const reconciled = attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: true });
-        if (!reconciled.completed) return stopAfterSecurity(projectRoot, frameworkRoot, state, reconciled.reason);
+        if (!reconciled.completed) return stopWithoutSecurity(projectRoot, state, reconciled.reason);
         completedThisRun.add(phase.id);
         phasesCompletedThisInvocation += 1;
         resumeCurrent = null;
+      } else if (phase && ['running', 'interrupted'].includes(record?.attempts?.at(-1)?.status)) {
+        const interrupted = attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: true });
+        return stopWithoutSecurity(projectRoot, state, interrupted.reason);
       } else {
         writeState(projectRoot, state);
       }
@@ -357,13 +640,13 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
     while (true) {
       const remaining = remainingPhases(roadmap, state.requested_phase_ids);
       if (!remaining.length) {
-        return completeAfterSecurity(projectRoot, frameworkRoot, state, state.mode === 'loop' ? 'roadmap_dry' : 'requested_wave_complete');
+        return completeAfterSecurity(projectRoot, frameworkRoot, state, state.mode === 'loop' ? 'roadmap_dry' : 'requested_wave_complete', beforeFinalSecurityScan);
       }
       if (state.max_phases && phasesCompletedThisInvocation >= state.max_phases) {
-        return stopAfterSecurity(projectRoot, frameworkRoot, state, 'max_phases_reached', 'paused');
+        return stopWithoutSecurity(projectRoot, state, 'max_phases_reached', 'paused');
       }
       if (state.max_runs && waveCountThisInvocation >= state.max_runs) {
-        return stopAfterSecurity(projectRoot, frameworkRoot, state, 'max_runs_reached', 'paused');
+        return stopWithoutSecurity(projectRoot, state, 'max_runs_reached', 'paused');
       }
 
       let ready = selectReadyPhases(roadmap, { requestedIds: state.requested_phase_ids, completedThisRun });
@@ -374,7 +657,7 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
       if (!ready.length) {
         const confirmation = remaining.filter(requiresConfirmation);
         const reason = confirmation.length ? `confirmation_required:${confirmation.map((phase) => phase.id).join(',')}` : 'no_work_ready';
-        return stopAfterSecurity(projectRoot, frameworkRoot, state, reason);
+        return stopWithoutSecurity(projectRoot, state, reason);
       }
 
       const waveNumber = state.waves.length + 1;
@@ -387,12 +670,34 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
         if (state.max_phases && phasesCompletedThisInvocation >= state.max_phases) break;
         wave.phase_ids.push(phase.id);
         writeState(projectRoot, state);
-        const result = attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: Boolean(resumeCurrent && phase.id === resumeCurrent) });
+        const isResume = Boolean(resumeCurrent && phase.id === resumeCurrent);
+        const record = phaseRecord(state, phase);
+        const previous = record.attempts.at(-1);
+        const previousNative = previous ? nativeState(projectRoot, previous.native_phase) : null;
+        let result;
+        if (isResume && state.mode === 'loop' && previous?.status === 'failed' && safeToRetry(previousNative) && latestRecoveryCycle(record) >= cap) {
+          result = { completed: false, reason: 'recovery_cycle_cap_reached', safeToResume: true };
+        } else {
+          result = attemptPhase({
+            projectRoot,
+            frameworkRoot,
+            roadmap,
+            state,
+            phase,
+            invokeNext,
+            isResume,
+            ...(isResume && state.mode === 'loop' ? {
+              recoveryCycle: latestRecoveryCycle(record) + 1,
+              recoveryStrategy: 'fresh_replan_and_reverify',
+            } : {}),
+          });
+          result = recoverFailedPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, result, cap });
+        }
         resumeCurrent = null;
         if (!result.completed) {
           wave.status = 'blocked';
           wave.completed_at = new Date().toISOString();
-          return stopAfterSecurity(projectRoot, frameworkRoot, state, result.reason);
+          return stopWithoutSecurity(projectRoot, state, result.reason);
         }
         completedThisRun.add(phase.id);
         phasesCompletedThisInvocation += 1;
@@ -401,7 +706,7 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
       wave.completed_at = new Date().toISOString();
       writeState(projectRoot, state);
       if (state.mode !== 'loop' && state.requested_phase_ids.length === 0) {
-        return completeAfterSecurity(projectRoot, frameworkRoot, state, 'requested_wave_complete');
+        return completeAfterSecurity(projectRoot, frameworkRoot, state, 'requested_wave_complete', beforeFinalSecurityScan);
       }
     }
   } finally {
