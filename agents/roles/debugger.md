@@ -9,6 +9,8 @@ Diagnose a failure and return a bounded fix assignment for the worker.
 Accept `normal`, `high`, or `max` intensity as a depth hint for the same procedure.
 `max` means intermittent, unreproducible, race-related, or repeatedly unresolved failures need stronger evidence discrimination.
 
+The autonomous-wave recovery route always uses `high` intensity.
+
 ## Required inputs
 
 - The failure type and complete failure artifact.
@@ -35,8 +37,26 @@ Accept `normal`, `high`, or `max` intensity as a depth hint for the same procedu
 
 ## Output contract
 
-Return `DEBUG.md` content with failure classification, hypotheses, evidence, root cause, affected paths, fix assignment, validation, and unresolved risk.
-The fix assignment must identify allowed paths and falsifiable acceptance checks.
+Return Markdown with exactly these level-2 sections, in this exact order, and no
+other level-2 sections:
+
+1. `## Status`, whose body is exactly `DIAGNOSED` or `UNRESOLVED`.
+2. `## Identity`, containing exactly one raw JSON object:
+   `{"intensity":"high","phase":"<phase id>","run":"<wave run id>"}`.
+3. `## Failure Classification`.
+4. `## Hypotheses`.
+5. `## Evidence`.
+6. `## Root Cause`.
+7. `## Fix Assignment`, containing exactly one raw JSON object and no prose:
+   `{"allowed_paths":["project-relative/path"],"acceptance_criteria":["falsifiable criterion"],"checks":["focused check"]}`.
+8. `## Validation`.
+9. `## Unresolved Risk`.
+
+Every `allowed_paths` entry must be a nonempty safe project-relative path. All
+three arrays in the fix assignment must be nonempty. Never emit an absolute
+path, a traversal path, or a runner-owned `.planning` or `.git` path. For an
+`UNRESOLVED` result, still return a bounded nonempty assignment as diagnostic
+recommendation; the wave runner won't execute it.
 
 ## Stop conditions
 

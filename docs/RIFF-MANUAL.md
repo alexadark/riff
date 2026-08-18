@@ -64,6 +64,8 @@ Claude. Terminal equivalents for deterministic operations are:
 `riff phase` validates the entire roadmap and rolls back an invalid edit. It
 never renumbers phases. `riff status` treats `ROADMAP.yaml` and persisted runner
 state as authoritative rather than relying on conversation history.
+`start` and `map` are intentionally interactive skills, not missing terminal
+commands; use the project skill in Codex or its Claude command adapter.
 
 ## Invoke a stage
 
@@ -125,6 +127,12 @@ attempt, and resume state under `.planning/riff-wave/`. An interrupted phase is
 reconciled when it completed before the interruption. A failed attempt is
 replayed with a distinct native phase identifier only when it stopped before
 product promotion. Post-promotion failures remain blocked for inspection.
+For a safe pre-promotion failure in `--loop`, RIFF makes ordinary fresh retries
+up to `autonomy.debug_cycle_cap`. Once that cap is reached, it dispatches one
+fresh read-only debugger diagnosis. A valid `DIAGNOSED` report permits exactly
+one debugger-guided native attempt. An unresolved, invalid, interrupted,
+post-promotion, or failed guided recovery stays blocked and is never retried by
+another debugger dispatch.
 
 Ordinary and security-sensitive implementation doesn't pause the loop.
 Security hooks run once after product phases. Explicit visual or functional

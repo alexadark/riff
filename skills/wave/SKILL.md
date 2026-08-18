@@ -48,5 +48,10 @@ Every phase attempt has a distinct native stage identifier. `--resume` safely
 reconciles an attempt that completed before interruption and creates a new
 attempt only when the previous one stopped before product promotion. A failure
 after promotion is left blocked for human inspection instead of being replayed.
+After the configured ordinary retry cap is exhausted for a safe pre-promotion
+failure in a loop, RIFF runs one fresh read-only debugger diagnosis and, only
+when it returns a valid bounded assignment, makes one debugger-guided native
+attempt. An unresolved, invalid, interrupted, post-promotion, or failed guided
+recovery stops the wave without another debugger dispatch.
 
 The wave engine never commits, merges, deploys, or promotes implicitly.

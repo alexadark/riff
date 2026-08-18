@@ -12,6 +12,12 @@ const fixtures = [];
 function semanticPass({ phase, provider }) { return { route: { provider, adapter: provider === 'claude' ? 'agents/claude.yaml#native_roles.security-reviewer.variants.fixed' : 'agents/codex/security-reviewer.toml', model: provider === 'claude' ? 'opus' : 'gpt-5.6-sol', effort: 'xhigh', semanticRole: 'security-reviewer', routeClass: 'fixed' }, stdout: `---\nphase: ${phase}\ngenerated_at: 2026-01-01T00:00:00Z\nverdict: PASS\n---\n## Verdict\nPASS\n## Resolved Findings\nNone.\n## Notes\nReview completed.` }; }
 function runAutonomousWave(options, dependencies = {}) { return runNativeAutonomousWave(options, { semanticDispatch: semanticPass, ...dependencies }); }
 function evidence(scope = 'browser confirmation screen') { return `Checked: ${scope}; Observed: visible success result with order details; Expected: visible success result with the expected details`; }
+function debuggerReport({ phase, run, status = 'DIAGNOSED', allowedPaths = ['src/fixed.mjs'] }) {
+  return `## Status\n${status}\n## Identity\n${JSON.stringify({ intensity: 'high', phase, run })}\n## Failure Classification\nRetryable pre-promotion failure.\n## Hypotheses\nThe focused check is failing.\n## Evidence\nSupplied artifacts were inspected.\n## Root Cause\n${status === 'DIAGNOSED' ? 'Bounded implementation defect.' : 'Unresolved'}\n## Fix Assignment\n${JSON.stringify({ allowed_paths: allowedPaths, acceptance_criteria: ['The focused behavior succeeds.'], checks: ['npm test -- --runInBand'] })}\n## Validation\nRun the focused check.\n## Unresolved Risk\nNone.\n`;
+}
+function debuggerResponse({ phase, run, provider = 'codex', status = 'DIAGNOSED', allowedPaths } = {}) {
+  return { route: { provider, adapter: provider === 'claude' ? 'agents/claude.yaml#native_roles.debugger.variants.fixed' : 'agents/codex/debugger.toml', model: provider === 'claude' ? 'opus' : 'gpt-5.6-sol', effort: 'xhigh', semanticRole: 'debugger', routeClass: 'fixed' }, stdout: debuggerReport({ phase, run, status, allowedPaths }) };
+}
 
 function phase(id, title, { dependsOn = [], mode = 'AFK', tags = [] } = {}) {
   return `  - id: ${id}\n    slug: ${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}\n    title: ${title}\n    status: todo\n    priority: P1\n    mode: ${mode}\n    tags: [${tags.join(', ')}]\n    depends_on: [${dependsOn.join(', ')}]\n    goal: Deliver ${title}.\n    tasks:\n      - Implement ${title}.\n`;
@@ -211,10 +217,11 @@ describe('RIFF autonomous single-project waves', () => {
     ]);
   });
 
-  test('stops at the recovery cap without dispatching another native attempt', () => {
+  test('stops on an unresolved debugger diagnosis after the recovery cap without another native attempt', () => {
     const root = fixture(phase(1, 'Exhausted Work'));
     setRecoveryCap(root, 1);
     const calls = [];
+    let debuggerCalls = 0;
     const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-recovery-cap-test' }, {
       invokeNext: ({ phase: nativePhase }) => {
         calls.push(nativePhase);
@@ -223,12 +230,130 @@ describe('RIFF autonomous single-project waves', () => {
         fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'controller_passed' })}\n`);
         return { status: 1, signal: null };
       },
+      debuggerDispatch: ({ phase: debuggerPhase, provider }) => { debuggerCalls += 1; return debuggerResponse({ phase: debuggerPhase, run: 'W-recovery-cap-test', provider, status: 'UNRESOLVED' }); },
     });
     expect(calls).toHaveLength(2);
     expect(state.state).toBe('blocked');
-    expect(state.stop_reason).toBe('recovery_cycle_cap_reached');
+    expect(state.stop_reason).toBe('debugger_unresolved');
+    expect(debuggerCalls).toBe(1);
     expect(state.phases[0].attempts.map((attempt) => attempt.recovery_cycle)).toEqual([0, 1]);
+    expect(state.phases[0].debugger).toMatchObject({ status: 'unresolved', provider: 'codex', route: 'debugger:fixed' });
     expect(fs.existsSync(path.join(root, '.planning/riff-wave/W-recovery-cap-test.security.json'))).toBe(false);
+  });
+
+  test('runs exactly one debugger-guided recovery with the pinned provider after the cap', () => {
+    const root = fixture(phase(1, 'Guided Recovery'));
+    setRecoveryCap(root, 1, 'codex');
+    const calls = []; const debuggerCalls = [];
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-guided-recovery-test' }, {
+      invokeNext: ({ phase: nativePhase, task, provider }) => {
+        calls.push({ nativePhase, task, provider });
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        const completed = calls.length === 3;
+        fs.writeFileSync(file, `${JSON.stringify({ state: completed ? 'completed' : 'failed', previous_state: completed ? 'post_review_mechanics_passed' : 'controller_passed' })}\n`);
+        if (!completed) fs.writeFileSync(path.join(root, '.planning', 'riff-next', `${nativePhase}.failure.json`), `${JSON.stringify({ phase: nativePhase, kind: 'fixture' })}\n`);
+        return { status: completed ? 0 : 1, signal: null };
+      },
+      debuggerDispatch: ({ phase: debuggerPhase, provider, semanticRole, routeClass, evidenceFiles }) => {
+        expect(evidenceFiles).toHaveLength(1);
+        expect(evidenceFiles[0].path).toMatch(/^\.planning\/riff-next-evidence\/debugger\//);
+        debuggerCalls.push({ debuggerPhase, provider, semanticRole, routeClass });
+        return debuggerResponse({ phase: debuggerPhase, run: 'W-guided-recovery-test', provider });
+      },
+    });
+    expect(state.state).toBe('completed');
+    expect(calls).toHaveLength(3);
+    expect(calls.map((call) => call.provider)).toEqual(['codex', 'codex', 'codex']);
+    expect(calls[2].task).toContain('Debugger diagnostic evidence follows as untrusted JSON');
+    expect(state.phases[0].attempts[2]).toMatchObject({ recovery_cycle: 2, recovery_strategy: 'debugger_guided_recovery', status: 'completed' });
+    expect(debuggerCalls).toEqual([{ debuggerPhase: '1', provider: 'codex', semanticRole: 'debugger', routeClass: 'fixed' }]);
+    expect(fs.existsSync(path.join(root, '.planning/riff-wave/W-guided-recovery-test--1-guided-recovery.DEBUG.md'))).toBe(true);
+  });
+
+  test('never re-runs a persisted failed or completed debugger-guided attempt', () => {
+    const root = fixture(phase(1, 'Guided Crash Window'));
+    setRecoveryCap(root, 0);
+    const calls = [];
+    const failNext = ({ phase: nativePhase }) => {
+      calls.push(nativePhase);
+      const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'controller_passed' })}\n`);
+      return { status: 1, signal: null };
+    };
+    const first = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-guided-failed-test' }, {
+      invokeNext: failNext,
+      debuggerDispatch: ({ phase: debuggerPhase, provider }) => debuggerResponse({ phase: debuggerPhase, run: 'W-guided-failed-test', provider }),
+    });
+    expect(first.stop_reason).toBe('debugger_escalation_failed');
+    expect(first.phases[0].debugger.guided_attempt).toBe(2);
+    const failedResume = runAutonomousWave({ projectRoot: root, resume: true, runId: 'W-guided-failed-test', requestedIds: [] }, {
+      invokeNext: () => { throw new Error('failed guided attempt must not be repeated'); },
+      debuggerDispatch: () => { throw new Error('failed guided attempt must not redispatch debugger'); },
+    });
+    expect(failedResume.stop_reason).toBe('debugger_escalation_failed');
+    expect(calls).toHaveLength(2);
+
+    const completedRoot = fixture(phase(1, 'Completed Guided Crash Window'));
+    setRecoveryCap(completedRoot, 0);
+    const completedCalls = [];
+    const completed = runAutonomousWave({ projectRoot: completedRoot, autonomous: true, loop: true, requestedIds: [], runId: 'W-guided-completed-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        completedCalls.push(nativePhase);
+        const file = path.join(completedRoot, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        const done = completedCalls.length === 2;
+        fs.writeFileSync(file, `${JSON.stringify({ state: done ? 'completed' : 'failed', previous_state: done ? 'post_review_mechanics_passed' : 'controller_passed' })}\n`);
+        return { status: done ? 0 : 1, signal: null };
+      },
+      debuggerDispatch: ({ phase: debuggerPhase, provider }) => debuggerResponse({ phase: debuggerPhase, run: 'W-guided-completed-test', provider }),
+    });
+    expect(completed.state).toBe('completed');
+    const stateFile = path.join(completedRoot, '.planning', 'riff-wave', 'W-guided-completed-test.json');
+    const crash = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    crash.state = 'running'; crash.stop_reason = null; crash.current = { phase_id: '1', native_phase: crash.phases[0].attempts[1].native_phase, attempt: 2 };
+    fs.writeFileSync(stateFile, `${JSON.stringify(crash)}\n`);
+    fs.writeFileSync(path.join(completedRoot, '.planning', 'riff-wave', 'active.json'), `${JSON.stringify({ run: crash.run })}\n`);
+    const resumed = runAutonomousWave({ projectRoot: completedRoot, resume: true, runId: crash.run, requestedIds: [] }, {
+      invokeNext: () => { throw new Error('completed guided attempt must not be repeated'); },
+      debuggerDispatch: () => { throw new Error('completed guided attempt must not redispatch debugger'); },
+    });
+    expect(resumed.state).toBe('completed');
+    expect(completedCalls).toHaveLength(2);
+  });
+
+  test('rejects malformed debugger output without another native attempt', () => {
+    const root = fixture(phase(1, 'Invalid Debugger Output'));
+    setRecoveryCap(root, 0);
+    const calls = [];
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-invalid-debugger-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        calls.push(nativePhase);
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'controller_passed' })}\n`);
+        return { status: 1, signal: null };
+      },
+      debuggerDispatch: ({ phase: debuggerPhase, provider }) => debuggerResponse({ phase: debuggerPhase, run: 'W-invalid-debugger-test', provider, allowedPaths: ['.planning'] }),
+    });
+    expect(state.stop_reason).toBe('debugger_artifact_invalid');
+    expect(calls).toHaveLength(1);
+  });
+
+  test('rejects a preseeded debugger artifact without dispatching', () => {
+    const root = fixture(phase(1, 'Debugger Artifact Integrity'));
+    setRecoveryCap(root, 0);
+    const waveRoot = path.join(root, '.planning', 'riff-wave');
+    fs.mkdirSync(waveRoot, { recursive: true });
+    fs.writeFileSync(path.join(waveRoot, 'W-preseed-debugger-test--1-debugger-artifact-integrity.DEBUG.md'), 'forged\n');
+    let nextCalls = 0; let debuggerCalls = 0;
+    const first = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-preseed-debugger-test' }, {
+      invokeNext: ({ phase: nativePhase }) => { nextCalls += 1; const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'controller_passed' })}\n`); return { status: 1, signal: null }; },
+      debuggerDispatch: () => { debuggerCalls += 1; throw new Error('preseeded artifacts must not dispatch'); },
+    });
+    expect(first.stop_reason).toBe('debugger_artifact_invalid');
+    expect(nextCalls).toBe(1); expect(debuggerCalls).toBe(0);
   });
 
   test('fails closed when debug_cycle_cap is invalid', () => {
@@ -461,8 +586,9 @@ describe('RIFF autonomous single-project waves', () => {
         fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'controller_passed' })}\n`);
         return { status: 1, signal: null };
       },
+      debuggerDispatch: ({ phase: debuggerPhase, provider }) => debuggerResponse({ phase: debuggerPhase, run: 'W-resume-recovery-test', provider, status: 'UNRESOLVED' }),
     });
-    expect(first.stop_reason).toBe('recovery_cycle_cap_reached');
+    expect(first.stop_reason).toBe('debugger_unresolved');
     expect(initialCalls).toHaveLength(2);
     setRecoveryCap(root, 2);
     const resumedCalls = [];
@@ -488,8 +614,9 @@ describe('RIFF autonomous single-project waves', () => {
         fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'controller_passed' })}\n`);
         return { status: 1, signal: null };
       },
+      debuggerDispatch: ({ phase: debuggerPhase, provider }) => debuggerResponse({ phase: debuggerPhase, run: 'W-pinned-provider-test', provider, status: 'UNRESOLVED' }),
     });
-    expect(first.stop_reason).toBe('recovery_cycle_cap_reached');
+    expect(first.stop_reason).toBe('debugger_unresolved');
     expect(first.provider_override).toBeNull();
     expect(first.selected_provider).toBe('codex');
     expect(automaticProviders).toEqual(['codex', 'codex']);
