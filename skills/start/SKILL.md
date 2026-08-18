@@ -26,6 +26,12 @@ Create the planning foundation for one project. Do not write product code.
 7. Create `ROADMAP.yaml` as vertical product slices. Phase 1 must prove an
    end-to-end path. Every phase needs `id`, `slug`, `title`, `status: todo`,
    `priority`, `mode`, `depends_on`, `goal`, and concrete `tasks`.
+   For a routine phase whose product paths, outcomes, and existing checks are
+   already exact, add a strict `execution` mapping with `mode: direct`, one
+   `owned_paths` list and observable `outcome` per task, ordered `waves`, and
+   at least two distinct structured smoke commands. Group only path-disjoint
+   tasks in the same wave. Omit `execution` when architecture, ownership, or
+   verification still requires planning judgment.
 8. Default phases to `mode: AFK`. Use `mode: HITL` only for unavoidable visual
    or functional verification against a real surface, destructive operations,
    or promotion. Security, authentication, payment, and authorization code work
@@ -38,7 +44,8 @@ Create the planning foundation for one project. Do not write product code.
     and the production-only bootstrap artifacts that are missing. Preserve all
     existing user content.
 11. Finish with the phase count, first ready phase, configured runtime provider,
-    and the exact next command: `riff wave --autonomous` or
+    whether its execution mode is direct or planned, its maximum parallel
+    worker count, and the exact next command: `riff wave --autonomous` or
     `riff wave --autonomous --loop`.
 
 Do not commit, merge, deploy, promote, or start implementation.

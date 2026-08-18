@@ -45,9 +45,13 @@ Planned smoke commands run through the isolated mechanical sandbox helper inside
 
 User confirmation remains required before promotion.
 
-## First-slice boundary
+## Native stage boundary
 
-The slice runs `controller -> planner -> plan reviewer -> sequential worker waves -> mechanical gates -> fresh code reviewer`.
-The runner executes every validated wave autonomously without a user pause.
+The stage runs `controller -> direct Codex plan or explicit provider planning -> planning evidence -> ordered worker waves -> mechanical gates -> fresh code reviewer`.
+The direct path is available only when the roadmap wave supplies a strict
+execution contract and routine Codex control accepts it without constraints.
+Claude always retains planner and fresh plan-review dispatches. Inside each
+validated wave, path-disjoint tasks use separate isolated workers concurrently
+up to `wave.parallel_workers`; waves themselves remain ordered.
 Workers don't execute PLAN smoke entries in the canonical staged workspace. The runner executes them after all normal waves in disposable clones. Normal wave retries are absent. One bounded full-plan worker repair is allowed only after the first final smoke failure.
 PR/merge, promotion, and deep audit remain outside this slice.

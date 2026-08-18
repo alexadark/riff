@@ -55,3 +55,8 @@ attempt. An unresolved, invalid, interrupted, post-promotion, or failed guided
 recovery stops the wave without another debugger dispatch.
 
 The wave engine never commits, merges, deploys, or promotes implicitly.
+
+Roadmap dependency frontiers remain ordered by the engine. Inside each native
+phase, path-disjoint tasks grouped in the same validated PLAN wave run through
+separate isolated workers concurrently, bounded by `wave.parallel_workers` in
+the active profile. A value of `1` forces sequential workers.

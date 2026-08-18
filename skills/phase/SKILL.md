@@ -18,6 +18,10 @@ Use the deterministic project-local phase manager.
 3. Default new phases to `P2` and `AFK`. Use HITL only for real visual or
    functional verification, destructive operations, or promotion. Ordinary
    security-sensitive implementation stays AFK.
+   If the user supplies exact product paths, observable outcomes, wave grouping,
+   and two existing smoke commands, explain that `$start` or a deliberate
+   `ROADMAP.yaml` execution block can enable Codex direct execution. The phase
+   CLI currently creates a planned phase and must not invent those fields.
 4. Return the resulting phase identity and status. Do not edit ROADMAP.yaml
    directly after the CLI succeeds.
 

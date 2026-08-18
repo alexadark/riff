@@ -19,8 +19,8 @@ function debuggerResponse({ phase, run, provider = 'codex', status = 'DIAGNOSED'
   return { route: { provider, adapter: provider === 'claude' ? 'agents/claude.yaml#native_roles.debugger.variants.fixed' : 'agents/codex/debugger.toml', model: provider === 'claude' ? 'opus' : 'gpt-5.6-sol', effort: 'xhigh', semanticRole: 'debugger', routeClass: 'fixed' }, stdout: debuggerReport({ phase, run, status, allowedPaths }) };
 }
 
-function phase(id, title, { dependsOn = [], mode = 'AFK', tags = [] } = {}) {
-  return `  - id: ${id}\n    slug: ${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}\n    title: ${title}\n    status: todo\n    priority: P1\n    mode: ${mode}\n    tags: [${tags.join(', ')}]\n    depends_on: [${dependsOn.join(', ')}]\n    goal: Deliver ${title}.\n    tasks:\n      - Implement ${title}.\n`;
+function phase(id, title, { dependsOn = [], mode = 'AFK', tags = [], execution = '' } = {}) {
+  return `  - id: ${id}\n    slug: ${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}\n    title: ${title}\n    status: todo\n    priority: P1\n    mode: ${mode}\n    tags: [${tags.join(', ')}]\n    depends_on: [${dependsOn.join(', ')}]\n    goal: Deliver ${title}.\n    tasks:\n      - Implement ${title}.\n${execution}`;
 }
 
 function fixture(roadmapText) {
@@ -76,6 +76,25 @@ afterEach(() => {
 });
 
 describe('RIFF autonomous single-project waves', () => {
+  test('forwards a roadmap direct execution contract and binds it to wave state', () => {
+    const execution = `    execution:\n      mode: direct\n      tasks:\n        - title: Update widget behavior\n          owned_paths: [src/widget.mjs]\n          outcome: Update src/widget.mjs so the widget returns the requested normalized value.\n        - title: Cover widget behavior\n          owned_paths: [src/widget.test.mjs]\n          outcome: Add focused coverage in src/widget.test.mjs for the requested widget behavior.\n      waves:\n        - [1]\n        - [2]\n      smoke:\n        - argv: [node, --test, src/widget.test.mjs]\n          expect: { exit_code: 0 }\n        - argv: [npm, test]\n          expect: { exit_code: 0 }\n`;
+    const root = fixture(phase(1, 'Direct Widget', { execution }));
+    const calls = [];
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: false, requestedIds: [], runId: 'W-direct-widget' }, {
+      invokeNext: ({ phase: nativePhase, directExecution }) => {
+        calls.push(directExecution);
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: 'completed', previous_state: 'post_review_mechanics_passed', updated_at: new Date().toISOString() })}\n`);
+        return { status: 0, signal: null };
+      },
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ mode: 'direct', waves: [[1], [2]] });
+    expect(state.phases[0]).toMatchObject({ execution_mode: 'direct', status: 'completed' });
+    expect(state.phases[0].execution_sha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+
   test('keeps security-only implementation autonomous but honors real HITL boundaries', () => {
     const base = { confirmationRequired: false, providerMode: 'production', hitlReason: '', tasks: [], goal: '', mode: ['HITL'] };
     expect(requiresConfirmation({ ...base, title: 'Security hardening', tags: ['security'] })).toBe(false);

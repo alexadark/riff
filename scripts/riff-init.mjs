@@ -86,6 +86,7 @@ const PRESETS = {
     budget: { default_quality: 'balanced' },
     notifications: { channel: 'none' },
     metadata: { pr_body: 'standard' },
+    wave: { parallel_workers: 4 },
     git: { merge_strategy: 'github_button' },
     dashboard: { language: 'en' },
   },
@@ -658,6 +659,7 @@ async function customProfile(rl) {
     metadata: {
       pr_body: await askChoice(rl, 'PR metadata detail', ['standard', 'off', 'full'], 'standard'),
     },
+    wave: { parallel_workers: 4 },
     git: {
       merge_strategy: await askChoice(rl, 'Merge strategy', ['github_button', 'local_no_ff'], 'github_button'),
     },

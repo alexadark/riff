@@ -25,6 +25,21 @@ phases:
     mode: AFK
     depends_on: []
     description: "What this phase delivers"
+    # Optional routine Codex fast path. Use only when ownership, outcomes, and
+    # existing checks are exact. Claude still performs explicit planning.
+    # execution:
+    #   mode: direct
+    #   tasks:
+    #     - title: "Implement the bounded product change"
+    #       owned_paths: ["src/feature.ts", "test/feature.test.ts"]
+    #       outcome: "The named feature behaves as specified and is covered by its regression test."
+    #   waves:
+    #     - [1]
+    #   smoke:
+    #     - argv: ["npm", "run", "typecheck"]
+    #       expect: { exit_code: 0 }
+    #     - argv: ["npm", "test"]
+    #       expect: { exit_code: 0 }
     # Optional overrides (omit to use defaults):
     # simplify: auto       # auto | true | false — controls Step 5b simplifier (default: auto)
     # auto_debug: true     # true | false — auto-debug on executor/review failures (default: true)

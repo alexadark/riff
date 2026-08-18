@@ -29,6 +29,10 @@ or reconcile workflow. The native engine invokes `riff next` for every roadmap
 phase, resolves the configured provider once per stage, and pauses neither for
 ordinary work nor for security-sensitive implementation.
 
+Dependency frontiers remain engine-ordered. Inside each native phase, tasks
+grouped in one validated PLAN wave run through isolated workers concurrently,
+bounded by the active profile's `wave.parallel_workers` setting.
+
 Security hooks run once after product phases. Human confirmation is reserved
 for explicitly marked visual or functional verification, destructive
 boundaries, and promotion. A pending boundary has an immutable request; provide

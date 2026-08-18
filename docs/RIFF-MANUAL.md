@@ -30,6 +30,9 @@ Choose the native model provider in the first active profile from the normal pro
 ```yaml
 runtime:
   provider: codex # or claude
+
+wave:
+  parallel_workers: 4 # 1 through 8
 ```
 
 A project `.planning/profile.yaml` overrides the framework profile as a whole. Missing `runtime.provider` defaults to `codex`; an unsupported value fails before dispatch. RIFF records the selection and never switches or falls back during a stage.
@@ -150,10 +153,10 @@ The runner owns the stage order:
 
 1. **Preflight** validates the Git root, `.riff` symlink, framework path, `HEAD`, lock, and writable artifact boundaries.
 2. **Controller** classifies the request and selects declared runtime route classes.
-3. **Planner** returns an executable `PLAN.md` with task ownership, numbered waves, boundaries, and structured smoke commands.
-4. **Plan validation** rejects malformed ownership, unsafe paths, invalid smoke commands, identity mismatches, and untrusted prompt-injection patterns.
-5. **Fresh plan review** independently returns `PROCEED` or `REVISE` from a read-only evidence snapshot.
-6. **Sequential worker waves** run autonomously in plan order. Each worker receives only its wave assignments and owned paths.
+3. **Planning** uses one of two paths. Codex may use a mechanically validated direct execution specification for routine exact work. Claude always runs the explicit planner and fresh plan reviewer. Architecture or constrained Codex work also uses the planner and plan reviewer.
+4. **Plan validation** rejects malformed ownership, unsafe paths, invalid smoke commands, identity mismatches, and untrusted prompt-injection patterns. Direct execution also verifies dependencies and smoke executables before the first model dispatch.
+5. **Planning evidence** is either the fresh independent plan review or a runner-owned direct-plan attestation that records that no planning model was used.
+6. **Worker waves** run autonomously in plan order. Independent tasks inside one wave receive separate isolated workers and run concurrently up to `wave.parallel_workers`; their validated non-overlapping deltas are integrated in task order.
 7. **Mechanical gates** run declared smokes, validate the summary, and scope-check actual changes.
 8. **Fresh code review** independently returns `PASS` or `FAIL` from a separate read-only evidence snapshot.
 9. **Repeated mechanics** confirm review didn't alter the project, then persist `completed` only after every preceding transition passed.
@@ -198,7 +201,7 @@ The Codex route portfolio is:
 | Inventory worker | Luna, Low, Fast | Declared for future callers, unavailable to mutation-only next. |
 | Escalation reviewer | Sol, Max | Reserved after a recorded XHigh technical or contract failure. |
 
-The controller first runs as routine. If it classifies planning as architecture or review as critical, RIFF runs one fresh architecture-controller confirmation. That result is canonical. It selects the planner, worker, plan reviewer, and code reviewer classes.
+The controller first runs as routine. If it classifies planning as architecture or review as critical, RIFF runs one fresh architecture-controller confirmation. That result is canonical. It selects the planner, worker, plan reviewer, and code reviewer classes. A strict direct execution specification can skip planner and plan-review model calls only for a routine Codex stage with no controller constraints. Claude always retains explicit planning because its worker contract benefits from more prepared context.
 
 Claude uses the same classes with explicit native adapters:
 
@@ -226,7 +229,34 @@ The planner emits every task exactly once under `## Waves`:
 - Wave 2: Tasks 2, 3.
 ```
 
-Waves are ordered. Tasks in a wave are declared independent, but this native slice dispatches workers sequentially and preserves the staged result for the next wave. The worker can't change another wave's owned path. It can't change runner-owned planning artifacts.
+Waves are ordered. Tasks listed together in one wave must own non-overlapping product paths. RIFF gives each task a separate isolated workspace, dispatches those workers concurrently up to the configured limit, validates every delta independently, and integrates them deterministically before the next wave. A worker can't change another task's owned path or any runner-owned planning artifact. Set `wave.parallel_workers: 1` to force sequential execution.
+
+For a well-specified routine Codex phase, `ROADMAP.yaml` can carry the direct execution contract:
+
+```yaml
+execution:
+  mode: direct
+  tasks:
+    - title: Add public brand tokens
+      owned_paths: [src/styles/brand.css]
+      outcome: Public pages use the approved color and typography tokens.
+    - title: Update public shell
+      owned_paths: [src/components/PublicShell.tsx]
+      outcome: The public shell renders the approved logo and navigation treatment.
+  waves:
+    - [1, 2]
+  smoke:
+    - argv: [npm, run, typecheck]
+      expect: { exit_code: 0 }
+    - argv: [npm, test]
+      expect: { exit_code: 0 }
+```
+
+`$start` may create this block only when paths, outcomes, dependencies, and checks are already known. Without it, or whenever the controller detects architecture or constraints, Codex uses normal model planning. Claude validates the block as phase metadata but still runs its planner and plan reviewer.
+
+## Legacy commands not yet migrated
+
+The following historical Claude command surfaces don't yet have a native skill or equivalent user command: `conductor`, `learn-stack`, `onboard`, `quick`, and `stress`. The old `debug` command isn't migrated as a public skill; native autonomous waves already use the debugger internally after bounded retries are exhausted. `init` remains a deterministic CLI installation command rather than a skill. `INDEX` is documentation, not a command.
 
 Use waves to structure a real dependency chain. For example, a public rebrand can use:
 
@@ -245,7 +275,7 @@ The runner writes and validates:
 | Artifact | Meaning |
 | --- | --- |
 | `.planning/phases/<id>/PLAN.md` | Immutable validated plan. |
-| `.planning/phases/<id>/PLAN-REVIEW.md` | Independent plan-review result. |
+| `.planning/phases/<id>/PLAN-REVIEW.md` | Independent plan-review result, or the runner-owned attestation for an eligible direct Codex plan. |
 | `.planning/phases/<id>/SUMMARY.md` | Worker completion criteria plus authoritative runner observations. |
 | `.planning/phases/<id>/SCOPE-CHECK.json` | Mechanical boundary comparison. |
 | `.planning/phases/<id>/REVIEW.md` | Independent code-review result with machine evidence injected by the runner. |
@@ -285,7 +315,7 @@ RIFF supports Claude projects through `.claude/` links and native route variants
 
 Use `/riff:resync` in Claude Code to reconcile installed runtime files. It delegates to the same `riff resync` CLI as the Codex skill. For shared skills, explicitly name the RIFF workflow in the request. The `$...` forms above are Codex invocation syntax. `/riff:wave` is a thin adapter over the native roadmap wave engine. The discovery, mapping, status, dashboard, and add-phase commands remain Claude-compatible surfaces. Use `riff next` for the provider-native deterministic stage.
 
-To launch the native stage from a Claude session, invoke the terminal form shown above. With `runtime.provider: claude`, the runner dispatches the declared Claude variants while enforcing the same route portfolio, sequential in-phase waves, and completion boundary.
+To launch the native stage from a Claude session, invoke the terminal form shown above. With `runtime.provider: claude`, the runner dispatches the declared Claude variants while enforcing explicit planning, bounded parallel in-phase workers, the same route portfolio, and the same completion boundary.
 
 Choose entry points by intent:
 

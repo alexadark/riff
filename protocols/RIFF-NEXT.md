@@ -79,9 +79,9 @@
 5. **Pre-worker snapshot.** Capture tracked, non-ignored untracked, and ignored files while recording the exact `.riff` symlink and excluding `.riff/` descendants.
    Capture security-relevant Git metadata from the actual Git directory without following symlinks.
    Stop when the snapshot is incomplete.
-6. **Sequential workers.** Dispatch one worker for each validated PLAN wave in order, with no user pause.
-   Each dispatch receives only its wave task labels and owned paths, while the full PLAN remains untrusted readable evidence.
-   Snapshot the staged workspace before every wave and reject any incremental change outside that wave's owned paths.
+6. **Bounded parallel workers.** Execute validated PLAN waves in order, with no user pause. Inside one wave, dispatch one isolated worker per independent task, up to `wave.parallel_workers`; a value of `1` forces sequential execution.
+   Each worker receives only one task label and its exclusive owned paths, while the full PLAN remains untrusted readable evidence. Tasks with overlapping owned paths are invalid and cannot enter a parallel wave.
+   Snapshot every isolated task workspace, validate its delta independently, then promote the non-overlapping task deltas into the canonical staged workspace in task order. Reject any change outside that task's owned paths.
    Workers do not execute PLAN smoke entries in the canonical staged workspace. The runner owns planned smoke execution after all normal waves and uses disposable smoke clones, so generated build output and caches cannot become worker product delta.
    A worker authors behavior or regression tests before the corresponding product correction. It records red and green observations only when a narrower check can run safely within the wave boundaries; otherwise it marks them deferred and the runner supplies the authoritative green observation.
    Normal wave retries are absent. One bounded full-plan worker repair is allowed only after the first final smoke failure.
@@ -114,7 +114,7 @@
    A failure prevents completion.
 14. **Completed state.** Persist completed state after every preceding transition passes.
 
-The first slice covers sequential autonomous waves through completed state for one code-mode review.
+The native slice covers ordered autonomous waves with bounded parallel workers through completed state for one code-mode review.
 Normal wave retries are absent. One bounded full-plan worker repair is allowed only after the first final smoke failure.
 PR/merge, promotion, and deep audit are outside the first slice.
 Promotion still requires explicit user confirmation before it runs.

@@ -26,7 +26,7 @@ This is the supported script reference. Script internals under `scripts/lib/` ar
 
 | Script | Usage | Purpose |
 | --- | --- | --- |
-| `riff-next.mjs` | Internal target behind `riff next` | Runs the native controller, planner, plan review, sequential worker waves, gates, fresh code review, and completed-state flow. |
+| `riff-next.mjs` | Internal target behind `riff next` | Runs native control, Codex direct or explicit provider planning, ordered waves with bounded parallel workers, gates, fresh code review, and completed-state flow. |
 | `riff-next-stage.mjs` | Internal stage-state module | Defines validated state transitions and phase locking. Don't invoke it for normal work. |
 | `artifact-check.mjs` | `node scripts/artifact-check.mjs [--project-root <framework-root>]` | Validates active skills, canonical roles, provider mappings, adapter routes, and plugin metadata. |
 | `scope-check.mjs` | `node .riff/scripts/scope-check.mjs --project-root <git-root> --phase <id> --worker-delta <path>` | Compares actual worker changes with validated plan boundaries. |

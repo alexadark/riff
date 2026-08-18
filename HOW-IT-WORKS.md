@@ -67,9 +67,9 @@ The native sequence is:
 
 ```text
 controller
-  -> planner and plan validation
-  -> fresh plan reviewer
-  -> sequential autonomous worker waves
+  -> direct Codex plan validation OR explicit provider planner
+  -> direct attestation OR fresh plan reviewer
+  -> ordered waves with parallel independent workers
   -> mechanics, summary validation, scope check
   -> fresh code reviewer
   -> repeated mechanics
@@ -78,7 +78,7 @@ controller
 
 The controller begins routine. It requests one fresh architecture-controller confirmation only when it classifies planning as architecture or review as critical. That confirmation is canonical for route selection.
 
-The planner gives every task exclusive owned paths. It groups every task into numbered waves. RIFF dispatches one worker per wave in order, without a user pause. It rejects changes outside the current wave's owned paths. Workers don't run PLAN smoke entries inside the canonical staged workspace; RIFF runs them after all waves in disposable clones. A final smoke failure can trigger exactly one bounded full-plan repair. Normal worker retries do not exist.
+The planner, or a strict direct Codex execution specification, gives every task exclusive owned paths and groups tasks into numbered waves. RIFF executes waves in order. Within one wave, it dispatches one isolated worker per independent task, up to `wave.parallel_workers`, then validates and integrates non-overlapping deltas deterministically. Claude always uses explicit planner and plan-review calls; Codex skips them only for mechanically complete routine direct specifications. Workers don't run PLAN smoke entries inside the canonical staged workspace; RIFF runs them after all waves in disposable clones. A final smoke failure can trigger exactly one bounded full-plan repair. Normal worker retries do not exist.
 
 ## Autonomous roadmap waves
 

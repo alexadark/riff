@@ -71,6 +71,9 @@ metadata:
   pr_body: standard
 
 wave:
+  # Maximum independent task workers dispatched concurrently inside one
+  # validated PLAN wave. Set to 1 to force sequential execution.
+  parallel_workers: 4
   # Reconcile pass run by /riff:wave --resume Step 6.
   # Valid: hooks | sonnet | both | off. See protocols/WAVE-RECONCILE.md § Modes.
   reconcile_mode: both

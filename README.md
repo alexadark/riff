@@ -34,6 +34,9 @@ Choose the native model provider in the active RIFF profile:
 ```yaml
 runtime:
   provider: codex # or claude
+
+wave:
+  parallel_workers: 4 # 1 through 8; use 1 for sequential workers
 ```
 
 Project `.planning/profile.yaml` takes precedence over the framework `profile.yaml`. RIFF resolves the provider once at stage start, records it, and never falls back automatically.
@@ -143,12 +146,12 @@ merge. Neither strategy deploys or promotes.
 
 ## What runs
 
-`$riff:next` performs this fixed sequence:
+`$riff:next` performs this gated sequence:
 
 1. Controller classification.
-2. Planner output and mechanical plan validation.
-3. Fresh plan review.
-4. Autonomous sequential worker waves.
+2. For exact routine Codex phases, validate the roadmap's direct execution contract; otherwise run the planner and mechanical plan validation. Claude always uses the planner.
+3. Record a direct-plan attestation or run a fresh plan review. Claude always uses the reviewer.
+4. Run ordered autonomous worker waves, with isolated path-disjoint tasks in each wave dispatched concurrently up to `wave.parallel_workers`.
 5. Mechanical smoke and scope gates.
 6. Fresh code review.
 7. Repeated mechanical gates and completed state persistence.

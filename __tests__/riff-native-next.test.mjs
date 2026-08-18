@@ -285,6 +285,25 @@ describe('native RIFF Next first slice', () => {
     } finally { cleanupFixture(fixture); }
   }, 180_000);
 
+  it('runs independent tasks in one wave through isolated parallel workers', () => {
+    const fixture = runFixture('parallel-wave');
+    try {
+      expect(fixture.error).toBeUndefined();
+      const invocations = readInvocationLog(fixture.logPath);
+      const workers = invocations.filter((entry) => entry.model === 'gpt-5.6-luna');
+      expect(workers).toHaveLength(2);
+      expect(new Set(workers.map((entry) => entry.stagedRoot || entry.prompt.match(/^Staged project workspace: (.+)$/m)?.[1])).size).toBe(2);
+      expect(workers.map((entry) => JSON.parse(entry.prompt.match(/^Wave task labels: (.+)$/m)?.[1])).sort()).toEqual([
+        ['Task 1: Implement slugify'],
+        ['Task 2: Add slugify coverage'],
+      ]);
+      expect(readFileSync(path.join(fixture.projectRoot, 'src/slugify.mjs'), 'utf8')).toContain('export function slugify');
+      expect(readFileSync(path.join(fixture.projectRoot, 'src/slugify.test.mjs'), 'utf8')).toContain("from './slugify.mjs'");
+      const receipt = JSON.parse(readFileSync(path.join(fixture.projectRoot, '.planning/riff-next/1-slugify.routing.json'), 'utf8'));
+      expect(receipt.worker_parallelism).toBe(4);
+    } finally { cleanupFixture(fixture); }
+  }, 180_000);
+
   it('rejects a wave mutation outside that wave owned paths', () => {
     const fixture = runFixture('two-wave-boundary-escape');
     try {

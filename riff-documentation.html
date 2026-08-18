@@ -587,7 +587,7 @@ footer{
   </div>
 
   <h2 class="subhead">The operating idea</h2>
-  <p>RIFF turns a clear request into a verified result without hiding the work. A plan declares ownership and checks. Sequential autonomous waves implement that plan. Mechanical controls establish facts. Fresh reviewers judge independent evidence. The result is inspectable on disk before anyone decides to commit, merge, deploy, or promote.</p>
+  <p>RIFF turns a clear request into a verified result without hiding the work. A plan declares ownership and checks. Ordered autonomous waves run independent tasks in parallel. Mechanical controls establish facts. Fresh reviewers judge independent evidence. The result is inspectable on disk before anyone decides to commit, merge, deploy, or promote.</p>
 
   <blockquote class="pullquote">
     Structure should make autonomy safer, not make the workflow heavier.
@@ -689,6 +689,9 @@ footer{
 runtime:
   provider: codex # or claude
 
+wave:
+  parallel_workers: 4 # 1 through 8
+
 $next --phase &lt;id&gt; --task "&lt;bounded request&gt;"
 
 ./.riff/riff next \
@@ -703,11 +706,16 @@ $next --phase &lt;id&gt; --task "&lt;bounded request&gt;"
     <div class="card"><h4>Start and map</h4><div class="role">$start / $map</div><p>Creates a validated greenfield roadmap or maps a brownfield codebase without changing product behavior.</p></div>
     <div class="card"><h4>Phase and status</h4><div class="role">$phase / $status</div><p>Manages a validated roadmap and reports progress from authoritative roadmap, wave, and stage state.</p></div>
     <div class="card"><h4>Dashboard</h4><div class="role">$dashboard / $riff:dashboard</div><p>Starts or attaches to the shared read-only local project dashboard.</p></div>
-    <div class="card"><h4>Next</h4><div class="role">$next / $riff:next</div><p>Runs one native stage through planning, sequential autonomous waves, mechanics, and fresh review.</p></div>
+    <div class="card"><h4>Next</h4><div class="role">$next / $riff:next</div><p>Runs one native stage through adaptive planning, ordered waves with bounded parallel workers, mechanics, and fresh review.</p></div>
     <div class="card"><h4>Wave</h4><div class="role">$wave / $riff:wave / /riff:wave</div><p>Runs ready roadmap phases without routine pauses. Loop mode continues across newly unlocked dependency frontiers.</p></div>
     <div class="card"><h4>Resync</h4><div class="role">$resync / $riff:resync / /riff:resync</div><p>Reconciles RIFF-owned links and declared adapters through <code>riff resync</code>.</p></div>
     <div class="card"><h4>Deep audit and improve</h4><div class="role">Explicit operational skills</div><p>Deep audit performs a milestone review. Improve turns approved improvement work into a bounded workflow.</p></div>
     <div class="card"><h4>Incident and promotion</h4><div class="role">Separated decisions</div><p>Incident logging and incident review are distinct. Promotion always requires explicit confirmation before it changes project files.</p></div>
+  </div>
+
+  <div class="note">
+    <div class="kicker">Legacy command status</div>
+    <p><code>conductor</code>, <code>learn-stack</code>, <code>onboard</code>, <code>quick</code>, and <code>stress</code> don't yet have native skill equivalents. The public <code>debug</code> command is also legacy, although autonomous waves already invoke the native debugger internally after bounded retries. <code>init</code> remains a deterministic CLI operation.</p>
   </div>
 </section>
 
@@ -722,17 +730,17 @@ $next --phase &lt;id&gt; --task "&lt;bounded request&gt;"
   <div class="pipeline">
     <div class="step" data-step="1"><h5>Preflight</h5><p>Validate Git root, RIFF link, framework path, HEAD, lock, and writable artifact boundaries.</p></div>
     <div class="step" data-step="2"><h5>Controller</h5><p>Classify the request and select declared runtime classes. Architecture or critical work gets a fresh confirmation.</p></div>
-    <div class="step" data-step="3"><h5>Planner</h5><p>Create <code>PLAN.md</code> with task ownership, numbered waves, boundaries, and structured smoke commands.</p></div>
-    <div class="step" data-step="4"><h5>Plan validation</h5><p>Reject malformed ownership, unsafe paths, invalid smoke commands, identity mismatches, and untrusted prompt injection patterns.</p></div>
-    <div class="step" data-step="5"><h5>Fresh plan review</h5><p>A read-only reviewer independently returns <code>PROCEED</code> or <code>REVISE</code> from an evidence snapshot.</p></div>
-    <div class="step" data-step="6"><h5>Autonomous waves</h5><p>Workers execute plan waves in order. Each worker receives only its assignment and owned paths.</p></div>
+    <div class="step" data-step="3"><h5>Adaptive planning</h5><p>Exact routine Codex work may use a strict direct execution contract. Claude, architecture, and constrained work use an explicit planner.</p></div>
+    <div class="step" data-step="4"><h5>Plan validation</h5><p>Reject malformed ownership, unsafe paths, invalid smoke commands, identity mismatches, and missing direct dependencies before worker dispatch.</p></div>
+    <div class="step" data-step="5"><h5>Planning evidence</h5><p>Record a runner-owned direct attestation or require a fresh read-only plan review. Claude always uses the reviewer.</p></div>
+    <div class="step" data-step="6"><h5>Autonomous waves</h5><p>Waves execute in order. Independent tasks inside one wave receive isolated concurrent workers up to the configured limit.</p></div>
     <div class="step" data-step="7"><h5>Mechanical gates</h5><p>Run declared smokes, validate the summary, and scope-check actual product changes.</p></div>
     <div class="step" data-step="8"><h5>Fresh code review</h5><p>A separate read-only reviewer returns <code>PASS</code> or <code>FAIL</code> against the plan, delta, summary, and evidence.</p></div>
     <div class="step" data-step="9"><h5>Persist completion</h5><p>Repeat mechanics after review, record hashes and route receipt, then persist completed state.</p></div>
   </div>
 
-  <h2 class="subhead">Autonomous, sequential waves</h2>
-  <p>The planner declares every task exactly once under numbered waves and assigns exclusive owned paths. RIFF dispatches a worker for each wave in plan order without a user pause. Tasks may be independent in a wave, but the current native slice executes workers sequentially so each checked result becomes the next wave's starting point.</p>
+  <h2 class="subhead">Ordered waves, parallel workers</h2>
+  <p>The planner or strict direct Codex specification declares every task exactly once under numbered waves and assigns exclusive owned paths. RIFF executes waves in order. Path-disjoint tasks listed in the same wave receive separate isolated workers and run concurrently up to <code>wave.parallel_workers</code>. RIFF validates each delta and integrates the results deterministically before the next wave.</p>
 
   <pre>wave 1:
   - task 1: establish design tokens and approved assets
@@ -818,7 +826,7 @@ wave 3:
     </table>
   </div>
 
-  <p>The routine controller runs first. If it classifies planning as architecture or review as critical, RIFF runs one fresh architecture-controller confirmation. That confirmation is canonical for planner, worker, plan-reviewer, and code-reviewer selection.</p>
+  <p>The routine controller runs first. If it classifies planning as architecture or review as critical, RIFF runs one fresh architecture-controller confirmation. That confirmation is canonical for planner, worker, plan-reviewer, and code-reviewer selection. A strict direct specification skips planner and plan-review model calls only for routine unconstrained Codex work. Claude always retains explicit planning and fresh plan review.</p>
 
   <div class="note">
     <div class="kicker">Fast service tier</div>
@@ -840,7 +848,7 @@ wave 3:
       <thead><tr><th>Artifact</th><th>What it proves</th></tr></thead>
       <tbody>
         <tr><td><code>.planning/phases/&lt;id&gt;/PLAN.md</code></td><td>Validated immutable task contract, ownership, waves, and smokes.</td></tr>
-        <tr><td><code>.planning/phases/&lt;id&gt;/PLAN-REVIEW.md</code></td><td>Independent plan-review verdict.</td></tr>
+        <tr><td><code>.planning/phases/&lt;id&gt;/PLAN-REVIEW.md</code></td><td>Independent plan-review verdict, or the runner-owned attestation for an eligible direct Codex plan.</td></tr>
         <tr><td><code>.planning/phases/&lt;id&gt;/SUMMARY.md</code></td><td>Worker completion criteria plus authoritative runner observations.</td></tr>
         <tr><td><code>.planning/phases/&lt;id&gt;/SCOPE-CHECK.json</code></td><td>Mechanical boundary comparison against actual changes.</td></tr>
         <tr><td><code>.planning/phases/&lt;id&gt;/REVIEW.md</code></td><td>Fresh code-review verdict with machine evidence injected by the runner.</td></tr>

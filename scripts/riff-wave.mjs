@@ -24,6 +24,7 @@ import { resolveRuntimeProfile } from './lib/runtime-provider.mjs';
 import { validateSecurityReview } from './lib/artifact-contracts.mjs';
 import { dispatchReadOnlyRole } from './lib/read-only-role-dispatch.mjs';
 import { gitEnvironment } from './lib/model-dispatch.mjs';
+import { directExecutionSha256 } from './lib/direct-execution.mjs';
 import { loadCodexRoutes } from './lib/runtime-routes.mjs';
 import { loadClaudeRoutes, providerAdapterIdentity } from './lib/runtime-provider.mjs';
 import { assertWaveRunId, readActiveWaveRun, readRegularJson, readWaveState, secureWaveRoot } from './lib/wave-state.mjs';
@@ -190,17 +191,35 @@ function resolveWaveProfile(projectRoot, frameworkRoot, state) {
   return cap;
 }
 
-function invokeNativeNext({ frameworkRoot, projectRoot, phase, task, provider }) {
+function invokeNativeNext({ frameworkRoot, projectRoot, phase, task, provider, directExecution }) {
   const argv = [path.join(frameworkRoot, 'scripts', 'riff-next.mjs'), '--project-root', projectRoot, '--phase', phase, '--task', task];
   if (provider) argv.push('--provider', provider);
-  return spawnSync(process.execPath, argv, { cwd: projectRoot, stdio: 'inherit', shell: false });
+  if (directExecution) argv.push('--direct-plan-stdin');
+  return spawnSync(process.execPath, argv, {
+    cwd: projectRoot,
+    stdio: directExecution ? ['pipe', 'inherit', 'inherit'] : 'inherit',
+    ...(directExecution ? { input: `${JSON.stringify(directExecution)}\n` } : {}),
+    shell: false,
+  });
 }
 
 function phaseRecord(state, phase) {
+  const executionHash = phase.directExecution ? directExecutionSha256(phase.directExecution) : null;
   let record = state.phases.find((entry) => entry.id === phase.id);
   if (!record) {
-    record = { id: phase.id, slug: phase.slug, title: phase.title, status: 'pending', attempts: [] };
+    record = {
+      id: phase.id,
+      slug: phase.slug,
+      title: phase.title,
+      status: 'pending',
+      execution_mode: executionHash ? 'direct' : 'planned',
+      execution_sha256: executionHash,
+      attempts: [],
+    };
     state.phases.push(record);
+  } else if ((record.execution_mode || 'planned') !== (executionHash ? 'direct' : 'planned')
+    || (record.execution_sha256 || null) !== executionHash) {
+    fail(`phase execution specification changed during RIFF wave ${state.run}: ${phase.id}`);
   }
   return record;
 }
@@ -1037,17 +1056,17 @@ function debuggerGuidedRecovery({ projectRoot, frameworkRoot, roadmap, state, ph
     if (guided?.status === 'completed') return { completed: true, reconciled: true };
     if (guided?.status === 'failed') return { completed: false, reason: 'debugger_escalation_failed', safeToResume: false };
     if (guided?.status === 'interrupted') return { completed: false, reason: 'interrupted_requires_human', safeToResume: false };
-    if (guided?.status === 'running') return attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: true, recoveryCycle: cap + 1, recoveryStrategy: 'debugger_guided_recovery', task: guidedTask(phase, diagnosis.parsed.assignment) });
+    if (guided?.status === 'running') return attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: true, recoveryCycle: cap + 1, recoveryStrategy: 'debugger_guided_recovery', task: guidedTask(phase, diagnosis.parsed.assignment), directExecution: null });
     if (guided || plannedAttempt !== record.attempts.length + 1) return { completed: false, reason: 'debugger_artifact_invalid', safeToResume: false };
   } else {
     record.debugger = { ...record.debugger, guided_attempt: record.attempts.length + 1, guided_started_at: new Date().toISOString() };
     writeState(projectRoot, state);
   }
-  const result = attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: true, recoveryCycle: cap + 1, recoveryStrategy: 'debugger_guided_recovery', task: guidedTask(phase, diagnosis.parsed.assignment) });
+  const result = attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: true, recoveryCycle: cap + 1, recoveryStrategy: 'debugger_guided_recovery', task: guidedTask(phase, diagnosis.parsed.assignment), directExecution: null });
   return result.completed || result.awaitingVerification ? result : { ...result, reason: 'debugger_escalation_failed', safeToResume: false };
 }
 
-function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume, recoveryCycle, recoveryStrategy, task = phaseTask(phase) }) {
+function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume, recoveryCycle, recoveryStrategy, task = phaseTask(phase), directExecution = phase.directExecution }) {
   const record = phaseRecord(state, phase);
   const previous = record.attempts.at(-1);
   if (previous && previous.status !== 'completed') {
@@ -1094,7 +1113,7 @@ function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invok
   state.current = { phase_id: phase.id, native_phase: nativePhase, attempt: attemptNumber };
   updatePhaseStatus(roadmap, phase.id, 'in-progress');
   writeState(projectRoot, state);
-  const result = invokeNext({ frameworkRoot, projectRoot, phase: nativePhase, task, provider: state.selected_provider });
+  const result = invokeNext({ frameworkRoot, projectRoot, phase: nativePhase, task, provider: state.selected_provider, directExecution });
   const native = nativeState(projectRoot, nativePhase);
   if (result?.status === 0 && native?.state === 'completed') {
     if (confirmationTiming(phase) === 'after') {

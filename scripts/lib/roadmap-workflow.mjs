@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import yaml from 'js-yaml';
+import { directExecutionSha256, normalizeDirectExecution } from './direct-execution.mjs';
 
 function fail(message) { throw new Error(message); }
 
@@ -84,6 +85,7 @@ function normalizedPhase(raw, index, format, key) {
     providerMode: scalar(raw.provider_mode || 'production').toLowerCase(),
     hitlReason: scalar(raw.hitl_reason || raw.human_verification || ''),
     confirmationRequired: raw.confirmation_required === true,
+    directExecution: normalizeDirectExecution(raw.execution),
     index,
     raw,
   };
@@ -231,6 +233,7 @@ export function phaseVerificationMetadata(phase) {
     provider_mode: phase.providerMode,
     hitl_reason: phase.hitlReason,
     confirmation_required: phase.confirmationRequired,
+    execution_sha256: phase.directExecution ? directExecutionSha256(phase.directExecution) : null,
   };
 }
 

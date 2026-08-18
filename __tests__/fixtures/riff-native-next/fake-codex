@@ -119,9 +119,10 @@ if (role === 'controller' && sandbox === 'read-only') {
     : { verdict: 'PROCEED', constraints: [], reason: 'task is bounded', routing });
   process.stdout.write(mode === 'controller-ambiguous' ? `${output}\ntrailing prose\n` : `${output}\n`);
 } else if (role === 'planner' && sandbox === 'read-only') {
-  if (mode === 'two-waves' || mode === 'two-wave-boundary-escape') {
+  if (mode === 'two-waves' || mode === 'two-wave-boundary-escape' || mode === 'parallel-wave') {
     const requestHash = crypto.createHash('sha256').update('Implement slugify').digest('hex');
-    process.stdout.write(`# Plan\n\n## Identity\n\n\`\`\`json\n{"phase":"1-slugify","request_sha256":"${requestHash}"}\n\`\`\`\n\n## Tasks\n\n### Task 1: Implement slugify\nOwned paths: ["src/slugify.mjs"]\n\nImplement src/slugify.mjs.\n\n### Task 2: Add slugify coverage\nOwned paths: ["src/slugify.test.mjs"]\n\nAdd src/slugify.test.mjs.\n\n## Waves\n\n- Wave 1: Task 1.\n- Wave 2: Task 2.\n\n## Boundaries\n\n{"allowed_paths":["src/slugify.mjs","src/slugify.test.mjs"]}\n\n## Smoke\n\n- {"argv":["node","--test","src/slugify.test.mjs"],"expect":{"exit_code":0}}\n- {"argv":["npm","test"],"expect":{"exit_code":0}}\n`);
+    const waves = mode === 'parallel-wave' ? '- Wave 1: Tasks 1, 2.' : '- Wave 1: Task 1.\n- Wave 2: Task 2.';
+    process.stdout.write(`# Plan\n\n## Identity\n\n\`\`\`json\n{"phase":"1-slugify","request_sha256":"${requestHash}"}\n\`\`\`\n\n## Tasks\n\n### Task 1: Implement slugify\nOwned paths: ["src/slugify.mjs"]\n\nImplement src/slugify.mjs.\n\n### Task 2: Add slugify coverage\nOwned paths: ["src/slugify.test.mjs"]\n\nAdd src/slugify.test.mjs.\n\n## Waves\n\n${waves}\n\n## Boundaries\n\n{"allowed_paths":["src/slugify.mjs","src/slugify.test.mjs"]}\n\n## Smoke\n\n- {"argv":["node","--test","src/slugify.test.mjs"],"expect":{"exit_code":0}}\n- {"argv":["npm","test"],"expect":{"exit_code":0}}\n`);
   } else
   if (mode === 'malformed-plan') process.stdout.write('not a plan\n');
   else {
@@ -150,17 +151,21 @@ if (role === 'controller' && sandbox === 'read-only') {
     process.stdout.write(`# Plan\n\n## Tasks\n\n### Task 1: Implement slugify\n${identitySection}${consumerPathLeak}\n## Waves\n\n- Wave 1: Task 1.\n\n## Boundaries\n\n\`\`\`json\n{"allowed_paths":${boundaries}}\n\`\`\`\n\n## Smoke\n\n- ${smoke}\n- ${secondSmoke}\n`);
   }
 } else if (role === 'worker' && sandbox === 'workspace-write') {
-  if (mode === 'two-waves' || mode === 'two-wave-boundary-escape') {
+  if (mode === 'two-waves' || mode === 'two-wave-boundary-escape' || mode === 'parallel-wave') {
     const wave = Number(prompt.match(/^Wave: (\d+)\/\d+$/m)?.[1]);
-    if (wave === 1) {
+    const labels = JSON.parse(prompt.match(/^Wave task labels: (.+)$/m)?.[1] || '[]');
+    const productTask = labels.includes('Task 1: Implement slugify');
+    const coverageTask = labels.includes('Task 2: Add slugify coverage');
+    if ((mode === 'parallel-wave' && productTask) || (mode !== 'parallel-wave' && wave === 1)) {
       fs.mkdirSync(path.join(roleRoot, 'src'), { recursive: true });
       fs.writeFileSync(path.join(roleRoot, 'src/slugify.mjs'), `export function slugify(input) { return String(input).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }\n`);
       if (mode === 'two-wave-boundary-escape') fs.writeFileSync(path.join(roleRoot, 'src/slugify.test.mjs'), 'future wave mutation\n');
-    } else if (wave === 2) {
+    } else if ((mode === 'parallel-wave' && coverageTask) || (mode !== 'parallel-wave' && wave === 2)) {
+      fs.mkdirSync(path.join(roleRoot, 'src'), { recursive: true });
       fs.writeFileSync(path.join(roleRoot, 'src/slugify.test.mjs'), "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { slugify } from './slugify.mjs';\ntest('slugify', () => assert.equal(slugify('Hello World'), 'hello-world'));\n");
     } else process.exit(13);
-    const label = wave === 1 ? 'Task 1: Implement slugify' : 'Task 2: Add slugify coverage';
-    process.stdout.write(`# Summary\n\n## Status\n\ncompleted\n\n## Changed Paths\n\n- placeholder\n\n## Completed Criteria\n\n- ${label}, src/slugify.${wave === 1 ? 'mjs' : 'test.mjs'} changes the requested product behavior.\n\n## Check Results\n\n- Wave ${wave} completed its bounded file change.\n\n## Smoke Results\n\n- Deferred to the final mechanical gate.\n\n## Unresolved Items\n\nNone.\n`);
+    const label = productTask || (mode !== 'parallel-wave' && wave === 1) ? 'Task 1: Implement slugify' : 'Task 2: Add slugify coverage';
+    process.stdout.write(`# Summary\n\n## Status\n\ncompleted\n\n## Changed Paths\n\n- placeholder\n\n## Completed Criteria\n\n- ${label}, src/slugify.${label.startsWith('Task 1') ? 'mjs' : 'test.mjs'} changes the requested product behavior.\n\n## Check Results\n\n- Wave ${wave} completed its bounded file change.\n\n## Smoke Results\n\n- Deferred to the final mechanical gate.\n\n## Unresolved Items\n\nNone.\n`);
     process.exit(0);
   }
   const repairMode = ['smoke-repair', 'smoke-repair-both-fail'].includes(mode);

@@ -1509,8 +1509,18 @@ function restoreBackup(root, backup) {
   writeAtomic(root, backup.relative, backup.bytes, backup.mode);
 }
 
-export function promoteWorkerDelta({ consumerRoot, stageRoot, baselineSnapshot, stagedSnapshot, boundaries }) {
+export function promoteWorkerDelta({ consumerRoot, stageRoot, baselineSnapshot, stagedSnapshot, boundaries, allowExistingDelta = false }) {
   const payload = freezePromotionPayload({ consumerRoot, stageRoot, baselineSnapshot, stagedSnapshot, boundaries });
+  const consumerBeforePromotion = allowExistingDelta ? snapshotWorktree({ root: consumerRoot }) : undefined;
+  const existingDelta = allowExistingDelta
+    ? snapshotChangedPaths(baselineSnapshot, consumerBeforePromotion).filter((relative) => !relative.startsWith('.planning/'))
+    : [];
+  const expectedDelta = snapshotChangedPaths(baselineSnapshot, stagedSnapshot);
+  const conflictingExisting = existingDelta.filter((relative) => expectedDelta.includes(relative)
+    && !sameRecords(consumerBeforePromotion.files[relative], stagedSnapshot.files[relative]));
+  if (conflictingExisting.length) {
+    throw new Error(`parallel worker promotion conflicts with an integrated task delta: ${conflictingExisting.join(',')}`);
+  }
   const backupPaths = [...payload.files.map((item) => item.relative), ...payload.removals.map((item) => item.relative), ...payload.directories.map((item) => item.relative)];
   const backups = backupPaths.map((relative) => backupEntry(consumerRoot, relative));
   const applied = [];
@@ -1544,11 +1554,14 @@ export function promoteWorkerDelta({ consumerRoot, stageRoot, baselineSnapshot, 
       applied.push(item.relative);
     }
     const after = snapshotWorktree({ root: consumerRoot });
-    const expected = snapshotChangedPaths(baselineSnapshot, stagedSnapshot);
+    const expected = expectedDelta;
     const actual = snapshotChangedPaths(baselineSnapshot, after).filter((relative) => !relative.startsWith('.planning/'));
     const mismatched = expected.filter((relative) => !sameRecords(stagedSnapshot.files[relative], after.files[relative]));
-    if (JSON.stringify(actual) !== JSON.stringify(expected) || mismatched.length) {
-      throw new Error(`consumer product delta differs from frozen worker staging delta: expected=${expected.join(',')} actual=${actual.join(',')} mismatched=${mismatched.join(',')}`);
+    const preserved = existingDelta.filter((relative) => !expected.includes(relative));
+    const changedExisting = preserved.filter((relative) => !sameRecords(consumerBeforePromotion.files[relative], after.files[relative]));
+    const accepted = [...new Set([...expected, ...preserved])].sort();
+    if (JSON.stringify(actual) !== JSON.stringify(accepted) || mismatched.length || changedExisting.length) {
+      throw new Error(`consumer product delta differs from frozen worker staging delta: expected=${accepted.join(',')} actual=${actual.join(',')} mismatched=${[...mismatched, ...changedExisting].join(',')}`);
     }
     return { payload, after };
   } catch (error) {
