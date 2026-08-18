@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadCodexRoutes } from './lib/runtime-routes.mjs';
-import { diagnosticExcerpt, dispatchModel as dispatch, gitEnvironment, isolatedGitEnvironment } from './lib/model-dispatch.mjs';
+import { diagnosticExcerpt, dispatchModel as dispatch, gitEnvironment, isolatedGitEnvironment, pathWithin, permissionProfile } from './lib/model-dispatch.mjs';
 import {
   loadClaudeRoutes,
   providerAdapterIdentity,
