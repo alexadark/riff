@@ -193,6 +193,7 @@ export function validateState(state, { phase, task } = {}) {
   if (state.phase !== phase) throw new Error(`state phase does not match requested phase: ${state.phase}`);
   if (!STATES.includes(state.state)) throw new Error(`state has unknown state: ${state.state}`);
   if (state.previous_state !== null && !STATES.includes(state.previous_state)) throw new Error('state previous_state is invalid');
+  if (state.failure_kind !== undefined && (state.state !== 'failed' || state.failure_kind !== 'blocked')) throw new Error('state failure_kind is invalid');
   if (!state.evidence_hashes || typeof state.evidence_hashes !== 'object' || Array.isArray(state.evidence_hashes)) throw new Error('state evidence_hashes must be an object');
   for (const [key, value] of Object.entries(state.evidence_hashes)) {
     if (!/^[a-f0-9]{64}$/i.test(value)) throw new Error(`state evidence hash is invalid: ${key}`);
@@ -264,6 +265,7 @@ export function failState(root, phase, { state, error } = {}) {
     ...state,
     previous_state: state.state,
     state: 'failed',
+    ...(error?.code === 'RIFF_PHASE_BLOCKED' ? { failure_kind: 'blocked' } : {}),
     evidence_hashes: { ...state.evidence_hashes, failure: sha(error instanceof Error ? error.message : error) },
     updated_at: new Date().toISOString(),
   };

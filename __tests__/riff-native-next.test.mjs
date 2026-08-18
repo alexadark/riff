@@ -335,6 +335,16 @@ describe('native RIFF Next first slice', () => {
     } finally { cleanupFixture(fixture); }
   }, 180_000);
 
+  it('persists an explicit controller block as non-retryable native state', () => {
+    const fixture = runFixture('controller-blocked');
+    try {
+      expect(fixture.error?.message).toContain('controller blocked the phase');
+      const state = JSON.parse(readFileSync(path.join(fixture.projectRoot, '.planning/riff-next/1-slugify.json'), 'utf8'));
+      expect(state).toMatchObject({ state: 'failed', previous_state: 'initialized', failure_kind: 'blocked' });
+      expect(readInvocationLog(fixture.logPath)).toHaveLength(1);
+    } finally { cleanupFixture(fixture); }
+  });
+
   it('holds one cross-process runtime lease with reentrant same-process handles', () => {
     const childScript = `import { acquireRuntimeLease, releaseRuntimeLease } from ${JSON.stringify(path.join(repositoryRoot, 'scripts/lib/worker-staging.mjs'))};
 try {

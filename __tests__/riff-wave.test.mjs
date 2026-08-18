@@ -224,6 +224,22 @@ describe('RIFF autonomous single-project waves', () => {
     ]);
   });
 
+  test('does not retry an explicit native controller block', () => {
+    const root = fixture(phase(1, 'Blocked Baseline'));
+    let calls = 0;
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: true, requestedIds: [], runId: 'W-controller-block-test' }, {
+      invokeNext: ({ phase: nativePhase }) => {
+        calls += 1;
+        const file = path.join(root, '.planning', 'riff-next', `${nativePhase}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify({ state: 'failed', previous_state: 'initialized', failure_kind: 'blocked' })}\n`);
+        return { status: 1, signal: null };
+      },
+    });
+    expect(calls).toBe(1);
+    expect(state).toMatchObject({ state: 'blocked', stop_reason: 'phase_blocked_requires_human' });
+  });
+
   test('stops on an unresolved debugger diagnosis after the recovery cap without another native attempt', () => {
     const root = fixture(phase(1, 'Exhausted Work'));
     setRecoveryCap(root, 1);

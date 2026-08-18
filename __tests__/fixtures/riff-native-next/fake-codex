@@ -114,7 +114,9 @@ if (role === 'controller' && sandbox === 'read-only') {
   const routing = mode === 'architecture-bounded'
     ? { planning: 'architecture', execution: 'bounded', review: 'routine' }
     : { planning: 'routine', execution: 'repeatable', review: 'routine' };
-  const output = JSON.stringify({ verdict: 'PROCEED', constraints: [], reason: 'task is bounded', routing });
+  const output = JSON.stringify(mode === 'controller-blocked'
+    ? { verdict: 'BLOCKED', constraints: ['Use a clean baseline.'], reason: 'the requested baseline is unavailable', routing }
+    : { verdict: 'PROCEED', constraints: [], reason: 'task is bounded', routing });
   process.stdout.write(mode === 'controller-ambiguous' ? `${output}\ntrailing prose\n` : `${output}\n`);
 } else if (role === 'planner' && sandbox === 'read-only') {
   if (mode === 'two-waves' || mode === 'two-wave-boundary-escape') {

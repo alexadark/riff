@@ -108,6 +108,12 @@ const GIT_NULL_DEVICE = process.platform === 'win32' ? 'NUL' : '/dev/null';
 function sha(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
 function fail(message) { throw new Error(message); }
 
+function blockPhase(message) {
+  const error = new Error(message);
+  error.code = 'RIFF_PHASE_BLOCKED';
+  throw error;
+}
+
 function gitArgs(args) {
   return ['-c', 'core.fsmonitor=false', '-c', `core.hooksPath=${GIT_NULL_DEVICE}`, ...args];
 }
@@ -1275,7 +1281,7 @@ export function runOrchestration(options) {
     let controllerResult;
     try { controllerResult = controllerDecision(controller.stdout); }
     catch (error) { fail(`controller did not return an unambiguous PROCEED verdict: ${error.message}`); }
-    if (controllerResult.verdict !== 'PROCEED') fail(`controller blocked the phase: ${controllerResult.reason}`);
+    if (controllerResult.verdict !== 'PROCEED') blockPhase(`controller blocked the phase: ${controllerResult.reason}`);
     if (controllerResult.routing.planning === 'architecture' || controllerResult.routing.review === 'critical') {
       const confirmation = controlDispatch({
         name: 'architectureController',
@@ -1288,7 +1294,7 @@ export function runOrchestration(options) {
       canonicalControllerOutput = confirmation.stdout;
       try { controllerResult = controllerDecision(confirmation.stdout); }
       catch (error) { fail(`architecture controller did not return an unambiguous PROCEED verdict: ${error.message}`); }
-      if (controllerResult.verdict !== 'PROCEED') fail(`architecture controller blocked the phase: ${controllerResult.reason}`);
+      if (controllerResult.verdict !== 'PROCEED') blockPhase(`architecture controller blocked the phase: ${controllerResult.reason}`);
     }
     const plannerRoute = routes.planner[controllerResult.routing.planning];
     const workerRoute = routes.worker[controllerResult.routing.execution];

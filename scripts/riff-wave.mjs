@@ -134,6 +134,7 @@ function nativeState(projectRoot, nativePhase) {
 
 function safeToRetry(native) {
   if (!native) return true;
+  if (native.failure_kind === 'blocked') return false;
   if (POST_PROMOTION_STATES.has(native.state) || POST_PROMOTION_STATES.has(native.previous_state)) return false;
   return RETRY_SAFE_STATES.has(native.state) || RETRY_SAFE_STATES.has(native.previous_state);
 }
@@ -1114,12 +1115,13 @@ function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invok
   attempt.native_state = native?.state || null;
   record.status = 'blocked';
   const retryable = !result?.signal && safeToRetry(native);
+  const controllerBlocked = native?.failure_kind === 'blocked';
   if (!retryable) updatePhaseStatus(roadmap, phase.id, 'blocked');
   state.current = { phase_id: phase.id, native_phase: nativePhase, attempt: attemptNumber };
   writeState(projectRoot, state);
   return {
     completed: false,
-    reason: retryable ? 'phase_failed_safe_to_resume' : result?.signal ? 'interrupted_requires_human' : 'post_promotion_failure_requires_human',
+    reason: retryable ? 'phase_failed_safe_to_resume' : controllerBlocked ? 'phase_blocked_requires_human' : result?.signal ? 'interrupted_requires_human' : 'post_promotion_failure_requires_human',
     safeToResume: retryable,
   };
 }
