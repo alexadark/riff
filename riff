@@ -15,6 +15,8 @@ Usage:
   riff init [options]
   riff next --phase <id> --task <description> [options]
   riff wave --autonomous [--loop] [options]
+  riff finish --check [--run ID] [--project-root PATH] [--base BRANCH] [--json]
+  riff finish --confirm TOKEN [--run ID] [--project-root PATH] [--base BRANCH] [--json]
   riff phase <list|add|set-status> [options]
   riff status [--json]
   riff resync
@@ -26,6 +28,7 @@ Commands:
   init      Install RIFF into the current project
   next      Run one bounded native stage using runtime.provider from the active profile
   wave      Run ready roadmap phases autonomously; add --loop to continue until a stop condition
+  finish    Build a token-bound Git finish plan, then commit and integrate only after confirmation
   phase     List, add, or update roadmap phases
   status    Show roadmap, active wave, native stage, and next action
   resync    Reconcile RIFF-owned Claude and Codex runtime adapters and skills
@@ -55,6 +58,11 @@ if (command === 'next') {
 
 if (command === 'wave') {
   const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-wave.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
+  process.exit(result.status ?? 1);
+}
+
+if (command === 'finish') {
+  const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-finish.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
   process.exit(result.status ?? 1);
 }
 

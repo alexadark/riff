@@ -290,6 +290,7 @@ Choose entry points by intent:
 | Open dashboard | `$dashboard` or `$riff:dashboard` | `/riff:dashboard` | `./.riff/riff dashboard` |
 | Run one explicit native phase | `$next` or `$riff:next` | Invoke `riff next` explicitly | `./.riff/riff next ...` |
 | Run or resume autonomous roadmap work | `$wave` or `$riff:wave` | `/riff:wave --autonomous [--loop]` | `./.riff/riff wave --autonomous [--loop]` |
+| Finish a completed wave | `$finish` or `$riff:finish` | Explicit finish workflow | `./.riff/riff finish --check` |
 | Reconcile RIFF installation | `$resync` or `$riff:resync` | `/riff:resync` | `./.riff/riff resync` |
 | Confirmed promotion | `$promote` or `$riff:promote` | Explicit promotion workflow | Follow the promotion protocol |
 
@@ -316,6 +317,21 @@ After completion:
 2. Perform any product-specific visual or manual verification outside the runner's scope.
 3. Decide separately whether to commit, open a PR, merge, deploy, or promote.
 4. Confirm promotion only when you intend to run it.
+
+## Confirmed Git finishing
+
+`riff finish` is a separate, explicit Git boundary. Start with `./.riff/riff
+finish --check`, inspect the exact paths, evidence hashes, strategy, and next
+command, then run only the displayed `--confirm <token>` command. A check never
+changes Git or creates artifacts. Confirmation rebuilds the plan, so any changed
+content, HEAD, branch, evidence, or dirty path invalidates the token.
+
+The active profile's `git.merge_strategy` must be `github_button` or
+`local_no_ff`. The former pushes the feature branch and opens or reuses a pull
+request, leaving the GitHub merge button as the explicit boundary. The latter
+performs the confirmed no-fast-forward merge and pushes the base branch. The
+remote feature branch remains for operator or GitHub cleanup. Neither strategy
+deploys or promotes.
 
 For scripts and direct commands, read [../scripts/README.md](../scripts/README.md). For the compact architecture view, read [../HOW-IT-WORKS.md](../HOW-IT-WORKS.md).
 

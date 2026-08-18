@@ -89,10 +89,8 @@ function normalizedPhase(raw, index, format, key) {
   };
 }
 
-export function loadRoadmap(projectRoot) {
-  const file = path.join(projectRoot, 'ROADMAP.yaml');
-  let text;
-  try { text = fs.readFileSync(file, 'utf8'); } catch { fail('ROADMAP.yaml is missing; run RIFF start before launching a wave'); }
+export function parseRoadmapText(text, file = 'ROADMAP.yaml') {
+  if (typeof text !== 'string') fail('ROADMAP.yaml must be text');
   let parsed;
   try { parsed = yaml.load(text); } catch (error) { fail(`ROADMAP.yaml is invalid YAML: ${error.message}`); }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) fail('ROADMAP.yaml must contain a YAML mapping');
@@ -109,6 +107,13 @@ export function loadRoadmap(projectRoot) {
   };
 }
 
+export function loadRoadmap(projectRoot) {
+  const file = path.join(projectRoot, 'ROADMAP.yaml');
+  let text;
+  try { text = fs.readFileSync(file, 'utf8'); } catch { fail('ROADMAP.yaml is missing; run RIFF start before launching a wave'); }
+  return parseRoadmapText(text, file);
+}
+
 export function validateRoadmap(projectRoot, frameworkRoot) {
   const validator = path.join(frameworkRoot, 'lib', 'validate-roadmap.sh');
   const result = spawnSync('bash', [validator, path.join(projectRoot, 'ROADMAP.yaml')], {
@@ -123,9 +128,10 @@ function unquote(value) {
   return trimmed;
 }
 
-export function updatePhaseStatus(roadmap, phaseId, status) {
+export function roadmapTextWithPhaseStatus(text, phaseId, status) {
   if (!['todo', 'in-progress', 'done', 'blocked', 'skipped'].includes(status)) fail(`invalid roadmap phase status: ${status}`);
-  const lines = roadmap.text.split('\n');
+  const roadmap = parseRoadmapText(text);
+  const lines = text.split('\n');
   let start = -1;
   let end = lines.length;
   if (roadmap.format === 'list') {
@@ -153,7 +159,11 @@ export function updatePhaseStatus(roadmap, phaseId, status) {
   const indent = lines[lineIndex].match(/^\s*/)?.[0] || '    ';
   const comment = lines[lineIndex].match(/\s+#.*$/)?.[0] || '';
   lines[lineIndex] = `${indent}status: ${status}${comment}`;
-  const text = lines.join('\n');
+  return lines.join('\n');
+}
+
+export function updatePhaseStatus(roadmap, phaseId, status) {
+  const text = roadmapTextWithPhaseStatus(roadmap.text, phaseId, status);
   atomicWrite(roadmap.file, text);
   roadmap.text = text;
   const phase = roadmap.phases.find((entry) => entry.id === String(phaseId));

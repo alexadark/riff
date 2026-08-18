@@ -42,7 +42,7 @@ describe('active conversational skill split', () => {
 
 describe('active skill runtime contracts', () => {
   test('every owned active skill has an explicit runtime prompt and disabled implicit invocation', () => {
-    for (const name of ['dashboard', 'deep-audit', 'improve', 'incident', 'incident-review', 'map', 'next', 'phase', 'promote', 'resync', 'start', 'status', 'wave']) {
+    for (const name of ['dashboard', 'deep-audit', 'finish', 'improve', 'incident', 'incident-review', 'map', 'next', 'phase', 'promote', 'resync', 'start', 'status', 'wave']) {
       const config = skillConfig(name);
       expect(config).toContain(`$riff:${name}`);
       expect(config).toMatch(/allow_implicit_invocation:\s*false/);
@@ -75,6 +75,20 @@ describe('active skill runtime contracts', () => {
     expect(text).toMatch(/Security hooks run once\s+after the product phases/);
     expect(text).toContain('never commits, merges, deploys, or promotes implicitly');
     expect(config).toContain('$riff:wave');
+  });
+
+  test('finish is explicit, shows a no-action plan, and waits for confirmation', () => {
+    const text = skill('finish');
+    const config = skillConfig('finish');
+    const explicitlyInvokesFinish = (prompt) => /\$(?:riff:)?finish\b/.test(prompt);
+    expect(explicitlyInvokesFinish('$finish')).toBe(true);
+    expect(explicitlyInvokesFinish('finish this RIFF project')).toBe(false);
+    expect(text).toContain('`<git-root>/.riff/riff finish --check --project-root <git-root>`');
+    expect(text).toContain('Ask the user to confirm that exact plan');
+    expect(text).toContain('`riff finish --confirm <token>`');
+    expect(text).toMatch(/never deploys or promotes/i);
+    expect(config).toContain('$riff:finish');
+    expect(config).toMatch(/allow_implicit_invocation:\s*false/);
   });
 
   test('single-project entry skills expose native Codex workflows', () => {
@@ -158,7 +172,7 @@ describe('promotion and improver safety contracts', () => {
 
 describe('owned skill references', () => {
   test('all protocol paths referenced by owned skills exist', () => {
-    for (const name of ['dashboard', 'deep-audit', 'improve', 'incident', 'incident-review', 'map', 'next', 'phase', 'promote', 'resync', 'start', 'status', 'wave']) {
+    for (const name of ['dashboard', 'deep-audit', 'finish', 'improve', 'incident', 'incident-review', 'map', 'next', 'phase', 'promote', 'resync', 'start', 'status', 'wave']) {
       const text = skill(name);
       const references = [...text.matchAll(/`\.riff\/(protocols\/[^`]+)`/g)].map((match) => match[1]);
       for (const reference of references) expect(existsSync(path.join(repositoryRoot, reference))).toBe(true);

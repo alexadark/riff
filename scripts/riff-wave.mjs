@@ -26,6 +26,7 @@ import { gitEnvironment } from './lib/model-dispatch.mjs';
 import { loadCodexRoutes } from './lib/runtime-routes.mjs';
 import { loadClaudeRoutes, providerAdapterIdentity } from './lib/runtime-provider.mjs';
 import { assertWaveRunId, readActiveWaveRun, readRegularJson, readWaveState, secureWaveRoot } from './lib/wave-state.mjs';
+import { statePath as nativeStatePath, validatePhase, validateState } from './riff-next-stage.mjs';
 
 const scriptFrameworkRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RETRY_SAFE_STATES = new Set(['initialized', 'controller_passed', 'plan_validated', 'plan_reviewed', 'worker_dispatched', 'failed']);
@@ -702,6 +703,77 @@ function semanticExisting(projectRoot, frameworkRoot, state, mechanical) {
     if (!validated.valid || marker.route !== 'security-reviewer:fixed' || marker.input_sha256 !== input.input_sha256 || marker.mechanical_artifact_sha256 !== state.final_security?.artifact_sha256 || marker.provider !== state.selected_provider || receipt.schema_version !== 1 || JSON.stringify(receiptKeys) !== JSON.stringify(expectedReceiptKeys) || !expectedRouteFields || receipt.mechanical_artifact_sha256 !== state.final_security?.artifact_sha256 || receipt.input_sha256 !== input.input_sha256 || receipt.nonce !== marker.nonce || receipt.provider !== state.selected_provider || receipt.artifact_sha256 !== sha256(text) || (summary && (summary.verdict !== validated.verdict || summary.artifact_sha256 !== sha256(text) || summary.provider !== state.selected_provider || summary.adapter !== expectedIdentity || summary.model !== expectedRoute.model || summary.effort !== expectedRoute.effort))) return { status: 'invalid' };
     return { status: 'present', verdict: validated.verdict, receipt, artifactSha256: sha256(text) };
   } catch { return { status: 'invalid' }; }
+}
+
+/**
+ * Read-only completion evidence boundary for the native Git finisher.
+ *
+ * This deliberately reuses the same private validators used by wave
+ * completion.  It never writes state, invokes a hook, or dispatches a model.
+ */
+export function inspectCompletedWaveEvidence({ projectRoot, frameworkRoot, runId }) {
+  const waveArtifact = readRegularJson(path.join(stateRoot(projectRoot), `${assertWaveRunId(runId)}.json`), `RIFF wave state: ${runId}`);
+  if (!waveArtifact) fail(`RIFF wave state is missing: ${runId}`);
+  const state = readWaveState(projectRoot, runId);
+  if (JSON.stringify(waveArtifact.value) !== JSON.stringify(state)) fail(`RIFF wave state changed while reading: ${runId}`);
+  if (state.state !== 'completed' || state.current !== null) fail(`RIFF wave ${state.run} is not in a completed state`);
+  if (!['codex', 'claude'].includes(state.selected_provider)) fail(`RIFF wave ${state.run} has no selected provider`);
+
+  const boundEvidence = [{ kind: 'wave_state', sha256: sha256(waveArtifact.bytes) }];
+  for (const record of state.phases) {
+    if (!isRecord(record) || record.status !== 'completed' || !Array.isArray(record.attempts) || record.attempts.length === 0) {
+      fail(`RIFF wave ${state.run} has an incomplete phase record`);
+    }
+    const phase = loadRoadmap(projectRoot).phases.find((entry) => entry.id === record.id);
+    const attempt = record.attempts.at(-1);
+    if (!phase || !isRecord(attempt) || !Number.isInteger(attempt.attempt) || attempt.attempt < 1 || attempt.attempt !== record.attempts.length || attempt.status !== 'completed') fail(`RIFF wave ${state.run} has an incomplete final phase attempt`);
+    const expectedNative = `${phaseKey(phase)}--${state.run.toLowerCase()}-a${attempt.attempt}`;
+    if (attempt.native_phase !== expectedNative) fail(`RIFF wave ${state.run} native attempt identifier is invalid`);
+    validatePhase(expectedNative);
+    const nativeArtifact = readRegularJson(nativeStatePath(projectRoot, expectedNative), `RIFF native state: ${expectedNative}`);
+    if (!nativeArtifact) fail(`RIFF wave ${state.run} native state is missing: ${expectedNative}`);
+    validateState(nativeArtifact.value, { phase: expectedNative });
+    if (nativeArtifact.value.state !== 'completed') fail(`RIFF wave ${state.run} native attempt is not completed: ${expectedNative}`);
+    const routingPath = path.join(projectRoot, '.planning', 'riff-next', `${expectedNative}.routing.json`);
+    const routingArtifact = readRegularJson(routingPath, `RIFF native routing receipt: ${expectedNative}`);
+    if (!routingArtifact || nativeArtifact.value.evidence_hashes.routing_receipt !== sha256(routingArtifact.bytes)) fail(`RIFF wave ${state.run} native routing receipt is invalid`);
+    const routing = routingArtifact.value;
+    if (!isRecord(routing) || routing.schema_version !== 1 || routing.status !== 'routes_resolved' || routing.phase !== expectedNative || routing.provider !== state.selected_provider) fail(`RIFF wave ${state.run} native routing receipt is invalid`);
+    boundEvidence.push({ kind: 'native_state', phase: expectedNative, sha256: sha256(nativeArtifact.bytes) }, { kind: 'native_routing', phase: expectedNative, sha256: sha256(routingArtifact.bytes) });
+  }
+
+  const roadmap = loadRoadmap(projectRoot);
+  for (const record of state.phases) {
+    const phase = roadmap.phases.find((entry) => entry.id === record.id);
+    if (!phase) fail(`completed verification phase is missing from ROADMAP.yaml: ${record.id}`);
+    if (requiresConfirmation(phase) && record.verification?.status !== 'consumed') fail(`human verification approval is missing or unconsumed for phase ${phase.id}`);
+    if (!record.verification) continue;
+    if (record.verification.status !== 'consumed') fail(`human verification must be consumed for phase ${phase.id}`);
+    const { request } = validateRequestArtifact(projectRoot, state, phase, record.verification);
+    const receipt = validateReceiptArtifact(projectRoot, state, phase, record.verification, request);
+    boundEvidence.push({ kind: 'verification_request', phase: phase.id, sha256: request.sha256 }, { kind: 'verification_receipt', phase: phase.id, sha256: receipt.sha256 });
+  }
+
+  const mechanical = existingFinalSecurity(projectRoot, state);
+  if (mechanical.status !== 'present' || !['PASS', 'PASS_WITH_NOTES'].includes(mechanical.report.verdict)
+    || mechanical.report.findings.some((finding) => finding.severity === 'HIGH')) {
+    fail(`RIFF wave ${state.run} final mechanical security evidence is not passing`);
+  }
+  const semantic = semanticExisting(projectRoot, frameworkRoot, state, mechanical.report);
+  if (semantic.status !== 'present' || semantic.verdict !== 'PASS') {
+    fail(`RIFF wave ${state.run} final semantic security evidence is not passing`);
+  }
+  const changedPaths = authoritativeChangedPaths(projectRoot, state);
+  if (!changedPaths.length) fail(`RIFF wave ${state.run} has no authoritative product changes`);
+  return {
+    run: state.run,
+    provider: state.selected_provider,
+    changed_paths: changedPaths,
+    phase_ids: state.phases.map((record) => record.id),
+    completion_evidence_sha256: sha256(JSON.stringify(boundEvidence)),
+    mechanical: { verdict: mechanical.report.verdict, artifact_sha256: mechanical.artifactSha256, input_sha256: mechanical.report.input_sha256 },
+    semantic: { verdict: semantic.verdict, artifact_sha256: semantic.artifactSha256, input_sha256: semantic.receipt.input_sha256 },
+  };
 }
 function completeSemanticSecurity(projectRoot, frameworkRoot, state, mechanical, semanticDispatch) {
   const existing = semanticExisting(projectRoot, frameworkRoot, state, mechanical);
