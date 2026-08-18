@@ -72,7 +72,12 @@ export function readWaveState(projectRoot, run) {
 }
 
 export function readActiveWaveRun(projectRoot) {
-  const root = secureWaveRoot(projectRoot);
+  let root;
+  try { root = secureWaveRoot(projectRoot); }
+  catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
   const result = readRegularJson(path.join(root, 'active.json'), 'RIFF active wave state');
   if (!result) return null;
   const active = result.value;

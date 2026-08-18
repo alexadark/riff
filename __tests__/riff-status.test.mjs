@@ -13,6 +13,17 @@ afterEach(() => {
   for (const root of fixtures.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
+test('reports no active verification before the first wave state directory exists', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'riff-status-empty-test-'));
+  fixtures.push(root);
+  fs.writeFileSync(path.join(root, 'ROADMAP.yaml'), `name: Empty Status\nphases:\n  - id: 1\n    slug: first-phase\n    title: First Phase\n    status: todo\n    priority: P1\n    mode: AFK\n    tags: []\n    depends_on: []\n    goal: Implement the first phase.\n    tasks:\n      - Implement the first phase.\n`);
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  const status = projectStatus(root);
+  expect(status.active_wave).toBeNull();
+  expect(status.active_verification).toBeNull();
+  expect(status.ready).toEqual(['1']);
+});
+
 test('status JSON and text expose the active verification request and approval command', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'riff-status-test-'));
   fixtures.push(root);
