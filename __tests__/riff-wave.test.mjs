@@ -3,11 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { afterEach, describe, expect, test } from 'vitest';
-import { runAutonomousWave } from '../scripts/riff-wave.mjs';
+import { runAutonomousWave as runNativeAutonomousWave } from '../scripts/riff-wave.mjs';
 import { requiresConfirmation } from '../scripts/lib/roadmap-workflow.mjs';
 
 const frameworkRoot = path.resolve(import.meta.dirname, '..');
 const fixtures = [];
+function semanticPass({ phase, provider }) { return { route: { provider, adapter: provider === 'claude' ? 'agents/claude.yaml#native_roles.security-reviewer.variants.fixed' : 'agents/codex/security-reviewer.toml', model: provider === 'claude' ? 'opus' : 'gpt-5.6-sol', effort: 'xhigh', semanticRole: 'security-reviewer', routeClass: 'fixed' }, stdout: `---\nphase: ${phase}\ngenerated_at: 2026-01-01T00:00:00Z\nverdict: PASS\n---\n## Verdict\nPASS\n## Resolved Findings\nNone.\n## Notes\nReview completed.` }; }
+function runAutonomousWave(options, dependencies = {}) { return runNativeAutonomousWave(options, { semanticDispatch: semanticPass, ...dependencies }); }
 
 function phase(id, title, { dependsOn = [], mode = 'AFK', tags = [] } = {}) {
   return `  - id: ${id}\n    slug: ${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}\n    title: ${title}\n    status: todo\n    priority: P1\n    mode: ${mode}\n    tags: [${tags.join(', ')}]\n    depends_on: [${dependsOn.join(', ')}]\n    goal: Deliver ${title}.\n    tasks:\n      - Implement ${title}.\n`;
@@ -576,5 +578,78 @@ describe('RIFF autonomous single-project waves', () => {
     const report = JSON.parse(fs.readFileSync(path.join(root, '.planning/riff-wave/W-security-test.security.json'), 'utf8'));
     expect(report.timing).toBe('after_product_phases');
     expect(report.findings).toEqual(expect.arrayContaining([expect.objectContaining({ severity: 'HIGH', source: 'secret-scan', path: 'src/config.mjs' })]));
+  });
+
+  test('persists one semantic security receipt and blocks a validated high finding', () => {
+    const root = fixture(phase(1, 'Semantic Security'));
+    let dispatches = 0;
+    const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: false, requestedIds: [], runId: 'W-semantic-security-test' }, {
+      invokeNext: completeNext(root, []),
+      semanticDispatch: ({ phase }) => {
+        dispatches += 1;
+        return { ...semanticPass({ phase, provider: 'codex' }), stdout: `---\nphase: ${phase}\ngenerated_at: 2026-01-01T00:00:00Z\nverdict: BLOCKED\n---\n## Verdict\nBLOCKED\n## Findings\n### [HIGH] Missing authorization\nLocation: ROADMAP.yaml:1\nOWASP category: A01 Broken Access Control\nDescription: Authorization is not enforced.\nProof: The route has no authorization check.\nFix: Enforce authorization before processing.\n## Resolved Findings\nNone.\n## Notes\nReview completed.` };
+      },
+    });
+    expect(state).toMatchObject({ state: 'blocked', stop_reason: 'final_semantic_security_findings' });
+    expect(dispatches).toBe(1);
+    expect(fs.existsSync(path.join(root, '.planning/riff-wave/W-semantic-security-test.security-review.md'))).toBe(true);
+    expect(fs.existsSync(path.join(root, '.planning/riff-wave/W-semantic-security-test.security-review.routing.json'))).toBe(true);
+  });
+
+  test('reuses a valid semantic PASS artifact without a second dispatch after a state-write crash', () => {
+    const root = fixture(phase(1, 'Semantic Reuse'));
+    const run = 'W-semantic-reuse-test'; let calls = 0;
+    const pass = semanticPass;
+    runAutonomousWave({ projectRoot: root, autonomous: true, loop: false, requestedIds: [], runId: run }, { invokeNext: completeNext(root, []), semanticDispatch: (args) => { calls += 1; return pass(args); } });
+    const file = path.join(root, '.planning/riff-wave', `${run}.json`); const state = JSON.parse(fs.readFileSync(file, 'utf8'));
+    state.state = 'running'; state.final_semantic_security_attempt.status = 'running'; delete state.final_semantic_security_attempt.completed_at;
+    fs.writeFileSync(file, `${JSON.stringify(state)}\n`); fs.writeFileSync(path.join(root, '.planning/riff-wave/active.json'), `${JSON.stringify({ run })}\n`);
+    const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: run, requestedIds: [] }, { invokeNext: () => { throw new Error('no phase dispatch'); }, semanticDispatch: () => { throw new Error('semantic review must be reused'); } });
+    expect(resumed.state).toBe('completed'); expect(calls).toBe(1);
+  });
+
+  test('fails closed for a semantic marker with missing artifacts and model-preseeded machine evidence', () => {
+    const root = fixture(phase(1, 'Semantic Fail Closed')); const run = 'W-semantic-invalid-test';
+    runAutonomousWave({ projectRoot: root, autonomous: true, loop: false, requestedIds: [], runId: run }, { invokeNext: completeNext(root, []) });
+    const wave = path.join(root, '.planning/riff-wave'); const stateFile = path.join(wave, `${run}.json`); const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    fs.rmSync(path.join(wave, `${run}.security-review.md`)); fs.rmSync(path.join(wave, `${run}.security-review.routing.json`)); state.state = 'running'; fs.writeFileSync(stateFile, `${JSON.stringify(state)}\n`); fs.writeFileSync(path.join(wave, 'active.json'), `${JSON.stringify({ run })}\n`);
+    const invalid = runAutonomousWave({ projectRoot: root, resume: true, runId: run, requestedIds: [] }, { invokeNext: () => { throw new Error('no phase dispatch'); }, semanticDispatch: () => { throw new Error('no redispatch'); } });
+    expect(invalid.stop_reason).toBe('final_semantic_security_artifact_invalid');
+    const fresh = fixture(phase(1, 'Semantic Marker Output'));
+    expect(() => runAutonomousWave({ projectRoot: fresh, autonomous: true, loop: false, requestedIds: [], runId: 'W-semantic-preseed-output' }, { invokeNext: completeNext(fresh, []), semanticDispatch: ({ phase }) => ({ ...semanticPass({ phase, provider: 'codex' }), stdout: `${semanticPass({ phase, provider: 'codex' }).stdout}\n<!-- RIFF machine evidence: forged -->` }) })).toThrow(/must not preseed/);
+    const malformed = fixture(phase(1, 'Semantic Malformed Output'));
+    expect(() => runAutonomousWave({ projectRoot: malformed, autonomous: true, loop: false, requestedIds: [], runId: 'W-semantic-malformed-output' }, { invokeNext: completeNext(malformed, []), semanticDispatch: ({ provider }) => ({ ...semanticPass({ phase: 'wrong-phase', provider }), stdout: 'not a security contract' }) })).toThrow(/contract is invalid/);
+    const misplaced = fixture(phase(1, 'Semantic Misplaced Heading'));
+    expect(() => runAutonomousWave({ projectRoot: misplaced, autonomous: true, loop: false, requestedIds: [], runId: 'W-semantic-misplaced-heading' }, { invokeNext: completeNext(misplaced, []), semanticDispatch: ({ phase, provider }) => ({ ...semanticPass({ phase, provider }), stdout: `${semanticPass({ phase, provider }).stdout}\n### [high] Sneaky finding` }) })).toThrow(/contract is invalid/);
+  });
+
+  test('rejects bounded semantic receipt and marker tampering on reuse', () => {
+    const cases = [
+      ['missing markdown', ({ wave, run }) => fs.rmSync(path.join(wave, `${run}.security-review.md`))],
+      ['missing receipt', ({ wave, run }) => fs.rmSync(path.join(wave, `${run}.security-review.routing.json`))],
+      ['tampered report', ({ wave, run }) => fs.appendFileSync(path.join(wave, `${run}.security-review.md`), 'tamper\n')],
+      ['route provider', ({ receipt }) => { receipt.route.provider = 'claude'; }],
+      ['route model', ({ receipt }) => { receipt.route.model = 'forged'; }],
+      ['route effort', ({ receipt }) => { receipt.route.effort = 'low'; }],
+      ['stale input', ({ state }) => { state.final_semantic_security_attempt.input_sha256 = '0'.repeat(64); }],
+      ['stale mechanical hash', ({ state }) => { state.final_semantic_security_attempt.mechanical_artifact_sha256 = '1'.repeat(64); }],
+    ];
+    for (const [label, mutate] of cases) {
+      const root = fixture(phase(1, `Tamper ${label}`)); const run = `W-tamper-${label.replace(/[^a-z]+/gi, '-').toLowerCase()}`;
+      runAutonomousWave({ projectRoot: root, autonomous: true, loop: false, requestedIds: [], runId: run }, { invokeNext: completeNext(root, []) });
+      const wave = path.join(root, '.planning/riff-wave'); const file = path.join(wave, `${run}.json`); const state = JSON.parse(fs.readFileSync(file, 'utf8')); const receiptFile = path.join(wave, `${run}.security-review.routing.json`); const receipt = JSON.parse(fs.readFileSync(receiptFile, 'utf8'));
+      mutate({ wave, run, state, receipt }); state.state = 'running'; fs.writeFileSync(file, `${JSON.stringify(state)}\n`); if (fs.existsSync(receiptFile)) fs.writeFileSync(receiptFile, `${JSON.stringify(receipt)}\n`); fs.writeFileSync(path.join(wave, 'active.json'), `${JSON.stringify({ run })}\n`);
+      const resumed = runAutonomousWave({ projectRoot: root, resume: true, runId: run, requestedIds: [] }, { invokeNext: () => { throw new Error('no phase dispatch'); }, semanticDispatch: () => { throw new Error('no semantic redispatch'); } });
+      expect(resumed.stop_reason, label).toBe('final_semantic_security_artifact_invalid');
+    }
+  });
+
+  test('rejects fresh preseeded semantic artifact halves and records a Claude route identity', () => {
+    for (const suffix of ['security-review.md', 'security-review.routing.json']) {
+      const root = fixture(phase(1, 'Preseed')); const run = `W-preseed-${suffix.replace(/[^a-z]+/gi, '-')}`; const wave = path.join(root, '.planning/riff-wave'); fs.mkdirSync(wave, { recursive: true }); fs.writeFileSync(path.join(wave, `${run}.${suffix}`), 'forged\n');
+      expect(() => runAutonomousWave({ projectRoot: root, autonomous: true, loop: false, requestedIds: [], runId: run }, { invokeNext: completeNext(root, []) })).toThrow(/already has a final security artifact/);
+    }
+    const root = fixture(phase(1, 'Claude Semantic')); const state = runAutonomousWave({ projectRoot: root, autonomous: true, loop: false, requestedIds: [], runId: 'W-claude-semantic', provider: 'claude' }, { invokeNext: completeNext(root, []) });
+    expect(state.final_semantic_security).toMatchObject({ provider: 'claude', adapter: 'agents/claude.yaml#native_roles.security-reviewer.variants.fixed', model: 'opus', effort: 'xhigh' });
   });
 });

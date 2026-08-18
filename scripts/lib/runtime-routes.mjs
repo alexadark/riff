@@ -22,6 +22,32 @@ export const ROUTE_BY_FILE = Object.freeze(Object.fromEntries(ROUTE_PORTFOLIO.ma
 export function routeKey(semanticRole, routeClass) { return `${semanticRole}:${routeClass}`; }
 export const ROUTE_BY_KEY = Object.freeze(Object.fromEntries(ROUTE_PORTFOLIO.map((route) => [routeKey(route.semanticRole, route.routeClass), route])));
 
+/** Load the closed Codex adapter portfolio from a real framework root. */
+export function loadCodexRoutes(frameworkRoot) {
+  const framework = path.resolve(frameworkRoot);
+  let routesDir;
+  try {
+    if (fs.lstatSync(framework).isSymbolicLink() || !fs.lstatSync(framework).isDirectory() || fs.realpathSync(framework) !== framework) throw new Error(`framework root must be a real lexical directory: ${framework}`);
+    const agents = path.join(framework, 'agents');
+    if (fs.lstatSync(agents).isSymbolicLink() || !fs.lstatSync(agents).isDirectory() || fs.realpathSync(agents) !== agents) throw new Error(`runtime routes parent must be a real lexical directory: ${agents}`);
+    routesDir = path.join(agents, 'codex');
+    if (fs.lstatSync(routesDir).isSymbolicLink() || !fs.lstatSync(routesDir).isDirectory() || fs.realpathSync(routesDir) !== routesDir) throw new Error(`runtime routes must be a real lexical directory: ${routesDir}`);
+  } catch (error) { throw new Error(String(error.message || '').startsWith('runtime routes') || String(error.message || '').startsWith('framework root') ? error.message : `missing exact runtime routes: ${path.join(framework, 'agents', 'codex')}`); }
+  const actual = fs.readdirSync(routesDir).filter((file) => file.endsWith('.toml')).sort();
+  const expected = ROUTE_PORTFOLIO.map((route) => route.file).sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('runtime route portfolio does not match the declared variants');
+  const routes = {};
+  for (const expectedRoute of ROUTE_PORTFOLIO) {
+    const file = path.join(routesDir, expectedRoute.file);
+    const result = validateRouteSource({ file, frameworkRoot: framework });
+    if (result.errors.length) throw new Error(`runtime route ${expectedRoute.file} is invalid: ${result.errors.join('; ')}`);
+    const route = { provider: 'codex', semanticRole: expectedRoute.semanticRole, role: expectedRoute.semanticRole, routeClass: expectedRoute.routeClass, model: expectedRoute.model, effort: expectedRoute.effort, serviceTier: expectedRoute.serviceTier, sandbox: expectedRoute.sandbox, developerInstructions: result.parsed.instructions, roleSpecPath: result.roleSpecPath, routePath: file, adapter: `agents/codex/${expectedRoute.file}` };
+    routes[expectedRoute.semanticRole] ||= {};
+    routes[expectedRoute.semanticRole][expectedRoute.routeClass] = route;
+  }
+  return routes;
+}
+
 const SCALAR_FIELDS = new Set(['name', 'description', 'semantic_role', 'route_class', 'model', 'model_reasoning_effort', 'service_tier', 'sandbox_mode', 'role_spec_path']);
 const REQUIRED_FIELDS = Object.freeze([...SCALAR_FIELDS].filter((field) => field !== 'service_tier').concat('developer_instructions'));
 

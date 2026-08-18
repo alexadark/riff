@@ -1,11 +1,15 @@
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { describe, expect, test } from 'vitest';
 import { runArtifactChecks } from '../scripts/artifact-check.mjs';
-import { ROUTE_PORTFOLIO, parseRouteText } from '../scripts/lib/runtime-routes.mjs';
+import { ROUTE_PORTFOLIO, loadCodexRoutes, parseRouteText } from '../scripts/lib/runtime-routes.mjs';
+import { validateSecurityReview } from '../scripts/lib/artifact-contracts.mjs';
+import { dispatchReadOnlyRole } from '../scripts/lib/read-only-role-dispatch.mjs';
+import { dispatchModel } from '../scripts/lib/model-dispatch.mjs';
 import { CLAUDE_ROUTE_MATRIX, claudeRuntimeEnvironment, claudeSettings, loadClaudeRoutes, resolveRuntimeProfile } from '../scripts/lib/runtime-provider.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -172,6 +176,59 @@ describe('RIFF role adapter migration', () => {
         expect(routes[role][routeClass].developerInstructions).not.toContain(repositoryRoot);
       }
     }
+  });
+
+  test('Codex and Claude select the fixed security-reviewer route', () => {
+    expect(loadCodexRoutes(repositoryRoot)['security-reviewer'].fixed).toMatchObject({ provider: 'codex', model: 'gpt-5.6-sol', effort: 'xhigh', sandbox: 'read-only' });
+    expect(loadClaudeRoutes(repositoryRoot)['security-reviewer'].fixed).toMatchObject({ provider: 'claude', model: 'opus', effort: 'xhigh', sandbox: 'read-only' });
+  });
+
+  test('strict semantic security contract enforces paths and verdict consistency', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'riff-security-contract-'));
+    try {
+      mkdirSync(path.join(root, 'src')); writeFileSync(path.join(root, 'src/a.mjs'), 'export const a = 1;\n');
+      const valid = '---\nphase: final-security\ngenerated_at: 2026-01-01T00:00:00Z\nverdict: PASS-WITH-WARNINGS\n---\n## Verdict\nPASS-WITH-WARNINGS\n## Findings\n### [MEDIUM] Missing validation\nLocation: src/a.mjs:1\nOWASP category: A03 Injection\nDescription: Input validation is incomplete.\nProof: The value flows without validation.\nFix: Validate the value before use.\n## Resolved Findings\nNone.\n## Notes\nReview completed.';
+      expect(validateSecurityReview(valid, { phase: 'final-security', projectRoot: root }).valid).toBe(true);
+      expect(validateSecurityReview(valid.replace('PASS-WITH-WARNINGS', 'PASS'), { phase: 'final-security', projectRoot: root }).valid).toBe(false);
+      expect(validateSecurityReview(valid.replace('src/a.mjs:1', '/tmp/a.mjs:1'), { phase: 'final-security', projectRoot: root }).valid).toBe(false);
+      expect(validateSecurityReview(valid.replace('Fix: Validate', 'Fix: TODO\n\nFix: Validate'), { phase: 'final-security', projectRoot: root }).valid).toBe(false);
+      expect(validateSecurityReview(valid.replace('## Resolved Findings\nNone.', '## Resolved Findings\n### [HIGH] Wrong section\nNone.'), { phase: 'final-security', projectRoot: root }).valid).toBe(false);
+      expect(validateSecurityReview(valid.replace('## Notes\nReview completed.', '## Notes\n### [HIGH] Wrong section\nReview completed.'), { phase: 'final-security', projectRoot: root }).valid).toBe(false);
+      expect(validateSecurityReview(valid.replace('## Resolved Findings\nNone.', '## Resolved Findings\n### [high] Wrong section\nNone.'), { phase: 'final-security', projectRoot: root }).valid).toBe(false);
+      expect(validateSecurityReview(valid.replace('## Notes\nReview completed.', '## Notes\n### [high] Wrong section\nReview completed.'), { phase: 'final-security', projectRoot: root }).valid).toBe(false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  test('fresh read-only role dispatch rejects a fake adapter mutation of the consumer', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'riff-readonly-consumer-'));
+    try {
+      writeFileSync(path.join(root, 'README.md'), '# test\n');
+      execFileSync('git', ['init', '-q'], { cwd: root }); execFileSync('git', ['config', 'user.email', 'test@example.invalid'], { cwd: root }); execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root }); execFileSync('git', ['add', 'README.md'], { cwd: root }); execFileSync('git', ['commit', '-qm', 'base'], { cwd: root });
+      expect(() => dispatchReadOnlyRole({ consumerRoot: root, frameworkRoot: repositoryRoot, provider: 'codex', semanticRole: 'security-reviewer', routeClass: 'fixed', codexBin: process.execPath, internalTestAllowNonDarwinSandbox: true, promptBuilder: () => 'portable prompt only', modelDispatch: () => { writeFileSync(path.join(root, 'tampered.txt'), 'no'); return { stdout: 'safe', argv: [] }; } })).toThrow(/mutated consumer workspace/);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }, 30_000);
+
+  test('read-only mutation takes precedence when the adapter also throws', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'riff-readonly-throw-'));
+    try {
+      writeFileSync(path.join(root, 'README.md'), '# test\n'); execFileSync('git', ['init', '-q'], { cwd: root }); execFileSync('git', ['config', 'user.email', 'test@example.invalid'], { cwd: root }); execFileSync('git', ['config', 'user.name', 'Test'], { cwd: root }); execFileSync('git', ['add', 'README.md'], { cwd: root }); execFileSync('git', ['commit', '-qm', 'base'], { cwd: root });
+      try { dispatchReadOnlyRole({ consumerRoot: root, frameworkRoot: repositoryRoot, provider: 'codex', semanticRole: 'security-reviewer', routeClass: 'fixed', codexBin: process.execPath, internalTestAllowNonDarwinSandbox: true, promptBuilder: () => 'portable prompt only', modelDispatch: () => { writeFileSync(path.join(root, 'tampered.txt'), 'no'); throw new Error('provider failed'); } }); throw new Error('expected dispatch failure'); }
+      catch (error) { expect(error.message).toMatch(/mutated consumer workspace/); expect(error.cause?.message).toBe('provider failed'); }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }, 30_000);
+
+  test('extracted Codex and Claude dispatches retain closed argv and environment', () => {
+    const calls = [];
+    const spawn = (binary, argv, options) => { calls.push({ binary, argv, options }); return { status: 0, stdout: 'ok', stderr: '' }; };
+    const base = { role: 'security-reviewer', sandbox: 'read-only', model: 'test', effort: 'xhigh', developerInstructions: 'closed contract', provider: 'codex' };
+    dispatchModel({ root: '/private/riff-dispatch', readPaths: ['/private/evidence'], protectedPaths: ['/private/secret'], binary: '/bin/true', route: base, prompt: 'review', shellPath: '/bin', spawn });
+    dispatchModel({ root: '/private/riff-dispatch', readPaths: ['/private/evidence'], protectedPaths: ['/private/secret'], binary: '/bin/true', route: { ...base, provider: 'claude', tools: ['Read', 'Glob', 'Grep'] }, prompt: 'review', shellPath: '/bin', spawn });
+    expect(calls[0].argv).toEqual(expect.arrayContaining(['--strict-config', '--ignore-user-config', '--ignore-rules', '--ephemeral', '--disable', 'multi_agent', '--ask-for-approval', 'never']));
+    expect(calls[0].options).toMatchObject({ shell: false, timeout: 900000, killSignal: 'SIGKILL' });
+    expect(calls[0].options.env.GIT_TERMINAL_PROMPT).toBe('0');
+    expect(calls[1].argv).toEqual(expect.arrayContaining(['--permission-mode', 'dontAsk', '--strict-mcp-config', '--safe-mode', '--disable-slash-commands', '--no-session-persistence']));
+    expect(calls[1].options).toMatchObject({ shell: false, timeout: 900000, killSignal: 'SIGKILL' });
+    expect(calls[1].options.env.GIT_TERMINAL_PROMPT).toBe('0');
   });
 
   test('runtime provider profile resolution uses exact precedence and fails closed', () => {

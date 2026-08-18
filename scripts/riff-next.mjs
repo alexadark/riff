@@ -5,10 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { ROUTE_PORTFOLIO, validateRouteSource } from './lib/runtime-routes.mjs';
+import { loadCodexRoutes } from './lib/runtime-routes.mjs';
+import { diagnosticExcerpt, dispatchModel as dispatch, gitEnvironment, isolatedGitEnvironment } from './lib/model-dispatch.mjs';
 import {
-  claudeRuntimeEnvironment,
-  claudeSettings,
   loadClaudeRoutes,
   providerAdapterIdentity,
   resolveClaudeBinary,
@@ -58,9 +57,7 @@ import {
   verifyWorkerBundle,
 } from './lib/worker-staging.mjs';
 
-const CODEX_DISPATCH_TIMEOUT_MS = 15 * 60 * 1000;
 const CODEX_DISPATCH_MAX_BUFFER = 1024 * 1024;
-const CODEX_DIAGNOSTIC_MAX_CHARS = 4096;
 const REPAIR_DIAGNOSTIC_MAX_CHARS = 2048;
 const FAILURE_ARTIFACT_MAX_CHARS = 12000;
 const GIT_HELPER_TIMEOUT_MS = 30000;
@@ -110,32 +107,6 @@ const GIT_NULL_DEVICE = process.platform === 'win32' ? 'NUL' : '/dev/null';
 
 function sha(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
 function fail(message) { throw new Error(message); }
-
-function gitEnvironment() {
-  return {
-    ...process.env,
-    GIT_OPTIONAL_LOCKS: '0',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: GIT_NULL_DEVICE,
-    GIT_CONFIG_SYSTEM: GIT_NULL_DEVICE,
-    GIT_EXTERNAL_DIFF: '',
-    GIT_PAGER: 'cat',
-    GIT_TERMINAL_PROMPT: '0',
-  };
-}
-
-function isolatedGitEnvironment(base = {}) {
-  return {
-    ...base,
-    GIT_OPTIONAL_LOCKS: '0',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: GIT_NULL_DEVICE,
-    GIT_CONFIG_SYSTEM: GIT_NULL_DEVICE,
-    GIT_EXTERNAL_DIFF: '',
-    GIT_PAGER: 'cat',
-    GIT_TERMINAL_PROMPT: '0',
-  };
-}
 
 function gitArgs(args) {
   return ['-c', 'core.fsmonitor=false', '-c', `core.hooksPath=${GIT_NULL_DEVICE}`, ...args];
@@ -194,44 +165,6 @@ function ensureProjectDirectory(projectRoot, relativePath) {
   return current;
 }
 
-function loadRoutes(frameworkRoot) {
-  const framework = path.resolve(frameworkRoot);
-  let routesDir;
-  try {
-    if (fs.lstatSync(framework).isSymbolicLink() || !fs.lstatSync(framework).isDirectory() || fs.realpathSync(framework) !== framework) fail(`framework root must be a real lexical directory: ${framework}`);
-    const agentsDir = path.join(framework, 'agents');
-    if (fs.lstatSync(agentsDir).isSymbolicLink() || !fs.lstatSync(agentsDir).isDirectory() || fs.realpathSync(agentsDir) !== agentsDir) fail(`runtime routes parent must be a real lexical directory: ${agentsDir}`);
-    routesDir = path.join(agentsDir, 'codex');
-    if (fs.lstatSync(routesDir).isSymbolicLink() || !fs.lstatSync(routesDir).isDirectory() || fs.realpathSync(routesDir) !== routesDir) fail(`runtime routes must be a real lexical directory: ${routesDir}`);
-  } catch (error) { fail(error.message.startsWith('runtime routes') || error.message.startsWith('framework root') ? error.message : `missing exact runtime routes: ${path.join(framework, 'agents', 'codex')}`); }
-  const routes = {};
-  const actualFiles = fs.readdirSync(routesDir).filter((file) => file.endsWith('.toml')).sort();
-  const expectedFiles = ROUTE_PORTFOLIO.map((route) => route.file).sort();
-  if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) fail('runtime route portfolio does not match the declared variants');
-  for (const expected of ROUTE_PORTFOLIO) {
-    const file = path.join(routesDir, expected.file);
-    const result = validateRouteSource({ file, frameworkRoot: framework });
-    if (result.errors.length) fail(`runtime route ${expected.file} is invalid: ${result.errors.join('; ')}`);
-    const route = {
-      provider: 'codex',
-      semanticRole: expected.semanticRole,
-      role: expected.semanticRole,
-      routeClass: expected.routeClass,
-      model: expected.model,
-      effort: expected.effort,
-      serviceTier: expected.serviceTier,
-      sandbox: expected.sandbox,
-      developerInstructions: result.parsed.instructions,
-      roleSpecPath: result.roleSpecPath,
-      routePath: file,
-      adapter: `agents/codex/${expected.file}`,
-    };
-    routes[expected.semanticRole] ||= {};
-    routes[expected.semanticRole][expected.routeClass] = route;
-  }
-  return routes;
-}
-
 function resolveCodexBinary(binary, inheritedPath = process.env.PATH || '') {
   const configured = String(binary || process.env.RIFF_CODEX_BIN || 'codex').trim();
   if (!configured) fail('Codex binary is missing');
@@ -273,131 +206,6 @@ function parseArgs(argv) {
   if (!args.phase) fail('--phase is required');
   if (!args.task) fail('--task is required');
   return args;
-}
-
-function diagnosticExcerpt(value) {
-  const normalized = String(value || '').replace(/\r\n?/g, '\n').replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '�').trim();
-  if (!normalized) return '';
-  return normalized.length > CODEX_DIAGNOSTIC_MAX_CHARS
-    ? `${normalized.slice(0, CODEX_DIAGNOSTIC_MAX_CHARS)}…[truncated]`
-    : normalized;
-}
-
-function pathWithin(root, target) {
-  const normalizedRoot = path.resolve(root);
-  const normalizedTarget = path.resolve(target);
-  return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(`${normalizedRoot}${path.sep}`);
-}
-
-function permissionProfile({ extendsName, readPaths = [], deniedPaths = [], tmpdirMode, slashTmpMode }) {
-  const absoluteReadPaths = [...new Set(readPaths.filter((value) => value && path.isAbsolute(value)).map((value) => path.resolve(value)))];
-  const absoluteDeniedPaths = [...new Set(deniedPaths.filter((value) => value && path.isAbsolute(value)).map((value) => path.resolve(value)))];
-  for (const readPath of absoluteReadPaths) {
-    if (absoluteDeniedPaths.some((deniedPath) => pathWithin(deniedPath, readPath))) fail(`permission profile read root is denied: ${readPath}`);
-  }
-  const filesystemEntries = [
-    ...(tmpdirMode ? [`\":tmpdir\" = \"${tmpdirMode}\"`] : []),
-    ...(slashTmpMode ? [`\":slash_tmp\" = \"${slashTmpMode}\"`] : []),
-    ...absoluteReadPaths.map((value) => `${JSON.stringify(value)} = "read"`),
-    ...absoluteDeniedPaths.map((value) => `${JSON.stringify(value)} = "deny"`),
-  ];
-  return { absoluteReadPaths, absoluteDeniedPaths, value: `permissions.riff_runtime={ extends = "${extendsName}", filesystem = { ${filesystemEntries.join(', ')} } }` };
-}
-
-function dispatchFailure(route, message, stderr) {
-  const diagnostic = diagnosticExcerpt(stderr);
-  const provider = route.provider === 'claude' ? 'Claude' : 'Codex';
-  return `${provider} dispatch failed for ${route.role}: ${message}${diagnostic ? `: ${diagnostic}` : ''}`;
-}
-
-function dispatch({ root, addDir, readPaths = [], protectedPaths = [], binary, route, prompt, roleSpecPathForPrompt = undefined, outputSchema = undefined, timeoutMs = CODEX_DISPATCH_TIMEOUT_MS, maxBuffer = CODEX_DISPATCH_MAX_BUFFER, env: dispatchEnv = {}, shellPath = undefined }) {
-  if (route.sandbox === 'workspace-write' && !addDir) fail('worker dispatch requires exactly one staged workspace add-dir');
-  if (route.sandbox !== 'workspace-write' && addDir) fail(`${route.role} dispatch must not add a project directory`);
-  const developerConfig = `developer_instructions=${JSON.stringify(route.developerInstructions)}`;
-  const absoluteReadPaths = [...new Set(readPaths.filter((value) => value && path.isAbsolute(value)).map((value) => path.resolve(value)))];
-  if (route.sandbox !== 'workspace-write' && !absoluteReadPaths.length) fail(`${route.role} dispatch requires explicit read roots`);
-  const explicitCredentialPaths = Object.entries(process.env)
-    .filter(([name, value]) => value && path.isAbsolute(value) && /(?:CREDENTIAL|SECRET|TOKEN|API[_-]?KEY|PASSWORD).*?(?:PATH|FILE|SENTINEL)|(?:PATH|FILE|SENTINEL).*?(?:CREDENTIAL|SECRET|TOKEN|API[_-]?KEY|PASSWORD)/i.test(name))
-    .map(([, value]) => path.resolve(value));
-  const deniedPaths = [...new Set([...protectedPaths, ...explicitCredentialPaths]
-    .filter((value) => value && path.isAbsolute(value))
-    .map((value) => path.resolve(value)))];
-  if (route.provider === 'claude') {
-    const claudeDeniedPaths = [...new Set([
-      ...deniedPaths,
-      os.userInfo().homedir,
-      os.tmpdir(),
-      '/tmp',
-    ])];
-    const settings = claudeSettings({ deniedPaths: claudeDeniedPaths, readPaths, root, writeRoot: addDir });
-    const claudeEnv = claudeRuntimeEnvironment({ ...dispatchEnv, PATH: shellPath || dispatchEnv.PATH || process.env.PATH || '/usr/bin:/bin' });
-    const tools = Array.isArray(route.tools) ? route.tools.join(',') : 'Read,Glob,Grep';
-    const claudeInstructions = roleSpecPathForPrompt && route.roleSpecPath
-      ? String(route.developerInstructions).split(route.roleSpecPath).join(roleSpecPathForPrompt)
-      : route.developerInstructions;
-    const argv = [
-      '--model', route.model,
-      '--effort', route.effort,
-      '--output-format', 'text',
-      ...(outputSchema ? ['--json-schema', JSON.stringify(outputSchema)] : []),
-      '--permission-mode', 'dontAsk',
-      '--tools', tools,
-      '--settings', JSON.stringify(settings),
-      '--mcp-config', JSON.stringify({ mcpServers: {} }),
-      '--strict-mcp-config',
-      '--safe-mode',
-      '--disable-slash-commands',
-      '--no-session-persistence',
-      '--append-system-prompt', claudeInstructions,
-      ...(addDir ? ['--add-dir', addDir] : []),
-      '-p', prompt,
-    ];
-    const result = spawnSync(binary, argv, {
-      cwd: root, env: isolatedGitEnvironment(claudeEnv), encoding: 'utf8', shell: false,
-      timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer, stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    if (result.error) {
-      if (result.error.code === 'ETIMEDOUT') fail(`Claude dispatch timed out for ${route.role}`);
-      if (result.error.code === 'ENOBUFS') fail(`Claude dispatch output overflowed for ${route.role}`);
-      fail(dispatchFailure(route, result.error.message, result.stderr));
-    }
-    if (result.signal) fail(dispatchFailure(route, `terminated by ${result.signal}`, result.stderr));
-    if (result.status === null || result.status === undefined) fail(dispatchFailure(route, 'produced no exit status', result.stderr));
-    if (String(result.stdout || '').length > maxBuffer || String(result.stderr || '').length > maxBuffer) fail(`Claude dispatch output overflowed for ${route.role}`);
-    if (result.status !== 0) fail(dispatchFailure(route, `exit code ${result.status}`, result.stderr));
-    return { argv, stdout: result.stdout || '', stderr: result.stderr || '' };
-  }
-  const selectedProfile = permissionProfile({
-    extendsName: route.sandbox === 'workspace-write' ? ':workspace' : ':read-only',
-    readPaths: absoluteReadPaths,
-    deniedPaths,
-    slashTmpMode: 'deny',
-  });
-  const permissionProfileValue = selectedProfile.value;
-  const shellEnvironmentConfigs = [
-    'shell_environment_policy.inherit="none"',
-    `shell_environment_policy.set.PATH=${JSON.stringify(shellPath || process.env.PATH || '/usr/bin:/bin')}`,
-    'shell_environment_policy.set.CI="1"',
-    'shell_environment_policy.set.GIT_OPTIONAL_LOCKS="0"',
-    ...['LANG', 'LC_ALL'].filter((name) => process.env[name]).map((name) => `shell_environment_policy.set.${name}=${JSON.stringify(process.env[name])}`),
-  ].flatMap((value) => ['-c', value]);
-  const addDirArgs = addDir ? ['--add-dir', addDir] : [];
-  const serviceTierArgs = route.serviceTier ? ['-c', `service_tier="${route.serviceTier}"`] : [];
-  const argv = ['--ask-for-approval', 'never', 'exec', '--strict-config', '--ignore-user-config', '--ignore-rules', '--ephemeral', '--skip-git-repo-check', '--disable', 'multi_agent', '--model', route.model, '--config', `model_reasoning_effort="${route.effort}"`, ...serviceTierArgs, '-c', developerConfig, '-c', permissionProfileValue, '-c', 'default_permissions="riff_runtime"', '-c', 'allow_login_shell=false', ...shellEnvironmentConfigs, ...addDirArgs, '-C', root, prompt];
-  const result = spawnSync(binary, argv, {
-    cwd: root, env: { ...gitEnvironment(), ...dispatchEnv }, encoding: 'utf8', shell: false,
-    timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer, stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  if (result.error) {
-    if (result.error.code === 'ETIMEDOUT') fail(`Codex dispatch timed out for ${route.role}`);
-    if (result.error.code === 'ENOBUFS') fail(`Codex dispatch output overflowed for ${route.role}`);
-    fail(dispatchFailure(route, result.error.message, result.stderr));
-  }
-  if (result.signal) fail(dispatchFailure(route, `terminated by ${result.signal}`, result.stderr));
-  if (result.status === null || result.status === undefined) fail(dispatchFailure(route, 'produced no exit status', result.stderr));
-  if (String(result.stdout || '').length > maxBuffer || String(result.stderr || '').length > maxBuffer) fail(`Codex dispatch output overflowed for ${route.role}`);
-  if (result.status !== 0) fail(dispatchFailure(route, `exit code ${result.status}`, result.stderr));
-  return { argv, stdout: result.stdout || '', stderr: result.stderr || '' };
 }
 
 function assertSafeArtifactPath(projectRoot, file, { allowMissing = true } = {}) {
@@ -1359,7 +1167,7 @@ export function runOrchestration(options) {
     if (provider === 'claude') throw new Error(`Codex CLI is required as the mechanical sandbox helper for Claude-provider runs, not as the model provider: ${error.message}`);
     throw error;
   }
-  const routes = provider === 'claude' ? loadClaudeRoutes(frameworkRoot) : loadRoutes(frameworkRoot);
+  const routes = provider === 'claude' ? loadClaudeRoutes(frameworkRoot) : loadCodexRoutes(frameworkRoot);
   const phaseDir = ensureProjectDirectory(projectRoot, path.join('.planning', 'phases', args.phase));
   assertStageArtifactsAbsent(projectRoot, args.phase);
   statePath(projectRoot, args.phase);

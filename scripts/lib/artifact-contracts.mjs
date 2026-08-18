@@ -1506,6 +1506,73 @@ export function validateReview(reviewText, options = {}) {
   return { valid: contractValid && parsed.verdict === 'PASS', contractValid, errors, ...parsed };
 }
 
+/** Strict, portable contract for the terminal semantic security review. */
+export function validateSecurityReview(text, { phase, projectRoot } = {}) {
+  const source = String(text ?? '').replace(/\r\n?/g, '\n');
+  const errors = [];
+  const front = source.match(/^---\n([\s\S]*?)\n---\n?/);
+  const values = {};
+  if (!front) errors.push('SECURITY.md requires exact YAML frontmatter');
+  else {
+    for (const line of front[1].split('\n')) {
+      const match = line.match(/^([a-z_]+): (.+)$/);
+      if (!match || Object.hasOwn(values, match?.[1])) { errors.push('SECURITY.md frontmatter is malformed or duplicate'); continue; }
+      values[match[1]] = match[2];
+    }
+    if (JSON.stringify(Object.keys(values).sort()) !== JSON.stringify(['generated_at', 'phase', 'verdict'])) errors.push('SECURITY.md frontmatter must contain only phase, generated_at, verdict');
+    if (values.phase !== String(phase || '')) errors.push('SECURITY.md frontmatter phase does not match');
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(values.generated_at || '')) errors.push('SECURITY.md generated_at must be an ISO UTC timestamp');
+    if (!['PASS', 'PASS-WITH-WARNINGS', 'BLOCKED'].includes(values.verdict)) errors.push('SECURITY.md verdict must be PASS, PASS-WITH-WARNINGS, or BLOCKED');
+  }
+  const body = front ? source.slice(front[0].length) : source;
+  if (/\b(?:ignore|override)\s+(?:all\s+)?(?:previous|above)\s+instructions?\b|\b(?:return|set)\s+(?:the\s+)?verdict\b/i.test(body)) errors.push('SECURITY.md contains prompt-injection verdict instructions');
+  if (/(?:^|\s)(?:\/[^\s:]+|[A-Za-z]:\\[^\s:]+):\d+/m.test(body)) errors.push('SECURITY.md must not contain absolute paths');
+  const headings = [...body.matchAll(/^## ([A-Za-z ][A-Za-z -]*)\s*$/gm)].map((match) => ({ name: match[1], index: match.index }));
+  const names = headings.map((entry) => entry.name);
+  const allowed = ['Verdict', 'Findings', 'Resolved Findings', 'Notes'];
+  if (names.some((name) => !allowed.includes(name)) || new Set(names).size !== names.length) errors.push('SECURITY.md has duplicate or unexpected reserved sections');
+  const expected = ['Verdict', ...(names.includes('Findings') ? ['Findings'] : []), 'Resolved Findings', 'Notes'];
+  if (JSON.stringify(names) !== JSON.stringify(expected)) errors.push('SECURITY.md sections must be Verdict, optional Findings, Resolved Findings, Notes in order');
+  const sectionBody = (name) => { const i = headings.findIndex((entry) => entry.name === name); return i < 0 ? '' : body.slice(headings[i].index + `## ${headings[i].name}`.length, headings[i + 1]?.index).trim(); };
+  if (sectionBody('Verdict') !== (values.verdict || '')) errors.push('SECURITY.md Verdict section must exactly match frontmatter verdict');
+  const findings = [];
+  const findingRe = /^### \[(CRITICAL|HIGH|MEDIUM|LOW)\]\s+(.+?)\s*$/gm;
+  let match;
+  const findingsBody = sectionBody('Findings');
+  const resolvedBody = sectionBody('Resolved Findings');
+  if (resolvedBody !== 'None.') errors.push('SECURITY.md Resolved Findings must be exactly None.');
+  const levelThreeHeadingsOutsideFindings = body.replace(findingsBody, '').match(/^###\s+/gm) || [];
+  if (levelThreeHeadingsOutsideFindings.length) errors.push('SECURITY.md level-three findings are allowed only in Findings');
+  while ((match = findingRe.exec(findingsBody))) {
+    const item = findingsBody.slice(match.index + match[0].length, findingsBody.indexOf('\n### ', match.index + 1) < 0 ? findingsBody.length : findingsBody.indexOf('\n### ', match.index + 1));
+    findings.push({ severity: match[1], title: match[2], body: item });
+  }
+  if (findingsBody && findings.length === 0) errors.push('SECURITY.md Findings must use severity headings');
+  if (/^### /m.test(findingsBody) && findings.length !== (findingsBody.match(/^### /gm) || []).length) errors.push('SECURITY.md Findings has invalid headings');
+  for (const finding of findings) {
+    for (const label of ['Location', 'OWASP category', 'Description', 'Proof', 'Fix']) {
+      const value = finding.body.match(new RegExp(`(?:^|\\n)${label}:\\s*(.+)`, 'i'))?.[1]?.trim();
+      if (!value || /^(?:none|n\/a|unknown|see above|tbd|todo)[.!]?$/i.test(value)) errors.push(`SECURITY.md ${finding.severity} finding requires substantive ${label}`);
+    }
+    const locations = finding.body.match(/(?:^|\n)Location:\s*(.+)/im)?.[1] || '';
+    for (const citation of reviewPathCitations(locations)) {
+      if (!projectRoot) continue;
+      try {
+        const file = resolveContainedPath(projectRoot, citation.path.replace(/^\.\//, ''), { allowMissing: true });
+        const stat = fs.existsSync(file) ? fs.lstatSync(file) : null;
+        if (citation.line === 'deleted') { if (stat) errors.push(`SECURITY.md deleted citation exists: ${citation.path}`); }
+        else if (!stat?.isFile()) errors.push(`SECURITY.md citation is missing: ${citation.path}`);
+        else if (Number(citation.line) > Math.max(1, fs.readFileSync(file, 'utf8').split(/\r?\n/).filter((line, index, all) => index < all.length - 1 || line !== '').length)) errors.push(`SECURITY.md citation line is outside file: ${citation.path}:${citation.line}`);
+      } catch { errors.push(`SECURITY.md citation escapes project root: ${citation.path}`); }
+    }
+    if (!reviewPathCitations(locations).length) errors.push(`SECURITY.md ${finding.severity} finding requires a relative path:line or path:deleted Location`);
+  }
+  const severities = new Set(findings.map((finding) => finding.severity));
+  const expectedVerdict = severities.has('CRITICAL') || severities.has('HIGH') ? 'BLOCKED' : severities.has('MEDIUM') ? 'PASS-WITH-WARNINGS' : 'PASS';
+  if (values.verdict && values.verdict !== expectedVerdict) errors.push('SECURITY.md verdict is inconsistent with finding severity');
+  return { valid: errors.length === 0, errors, verdict: values.verdict, findings };
+}
+
 export function hashText(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
