@@ -40,7 +40,7 @@
 
 ## Conversational triggers (no slash command)
 
-These rare lifecycle actions live as protocol files Claude reads when you say the trigger phrase. Reduces command sprawl. Full mapping in framework `CLAUDE.md` § Conversational triggers.
+These rare lifecycle actions live as explicit skills and protocol files. This reduces command sprawl. See the active skill list in `docs/RIFF-MANUAL.md` § Skills and invocation policy.
 
 | You say...                                                                | What happens                                                                                                                          |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |

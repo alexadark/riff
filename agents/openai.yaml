@@ -1,0 +1,39 @@
+roles:
+  controller:
+    semantic_spec: protocols/RIFF-NEXT.md
+    variants:
+      routine: agents/codex/controller-routine.toml
+      architecture: agents/codex/controller-architecture.toml
+  planner:
+    semantic_spec: agents/roles/planner.md
+    variants:
+      routine: agents/codex/planner-routine.toml
+      architecture: agents/codex/planner-architecture.toml
+  worker:
+    semantic_spec: agents/roles/worker.md
+    variants:
+      inventory: agents/codex/worker-inventory.toml
+      repeatable: agents/codex/worker-repeatable.toml
+      bounded: agents/codex/worker-bounded.toml
+  reviewer:
+    semantic_spec: agents/roles/reviewer.md
+    variants:
+      routine: agents/codex/reviewer-routine.toml
+      critical: agents/codex/reviewer-critical.toml
+      escalation: agents/codex/reviewer-escalation.toml
+  debugger:
+    semantic_spec: agents/roles/debugger.md
+    variants:
+      fixed: agents/codex/debugger.toml
+  security-reviewer:
+    semantic_spec: agents/roles/security-reviewer.md
+    variants:
+      fixed: agents/codex/security-reviewer.toml
+  red-teamer:
+    semantic_spec: agents/roles/red-teamer.md
+    variants:
+      fixed: agents/codex/red-teamer.toml
+  load-tester:
+    semantic_spec: agents/roles/load-tester.md
+    variants:
+      fixed: agents/codex/load-tester.toml

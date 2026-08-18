@@ -40,7 +40,7 @@ Batch the improver agent across recent phases to surface lessons learned. The im
 
 - Idempotent: existing sentinel skips that phase. Delete `.planning/expertise/.pending/.improver-<phase>.done` to force re-run.
 - Pending files NEVER auto-merge into `.planning/expertise/<agent>.md`. Human validates.
-- See `agents/improver.md` for the proposal format and tier rules (STACK / ARCHITECTURE / PROJECT).
+- See `skills/improve/SKILL.md` for the active proposal workflow. The legacy improver agent was retired.
 
 ## Anti-Patterns
 

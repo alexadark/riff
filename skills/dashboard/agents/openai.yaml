@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Dashboard"
+  short_description: "Open or stop the local RIFF dashboard"
+  default_prompt: "Use $riff:dashboard to open or stop the local RIFF project dashboard as requested."
+policy:
+  allow_implicit_invocation: false

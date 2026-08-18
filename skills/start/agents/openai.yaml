@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Start"
+  short_description: "Create a validated RIFF project roadmap"
+  default_prompt: "Use $riff:start to create the planning foundation and validated roadmap for this project."
+policy:
+  allow_implicit_invocation: false

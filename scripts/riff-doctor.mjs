@@ -7,7 +7,8 @@ import {
   statSync,
 } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runArtifactChecks } from './artifact-check.mjs';
 
 const frameworkRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -19,6 +20,11 @@ const FINDING_LEVELS = {
 };
 
 const findings = [];
+
+const RETIRED_AGENT_REPLACEMENTS = Object.freeze({
+  'agents/improver.md': 'skills/improve/SKILL.md',
+  'agents/scope-checker.md': 'scripts/scope-check.mjs',
+});
 
 function addFinding(level, file, line, message) {
   findings.push({ level, file, line, message });
@@ -128,6 +134,22 @@ function extractFrameworkPaths(line) {
   }));
 }
 
+function isHistoricalAuditReviewArtifact(file) {
+  const normalized = file.replaceAll('\\', '/');
+  if (!normalized.endsWith('.md')) return false;
+  if (/^(?:commands|protocols|skills|agents|references)\//.test(normalized)) return false;
+  const basename = path.posix.basename(normalized);
+  return /(?:^|[-_])(audit|review)(?:[-_]|\.md$)/i.test(basename);
+}
+
+function missingFrameworkCitationLevel(file, rawPath) {
+  const retiredPath = normalizeDocPath(rawPath);
+  if (isHistoricalAuditReviewArtifact(file) && Object.hasOwn(RETIRED_AGENT_REPLACEMENTS, retiredPath)) {
+    return FINDING_LEVELS.warn;
+  }
+  return FINDING_LEVELS.error;
+}
+
 function extractMarkdownPaths(line) {
   const pathPattern = /(?:\.riff\/|\.\.\/|\.[/])?[A-Za-z0-9._/-]+\.md/g;
   return [...line.matchAll(pathPattern)].map((match) => ({
@@ -162,11 +184,23 @@ function checkFrameworkPathCitations(files) {
       for (const citation of extractFrameworkPaths(line)) {
         const precedingText = line.slice(0, citation.index);
         if (/\.claude\//.test(precedingText) || /\.claude\//.test(citation.raw)) continue;
-        if (!targetExists(citation.raw)) {
-          addFinding(FINDING_LEVELS.error, file, index + 1, `Missing referenced path: ${citation.raw}`);
+        const commandOnlyRetiredReference = file.startsWith('commands/') && Object.hasOwn(RETIRED_AGENT_REPLACEMENTS, normalizeDocPath(citation.raw));
+        if (!targetExists(citation.raw) && !commandOnlyRetiredReference) {
+          addFinding(missingFrameworkCitationLevel(file, citation.raw), file, index + 1, `Missing referenced path: ${citation.raw}`);
         }
       }
     });
+  }
+}
+
+function checkRetiredAgentReferences(files) {
+  for (const file of files.filter((candidate) => candidate.startsWith('commands/') && candidate.endsWith('.md'))) {
+    const text = readText(file);
+    for (const [retired, replacement] of Object.entries(RETIRED_AGENT_REPLACEMENTS)) {
+      for (const match of text.matchAll(new RegExp(retired.replaceAll('.', '\\.'), 'g'))) {
+        addFinding(FINDING_LEVELS.warn, file, lineNumber(text, match.index ?? 0), `Retired command reference ${retired}; use ${replacement}`);
+      }
+    }
   }
 }
 
@@ -332,9 +366,13 @@ function main() {
 
   checkScriptCitations(files);
   checkFrameworkPathCitations(files);
+  checkRetiredAgentReferences(files);
   checkSectionReferences(files);
   checkProfileReads(files);
   checkCommandModelMirrors();
+  for (const finding of runArtifactChecks({ projectRoot: frameworkRoot })) {
+    addFinding(FINDING_LEVELS.error, finding.file || 'artifact-check', 1, finding.message);
+  }
 
   const errors = findings.filter((finding) => finding.level === FINDING_LEVELS.error);
   if (findings.length === 0) {
@@ -352,4 +390,6 @@ function main() {
   }
 }
 
-main();
+export { isHistoricalAuditReviewArtifact, missingFrameworkCitationLevel };
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) main();

@@ -89,6 +89,6 @@ Loop until `verdict == MATCH`. **Max 3 cycles per bucket**, then STOP and escala
 
 **On `MALFORMED`:** surface `malformed_reason` to user, ask whether to skip (acceptable for unstructured PLAN.md formats) or fix the format and retry.
 
-## Legacy Fallback
+## Sole authority
 
-`agents/scope-checker.md` remains as a human-readable fallback spec for older runs or manual recovery, but it is not the default Step 5c path. When this protocol and the agent file disagree, this protocol and `.riff/scripts/scope-check.mjs` win.
+`.riff/scripts/scope-check.mjs` is the sole authority for scope-check parsing, verdicts, and `SCOPE-CHECK.json` output. No agent file performs scope checking.

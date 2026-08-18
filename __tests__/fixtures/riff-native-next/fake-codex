@@ -1,0 +1,263 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
+
+const args = process.argv.slice(2);
+if (args[0] === 'sandbox') {
+  const delimiter = args.indexOf('--');
+  const customProfile = args.some((arg) => arg.startsWith('permissions.riff_runtime='));
+  if (customProfile) {
+    const profileIndex = args.findIndex((arg) => arg.startsWith('permissions.riff_runtime='));
+    const profileNameIndex = args.indexOf('-P');
+    const changeDirectoryIndex = args.indexOf('-C');
+    if (profileIndex < 1 || args[profileIndex - 1] !== '-c' || profileNameIndex < 0 || args[profileNameIndex + 1] !== 'riff_runtime' || changeDirectoryIndex < 0 || delimiter < 0 || !args[delimiter + 1]) process.exit(11);
+  } else if (args[1] !== '-c' || args[2] !== 'sandbox_mode="read-only"' || delimiter !== 3 || !args[4]) process.exit(11);
+  const command = args.slice(delimiter + 1);
+  const changeDirectoryIndex = args.indexOf('-C');
+  const cwd = changeDirectoryIndex >= 0 ? args[changeDirectoryIndex + 1] : process.cwd();
+  const result = spawnSync(command[0], command.slice(1), { cwd, env: process.env, encoding: 'utf8', shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  process.exit(result.status === null ? 10 : result.status);
+}
+const changeDirectoryIndex = args.indexOf('-C');
+const root = changeDirectoryIndex >= 0 ? args[changeDirectoryIndex + 1] : '';
+const prompt = args.at(-1) || '';
+const model = args[args.indexOf('--model') + 1];
+const effort = args[args.indexOf('--config') + 1];
+const configValues = args.flatMap((arg, index) => arg === '-c' ? [args[index + 1]] : []);
+const mode = process.env.RIFF_FAKE_CODEX_MODE || '';
+const isController = prompt.includes('Return an unambiguous PROCEED');
+const isPlanner = prompt.includes('Return PLAN.md content');
+const isPlanReview = prompt.includes('mode: plan');
+const role = isController ? 'controller' : isPlanner ? 'planner' : model === 'gpt-5.6-luna' || model === 'gpt-5.6-terra' ? 'worker' : 'reviewer';
+const roleSpecPath = prompt.match(/^role_spec_path: (.+)$/m)?.[1] || '';
+const evidenceRoot = prompt.match(/^Project evidence snapshot: (.+)$/m)?.[1] || '';
+const stagedRoot = prompt.match(/^Staged project workspace: (.+)$/m)?.[1] || '';
+const roleRoot = role === 'worker' ? stagedRoot : evidenceRoot || root;
+const permissionProfile = configValues.find((value) => value.startsWith('permissions.riff_runtime=')) || '';
+const sandbox = permissionProfile.includes('extends = ":workspace"') ? 'workspace-write' : 'read-only';
+const planReview = role === 'reviewer' && sandbox === 'read-only' && isPlanReview;
+const roleSpecDirectory = roleSpecPath ? path.dirname(roleSpecPath) : '';
+const frameworkRoot = roleSpecPath
+  ? role === 'controller' ? path.resolve(roleSpecDirectory, '..') : path.resolve(roleSpecDirectory, '../..')
+  : '';
+const workerBundleRoot = role === 'worker' ? frameworkRoot : '';
+const routeFrameworkRoot = process.env.RIFF_FAKE_CODEX_FRAMEWORK_ROOT || '';
+const logPath = process.env.RIFF_FAKE_CODEX_LOG;
+if (logPath) {
+  const phase = prompt.match(/^Phase: (.+)$/m)?.[1] || '1-slugify';
+  const artifactPresence = role === 'worker' ? {} : Object.fromEntries(Object.entries({
+    plan: `.planning/phases/${phase}/PLAN.md`,
+    plan_review: `.planning/phases/${phase}/PLAN-REVIEW.md`,
+    summary: `.planning/phases/${phase}/SUMMARY.md`,
+    review: `.planning/phases/${phase}/REVIEW.md`,
+    scope: `.planning/phases/${phase}/SCOPE-CHECK.json`,
+    state: `.planning/riff-next/${phase}.json`,
+    failure: `.planning/riff-next/${phase}.failure.json`,
+    delta: `.planning/riff-next/${phase}.worker-delta.json`,
+  }).map(([name, relative]) => [name, Boolean(roleRoot && fs.existsSync(path.join(roleRoot, relative)))]));
+  const authPath = process.env.CODEX_HOME ? path.join(process.env.CODEX_HOME, 'auth.json') : '';
+  const runtimePaths = [process.env.HOME, process.env.CODEX_HOME, process.env.TMPDIR, process.env.XDG_CACHE_HOME].filter(Boolean);
+  const runtimeModes = Object.fromEntries(runtimePaths.map((runtimePath) => [runtimePath, fs.existsSync(runtimePath) ? fs.statSync(runtimePath).mode & 0o7777 : null]));
+  const roleSpecHash = roleSpecPath && fs.existsSync(roleSpecPath) ? crypto.createHash('sha256').update(fs.readFileSync(roleSpecPath)).digest('hex') : '';
+  fs.appendFileSync(logPath, `${JSON.stringify({ args, prompt, model, effort, sandbox, home: process.env.HOME || '', codex_home: process.env.CODEX_HOME || '', private_auth_exists: Boolean(authPath && fs.existsSync(authPath)), private_auth_mode: authPath && fs.existsSync(authPath) ? fs.statSync(authPath).mode & 0o7777 : null, runtime_modes: runtimeModes, dispatch_root_mode: root && fs.existsSync(root) ? fs.statSync(root).mode & 0o7777 : null, dispatch_root_entries: root && fs.existsSync(root) ? fs.readdirSync(root) : [], role_spec_hash: roleSpecHash, artifact_presence: artifactPresence })}\n`);
+}
+const routeClass = role === 'controller'
+  ? (effort.includes('xhigh') ? 'architecture' : 'routine')
+  : role === 'planner'
+    ? (effort.includes('xhigh') ? 'architecture' : 'routine')
+    : role === 'worker'
+      ? (model === 'gpt-5.6-terra' ? 'bounded' : effort.includes('low') ? 'inventory' : 'repeatable')
+      : role === 'reviewer'
+        ? (effort.includes('max') ? 'escalation' : effort.includes('xhigh') ? 'critical' : 'routine')
+        : 'fixed';
+const routeFile = ['debugger', 'security-reviewer', 'red-teamer', 'load-tester'].includes(role) ? `${role}.toml` : `${role}-${routeClass}.toml`;
+const routeText = routeFrameworkRoot ? fs.readFileSync(path.join(routeFrameworkRoot, 'agents/codex', routeFile), 'utf8') : '';
+const developerInstructions = routeText.match(/developer_instructions = """\n([\s\S]*?)\n"""(?:\n|$)/)?.[1] || '';
+const developerConfig = `developer_instructions=${JSON.stringify(developerInstructions)}`;
+const addDirs = args.flatMap((arg, index) => arg === '--add-dir' ? [args[index + 1]] : []);
+const approvalFlags = args.filter((arg) => arg === '--ask-for-approval');
+const requiredShellConfig = ['shell_environment_policy.inherit="none"', 'shell_environment_policy.set.CI="1"', 'shell_environment_policy.set.GIT_OPTIONAL_LOCKS="0"'];
+const forbiddenShellConfig = configValues.some((value) => /^shell_environment_policy\.set\.(?:HOME|CODEX_HOME|TMPDIR|XDG_[A-Z0-9_]+|.*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL))/i.test(value));
+const runtimeAuthPath = process.env.CODEX_HOME ? path.join(process.env.CODEX_HOME, 'auth.json') : '';
+const authIsUndenied = runtimeAuthPath && fs.existsSync(runtimeAuthPath) && !permissionProfile.includes(`${JSON.stringify(path.resolve(runtimeAuthPath))} = "deny"`);
+const explicitCredentialUndenied = Object.entries(process.env)
+  .filter(([name, value]) => value && path.isAbsolute(value) && /(?:CREDENTIAL|SECRET|TOKEN|API[_-]?KEY|PASSWORD).*?(?:PATH|FILE|SENTINEL)|(?:PATH|FILE|SENTINEL).*?(?:CREDENTIAL|SECRET|TOKEN|API[_-]?KEY|PASSWORD)/i.test(name))
+  .some(([, value]) => !permissionProfile.includes(`${JSON.stringify(path.resolve(value))} = "deny"`));
+const consumerReadMissing = role !== 'worker' && evidenceRoot && !permissionProfile.includes(`${JSON.stringify(path.resolve(evidenceRoot))} = "read"`);
+const frameworkReadMissing = !permissionProfile.includes(`${JSON.stringify(path.resolve(role === 'worker' ? workerBundleRoot : frameworkRoot))} = "read"`);
+const originalConsumerDenyMissing = process.env.RIFF_FAKE_CODEX_CONSUMER_ROOT && !permissionProfile.includes(`${JSON.stringify(path.resolve(process.env.RIFF_FAKE_CODEX_CONSUMER_ROOT))} = "deny"`);
+const originalFrameworkDenyMissing = process.env.RIFF_FAKE_CODEX_FRAMEWORK_ROOT && !permissionProfile.includes(`${JSON.stringify(path.resolve(process.env.RIFF_FAKE_CODEX_FRAMEWORK_ROOT))} = "deny"`);
+const bundleReadMissing = role === 'worker' && !permissionProfile.includes(`${JSON.stringify(path.resolve(workerBundleRoot))} = "read"`);
+const hostHomeDenyMissing = process.env.RIFF_FAKE_CODEX_HOST_HOME && !permissionProfile.includes(`${JSON.stringify(path.resolve(process.env.RIFF_FAKE_CODEX_HOST_HOME))} = "deny"`);
+const sharedTempDenyMissing = process.env.RIFF_FAKE_CODEX_SHARED_TEMP && !permissionProfile.includes(`${JSON.stringify(path.resolve(process.env.RIFF_FAKE_CODEX_SHARED_TEMP))} = "deny"`);
+const tempProfileMissing = !permissionProfile.includes('":slash_tmp" = "deny"') || permissionProfile.includes('":tmpdir" = "read"');
+const serviceTierValues = configValues.filter((value) => value.startsWith('service_tier='));
+const invalidServiceTier = model === 'gpt-5.6-luna'
+  ? serviceTierValues.length !== 1 || serviceTierValues[0] !== 'service_tier="priority"'
+  : serviceTierValues.length !== 0;
+const invalidDispatchContract = process.env.GIT_OPTIONAL_LOCKS !== '0' || args[0] !== '--ask-for-approval' || args[1] !== 'never' || args[2] !== 'exec' || !root || !args.includes('--strict-config') || !args.includes('--ignore-user-config') || !args.includes('--ignore-rules') || !args.includes('--ephemeral') || !args.includes('--skip-git-repo-check') || args.includes('--sandbox') || approvalFlags.length !== 1 || args[args.indexOf('--ask-for-approval') + 1] !== 'never' || args[args.indexOf('--disable') + 1] !== 'multi_agent' || configValues.some((value) => /agents\.enabled|multi_agent/.test(value)) || !configValues.includes(developerConfig) || !configValues.includes('default_permissions="riff_runtime"') || !configValues.includes('allow_login_shell=false') || !permissionProfile || authIsUndenied || explicitCredentialUndenied || consumerReadMissing || frameworkReadMissing || originalConsumerDenyMissing || originalFrameworkDenyMissing || bundleReadMissing || hostHomeDenyMissing || sharedTempDenyMissing || tempProfileMissing || invalidServiceTier || !roleSpecPath || !path.isAbsolute(roleSpecPath) || requiredShellConfig.some((value) => !configValues.includes(value)) || forbiddenShellConfig || (role === 'worker' ? addDirs.length !== 1 || path.resolve(addDirs[0]) !== path.resolve(stagedRoot) : addDirs.length !== 0);
+if (invalidDispatchContract) {
+  process.stderr.write(`${JSON.stringify({ role, authIsUndenied, explicitCredentialUndenied, consumerReadMissing, frameworkReadMissing, originalConsumerDenyMissing, originalFrameworkDenyMissing, bundleReadMissing, hostHomeDenyMissing, sharedTempDenyMissing, tempProfileMissing, invalidServiceTier, serviceTierValues, developerConfigPresent: configValues.includes(developerConfig), requiredShellConfigMissing: requiredShellConfig.filter((value) => !configValues.includes(value)), forbiddenShellConfig, addDirs, stagedRoot })}\n`);
+  process.exit(12);
+}
+if (mode === 'codex-nonzero') { process.stderr.write('unsupported option: --disable multi_agent\n'); process.exit(23); }
+if (mode === 'codex-dispatch-timeout' && role === 'controller') setInterval(() => {}, 1000);
+if (mode === 'codex-dispatch-overflow' && role === 'controller') { process.stdout.write('x'.repeat(4096)); process.exit(0); }
+
+if (role === 'controller' && sandbox === 'read-only') {
+  if (mode === 'controller-diagnostic-stderr') process.stderr.write('codex diagnostic banner\n');
+  const routing = mode === 'architecture-bounded'
+    ? { planning: 'architecture', execution: 'bounded', review: 'routine' }
+    : { planning: 'routine', execution: 'repeatable', review: 'routine' };
+  const output = JSON.stringify({ verdict: 'PROCEED', constraints: [], reason: 'task is bounded', routing });
+  process.stdout.write(mode === 'controller-ambiguous' ? `${output}\ntrailing prose\n` : `${output}\n`);
+} else if (role === 'planner' && sandbox === 'read-only') {
+  if (mode === 'two-waves' || mode === 'two-wave-boundary-escape') {
+    const requestHash = crypto.createHash('sha256').update('Implement slugify').digest('hex');
+    process.stdout.write(`# Plan\n\n## Identity\n\n\`\`\`json\n{"phase":"1-slugify","request_sha256":"${requestHash}"}\n\`\`\`\n\n## Tasks\n\n### Task 1: Implement slugify\nOwned paths: ["src/slugify.mjs"]\n\nImplement src/slugify.mjs.\n\n### Task 2: Add slugify coverage\nOwned paths: ["src/slugify.test.mjs"]\n\nAdd src/slugify.test.mjs.\n\n## Waves\n\n- Wave 1: Task 1.\n- Wave 2: Task 2.\n\n## Boundaries\n\n{"allowed_paths":["src/slugify.mjs","src/slugify.test.mjs"]}\n\n## Smoke\n\n- {"argv":["node","--test","src/slugify.test.mjs"],"expect":{"exit_code":0}}\n- {"argv":["npm","test"],"expect":{"exit_code":0}}\n`);
+  } else
+  if (mode === 'malformed-plan') process.stdout.write('not a plan\n');
+  else {
+    const requestHash = crypto.createHash('sha256').update('Implement slugify').digest('hex');
+    const identity = mode === 'plan-identity-unrelated'
+      ? { phase: '2-other', request_sha256: requestHash }
+      : mode === 'plan-identity-wrong'
+        ? { phase: '1-slugify', request_sha256: '0'.repeat(64) }
+        : { phase: '1-slugify', request_sha256: requestHash };
+    const identitySection = mode === 'plan-identity-missing' ? '' : `\n## Identity\n\n\`\`\`json\n${JSON.stringify(identity)}\n\`\`\`\n`;
+    const nested = mode.startsWith('nested-');
+    const smoke = mode === 'smoke-fail'
+      ? '{"argv":["node","--test","missing-test.mjs"],"expect":{"exit_code":0}}'
+      : nested
+        ? '{"argv":["node","--test","src/feature/file.test.mjs"],"expect":{"exit_code":0}}'
+        : '{"argv":["node","--test","src/slugify.test.mjs"],"expect":{"exit_code":0}}';
+    const boundaries = mode === 'plan-boundary-alias'
+      ? '["alias/slugify.mjs"]'
+      : nested
+        ? '["src/feature/file.mjs","src/feature/file.test.mjs"]'
+        : '["src/slugify.mjs","src/slugify.test.mjs"]';
+    const consumerPathLeak = mode === 'plan-consumer-path' ? `\nConsumer path: ${process.env.RIFF_FAKE_CODEX_CONSUMER_ROOT}\n` : '';
+    const secondSmoke = nested
+      ? '{"argv":["node","--test","src/feature/file.mjs"],"expect":{"exit_code":0}}'
+      : '{"argv":["npm","test"],"expect":{"exit_code":0}}';
+    process.stdout.write(`# Plan\n\n## Tasks\n\n### Task 1: Implement slugify\n${identitySection}${consumerPathLeak}\n## Waves\n\n- Wave 1: Task 1.\n\n## Boundaries\n\n\`\`\`json\n{"allowed_paths":${boundaries}}\n\`\`\`\n\n## Smoke\n\n- ${smoke}\n- ${secondSmoke}\n`);
+  }
+} else if (role === 'worker' && sandbox === 'workspace-write') {
+  if (mode === 'two-waves' || mode === 'two-wave-boundary-escape') {
+    const wave = Number(prompt.match(/^Wave: (\d+)\/\d+$/m)?.[1]);
+    if (wave === 1) {
+      fs.mkdirSync(path.join(roleRoot, 'src'), { recursive: true });
+      fs.writeFileSync(path.join(roleRoot, 'src/slugify.mjs'), `export function slugify(input) { return String(input).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }\n`);
+      if (mode === 'two-wave-boundary-escape') fs.writeFileSync(path.join(roleRoot, 'src/slugify.test.mjs'), 'future wave mutation\n');
+    } else if (wave === 2) {
+      fs.writeFileSync(path.join(roleRoot, 'src/slugify.test.mjs'), "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { slugify } from './slugify.mjs';\ntest('slugify', () => assert.equal(slugify('Hello World'), 'hello-world'));\n");
+    } else process.exit(13);
+    const label = wave === 1 ? 'Task 1: Implement slugify' : 'Task 2: Add slugify coverage';
+    process.stdout.write(`# Summary\n\n## Status\n\ncompleted\n\n## Changed Paths\n\n- placeholder\n\n## Completed Criteria\n\n- ${label}, src/slugify.${wave === 1 ? 'mjs' : 'test.mjs'} changes the requested product behavior.\n\n## Check Results\n\n- Wave ${wave} completed its bounded file change.\n\n## Smoke Results\n\n- Deferred to the final mechanical gate.\n\n## Unresolved Items\n\nNone.\n`);
+    process.exit(0);
+  }
+  const repairMode = ['smoke-repair', 'smoke-repair-both-fail'].includes(mode);
+  const repairAttempt = repairMode && fs.existsSync(path.join(roleRoot, 'src/slugify.mjs'));
+  const forceSmokeFailure = repairMode && (mode === 'smoke-repair-both-fail' || !repairAttempt);
+  if (mode.startsWith('nested-')) {
+    fs.mkdirSync(path.join(roleRoot, 'src/feature'), { recursive: true });
+    fs.writeFileSync(path.join(roleRoot, 'src/feature/file.mjs'), 'export const value = 42;\n');
+    fs.writeFileSync(path.join(roleRoot, 'src/feature/file.test.mjs'), "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { value } from './file.mjs';\ntest('nested scaffold', () => assert.equal(value, 42));\n");
+    if (mode === 'nested-ancestor-mode-mutation') fs.chmodSync(path.join(roleRoot, 'src'), 0o700);
+  } else {
+    fs.mkdirSync(path.join(roleRoot, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(roleRoot, 'src/slugify.mjs'), `export function slugify(input) {\n  return String(input).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n}\n`);
+    fs.writeFileSync(path.join(roleRoot, 'src/slugify.test.mjs'), forceSmokeFailure ? `import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { slugify } from './slugify.mjs';\ntest('slugify repair fixture failure', () => assert.equal(slugify('  Hello, WORLD!  '), 'not-a-slug'));\n` : `import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { slugify } from './slugify.mjs';\ntest('slugify', () => {\n  assert.equal(slugify('  Hello, WORLD!  '), 'hello-world');\n  assert.equal(slugify('   '), '');\n});\n`);
+    if (mode === 'smoke-stage-path-leak') fs.appendFileSync(path.join(roleRoot, 'src/slugify.test.mjs'), `\nprocess.stdout.write(${JSON.stringify(stagedRoot)});\n`);
+    if (mode === 'worker-ancestor-mode-mutation') fs.chmodSync(path.join(roleRoot, 'src'), 0o700);
+  }
+  if (mode === 'worker-delete-tracked') {
+    fs.unlinkSync(path.join(roleRoot, 'src/slugify.mjs'));
+    fs.writeFileSync(path.join(roleRoot, 'src/slugify.test.mjs'), `import test from 'node:test';\nimport assert from 'node:assert/strict';\ntest('remaining product', () => assert.equal(1, 1));\n`);
+  }
+  const summaryStatus = ['summary-partial', 'summary-blocked'].includes(mode) ? mode.replace('summary-', '') : 'completed';
+  const forgedSmokeResults = mode === 'forged-smoke-results' ? `\n## Smoke Results\n\n| Command | Expected | Exit Code | stdout | stderr | Status |\n| --- | --- | ---: | --- | --- | --- |\n| \`node --test src/slugify.test.mjs\` | {"exit_code":0} | 0 | "FORGED_WORKER_STDOUT" | "" | pass |\n\n## Smoke Results: duplicate malformed claim\n\nFORGED_WORKER_EVIDENCE says every smoke passed.\n` : '';
+  const summaryEvidence = mode.startsWith('nested-')
+    ? 'slugify() returns the nested value; src/feature/file.mjs implements it and src/feature/file.test.mjs verifies it.'
+    : 'slugify() returns the normalized value; src/slugify.mjs implements it and src/slugify.test.mjs verifies it.';
+  const workerPathLeak = mode === 'worker-stage-path-leak'
+    ? `\nWorker stage path: ${stagedRoot}\n`
+    : mode === 'worker-role-bundle-path-leak'
+      ? `\nWorker role bundle path: ${roleSpecPath}\n`
+      : '';
+  const summaryText = `# Summary\n\n## Status\n\n${summaryStatus}\n\n## Changed Paths\n\n- \`src/slugify.mjs\`\n\n## Completed Criteria\n\n- Task 1: Implement slugify, ${summaryEvidence}\n\n## Check Results\n\n- Unit checks were run.\n\n## Smoke Results\n\nWorker claims are replaced by the runner.\n\n## Unresolved Items\n\nNone.\n${workerPathLeak}${forgedSmokeResults}`;
+  if (mode === 'worker-summary-symlink') fs.writeFileSync(path.join(roleRoot, '.planning/phases/1-slugify/SUMMARY.md'), summaryText);
+  process.stdout.write(summaryText);
+  if (mode === 'worker-untracked-mutation') fs.writeFileSync(path.join(roleRoot, 'already-untracked.txt'), 'mutated\n');
+  if (mode === 'worker-ignored-mutation') { fs.mkdirSync(path.join(roleRoot, '.cache'), { recursive: true }); fs.writeFileSync(path.join(roleRoot, '.cache/secret'), 'mutated\n'); }
+  if (mode === 'worker-git-config') fs.appendFileSync(path.join(roleRoot, '.git/config'), '\n[fixture]\nmutated = true\n');
+  if (mode === 'worker-git-hook') { fs.mkdirSync(path.join(roleRoot, '.git/hooks'), { recursive: true }); fs.writeFileSync(path.join(roleRoot, '.git/hooks/pre-commit'), '#!/bin/sh\nexit 0\n'); }
+  if (mode === 'worker-unplanned-file') fs.writeFileSync(path.join(roleRoot, 'unplanned.txt'), 'unexpected\n');
+  if (mode === 'worker-stage-only') execFileSync('git', ['add', 'src/slugify.mjs'], { cwd: roleRoot });
+  if (mode === 'worker-state-mutation') fs.writeFileSync(path.join(roleRoot, '.planning/riff-next/1-slugify.json'), '{}\n');
+  if (mode === 'worker-forged-completed') {
+    const statePath = path.join(roleRoot, '.planning/riff-next/1-slugify.json');
+    const forged = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    forged.state = 'completed';
+    fs.writeFileSync(statePath, `${JSON.stringify(forged)}\n`);
+  }
+  if (mode === 'worker-plan-mutation') fs.appendFileSync(path.join(roleRoot, '.planning/phases/1-slugify/PLAN.md'), '\nworker mutation\n');
+  if (mode === 'worker-plan-review-mutation') fs.appendFileSync(path.join(roleRoot, '.planning/phases/1-slugify/PLAN-REVIEW.md'), '\nworker mutation\n');
+  if (mode === 'worker-summary-symlink') {
+    const target = process.env.RIFF_FAKE_CODEX_SENTINEL || path.join(os.tmpdir(), `riff-summary-sentinel-${process.pid}`);
+    fs.writeFileSync(target, 'sentinel\n');
+    fs.unlinkSync(path.join(roleRoot, '.planning/phases/1-slugify/SUMMARY.md'));
+    fs.symlinkSync(target, path.join(roleRoot, '.planning/phases/1-slugify/SUMMARY.md'));
+  }
+  if (mode === 'worker-phase-dir-symlink') {
+    const target = process.env.RIFF_FAKE_CODEX_SENTINEL || path.join(os.tmpdir(), `riff-phase-sentinel-${process.pid}`);
+    fs.writeFileSync(target, 'sentinel\n');
+    const phaseDir = path.join(roleRoot, '.planning/phases/1-slugify');
+    fs.rmSync(phaseDir, { recursive: true, force: true });
+    fs.symlinkSync(path.dirname(target), phaseDir);
+  }
+  if (mode === 'worker-lock-tamper') {
+    const lockRoot = path.join(os.tmpdir(), 'riff-next-locks');
+    const lockName = fs.readdirSync(lockRoot).find((entry) => entry.endsWith('.lock'));
+    if (lockName) fs.unlinkSync(path.join(lockRoot, lockName));
+  }
+  if (mode === 'worker-riff-replacement') {
+    fs.unlinkSync(path.join(roleRoot, '.riff'));
+    fs.mkdirSync(path.join(roleRoot, '.riff'));
+    fs.writeFileSync(path.join(roleRoot, '.riff', 'replacement.txt'), 'replacement\n');
+  }
+  if (mode === 'worker-riff-removal') fs.unlinkSync(path.join(roleRoot, '.riff'));
+  if (mode === 'worker-detached-writer') {
+    const delayed = spawn(process.execPath, ['-e', "setTimeout(() => require('node:fs').writeFileSync('src/slugify.mjs', 'detached overwrite\\n'), 1200)"], { cwd: roleRoot, detached: true, stdio: 'ignore' });
+    delayed.unref();
+  }
+  if (['smoke-allowed-mutation', 'smoke-outside-mutation', 'post-review-smoke-mutation'].includes(mode)) {
+    const testPath = path.join(roleRoot, 'src/slugify.test.mjs');
+    fs.appendFileSync(testPath, `\nimport { appendFileSync } from 'node:fs';\nif (process.env.RIFF_NEXT_POST_REVIEW === '1' && '${mode}' === 'post-review-smoke-mutation') appendFileSync('${mode === 'smoke-outside-mutation' ? 'already-untracked.txt' : 'src/slugify.mjs'}', '// smoke mutation\\n');\nif (process.env.RIFF_NEXT_POST_REVIEW !== '1' && '${mode}' !== 'post-review-smoke-mutation') appendFileSync('${mode === 'smoke-outside-mutation' ? 'already-untracked.txt' : 'src/slugify.mjs'}', '// smoke mutation\\n');\n`);
+  }
+} else if (planReview) {
+  if (mode === 'plan-review-file-mutation') fs.writeFileSync(path.join(roleRoot, 'plan-reviewer-mutation.txt'), 'unexpected\n');
+  if (mode === 'plan-review-revise') process.stdout.write('## Mode\nplan\n\n## Verdict\nREVISE\n\n## Findings\n- HIGH: the task needs a clearer acceptance boundary at PLAN.md:1.\n\n## Evidence\nThe task and acceptance boundary require revision, as shown by PLAN.md:1.\n\n## Residual Risk\nThe current plan leaves product acceptance ambiguous until the boundary is revised.\n');
+  else if (mode === 'plan-review-invalid') process.stdout.write('## Mode\ncode\n\n## Verdict\nPASS\n\n## Findings\nNone.\n\n## Evidence\nReviewed the plan.\n\n## Residual Risk\nNone.\n');
+  else process.stdout.write('## Mode\nplan\n\n## Verdict\nPROCEED\n\n## Findings\nNone.\n\n## Evidence\nEvery task and Observable Outcome match the exact product request, boundaries, smokes, and acceptance criteria at PLAN.md:1.\n\n## Residual Risk\nImplementation-time behavior may still expose product assumptions that require follow-up validation.\n');
+} else if (role === 'reviewer' && sandbox === 'read-only') {
+  if (mode === 'reviewer-file-mutation') fs.writeFileSync(path.join(roleRoot, 'reviewer-mutation.txt'), 'unexpected\n');
+  if (mode === 'reviewer-stage-only') execFileSync('git', ['add', 'src/slugify.mjs'], { cwd: roleRoot });
+  const planHash = prompt.match(/PLAN SHA-256: ([0-9a-f]{64})/)?.[1] || '';
+  const summaryHash = prompt.match(/SUMMARY SHA-256: ([0-9a-f]{64})/)?.[1] || '';
+  const workerDeltaHash = prompt.match(/worker delta SHA-256: ([0-9a-f]{64})/)?.[1] || '';
+  const baseSnapshotHash = prompt.match(/base snapshot: ([0-9a-f]{64})/)?.[1] || '';
+  const headSnapshotHash = prompt.match(/head snapshot: ([0-9a-f]{64})/)?.[1] || '';
+  const deltaPaths = prompt.match(/reviewable delta paths: ([^\n]+)/)?.[1]?.split(',').map((value) => value.trim()).filter(Boolean) || ['src/slugify.mjs'];
+  if (mode === 'review-one-word-pass') process.stdout.write('PASS\n');
+  else if (mode === 'review-empty-evidence') process.stdout.write('## Mode\ncode\n\n## Verdict\nPASS\n\n## Findings\nNone.\n\n## Evidence\n\n## Residual Risk\nNone.\n');
+  else if (mode === 'reviewer-fail') process.stdout.write('## Mode\ncode\n\n## Verdict\nFAIL\n\n## Findings\n- A failing check remains.\n\n## Evidence\n- test evidence\n\n## Residual Risk\n- The fix remains unverified.\n');
+  else process.stdout.write(`## Mode\ncode\n\n## Verdict\nPASS\n\n## Findings\nNone.\n\n## Evidence\n${deltaPaths.map((deltaPath) => `- Reviewed ${deltaPath}:${fs.existsSync(path.join(roleRoot, deltaPath)) ? '1' : 'deleted'}`).join('\n')}\n\n## Residual Risk\nThe fixture does not model platform-specific Codex behavior.\n`);
+} else {
+  process.exit(13);
+}

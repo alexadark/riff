@@ -1,0 +1,18 @@
+name = "riff-reviewer-critical"
+description = "Critical reviewer runtime adapter."
+semantic_role = "reviewer"
+route_class = "critical"
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+sandbox_mode = "read-only"
+role_spec_path = "agents/roles/reviewer.md"
+developer_instructions = """
+Require role_spec_path in the dispatch context.
+Stop if role_spec_path is missing or is not an absolute filesystem path.
+Load the canonical specification at role_spec_path before acting.
+Apply only the supplied review mode and return findings content.
+Use only project-relative paths in stdout. Never emit an absolute project, evidence-snapshot, runtime, bundle, role-specification, home, cache, or temporary path.
+"""
+
+[features]
+multi_agent = false

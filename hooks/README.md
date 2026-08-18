@@ -1,148 +1,28 @@
-# RIFF Hooks
+# RIFF hooks
 
-## Buckets
+Hooks are supplementary local safeguards. The native stage runner does not rely on them for its plan validation, evidence snapshots, scope enforcement, or completion state; those controls are defined in `protocols/RIFF-NEXT.md`.
 
-Claude Code hooks are selected by `riff init` from `risk.sensitive_task_preference` in `profile.yaml`. Git pre-commit helpers are invoked by `security-scan.sh` when their file/staged-change conditions match.
+`riff init` installs the deterministic Git hooks it owns and preserves collisions. Run `riff resync` after framework updates to reconcile RIFF-owned links without replacing unowned project configuration.
 
-| Bucket | Content | Wired when |
-| ------ | ------- | ---------- |
-| **A** — Universal discipline | destructive-guard, boundary-check, typecheck-gate, test-gate | Always, regardless of profile. |
-| **B** — Security/caution-adaptable | route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard | `cautious` → all of B; `balanced` → route-auth-guard + idor-detector; `fast` → none. |
-| **C** — Stack/convention | registry-reminder, migration-gate (Drizzle/Prisma), notify-human | `registry-reminder` and `migration-gate` run from `security-scan.sh` when relevant files are staged; `notify-human` is called manually by agents. |
-| **D** — Session context | voice-rules-inject on SessionStart, compaction-checkpoint on PreCompact | Always wired in all three templates. Reads `profile.yaml` at session start and writes a compact checkpoint before compaction. |
+## Git hooks
 
-Templates: `templates/settings.json` (fast / Bucket A only), `templates/settings-balanced.json`, `templates/settings-cautious.json`. `/riff:init` copies the right one into `.claude/settings.json`.
+`security-scan.sh` is the pre-commit entry point. It invokes the repository checks that match staged files, including secret detection, boundary-oriented warnings, orphan-file checks, registry reminders, and migration checks where configured. `commit-msg.sh` is a no-op compatibility hook.
 
-### Bucket D hooks
+The installed paths are:
 
-| Hook | Event | Purpose |
-| ---- | ----- | ------- |
-| voice-rules-inject.sh | SessionStart | Injects language + explanation-depth rules from the resolved profile |
-| compaction-checkpoint.sh | PreCompact | Writes a checkpoint summary to compacted context so the session can resume without manual HANDOFF |
+```text
+.git/hooks/pre-commit
+.git/hooks/commit-msg
+```
 
-Git hooks (pre-commit / commit-msg) are separate: installed once by `/riff:init` into `.git/hooks/`, not profile-driven.
+Git hooks may block an unsafe commit or emit a warning. They do not prove a stage passed, and a warning must be evaluated with the stage evidence rather than ignored.
 
-## Warning Accumulator
+## Notification helper
 
-All hooks log warnings to `.planning/warnings.log` via `log-warning.sh`. This file:
+`notify-human.sh "<message>"` sends a best-effort notification using the resolved profile. A missing or invalid notification configuration warns and returns successfully, so it cannot create a false stage failure.
 
-- **Accumulates** throughout a phase (every hook appends, nothing is lost)
-- **Reviewed by the verifier** at end of phase (step 3 of verification process)
-- **Cleared at phase start** by `/riff:next` (`> .planning/warnings.log`)
+## Legacy Claude command workflow
 
-Flow: hook fires → warning printed to stdout + logged to file → agent may or may not fix it → verifier reviews ALL warnings at end of phase → unfixed warnings = verification findings.
+`riff init` materializes Claude runtime links under `.claude/`, including command-era session hooks and settings templates. Those hooks are not native `riff next` controls. In particular, do not assume a session-start, pre-compact, or post-edit hook supplies stage boundaries or authorizes a native transition.
 
-## Git Hooks (deterministic, run on every commit)
-
-### security-scan.sh (pre-commit)
-
-Blocks commits containing: hardcoded secrets, .env files, console.log (warning), any types (warning).
-Also runs: commit scope check (warns if >15 files), orphan file check (warns if new files aren't imported).
-
-**Install:** `/riff:init` copies this to `.git/hooks/pre-commit`
-
-### commit-msg.sh (commit-msg)
-
-No-op placeholder. RIFF does NOT enforce a commit message format — commits should describe the feature or bug like normal conventional commits (`feat:`, `fix:`, `chore:`, etc.). Phase/task numbers belong in SUMMARY.md and ROADMAP.yaml, not in commit messages.
-
-**Install:** `/riff:init` copies this to `.git/hooks/commit-msg`
-
-### orphan-file-check.sh (called by security-scan)
-
-Detects newly added source files that aren't imported anywhere. Catches the #1 silent failure: orphaned code that exists but is never used.
-
-### registry-reminder.sh (called by security-scan)
-
-Warns and blocks if a commit touches the public surface (`app/routes/`, `app/components/`, `app/lib/`, `schema.*`, `.env*`) without also staging `REGISTRY.md`. Escape hatch: `RIFF_SKIP_REGISTRY=1`.
-
-### migration-gate.sh (called by security-scan)
-
-Detects staged migration files (`drizzle/*.sql`, `prisma/migrations/*.sql`) and automatically applies pending migrations before the commit completes. Prevents the #1 ORM pitfall: committing migration files without actually running them against the database.
-
-**Safety guarantees:**
-
-- Only runs forward migrations (`drizzle-kit migrate` / `prisma migrate deploy`) — never `push`, `drop`, or `reset`
-- Scans migration SQL for destructive statements (`DROP TABLE`, `TRUNCATE`, `DELETE FROM`, `DROP COLUMN`) and **blocks the commit** if found
-- Destructive migrations require manual review: run the migration yourself, then commit with `RIFF_SKIP_MIGRATION_GATE=1`
-- Idempotent — running when no migrations are pending is a no-op
-- Logs to `.planning/warnings.log` when migrations are auto-applied
-
-**Supported ORMs:** Drizzle, Prisma. Extensible — add a new block in the script for other ORMs.
-
-**Escape hatch:** `RIFF_SKIP_MIGRATION_GATE=1 git commit ...`
-
-## Claude Code Hooks (configured in project .claude/settings.json)
-
-### Destructive Command Guard (PreToolUse: Bash)
-
-Blocks dangerous commands without confirmation: `rm -rf`, `git reset --hard`, `git push --force`, `git checkout .`, `git clean`, `git add .`, `git add -A`.
-
-### Boundary Check (PostToolUse: Edit, Write)
-
-After any file edit, check if the modified file is in the current task's boundary list. If not, warn the agent.
-
-### Typecheck Gate (PostToolUse: Edit, Write)
-
-After editing .ts/.tsx files, run `tsc --noEmit` if available. Catch type errors before they accumulate.
-
-### TODO Orphan Guard (PostToolUse: Edit, Write)
-
-Checks that `// TODO` comments include a seed or issue reference. Rule: "No TODO without a matching seed or issue."
-
-### Route Auth Guard (PostToolUse: Edit, Write)
-
-When a route/API handler file is modified, checks for auth patterns (requireUserId, getSession, etc.). Warns if no auth check found. Skips known public routes (login, register, health). Escape hatch: `// public route` comment.
-
-### Input Validation Guard (PostToolUse: Edit, Write)
-
-When an API handler reads request body, checks for schema validation (Zod .parse, Valibot, Joi, etc.). Warns if body is consumed without validation.
-
-### IDOR Pattern Detector (PostToolUse: Edit, Write)
-
-Detects database queries using params.id without user scoping (userId, user.id, etc.). The #1 vulnerability in solo-dev projects.
-
-### Notify Human (called manually by agents in AFK mode)
-
-`notify-human.sh "<message>"` dispatches to the channel set in `notifications.channel` (resolved per `references/PROFILE-RESOLUTION.md`):
-
-- `telegram` — POSTs to `api.telegram.org/bot<TOKEN>/sendMessage` using `notifications.telegram_bot_token` + `notifications.telegram_chat_id`. See § Telegram setup below.
-- `email` — `gws gmail users messages send` if `gws` is on PATH, else system `mail`, else skip + warn. Requires `notifications.email_to`.
-- `none` — exit 0 silently
-- Channel missing, unknown, or required sub-field missing → one-line warning to stderr, returns 0.
-
-Slack is intentionally not supported yet (incoming-webhook setup is more involved). Add it later if needed.
-
-Never fails the calling phase: a misconfigured channel prints a one-line warning and returns 0.
-
-#### Telegram setup
-
-Run this once before picking `channel: telegram`:
-
-1. Open Telegram, message [@BotFather](https://t.me/BotFather) and send `/newbot`. Pick a name + username. BotFather replies with a bot token like `123456:ABC-DEF...`.
-2. Open a chat with your new bot and send any message (this lets the bot see you).
-3. Visit `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser, find the `"chat":{"id":<NUMBER>}` value: that's your chat_id.
-4. Add to `profile.yaml`:
-   ```yaml
-   notifications:
-     channel: telegram
-     telegram_bot_token: "123456:ABC-DEF..."   # quoted, contains a colon
-     telegram_chat_id: 12345678
-   ```
-
-Test with: `bash hooks/notify-human.sh "test from RIFF"`. You should receive the message in Telegram within a second.
-
-### Voice Rules Inject (SessionStart)
-
-Reads the resolved profile at session start and injects three rules:
-
-1. **Chat language** — defaults to `user.conversational_language` from the profile. The agent should reply in that language from the first sentence and not drift mid-conversation. Written artifacts (code, commits, docs) stay in `user.artifact_language`.
-2. **Explanation depth** — defaults to `style.terminal_explanation_level`, falling back to `style.explanation_level`, falling back to `simple`. Each level (`simple` / `technical` / `eli5`) gets its own behavioral guidance baked into the injected rule.
-3. **Mid-conversation override** — when the user explicitly says "switch to English", "fais-moi ça en anglais", "be technical", "mode technique", etc., the agent honors it for the rest of the session. Override beats the defaults from rules 1 and 2.
-
-This is what lets non-RIFF interactions (ad-hoc questions, debugging, exploration) honor the same preferences as `/riff:next` phase reports. Without this hook, only RIFF agents that explicitly read `profile.yaml` (planner, executor, dashboard) would respect those settings.
-
-**Fail-safe:** if `.riff/profile.yaml` is missing or unparseable, the script exits silently and the session proceeds with no injected rules.
-
-**To pick up profile changes:** the hook reads `profile.yaml` on every session start, so editing the profile takes effect on the next session — no re-init needed.
-
-**Upgrade path for existing projects:** `/riff:resync` updates hook symlinks automatically, but it does NOT modify `.claude/settings.json`. To wire the SessionStart and PreCompact entries, either re-run `/riff:init` or manually copy the blocks from `templates/settings*.json` to your `.claude/settings.json`.
+For the native workflow, use `docs/RIFF-MANUAL.md` and `protocols/RIFF-NEXT.md`.

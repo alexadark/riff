@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Improve"
+  short_description: "Extract RIFF expertise proposals"
+  default_prompt: "Use $riff:improve to extract RIFF expertise proposals."
+policy:
+  allow_implicit_invocation: false

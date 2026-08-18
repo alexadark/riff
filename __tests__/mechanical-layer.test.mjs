@@ -434,28 +434,34 @@ describe('PR finalize enforcement', () => {
 });
 
 describe('reviewer format and trace contracts', () => {
-  test('reviewers do not ask models to fabricate Codex runtime metadata', () => {
-    const agentFiles = [
-      'agents/adversarial-reviewer.md',
-      'agents/plan-adversarial-reviewer.md',
-      'agents/architecture-adversarial-reviewer.md',
-      'agents/roadmap-adversarial-reviewer.md',
-      'agents/deep-auditor.md',
-      'agents/incident-adversarial-reviewer.md',
-    ];
-
-    for (const file of agentFiles) {
-      const text = readFileSync(path.join(repoRoot, file), 'utf8');
-      expect(text).not.toContain('runtime metadata');
-      expect(text).not.toContain('<session-id>');
-      expect(text).toContain('Finding headings are load-bearing');
-    }
+  test('shared reviewer preserves the findings and evidence contract', () => {
+    const text = readFileSync(path.join(repoRoot, 'agents', 'roles', 'reviewer.md'), 'utf8');
+    expect(text).toContain('## Findings');
+    expect(text).toContain('## Evidence');
+    expect(text).toContain('PLAN SHA-256');
+    expect(text).toContain('SUMMARY SHA-256');
+    expect(text).toContain('worker delta SHA-256');
+    expect(text).toContain('base snapshot SHA-256');
+    expect(text).toContain('head snapshot SHA-256');
+    expect(text).toContain('path:line');
+    expect(text).toContain('Finding');
   });
 
   test('riff-doctor includes the command model mirror check', () => {
     const doctor = readFileSync(path.join(repoRoot, 'scripts', 'riff-doctor.mjs'), 'utf8');
     expect(doctor).toContain('checkCommandModelMirrors');
     expect(doctor).toContain('models.reasoning');
+  });
+
+  test('riff-doctor warns only for retired citations in historical audit artifacts', async () => {
+    const { isHistoricalAuditReviewArtifact, missingFrameworkCitationLevel } = await import(pathToFileURL(path.join(repoRoot, 'scripts', 'riff-doctor.mjs')));
+
+    expect(isHistoricalAuditReviewArtifact('AUDIT-FIX-REVIEW.md')).toBe(true);
+    expect(missingFrameworkCitationLevel('AUDIT-FIX-REVIEW.md', 'agents/scope-checker.md')).toBe('warn');
+    expect(missingFrameworkCitationLevel('AUDIT-FIX-REVIEW.md', 'agents/current.md')).toBe('error');
+    expect(missingFrameworkCitationLevel('protocols/QUALITY.md', 'agents/scope-checker.md')).toBe('error');
+    expect(missingFrameworkCitationLevel('skills/improve/SKILL.md', 'agents/improver.md')).toBe('error');
+    expect(isHistoricalAuditReviewArtifact('commands/improver.md')).toBe(false);
   });
 });
 

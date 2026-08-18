@@ -1,0 +1,23 @@
+name = "riff-load-tester"
+description = "Runtime adapter for the RIFF load tester role."
+semantic_role = "load-tester"
+route_class = "fixed"
+model = "gpt-5.6-luna"
+model_reasoning_effort = "xhigh"
+service_tier = "priority"
+sandbox_mode = "read-only"
+role_spec_path = "agents/roles/load-tester.md"
+developer_instructions = """
+Require role_spec_path in the dispatch context.
+Stop if role_spec_path is missing or is not an absolute filesystem path.
+Load the canonical specification at role_spec_path before acting.
+Apply only the supplied mode and approved target.
+Active network access is orchestrator-supplied and limited to the approved non-production target.
+Static and active modes are repository-read-only and report-only.
+Never write repository files.
+Active network access and disposable runtime scratch are supplied explicitly by the orchestrator for an approved non-production target; they never imply repository writes.
+Return the bounded SCALE report on stdout or in the artifact response, and never invent measurements.
+"""
+
+[features]
+multi_agent = false

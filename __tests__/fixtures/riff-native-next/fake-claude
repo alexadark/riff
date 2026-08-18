@@ -1,0 +1,59 @@
+#!/usr/bin/env node
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const args = process.argv.slice(2);
+const prompt = args.at(-1) || '';
+const model = args[args.indexOf('--model') + 1] || '';
+const effort = args[args.indexOf('--effort') + 1] || '';
+const tools = args[args.indexOf('--tools') + 1] || '';
+const roleSpec = args[args.indexOf('--append-system-prompt') + 1] || '';
+const root = process.cwd();
+const mode = process.env.RIFF_FAKE_CLAUDE_MODE || '';
+if (process.env.RIFF_FAKE_CLAUDE_LOG) {
+  fs.appendFileSync(process.env.RIFF_FAKE_CLAUDE_LOG, `${JSON.stringify({ args, prompt, model, effort, tools, roleSpec, cwd: root })}\n`);
+}
+if (args.includes('--disable-slash-commands') === false
+  || args.includes('--safe-mode') === false
+  || args.includes('--strict-mcp-config') === false
+  || args.includes('--no-session-persistence') === false
+  || args.includes('--permission-mode') === false
+  || args[args.indexOf('--permission-mode') + 1] !== 'dontAsk'
+  || args[args.indexOf('--mcp-config') + 1] !== '{"mcpServers":{}}'
+  || /\b(?:Bash|Agent|WebFetch|WebSearch)\b/.test(tools)
+  || !tools) process.exit(41);
+if (process.env.RIFF_UNRELATED_SECRET) process.exit(44);
+
+const task = prompt.match(/^Task: (.+)$/m)?.[1] || 'Implement slugify';
+const phase = prompt.match(/^Phase: (.+)$/m)?.[1] || '1-slugify';
+const staged = prompt.match(/^Staged project workspace: (.+)$/m)?.[1];
+const settings = JSON.parse(args[args.indexOf('--settings') + 1] || '{}');
+if (staged) {
+  const addDir = args[args.indexOf('--add-dir') + 1];
+  const toolPath = `//${path.resolve(staged).replace(/^\/+/, '')}/**`;
+  if (addDir !== staged || !tools.includes('Write') || !tools.includes('Edit')
+    || !settings.permissions?.allow?.includes(`Write(${toolPath})`)
+    || !settings.permissions?.allow?.includes(`Edit(${toolPath})`)) process.exit(42);
+} else if (args.includes('--add-dir') || /\b(?:Write|Edit)\b/.test(tools)) process.exit(43);
+const hash = crypto.createHash('sha256').update(task).digest('hex');
+if (prompt.includes('Return an unambiguous PROCEED')) {
+  const schemaArg = args[args.indexOf('--json-schema') + 1];
+  const schema = schemaArg ? JSON.parse(schemaArg) : null;
+  if (!schema || schema.additionalProperties !== false
+    || JSON.stringify(schema.required) !== JSON.stringify(['verdict', 'constraints', 'reason', 'routing'])) process.exit(46);
+  process.stdout.write('{"verdict":"PROCEED","constraints":[],"reason":"bounded","routing":{"planning":"routine","execution":"repeatable","review":"routine"}}\n');
+} else if (prompt.includes('Return PLAN.md content')) {
+  process.stdout.write(`# Plan\n\n## Identity\n\n\`\`\`json\n{"phase":"${phase}","request_sha256":"${hash}"}\n\`\`\`\n\n## Tasks\n\n### Task 1: Implement slugify\nOwned paths: ["src/slugify.mjs","src/slugify.test.mjs"]\n\nImplement the slugify product behavior and its test.\n\n## Waves\n\n- Wave 1: Task 1.\n\n## Boundaries\n\n{"allowed_paths":["src/slugify.mjs","src/slugify.test.mjs"]}\n\n## Smoke\n\n- {"argv":["node","--test","src/slugify.test.mjs"],"expect":{"exit_code":0}}\n- {"argv":["npm","test"],"expect":{"exit_code":0}}\n`);
+} else if (prompt.includes('mode: plan')) {
+  process.stdout.write('## Mode\n\nplan\n\n## Verdict\n\nPROCEED\n\n## Findings\n\nNone.\n\n## Evidence\n\nPLAN.md:1 contains the requested task and bounded smoke contract.\n\n## Residual Risk\n\nNo additional residual risk identified.\n');
+} else if (staged) {
+  fs.mkdirSync(path.join(staged, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(staged, 'src/slugify.mjs'), "export function slugify(input) { return String(input).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }\n");
+  fs.writeFileSync(path.join(staged, 'src/slugify.test.mjs'), "import test from 'node:test'; import assert from 'node:assert/strict'; import { slugify } from './slugify.mjs'; test('slugify', () => assert.equal(slugify('Hello World'), 'hello-world'));\n");
+  process.stdout.write('# Summary\n\n## Status\n\ncompleted\n\n## Changed Paths\n\n- `src/slugify.mjs`\n- `src/slugify.test.mjs`\n\n## Completed Criteria\n\n- Task 1: Implement slugify, product behavior and test implemented.\n\n## Check Results\n\n- Product files were written in the staged workspace.\n\n## Smoke Results\n\n- Deferred to the runner.\n\n## Unresolved Items\n\nNone.\n');
+} else {
+  const reviewDiffPath = prompt.match(/^tracked Git diff path: (.+)$/m)?.[1];
+  if (!reviewDiffPath || !fs.readFileSync(reviewDiffPath, 'utf8').startsWith('RIFF runner-authored tracked Git diff')) process.exit(45);
+  process.stdout.write('## Mode\n\ncode\n\n## Verdict\n\nPASS\n\n## Findings\n\nNone.\n\n## Evidence\n\nReviewed src/slugify.mjs:1 and src/slugify.test.mjs:1. The staged product delta is within the validated boundaries.\n\n## Residual Risk\n\nNo additional residual risk identified.\n');
+}

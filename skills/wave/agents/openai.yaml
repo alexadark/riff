@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Wave"
+  short_description: "Run autonomous roadmap waves and loops"
+  default_prompt: "Use $riff:wave to run or resume the requested autonomous single-project roadmap wave without routine pauses."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,47 @@
+---
+name: wave
+description: >-
+  Run or resume RIFF autonomous single-project roadmap waves. Use only when the
+  user explicitly asks for a RIFF wave, autonomous wave, loop, or wave resume.
+---
+
+# RIFF Wave
+
+Run the native single-project wave engine from the invoking project's Git root.
+
+## Invocation
+
+1. Resolve the Git root with `git rev-parse --show-toplevel`.
+2. Require the project-local `.riff` symlink and resolve `<git-root>/.riff/riff`.
+3. Choose exactly one operation from the user's explicit request:
+   - One ready dependency frontier: `riff wave --autonomous`.
+   - Explicit phase set: `riff wave --autonomous --phases <comma-separated-ids>`.
+   - Continue through newly unlocked frontiers: `riff wave --autonomous --loop`.
+   - Resume the active interrupted run: `riff wave --resume`.
+   - Inspect the active run: `riff wave --status`.
+4. Invoke the project-local executable as `<git-root>/.riff/riff wave ...` and
+   pass `--project-root <git-root>`.
+5. Pass `--provider codex|claude` only when the user explicitly requests a
+   one-run override. Otherwise the active project profile owns provider choice.
+6. Return the engine's state, stop reason, and exact resume command.
+
+## Autonomous contract
+
+The engine selects ready roadmap phases, respects `depends_on`, and invokes the
+native `riff next` runner once per phase. It doesn't ask for confirmation
+between ordinary phases. `--loop` recomputes readiness after every completed
+frontier and continues until the roadmap is dry, a real blocker exists, a
+configured cap is reached, or explicit human verification is required.
+
+Security-sensitive implementation remains autonomous. Security hooks run once
+after the product phases in the wave or loop. Only a reproducible blocking
+finding stops completion. Visual or functional checks explicitly marked for
+human verification, destructive boundaries, and promotion remain confirmation
+boundaries.
+
+Every phase attempt has a distinct native stage identifier. `--resume` safely
+reconciles an attempt that completed before interruption and creates a new
+attempt only when the previous one stopped before product promotion. A failure
+after promotion is left blocked for human inspection instead of being replayed.
+
+The wave engine never commits, merges, deploys, or promotes implicitly.

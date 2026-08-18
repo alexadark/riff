@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Status"
+  short_description: "Show authoritative RIFF project status"
+  default_prompt: "Use $riff:status to show the current project's authoritative RIFF status and next action."
+policy:
+  allow_implicit_invocation: false

@@ -24,7 +24,7 @@ If a session file exists for the same issue: note its path — you will pass it 
 
 ## Step 3: Spawn debugger — sub-agent
 
-Resolve the tier first (`agents/debugger.md` § Tiers), highest wins:
+Resolve the tier first using `agents/roles/debugger.md` § Intensity, highest wins:
 
 1. `--tier normal|high|max` flag on this invocation
 2. Auto-mapping from the bug description (max = viciousness, not severity: intermittent / flaky / "can't reproduce" / race condition / 2+ failed fix attempts → `max`; multi-layer or 3+ distinct issues → `high`; else no auto-match)

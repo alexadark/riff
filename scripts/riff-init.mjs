@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import {
   existsSync,
   lstatSync,
@@ -9,6 +10,7 @@ import {
   readlinkSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -16,10 +18,12 @@ import {
 import { spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { ROUTE_BY_FILE, ROUTE_PORTFOLIO, validateRouteSource } from './lib/runtime-routes.mjs';
 
 const SCRIPT_DIR = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
 const FRAMEWORK_ROOT = path.resolve(SCRIPT_DIR, '..');
 const PRESET_NAMES = new Set(['default']);
+const CODEX_ROUTE_MARKER = '# RIFF-INSTALL: codex-agent';
 
 const USE_COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
 const ANSI = USE_COLOR
@@ -52,7 +56,7 @@ function printBanner() {
     `${ANSI.teal5}|_| \\_\\___|_|   |_|    ${ANSI.reset}`,
     '',
     `${ANSI.cyan}Build like a band of six. Ship like one.${ANSI.reset}`,
-    `${ANSI.dim}Solo dev framework for Claude Code${ANSI.reset}`,
+    `${ANSI.dim}Solo dev framework for Claude Code and Codex${ANSI.reset}`,
     '',
   ];
   process.stdout.write(`${lines.join('\n')}\n`);
@@ -60,6 +64,7 @@ function printBanner() {
 
 const PRESETS = {
   default: {
+    runtime: { provider: 'codex' },
     user: {
       programming_level: 'intermediate',
       ai_agents_experience: 'tried',
@@ -101,7 +106,7 @@ ${color('cyan', 'Usage:')}
 ${color('cyan', 'Options:')}
   --scope <production|scratch>               Project scope; preserves existing config when present
   --project-root <path>                      Target project root; default current directory
-  --force                                    Replace existing RIFF symlinks that point elsewhere
+  --force                                    Replace existing RIFF runtime symlinks that point elsewhere
   --profile <default|custom|skip>            Run terminal onboarding; default writes the neutral baseline profile
   --no-onboard                               Skip terminal profile onboarding
   -h, --help                                 Show help
@@ -173,19 +178,18 @@ function parseArgs(argv) {
 }
 
 function ensureDir(relativePath) {
-  mkdirSync(path.join(args.projectRoot, relativePath), { recursive: true });
+  ensureProjectDirectory(relativePath);
 }
 
 function readJsonIfExists(relativePath) {
   const absolute = path.join(args.projectRoot, relativePath);
-  if (!existsSync(absolute)) return undefined;
+  assertWritableDestination(relativePath);
+  if (!lstatIfPresent(absolute)) return undefined;
   return JSON.parse(readFileSync(absolute, 'utf8'));
 }
 
 function writeJson(relativePath, value) {
-  const absolute = path.join(args.projectRoot, relativePath);
-  mkdirSync(path.dirname(absolute), { recursive: true });
-  writeFileSync(absolute, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  writeAtomic(relativePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function lstatIfPresent(filePath) {
@@ -197,6 +201,103 @@ function lstatIfPresent(filePath) {
   }
 }
 
+function runtimePathInfo(relativePath) {
+  const absolute = path.resolve(args.projectRoot, relativePath);
+  const relative = path.relative(args.projectRoot, absolute);
+  if (path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
+    fail(`runtime path escapes the project root: ${relativePath}`);
+  }
+  return {
+    absolute,
+    components: relative ? relative.split(path.sep).filter(Boolean) : [],
+  };
+}
+
+function assertProjectDirectory(relativePath) {
+  const { absolute, components } = runtimePathInfo(relativePath);
+  let current = args.projectRoot;
+  for (const component of components) {
+    current = path.join(current, component);
+    const stat = lstatIfPresent(current);
+    if (!stat) return false;
+    if (stat.isSymbolicLink()) fail(`${relativePath} contains a symlink at ${current}`);
+    if (!stat.isDirectory()) fail(`${relativePath} contains a non-directory at ${current}`);
+    const resolved = realpathSync(current);
+    const relativeResolved = path.relative(args.projectRoot, resolved);
+    if (path.isAbsolute(relativeResolved) || relativeResolved === '..' || relativeResolved.startsWith(`..${path.sep}`)) {
+      fail(`${relativePath} resolves outside the project root at ${current}`);
+    }
+  }
+  return lstatIfPresent(absolute)?.isDirectory() === true;
+}
+
+function ensureProjectDirectory(relativePath) {
+  const { components } = runtimePathInfo(relativePath);
+  let current = args.projectRoot;
+  for (const component of components) {
+    current = path.join(current, component);
+    const currentRelative = path.relative(args.projectRoot, current);
+    const stat = lstatIfPresent(current);
+    if (!stat) {
+      assertProjectDirectory(path.dirname(currentRelative));
+      mkdirSync(current);
+    }
+    assertProjectDirectory(currentRelative);
+  }
+  return current;
+}
+
+function assertRuntimeDirectory(relativePath) {
+  return assertProjectDirectory(relativePath);
+}
+
+function ensureRuntimeDirectory(relativePath) {
+  return ensureProjectDirectory(relativePath);
+}
+
+function assertWritableDestination(relativePath) {
+  const { absolute } = runtimePathInfo(relativePath);
+  const existing = lstatIfPresent(absolute);
+  if (existing && (existing.isSymbolicLink() || !existing.isFile())) {
+    fail(`${relativePath} already exists and is not a regular file`);
+  }
+  return existing;
+}
+
+function writeAtomic(relativePath, content) {
+  const { absolute } = runtimePathInfo(relativePath);
+  const parentRelative = path.relative(args.projectRoot, path.dirname(absolute));
+  ensureProjectDirectory(parentRelative);
+  assertProjectDirectory(parentRelative);
+  assertWritableDestination(relativePath);
+
+  const temporary = path.join(path.dirname(absolute), `.${path.basename(absolute)}.${process.pid}.${randomUUID()}.tmp`);
+  if (lstatIfPresent(temporary)) fail(`temporary destination already exists: ${temporary}`);
+  let temporaryCreated = false;
+  try {
+    writeFileSync(temporary, content, { flag: 'wx', mode: 0o666 });
+    temporaryCreated = true;
+    const temporaryStat = lstatIfPresent(temporary);
+    if (!temporaryStat || temporaryStat.isSymbolicLink() || !temporaryStat.isFile()) {
+      fail(`temporary destination is not a regular file: ${temporary}`);
+    }
+    assertProjectDirectory(parentRelative);
+    assertWritableDestination(relativePath);
+    renameSync(temporary, absolute);
+    temporaryCreated = false;
+  } finally {
+    if (temporaryCreated) rmSync(temporary, { force: true });
+  }
+}
+
+function prepareDestinationParent(destAbsolute, destRelative) {
+  const parentAbsolute = path.dirname(destAbsolute);
+  const parentRelative = path.relative(args.projectRoot, parentAbsolute);
+  ensureProjectDirectory(parentRelative);
+  assertProjectDirectory(parentRelative);
+  return parentRelative;
+}
+
 function linkTargetFor(sourceAbsolute, destAbsolute, viaRiff) {
   const sourceTarget = viaRiff
     ? path.join(args.projectRoot, '.riff', path.relative(FRAMEWORK_ROOT, sourceAbsolute))
@@ -205,9 +306,9 @@ function linkTargetFor(sourceAbsolute, destAbsolute, viaRiff) {
 }
 
 function symlinkRelative(sourceAbsolute, destRelative, { force = args.force, viaRiff = false } = {}) {
-  const destAbsolute = path.join(args.projectRoot, destRelative);
+  const { absolute: destAbsolute } = runtimePathInfo(destRelative);
   const linkTarget = linkTargetFor(sourceAbsolute, destAbsolute, viaRiff);
-  mkdirSync(path.dirname(destAbsolute), { recursive: true });
+  const destinationParent = prepareDestinationParent(destAbsolute, destRelative);
   const existing = lstatIfPresent(destAbsolute);
   if (existing) {
     const desiredResolved = path.resolve(path.dirname(destAbsolute), linkTarget);
@@ -218,13 +319,15 @@ function symlinkRelative(sourceAbsolute, destRelative, { force = args.force, via
       const current = path.resolve(path.dirname(destAbsolute), currentTarget);
       if (currentTarget === linkTarget) return false;
       if (current !== desiredResolved && current !== desiredSource && !force) {
-        fail(`${destRelative} already points to ${current}; rerun with --force to replace it`);
+        return false;
       }
+      assertProjectDirectory(destinationParent);
       rmSync(destAbsolute);
     } else {
       fail(`${destRelative} already exists and is not a symlink`);
     }
   }
+  assertProjectDirectory(destinationParent);
   symlinkSync(linkTarget, destAbsolute);
   return true;
 }
@@ -237,11 +340,34 @@ function ensureGitRepo() {
   });
   if (result.error) fail(`Failed to run git init: ${result.error.message}`);
   if (result.status !== 0) fail(`git init failed with exit code ${result.status}`);
+  assertProjectDirectory('.git');
+  assertProjectDirectory('.git/hooks');
   return true;
 }
 
 function installRiffSymlink() {
+  assertRiffLinkIfPresent();
   return symlinkRelative(FRAMEWORK_ROOT, '.riff');
+}
+
+function assertRiffLinkIfPresent() {
+  const riffPath = path.join(args.projectRoot, '.riff');
+  const existing = lstatIfPresent(riffPath);
+  if (!existing) return false;
+  if (!existing.isSymbolicLink()) {
+    fail(`.riff must be a symlink resolving to ${FRAMEWORK_ROOT}; preserving the existing non-symlink`);
+  }
+
+  let resolved;
+  try {
+    resolved = realpathSync(riffPath);
+  } catch (error) {
+    fail(`.riff symlink cannot resolve; preserving the existing link (${error.message})`);
+  }
+  if (resolved !== FRAMEWORK_ROOT) {
+    fail(`.riff symlink resolves to ${resolved}, expected ${FRAMEWORK_ROOT}; preserving the existing link`);
+  }
+  return true;
 }
 
 function ensurePlanning(scope) {
@@ -300,7 +426,6 @@ function installClaudeRuntime() {
   for (const name of readdirSync(path.join(FRAMEWORK_ROOT, 'skills'))) {
     if (lstatSync(path.join(FRAMEWORK_ROOT, 'skills', name)).isDirectory()) {
       symlinkRelative(path.join(FRAMEWORK_ROOT, 'skills', name), path.join('.claude/skills', name), {
-        force: true,
         viaRiff: true,
       });
     }
@@ -310,6 +435,102 @@ function installClaudeRuntime() {
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'templates/banner.sh'), '.claude/hooks/riff/banner.sh', { viaRiff: true });
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks/security-scan.sh'), '.git/hooks/pre-commit', { viaRiff: true });
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks/commit-msg.sh'), '.git/hooks/commit-msg', { viaRiff: true });
+}
+
+function materializeCodexRoute(source) {
+  const sourceStat = lstatIfPresent(source);
+  if (!sourceStat || sourceStat.isSymbolicLink() || !sourceStat.isFile()) {
+    fail(`Codex route source is not a regular file: ${source}`);
+  }
+
+  const result = validateRouteSource({ file: source, frameworkRoot: FRAMEWORK_ROOT });
+  if (!ROUTE_BY_FILE[path.basename(source)] || result.errors.length) {
+    fail(`Codex route is invalid: ${source}: ${result.errors.join('; ') || 'undeclared route'}`);
+  }
+  const content = readFileSync(source, 'utf8');
+  const roleSpecPath = result.roleSpecPath;
+  const roleSpecStat = lstatIfPresent(roleSpecPath);
+  if (!roleSpecStat || roleSpecStat.isSymbolicLink() || !roleSpecStat.isFile()) {
+    fail(`Codex route role specification is not a regular file: ${roleSpecPath}`);
+  }
+  const resolvedRoleSpecPath = realpathSync(roleSpecPath);
+  if (!resolvedRoleSpecPath.startsWith(`${FRAMEWORK_ROOT}${path.sep}`)) {
+    fail(`Codex route role specification escapes the framework root: ${roleSpecPath}`);
+  }
+
+  const routePattern = /^(\s*role_spec_path\s*=\s*)(["'])([^"']+)\2(\s*)$/gm;
+  const route = content.replace(routePattern, (match, prefix, quote, raw, suffix) => `${prefix}${JSON.stringify(resolvedRoleSpecPath)}${suffix}`);
+  return `${CODEX_ROUTE_MARKER}\n${route}`;
+}
+
+function isOwnedCodexRoute(destination) {
+  const stat = lstatIfPresent(destination);
+  if (!stat || stat.isSymbolicLink() || !stat.isFile()) return false;
+  const firstLine = readFileSync(destination, 'utf8').split(/\r?\n/, 1)[0];
+  return firstLine === CODEX_ROUTE_MARKER;
+}
+
+function writeAtomicCopy(destination, content) {
+  const destinationRelative = path.relative(args.projectRoot, destination);
+  const destinationParent = prepareDestinationParent(destination, destinationRelative);
+  const temp = `${destination}.${process.pid}.tmp`;
+  if (lstatIfPresent(temp)) fail(`temporary Codex route already exists: ${temp}`);
+  let tempCreated = false;
+  try {
+    assertWritableDestination(destinationRelative);
+    assertProjectDirectory(destinationParent);
+    writeFileSync(temp, content, { flag: 'wx', mode: 0o600 });
+    tempCreated = true;
+    const tempStat = lstatIfPresent(temp);
+    if (!tempStat || !tempStat.isFile() || tempStat.isSymbolicLink()) {
+      fail(`temporary Codex route is not a regular file: ${temp}`);
+    }
+    assertProjectDirectory(destinationParent);
+    assertWritableDestination(destinationRelative);
+    renameSync(temp, destination);
+    tempCreated = false;
+  } finally {
+    if (tempCreated) rmSync(temp, { force: true });
+  }
+  return true;
+}
+
+function installCodexRuntime() {
+  const sourceSkills = path.join(FRAMEWORK_ROOT, 'skills');
+  const sourceAgents = path.join(FRAMEWORK_ROOT, 'agents', 'codex');
+  if (existsSync(sourceSkills)) {
+    ensureRuntimeDirectory('.agents/skills');
+    for (const name of readdirSync(sourceSkills)) {
+      const source = path.join(sourceSkills, name);
+      if (lstatSync(source).isDirectory()) symlinkRelative(source, path.join('.agents/skills', name), { viaRiff: true });
+    }
+  }
+  if (!existsSync(sourceAgents)) return;
+  ensureRuntimeDirectory('.codex/agents');
+  for (const { file } of ROUTE_PORTFOLIO) {
+    const source = path.join(sourceAgents, file);
+    if (!existsSync(source)) fail(`missing declared Codex route: ${source}`);
+    const destination = path.join(args.projectRoot, '.codex', 'agents', `riff-${file}`);
+    const existing = lstatIfPresent(destination);
+    if (existing?.isSymbolicLink()) {
+      fail(`.codex/agents/riff-${file} already exists as a symlink; preserving the existing link`);
+    }
+    if (existing && !existing.isFile()) fail(`.codex/agents/riff-${file} already exists and is not a regular file`);
+    if (existing && !isOwnedCodexRoute(destination)) {
+      process.stderr.write(`[riff-init] preserving unowned Codex route collision: ${destination}\n`);
+      continue;
+    }
+    writeAtomicCopy(destination, materializeCodexRoute(source));
+  }
+  const expectedDestinations = new Set(ROUTE_PORTFOLIO.map(({ file }) => `riff-${file}`));
+  const destinationDirectory = path.join(args.projectRoot, '.codex', 'agents');
+  for (const name of readdirSync(destinationDirectory)) {
+    if (!/^riff-.*\.toml$/.test(name) || expectedDestinations.has(name)) continue;
+    const target = path.join(destinationDirectory, name);
+    const stat = lstatIfPresent(target);
+    if (!stat || stat.isSymbolicLink() || !stat.isFile() || !isOwnedCodexRoute(target)) continue;
+    rmSync(target);
+  }
 }
 
 function yamlScalar(value) {
@@ -348,11 +569,16 @@ function profileYaml(profile) {
 
 function writeProfile(relativePath, profile) {
   const absolute = path.join(args.projectRoot, relativePath);
-  mkdirSync(path.dirname(absolute), { recursive: true });
-  if (existsSync(absolute)) {
-    writeFileSync(`${absolute}.bak`, readFileSync(absolute, 'utf8'), 'utf8');
+  const parentRelative = path.relative(args.projectRoot, path.dirname(absolute));
+  ensureProjectDirectory(parentRelative);
+  assertProjectDirectory(parentRelative);
+  const existing = assertWritableDestination(relativePath);
+  if (existing) {
+    const backupRelative = `${relativePath}.bak`;
+    assertWritableDestination(backupRelative);
+    writeAtomic(backupRelative, readFileSync(absolute, 'utf8'));
   }
-  writeFileSync(absolute, profileYaml(profile), 'utf8');
+  writeAtomic(relativePath, profileYaml(profile));
 }
 
 async function askChoice(rl, question, choices, defaultValue) {
@@ -387,6 +613,7 @@ async function askText(rl, question, defaultValue) {
 }
 
 async function customProfile(rl) {
+  const runtimeProvider = await askChoice(rl, 'Native RIFF provider', ['codex', 'claude'], 'codex');
   const conversationalLanguage = await askChoice(rl, 'Conversational language', ['en', 'fr', 'mix', 'other'], 'fr');
   const artifactLanguage = await askChoice(rl, 'Artifact language for commits/docs/code', ['en', 'fr', 'other'], 'en');
   const narrativeLanguage = await askChoice(rl, 'Dashboard narrative language', ['en', 'fr', 'other'], conversationalLanguage === 'fr' ? 'fr' : 'en');
@@ -402,6 +629,7 @@ async function customProfile(rl) {
   }
 
   return {
+    runtime: { provider: runtimeProvider },
     executors: { available: executorsChoice === 'claude+codex' ? ['claude', 'codex'] : ['claude'] },
     user: {
       programming_level: await askChoice(rl, 'Programming level', ['novice', 'learner', 'intermediate', 'experienced', 'expert'], 'intermediate'),
@@ -512,32 +740,33 @@ function settingsTemplateForProfile() {
 }
 
 function installClaudeSettings() {
-  const settingsPath = path.join(args.projectRoot, '.claude/settings.json');
-  if (existsSync(settingsPath)) return 'preserved';
+  const settingsRelative = '.claude/settings.json';
+  if (assertWritableDestination(settingsRelative)) return 'preserved';
   const template = settingsTemplateForProfile();
   const content = readFileSync(path.join(FRAMEWORK_ROOT, 'templates', template), 'utf8');
-  mkdirSync(path.dirname(settingsPath), { recursive: true });
-  writeFileSync(settingsPath, content, 'utf8');
+  writeAtomic(settingsRelative, content);
   return `created from ${template}`;
 }
 
 function appendMissingLines(relativePath, lines) {
   const absolute = path.join(args.projectRoot, relativePath);
-  const current = existsSync(absolute) ? readFileSync(absolute, 'utf8') : '';
-  const existing = new Set(current.split('\n'));
-  const missing = lines.filter((line) => !existing.has(line));
+  const existingStat = assertWritableDestination(relativePath);
+  const current = existingStat ? readFileSync(absolute, 'utf8') : '';
+  const existingLines = new Set(current.split('\n'));
+  const missing = lines.filter((line) => !existingLines.has(line));
   if (missing.length === 0) return false;
   const prefix = current && !current.endsWith('\n') ? '\n' : '';
-  writeFileSync(absolute, `${current}${prefix}${missing.join('\n')}\n`, 'utf8');
+  writeAtomic(relativePath, `${current}${prefix}${missing.join('\n')}\n`);
   return true;
 }
 
 function ensureProjectClaudeSection() {
   const absolute = path.join(args.projectRoot, 'CLAUDE.md');
-  const current = existsSync(absolute) ? readFileSync(absolute, 'utf8') : '';
+  const existing = assertWritableDestination('CLAUDE.md');
+  const current = existing ? readFileSync(absolute, 'utf8') : '';
   if (current.includes('<!-- RIFF-INSTALL:START -->')) return false;
   const section = `\n<!-- RIFF-INSTALL:START -->\n## RIFF\n\nThis project uses RIFF via the local \`.riff/\` symlink. Use \`/riff:start\`, \`/riff:map\`, and \`/riff:next\` from Claude Code. The framework source of truth lives under \`.riff/commands/\`, \`.riff/protocols/\`, and \`.riff/CLAUDE.md\`.\n<!-- RIFF-INSTALL:END -->\n`;
-  writeFileSync(absolute, `${current}${current.endsWith('\n') || current === '' ? '' : '\n'}${section}`, 'utf8');
+  writeAtomic('CLAUDE.md', `${current}${current.endsWith('\n') || current === '' ? '' : '\n'}${section}`);
   return true;
 }
 
@@ -560,19 +789,57 @@ async function resolveScope() {
 function nextSteps() {
   return [
     `  ${color('cyan', 'Claude:')} restart Claude Code, then ${color('green', '/riff:start')}`,
-    `  ${color('cyan', 'Codex executor:')} no project install needed; RIFF calls Codex through the configured skill/CLI when available`,
+    `  ${color('cyan', 'Codex executor:')} project-local skills and agents are installed`,
   ].join('\n');
 }
 
 const args = parseArgs(process.argv.slice(process.argv[1]?.endsWith('riff') ? 3 : 2));
 
+assertRiffLinkIfPresent();
+
+for (const projectDirectory of [
+  '.git',
+  '.git/hooks',
+  '.claude',
+  '.claude/commands/riff',
+  '.claude/agents/riff',
+  '.claude/hooks/riff',
+  '.claude/skills',
+  '.planning',
+  '.planning/phases',
+  '.planning/expertise',
+  '.planning/seeds',
+  '.planning/debug',
+  '.planning/quick',
+  '.planning/specs',
+  '.agents',
+  '.agents/skills',
+  '.codex',
+  '.codex/agents',
+]) {
+  assertProjectDirectory(projectDirectory);
+}
+for (const projectFile of [
+  '.gitignore',
+  'CLAUDE.md',
+  '.planning/config.json',
+  '.planning/profile.yaml',
+  '.planning/profile.yaml.bak',
+  '.claude/settings.json',
+]) {
+  assertWritableDestination(projectFile);
+}
+
 if (USE_COLOR) printBanner();
 
 const gitInitialized = ensureGitRepo();
+assertProjectDirectory('.git');
+assertProjectDirectory('.git/hooks');
 const riffLinked = installRiffSymlink();
 const scope = await resolveScope();
 const configWritten = ensurePlanning(scope);
 installClaudeRuntime();
+installCodexRuntime();
 const profileStatus = await runProfileOnboarding(args.profile);
 const settingsStatus = installClaudeSettings();
 const gitignoreUpdated = appendMissingLines('.gitignore', ['.riff/', '.planning/debug/']);
@@ -586,7 +853,7 @@ process.stdout.write(`
 ${color('bold', 'RIFF installed')}
 ${color('cyan', 'project:')}         ${args.projectRoot}
 ${color('cyan', 'framework:')}       ${FRAMEWORK_ROOT}
-${color('cyan', 'runtime files:')}   ${color('green', 'claude')}
+${color('cyan', 'runtime files:')}   ${color('green', 'claude + codex')}
 ${color('cyan', 'executor default:')} ${color('green', 'codex')}
 ${color('cyan', 'git initialized:')} ${statusValue(gitInitialized ? 'yes' : 'no', gitInitialized)}
 ${color('cyan', '.riff linked:')}    ${statusValue(riffLinked ? 'yes' : 'already correct', riffLinked)}

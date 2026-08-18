@@ -1,6 +1,6 @@
 # DEBUGGING
 
-Bug-diagnosis discipline read by [`agents/debugger.md`](../agents/debugger.md) Steps 1 (triage) and 3 (hypotheses). Two modes, gated by one triage call — misapplying a mode hurts more than skipping this file (see § Origin).
+Bug-diagnosis discipline read by the debugger adapter during triage and hypothesis formation. Two modes are gated by one triage call. Misapplying a mode hurts more than skipping this file; see "Origin" below.
 
 ---
 
@@ -10,7 +10,7 @@ Classify the failure signature before forming any hypothesis.
 
 | Signature | Markers | Mode |
 | --- | --- | --- |
-| Context-dependent | Works in one environment, fails in another (local vs deployed, CI vs prod); worked before, broke without a code change; touches external services, webhooks, long-running pipelines; touches bundled tools/binaries | **FULL** — §§ Layer sweep + Environment parity, both mandatory |
+| Context-dependent | Works in one environment, fails in another (local vs deployed, CI vs prod); worked before, broke without a code change; touches external services, webhooks, long-running pipelines; touches bundled tools/binaries | **FULL** — Layer sweep and Environment parity, both mandatory |
 | Context-free | Deterministic wrong behavior, same everywhere, reproducible from code + inputs alone | **LIGHT** — skip Layer sweep and Environment parity; go signature → discriminator → fix → detection. Default suspect is application logic itself — don't manufacture exotic causes the evidence doesn't demand |
 
 State the chosen mode and the one-sentence reason before proceeding. **When in doubt: FULL.** A LIGHT diagnosis run on a context-dependent bug will chase in-code causes that can't explain the discriminator; a FULL sweep run on a context-free bug burns steps proving layers that were never in play.
@@ -65,4 +65,4 @@ Any guard added must detect the ACTUAL pathology from § Failure signature first
 
 ## Origin
 
-Distilled 2026-07-12 from model-bench replay evals of real bugs across the operator's 3 apps. Branch-validated, not theoretical: the FULL branch lifted Opus max 0.40→0.50 on an environment-layer bug; the LIGHT branch lifted 0.78→0.97 on an in-code bug. Misapplied branches hurt — this is why § Triage is a hard gate, not a suggestion.
+Distilled 2026-07-12 from model-bench replay evals of real bugs across the operator's three apps. Branch-validated, not theoretical: the FULL branch improved results on an environment-layer bug, while the LIGHT branch improved results on an in-code bug. Misapplied branches hurt, which is why [Triage: pick the mode](#triage-pick-the-mode) is a hard gate rather than a suggestion.

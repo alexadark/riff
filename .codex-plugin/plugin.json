@@ -1,0 +1,18 @@
+{
+  "name": "riff",
+  "version": "0.1.0",
+  "description": "Codex-native RIFF bootstrap and staged development workflow.",
+  "author": {
+    "name": "RIFF"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "RIFF",
+    "shortDescription": "Run staged RIFF development workflows.",
+    "longDescription": "RIFF provides explicit, staged project development workflows for Codex.",
+    "developerName": "RIFF",
+    "category": "Developer Tools",
+    "capabilities": ["Planning", "Implementation", "Review"],
+    "defaultPrompt": ["Run the next RIFF stage for this project."]
+  }
+}

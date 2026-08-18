@@ -79,36 +79,35 @@ Report at end: `Reviewed: M accepted (stack/arch/project breakdown), K rejected,
 
 **Gate:** skip by default. Run conditions: [`AUTO-TRIGGERS.md#improver-heuristic`](./AUTO-TRIGGERS.md#improver-heuristic).
 
-**If running:** Agent tool, `subagent_type: improver` (its `effort: low` frontmatter applies), `model: "haiku"`, `run_in_background: true`. The agent spec carries the procedure; pass only context: _"Phase N-slug. Read SUMMARY.md and `.planning/expertise/` files. Write learnings to `.planning/expertise/.pending/`. As final act, write completion sentinel `.planning/expertise/.pending/.improver-N-slug.done` (lets Step 10 distinguish 'completed with no findings' from 'killed mid-write')."_
+**If running:** after the phase is complete, invoke `$riff:improve` with this context: _"Phase N-slug. Read SUMMARY.md, REVIEW.md when present, and `.planning/expertise/` files. Read `protocols/IMPROVE.md`. Write pending proposals only. As the final act, write `.planning/expertise/.pending/.improver-N-slug.done` so Step 10 can distinguish completion with no findings from an interrupted run."_
 
 ---
 
 ## Auto-debug pattern
 
-Shared by Steps 5, 6, 7. Skip if `auto_debug: false`.
+Shared failure path for execution, review, and security checks. Skip if `auto_debug: false`.
 
-**Dispatch:** resolve the debugger tier first (`agents/debugger.md` § Tiers — auto-mapping beats `profile.yaml` `debugger.default_tier`; max = viciousness, not severity):
+**Dispatch:** resolve the active runtime adapter for the shared debugger role at `agents/roles/debugger.md`. Resolve one intensity before dispatch. Intensity controls diagnostic depth, not provider or agent selection:
 
-- `normal` (routine `executor_fail`, deterministic `test_fail`, clear-scope `security_fail` regardless of severity) → `subagent_type: debugger`, `model` = `profile.yaml` `models.reasoning` (default `opus`)
-- `high` (`adversarial_fail` with 3+ distinct issues, multi-layer bug spanning services, `verification_fail`) → `subagent_type: debugger`, `model: fable`
-- `max` (intermittent / flaky, "can't reproduce", race condition, 2+ failed fix attempts on the same issue) → `subagent_type: debugger-max`, `model: fable` (its `effort: max` frontmatter applies)
+- `normal`: routine executor failures, deterministic test failures, or clear-scope security failures.
+- `high`: adversarial failures with three or more distinct issues, multi-layer bugs spanning services, or verification failures.
+- `max`: intermittent or flaky failures, "can't reproduce" reports, race conditions, or two or more failed fix attempts on one issue.
 
-Per-phase `debug_model: sonnet` still overrides the resolved model. Include the resolved tier in the prompt. The debugger delegates mechanical fixes to `debugger.delegation.mechanical_worker` (default `sonnet`) per `agents/debugger.md` Step 4.2.
+Include the resolved intensity in the debugger prompt. The debugger returns `DEBUG` content and one bounded fix assignment. The orchestrator dispatches that assignment to the worker role through the active runtime adapter. The worker receives the assignment's allowed paths, acceptance criteria, and validation checks.
 
 **Prompt** (the agent spec carries the procedure; pass only context):
 
-> Branch: `riff/phase-N-slug`. Failure type: `{{failure_type}}`. Failure artifact: `{{artifact}}`. Phase path: `.planning/phases/N-slug/`. Diagnose, attempt fix, write `.planning/phases/N-slug/DEBUG.md`.
+> Branch: `riff/phase-N-slug`. Intensity: `{{intensity}}`. Failure type: `{{failure_type}}`. Failure artifact: `{{artifact}}`. Phase path: `.planning/phases/N-slug/`. Load `agents/roles/debugger.md`, diagnose the failure, and return `DEBUG` content plus a bounded worker assignment.
 
-**Prompt capture:** After launching the debugger sub-agent, write the substantive prompt (per the prompt-capture convention in § Prompt capture convention) into `.planning/phases/N-slug/PROMPTS.md` under the `## Debugger (if invoked)` section heading.
+**Prompt capture:** After launching the debugger, write the substantive prompt (per the prompt-capture convention above) into `.planning/phases/N-slug/PROMPTS.md` under the `## Debugger (if invoked)` section heading.
 
 **After completion:**
 
-- DEBUG.md `RESOLVED` → re-run originating step, UNLESS all of these hold:
-  - debugger ran at its tier-resolved model (not a `debug_model: sonnet` cost override)
-  - debugger's verification block in DEBUG.md reports tests green + tsc clean
+- DEBUG.md `RESOLVED` → re-run the originating operation, unless both conditions hold:
+  - the debugger's verification block in DEBUG.md reports tests green + tsc clean
   - every finding in the originating artifact has a corresponding new test locking the fix
 
-  In that case, accept RESOLVED as the verdict without a re-run. Surface in Step 10 report: `Re-run skipped: RESOLVED with pinning tests`.
+  In that case, accept RESOLVED as the verdict without a re-run. Surface in the completion report: `Re-run skipped: RESOLVED with pinning tests`.
 
 - DEBUG.md `UNRESOLVED` → halt, surface DEBUG.md to user. Autonomous runs: the phase does not merge (functional gate bar) — DEBUG.md becomes the finisher artifact under `hold_behavior: park` (default) or a non-blocking flag under `flag_and_continue`, per [`AUTONOMY.md`](./AUTONOMY.md) § Conversion table; the run continues with independent phases either way.
 

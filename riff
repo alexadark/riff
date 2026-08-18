@@ -13,6 +13,10 @@ if (!command || command === '-h' || command === '--help') {
 
 Usage:
   riff init [options]
+  riff next --phase <id> --task <description> [options]
+  riff wave --autonomous [--loop] [options]
+  riff phase <list|add|set-status> [options]
+  riff status [--json]
   riff resync
   riff doctor
   riff dashboard [--stop]
@@ -20,7 +24,11 @@ Usage:
 
 Commands:
   init      Install RIFF into the current project
-  resync    Re-link the /riff:* slash commands (run once after cloning the framework, or after it adds/removes commands)
+  next      Run one bounded native stage using runtime.provider from the active profile
+  wave      Run ready roadmap phases autonomously; add --loop to continue until a stop condition
+  phase     List, add, or update roadmap phases
+  status    Show roadmap, active wave, native stage, and next action
+  resync    Reconcile RIFF-owned Claude and Codex runtime adapters and skills
   doctor    Lint RIFF framework references and profile schema reads
   dashboard Start (or attach to) the local web dashboard for the current project (--stop to terminate)
   linear    Sync the roadmap with Linear (run "riff linear" for subcommands)
@@ -37,6 +45,26 @@ Options for init:
 
 if (command === 'resync') {
   const result = spawnSync('bash', [resolve(frameworkRoot, 'riff-resync.sh')], { stdio: 'inherit' });
+  process.exit(result.status ?? 1);
+}
+
+if (command === 'next') {
+  const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-next.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
+  process.exit(result.status ?? 1);
+}
+
+if (command === 'wave') {
+  const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-wave.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
+  process.exit(result.status ?? 1);
+}
+
+if (command === 'phase') {
+  const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-phase.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
+  process.exit(result.status ?? 1);
+}
+
+if (command === 'status') {
+  const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-status.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
   process.exit(result.status ?? 1);
 }
 

@@ -136,11 +136,13 @@ Skip decision is logged to `.planning/phases/N-slug/GATES.md` (one line: `Step 6
 
 ## Improver heuristic <a id="improver-heuristic"></a>
 
-**Used by:** Step 7b of `/riff:next`.
+**Used by:** Step 7b of `/riff:next`, implemented by `skills/improve/SKILL.md`.
+
+Improver behavior is owned by `skills/improve/SKILL.md`; no retired improver agent is invoked.
 
 **Run condition (any is sufficient):**
 
-- ROADMAP.yaml entry has `improver: true` (explicit opt-in by planner or user — see `agents/planner.md` § Improver opt-in)
+- ROADMAP.yaml entry has `improver: true` (explicit opt-in by planner or user — see `agents/roles/planner.md` § Method)
 - A debug session fired during this phase: either `.planning/phases/N-slug/DEBUG.md` exists, or any `.planning/debug/*.md` was created/modified after the phase's PLAN.md timestamp
 - The adversarial review went through at least one revision cycle: `.planning/phases/N-slug/REVIEW.md` contains either a `## Cycle 2` section or a heading matching `Cycle 1 — FAIL` (executor + reviewer round-tripped)
 - Every 3rd completed phase, counted ordinally from the phase history (`ls .planning/phases | wc -l` modulo 3 == 0) — gentle baseline cadence

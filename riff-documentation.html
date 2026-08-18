@@ -6,7 +6,7 @@
 <title>RIFF — The Field Manual</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
 <style>
 :root{
   /* Editorial paper palette */
@@ -532,797 +532,440 @@ footer{
 }
 </style>
 </head>
-<body>
 
-<!-- ============ MASTHEAD ============ -->
+<body>
 <header class="masthead">
   <div class="masthead-inner">
     <div>
-      <div class="brand-eyebrow">A field manual for solo agentic development</div>
+      <div class="brand-eyebrow">A field manual for deliberate agentic development</div>
       <div class="brand-title">RIFF<span class="dot">.</span></div>
       <div class="brand-tag">Build like a band of six. Ship like one.</div>
     </div>
     <div class="masthead-meta">
-      <div class="vol">Vol. 1 — The Loop</div>
-      <div>Framework for Claude Code</div>
-      <div>~60KB · 15 agents · fully editable</div>
-      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light / dark">◐</button>
+      <div class="vol">Vol. 2: The Native Workflow</div>
+      <div>Codex native · Claude Code native</div>
+      <div>Shared roles · explicit gates</div>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light or dark theme" aria-label="Toggle light or dark theme">◐</button>
     </div>
   </div>
   <div class="dek">
-    A lean, profile-driven kit that turns <em>“I want to build X”</em> into a repeatable loop: plan, build, verify, commit. One phase at a time, in a fresh context, with all state on disk.
+    A standalone operator manual for taking one project from discovery or mapping through autonomous roadmap waves, shared semantic roles, native runtime adapters, and independent evidence gates.
   </div>
 </header>
 
-<!-- ============ TABS ============ -->
-<nav class="tabs">
-  <div class="tabs-inner" role="tablist">
-    <button class="tab active" data-panel="overview"><span class="num">01</span>The Idea</button>
-    <button class="tab" data-panel="paths"><span class="num">02</span>The Two Paths</button>
-    <button class="tab" data-panel="commands"><span class="num">03</span>Commands</button>
-    <button class="tab" data-panel="pipeline"><span class="num">04</span>The Pipeline</button>
-    <button class="tab" data-panel="agents"><span class="num">05</span>The Band</button>
-    <button class="tab" data-panel="machinery"><span class="num">06</span>Hooks &amp; Models</button>
-    <button class="tab" data-panel="reference"><span class="num">07</span>Reference</button>
-    <button class="tab" data-panel="discovery"><span class="num">08</span>Discovery Output</button>
+<nav class="tabs" aria-label="RIFF manual sections">
+  <div class="tabs-inner" role="tablist" aria-label="RIFF manual sections">
+    <button class="tab active" data-panel="overview" role="tab" aria-selected="true"><span class="num">01</span>The Idea</button>
+    <button class="tab" data-panel="surfaces" role="tab" aria-selected="false"><span class="num">02</span>Surfaces</button>
+    <button class="tab" data-panel="commands" role="tab" aria-selected="false"><span class="num">03</span>Entry Points</button>
+    <button class="tab" data-panel="pipeline" role="tab" aria-selected="false"><span class="num">04</span>The Stage</button>
+    <button class="tab" data-panel="roles" role="tab" aria-selected="false"><span class="num">05</span>The Seven Roles</button>
+    <button class="tab" data-panel="routing" role="tab" aria-selected="false"><span class="num">06</span>Routing</button>
+    <button class="tab" data-panel="evidence" role="tab" aria-selected="false"><span class="num">07</span>Evidence &amp; Gates</button>
+    <button class="tab" data-panel="reference" role="tab" aria-selected="false"><span class="num">08</span>Reference</button>
   </div>
 </nav>
 
 <main>
-
-<!-- ============ 01 OVERVIEW ============ -->
 <section class="panel active" id="panel-overview" role="tabpanel">
   <div class="section-head">
     <span class="section-num">№ 01</span>
-    <h1 class="section-title">What RIFF actually is</h1>
+    <h1 class="section-title">One shared system, native where it runs.</h1>
   </div>
 
-  <p class="lede"><span class="dropcap">R</span>IFF is not a framework you adopt and then maintain forever. It is a kit: a small universal core, modular pieces you can delete, and a single <code>profile.yaml</code> that wires only what fits the way you work.</p>
+  <p class="lede"><span class="dropcap">R</span>IFF is a stage runner for one bounded repository change at a time. Its business instructions are shared semantic role specifications. Its runtime adapters carry the provider, model, reasoning effort, tools, permissions, sandbox, and delegation rules.</p>
 
-  <p>Most agent frameworks are a trap. You adopt 40KB agent definitions, pay a token tax on every call, and accumulate maintenance debt while Claude Code ships native features that replace half of what you installed. The 13 RIFF agents total roughly 60KB, between 1.4KB and 6KB each. Every piece is reviewable in under ten minutes. When Claude Code ships something that replaces one of your hooks or commands, you delete the piece. No framework-wide migration.</p>
+  <p>The separation is deliberate. A role says what good planning, implementation, review, diagnosis, security assessment, red-team testing, or load testing means. An adapter says how that role executes in a particular runtime. This keeps shared instructions portable and makes runtime policy inspectable.</p>
 
   <div class="stats">
-    <div class="stat"><div class="stat-num">15</div><div class="stat-label">Agents</div></div>
-    <div class="stat"><div class="stat-num">16</div><div class="stat-label">Commands</div></div>
-    <div class="stat"><div class="stat-num">18</div><div class="stat-label">Hooks</div></div>
-    <div class="stat"><div class="stat-num">~20</div><div class="stat-label">Protocols</div></div>
-    <div class="stat"><div class="stat-num">4</div><div class="stat-label">Model families</div></div>
-    <div class="stat"><div class="stat-num">~60K</div><div class="stat-label">Total weight</div></div>
+    <div class="stat"><div class="stat-num">7</div><div class="stat-label">Semantic roles</div></div>
+    <div class="stat"><div class="stat-num">1</div><div class="stat-label">Bounded stage</div></div>
+    <div class="stat"><div class="stat-num">2</div><div class="stat-label">Native surfaces</div></div>
+    <div class="stat"><div class="stat-num">8</div><div class="stat-label">Stage transitions</div></div>
+    <div class="stat"><div class="stat-num">0</div><div class="stat-label">Implicit mutations</div></div>
+    <div class="stat"><div class="stat-num">1</div><div class="stat-label">Promotion confirmation</div></div>
   </div>
 
-  <h2 class="subhead">The loop, in one breath</h2>
-  <p>RIFF turns intent into a repeatable cycle. Each phase runs in a fresh Claude Code context with full state written to disk, so you can stay in the loop and correct as you go, or walk away and let it run unattended. It works on any project, new or existing.</p>
-
-  <div class="table-wrap">
-    <table>
-      <caption>The four beats</caption>
-      <thead><tr><th>Beat</th><th>What happens</th><th>Who runs it</th></tr></thead>
-      <tbody>
-        <tr><td><strong>Plan</strong></td><td>Goal-backward decomposition into tasks, grouped into parallel waves, one model picked per task</td><td><span class="badge b-opus">Opus</span></td></tr>
-        <tr><td><strong>Build</strong></td><td>Tasks implemented one by one, atomic commits, deviations handled by the R1–R4 rules</td><td><span class="badge b-sonnet">Sonnet</span> <span class="badge b-codex">Codex opt-in</span></td></tr>
-        <tr><td><strong>Verify</strong></td><td>Scope check, dead-code audit, adversarial pass, security pass, optional browser smoke test</td><td><span class="badge b-codex">Codex</span> <span class="badge b-sonnet">Sonnet</span></td></tr>
-        <tr><td><strong>Commit</strong></td><td>One PR per phase, learnings harvested into project taste files</td><td>Pipeline</td></tr>
-      </tbody>
-    </table>
-  </div>
+  <h2 class="subhead">The operating idea</h2>
+  <p>RIFF turns a clear request into a verified result without hiding the work. A plan declares ownership and checks. Sequential autonomous waves implement that plan. Mechanical controls establish facts. Fresh reviewers judge independent evidence. The result is inspectable on disk before anyone decides to commit, merge, deploy, or promote.</p>
 
   <blockquote class="pullquote">
-    The creator of Claude Code runs on roughly 100 lines of CLAUDE.md, a handful of terminals, plan mode, and a small set of slash commands. That is the target.
-    <cite>— RIFF, Philosophy</cite>
+    Structure should make autonomy safer, not make the workflow heavier.
+    <cite>RIFF, operating principle</cite>
   </blockquote>
-
-  <h2 class="subhead">Who it is for</h2>
-  <p>Solo developers using Claude Code who want structure, quality, and the ability to walk away from the keyboard without the project falling apart. RIFF gives you the scaffolding to reach the minimal-setup ideal without reinventing the planner, the security reviewer, or hook discipline from scratch.</p>
 
   <div class="grid grid-3">
     <div class="card card--gate">
-      <h4>Inspect before adopting</h4>
+      <h4>Bounded by design</h4>
       <div class="role">Principle 01</div>
-      <p>Every file is meant to be edited. Agents are markdown, the file <em>is</em> the instruction. Commands are markdown with YAML frontmatter. Hooks are bash. No black boxes.</p>
+      <p>Every native run receives an explicit phase id and task. RIFF does not infer a roadmap item or resume a partial stage implicitly.</p>
     </div>
     <div class="card card--gate">
-      <h4>Delete when redundant</h4>
+      <h4>Adapters stay thin</h4>
       <div class="role">Principle 02</div>
-      <p>When Claude Code ships a native feature that replaces a piece, remove it. The framework is a kit, not a contract you are locked into.</p>
+      <p>Provider-specific settings belong in adapters. Shared role specifications do not name models or embed runtime permissions.</p>
     </div>
     <div class="card card--gate">
-      <h4>Prune quarterly</h4>
+      <h4>Evidence wins</h4>
       <div class="role">Principle 03</div>
-      <p>Walk through <code>DECAY.md</code> and strip what is not earning its keep. Your framework stays yours, and stays small.</p>
+      <p>Runner observations replace untrusted worker claims. State records a result; it is not permission to continue work.</p>
     </div>
   </div>
 </section>
 
-<!-- ============ 02 TWO PATHS ============ -->
-<section class="panel" id="panel-paths" role="tabpanel">
+<section class="panel" id="panel-surfaces" role="tabpanel">
   <div class="section-head">
     <span class="section-num">№ 02</span>
-    <h1 class="section-title">Greenfield or brownfield</h1>
+    <h1 class="section-title">Codex native. Claude Code native.</h1>
   </div>
 
-  <p class="lede"><span class="dropcap">E</span>very project enters RIFF through one of two doors. A blank slate gets a guided discovery. An existing codebase gets read, understood, and seeded with a roadmap of the work RIFF can already see.</p>
+  <p class="lede"><span class="dropcap">C</span>odex and Claude Code are native model providers for the same stage runner. The active RIFF profile selects one adapter family for the whole phase; shared specifications, autonomous waves, artifacts, gates, and completion rules remain identical.</p>
 
   <div class="split">
     <div>
-      <div class="kicker">The blank slate</div>
-      <h4>Greenfield</h4>
-      <code class="path-cmd">/riff:start</code>
-      <p>Five gated stages of discovery that define the product before a single line is written.</p>
+      <div class="kicker">Native provider</div>
+      <h4>Codex</h4>
+      <code class="path-cmd">$next or $riff:next</code>
+      <p>Codex project-local skills and namespaced plugin skills expose the stage runner. Codex adapters enforce the Sol, Terra, and Luna route portfolio, isolated reviews, and closed runtime permissions.</p>
       <ol>
-        <li><strong>Problem definition</strong> — what, for whom, why now, and the scope choice</li>
-        <li><strong>System architecture</strong> — design, stack, risks. Adversarial review gate</li>
-        <li><strong>MVP scope</strong> — what ships in v1 versus later</li>
-        <li><strong>Research</strong> — competitive landscape, prior art, tooling</li>
-        <li><strong>Roadmap</strong> — ordered phases. Adversarial review gate</li>
+        <li>Use <code>$next</code> in a project-local installation.</li>
+        <li>Use <code>$riff:next</code> from the namespaced plugin.</li>
+        <li>Use <code>$resync</code> or <code>$riff:resync</code> to reconcile RIFF-owned runtime links.</li>
       </ol>
     </div>
     <div>
-      <div class="kicker">The existing repo</div>
-      <h4>Brownfield</h4>
-      <code class="path-cmd">/riff:map</code>
-      <p>RIFF reads the code, infers the stack, and seeds a roadmap of work it can see: bugs, missing tests, security gaps, refactors.</p>
-      <p style="margin-top:16px;"><strong>Outputs:</strong></p>
+      <div class="kicker">Native provider</div>
+      <h4>Claude Code</h4>
+      <code class="path-cmd">./.riff/riff next</code>
+      <p>Claude adapters map the same controller and seven semantic roles without redefining their business behavior. Each dispatch is fresh and non-persistent, ignores project customizations, and receives a closed tool and permission set.</p>
       <ol>
-        <li><code>PROJECT.md</code> — inferred product definition</li>
-        <li><code>taste.md</code> — conventions read from the code</li>
-        <li><code>ROADMAP.yaml</code> — a seeded, ordered backlog</li>
+        <li>Set <code>runtime.provider: claude</code> in the active profile.</li>
+        <li>Run the same provider-neutral <code>riff next</code> command.</li>
+        <li>Use <code>/riff:resync</code> to reconcile an installation.</li>
       </ol>
     </div>
   </div>
 
-  <h2 class="subhead">Scope: scratch versus production</h2>
-  <p>Set once at Stage 1 of <code>/riff:start</code> (or at init). Scope decides which gates run and how much discipline RIFF imposes.</p>
-
-  <div class="table-wrap">
-    <table>
-      <caption>Two scopes, two levels of discipline</caption>
-      <thead><tr><th style="width:18%">Scope</th><th>Meaning</th><th>What runs</th></tr></thead>
-      <tbody>
-        <tr>
-          <td><span class="badge" style="color:var(--red);border-color:var(--red)">Production</span></td>
-          <td>Others will use it, it is deployed, or it touches auth, payments, or personal data.</td>
-          <td>Full discipline: security review on every phase, R3 architecture gates, all hooks wired.</td>
-        </tr>
-        <tr>
-          <td><span class="badge" style="color:var(--amber);border-color:var(--amber)">Scratch</span></td>
-          <td>Personal or local script, no auth, no public exposure.</td>
-          <td>Skips adversarial and security review. Only the “no hardcoded secrets” rule applies.</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
   <div class="note">
-    <div class="kicker">Promotion path</div>
-    <p>When a scratch project gets serious, say <em>“promote to production.”</em> RIFF runs the skipped discovery stages and flips the scope. Once the app is deployed, say <em>“set up monitoring”</em> to wire error tracking, uptime checks, and scheduled smoke tests.</p>
+    <div class="kicker">Provider selection</div>
+    <p>Set <code>runtime.provider</code> to <code>codex</code> or <code>claude</code> in the first active profile. A project profile takes precedence over the framework profile. Missing selection defaults to Codex; invalid selection fails before dispatch. An explicit <code>--provider</code> option is a one-run override recorded in the routing receipt. RIFF never falls back silently or changes provider during a phase.</p>
   </div>
 
-  <h2 class="subhead">Discovery outputs</h2>
-  <p>A greenfield run leaves behind a small set of living documents: <code>PROJECT.md</code>, <code>ROADMAP.yaml</code>, <code>STATE.md</code>, and <code>.planning/config.json</code> for scope. In production scope it adds <code>taste.md</code>, <code>INCIDENTS.md</code>, and <code>CONTEXT.md</code>.</p>
+  <h2 class="subhead">The common deterministic base</h2>
+  <p>The terminal CLI is the common deterministic boundary. It owns installation, phase management, status, dashboard lifecycle, native stages, autonomous roadmap waves, and resync across both providers. In this release, planned smoke commands use the Codex CLI only as a mechanical sandbox helper even when Claude is selected; no Codex model is dispatched on the Claude route.</p>
 </section>
 
-<!-- ============ 03 COMMANDS ============ -->
 <section class="panel" id="panel-commands" role="tabpanel">
   <div class="section-head">
     <span class="section-num">№ 03</span>
-    <h1 class="section-title">The sixteen commands</h1>
+    <h1 class="section-title">Explicit entry points.</h1>
   </div>
 
-  <p class="lede"><span class="dropcap">S</span>ixteen slash commands cover the whole lifecycle, from first install to the daily build loop and the multi-project sweep. Rare lifecycle actions live as protocol files you trigger by simply saying a phrase.</p>
+  <p class="lede"><span class="dropcap">S</span>ensitive RIFF actions never start from ordinary conversation. Active skills require explicit invocation, and the CLI remains the canonical deterministic operation for installation reconciliation.</p>
 
-  <h2 class="subhead">Framework — global</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
+      <caption>Choose an entry point by intent</caption>
+      <thead><tr><th>Intent</th><th>Codex</th><th>Claude Code</th><th>Terminal</th></tr></thead>
       <tbody>
-        <tr><td><code>/riff:onboard</code></td><td>First-time setup, or to override the profile for one specific project.</td></tr>
-        <tr><td><code>/riff:learn-stack</code></td><td>Teach RIFF a new stack (Rust, Go, FastAPI…). Writes a taste rule file.</td></tr>
-        <tr><td><code>/riff:dashboard</code></td><td>Open the local web dashboard: kanban, plain-language explanations, metadata.</td></tr>
+        <tr><td><strong>Install RIFF</strong></td><td>Start from the terminal</td><td>Start from the terminal</td><td><code>/path/to/riff/riff init --no-onboard</code></td></tr>
+        <tr><td><strong>Start a project</strong></td><td><code>$start</code> or <code>$riff:start</code></td><td><code>/riff:start</code></td><td>Interactive skill or command</td></tr>
+        <tr><td><strong>Map a codebase</strong></td><td><code>$map</code> or <code>$riff:map</code></td><td><code>/riff:map</code></td><td>Interactive skill or command</td></tr>
+        <tr><td><strong>Manage phases</strong></td><td><code>$phase</code> or <code>$riff:phase</code></td><td><code>/riff:add-phase</code></td><td><code>./.riff/riff phase ...</code></td></tr>
+        <tr><td><strong>Inspect status</strong></td><td><code>$status</code> or <code>$riff:status</code></td><td><code>/riff:status</code></td><td><code>./.riff/riff status</code></td></tr>
+        <tr><td><strong>Open dashboard</strong></td><td><code>$dashboard</code> or <code>$riff:dashboard</code></td><td><code>/riff:dashboard</code></td><td><code>./.riff/riff dashboard</code></td></tr>
+        <tr><td><strong>Run one native stage</strong></td><td><code>$next</code> or <code>$riff:next</code></td><td>Invoke <code>riff next</code> from the session</td><td><code>./.riff/riff next ...</code></td></tr>
+        <tr><td><strong>Run autonomous roadmap work</strong></td><td><code>$wave</code> or <code>$riff:wave</code></td><td><code>/riff:wave --autonomous --loop</code></td><td><code>./.riff/riff wave --autonomous --loop</code></td></tr>
+        <tr><td><strong>Reconcile an installation</strong></td><td><code>$resync</code> or <code>$riff:resync</code></td><td><code>/riff:resync</code></td><td><code>./.riff/riff resync</code></td></tr>
+        <tr><td><strong>Audit a milestone</strong></td><td><code>$deep-audit</code> or <code>$riff:deep-audit</code></td><td>Explicit RIFF deep-audit request</td><td>Follow the skill instructions</td></tr>
+        <tr><td><strong>Promote a project</strong></td><td><code>$promote</code> or <code>$riff:promote</code></td><td>Explicit promotion workflow</td><td>Follow the promotion protocol</td></tr>
       </tbody>
     </table>
   </div>
 
-  <h2 class="subhead">Setup — project lifecycle</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
-      <tbody>
-        <tr><td><code>/riff:init</code></td><td>Install RIFF into the current project: symlinks, hooks, scope, profile.</td></tr>
-        <tr><td><code>/riff:resync</code></td><td>Re-link symlinks after the framework adds or removes files. Idempotent.</td></tr>
-        <tr><td><code>/riff:start</code></td><td>Greenfield five-stage discovery: problem → users → MVP → research → roadmap.</td></tr>
-        <tr><td><code>/riff:map</code></td><td>Brownfield: point at an existing codebase to onboard RIFF onto it.</td></tr>
-      </tbody>
-    </table>
-  </div>
+  <h2 class="subhead">Start a bounded phase</h2>
+  <pre><code># Active project or framework profile
+runtime:
+  provider: codex # or claude
 
-  <h2 class="subhead">Core loop — daily</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
-      <tbody>
-        <tr><td><code>/riff:next</code></td><td><strong>The main command.</strong> Plans, executes, reviews, opens a PR for the next phase. Flags: <code>--plan-only</code> (stop after the reviewed plan), <code>--autonomous</code> (zero questions, one report — see Unattended &amp; autonomous in the Reference tab).</td></tr>
-        <tr><td><code>/riff:wave</code></td><td>Bundle N parallel-eligible phases and delegate to parallel Sonnet workers (or Codex with <code>--executor codex</code>). Opus plans, the executor builds, browser-check proves it works. Flags: <code>W{N}</code>, <code>--solo P{N}</code>, <code>--resume W{N}</code>, <code>--status</code>, <code>--scratch</code>, <code>--autonomous</code>, <code>--loop [--max-runs N]</code>, plus Codex-route switches (<code>--paste</code>, <code>--in-process</code>, <code>--out-of-process</code>).</td></tr>
-        <tr><td><code>/riff:conductor</code></td><td>Sweep every registered project, advance each safe backlog through the autonomous loop, deliver ONE consolidated report — the morning briefing. Flags: <code>--dry-run</code> (plan only), <code>--scheduled</code> (cron mode, only touches <code>auto_advance: true</code> projects).</td></tr>
-        <tr><td><code>/riff:status</code></td><td>“Where am I?” — current phase, next phase, blocked phases, pending patches.</td></tr>
-      </tbody>
-    </table>
-  </div>
+$next --phase &lt;id&gt; --task "&lt;bounded request&gt;"
 
-  <h2 class="subhead">Off-loop</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th style="width:28%">Command</th><th>When to run</th></tr></thead>
-      <tbody>
-        <tr><td><code>/riff:add-phase</code></td><td>Append a new phase to <code>ROADMAP.yaml</code>.</td></tr>
-        <tr><td><code>/riff:quick &lt;task&gt;</code></td><td>A one-off that does not deserve a phase: config tweak, copy fix, dependency bump.</td></tr>
-        <tr><td><code>/riff:debug &lt;bug&gt;</code></td><td>Manual debug invocation outside the auto-debug pipeline. <code>--tier normal|high|max</code> forces the dispatch tier (max = the vicious ones: flaky, races, repeated failed fixes).</td></tr>
-        <tr><td><code>/riff:improver</code></td><td>Batch the improver across recent phases to harvest learnings into expertise files.</td></tr>
-        <tr><td><code>/riff:stress</code></td><td>Adversarial + load test the whole app. Static always; with a local/staging target, parallel red-team agents and a real load ramp. Local/staging only, never production.</td></tr>
-      </tbody>
-    </table>
-  </div>
+./.riff/riff next \
+  --project-root "$(git rev-parse --show-toplevel)" \
+  --phase &lt;id&gt; \
+  --task "&lt;bounded request&gt;"</code></pre>
 
-  <h2 class="subhead">Conversational triggers — no slash command</h2>
-  <p>Rare lifecycle actions are protocol files. You trigger them by saying a phrase, in plain language.</p>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th style="width:34%">You say…</th><th>RIFF does</th></tr></thead>
-      <tbody>
-        <tr><td><em>“log incident”</em></td><td>Append an entry to <code>INCIDENTS.md</code>.</td></tr>
-        <tr><td><em>“incident review”</em></td><td>Quarterly review, runs the incident adversarial reviewer.</td></tr>
-        <tr><td><em>“promote to production”</em></td><td>Flip scope, run skipped discovery, wire post-deploy monitoring.</td></tr>
-        <tr><td><em>“re-audit phase N”</em></td><td>Re-run scope-check, adversarial, and security against a phase.</td></tr>
-        <tr><td><em>“deep audit” / “milestone review”</em></td><td>The deep-auditor runs across phases at a milestone boundary.</td></tr>
-        <tr><td><em>“resync riff”</em></td><td>Run the resync script and surface CLAUDE.md drift.</td></tr>
-      </tbody>
-    </table>
+  <p>For a public rebrand, save the approved reference, design tokens, assets, preserved surfaces, exclusions, and executable checks in the project before invoking RIFF. Start with a small foundation phase rather than a whole-site rewrite.</p>
+
+  <h2 class="subhead">The active skill set</h2>
+  <div class="grid grid-2">
+    <div class="card"><h4>Start and map</h4><div class="role">$start / $map</div><p>Creates a validated greenfield roadmap or maps a brownfield codebase without changing product behavior.</p></div>
+    <div class="card"><h4>Phase and status</h4><div class="role">$phase / $status</div><p>Manages a validated roadmap and reports progress from authoritative roadmap, wave, and stage state.</p></div>
+    <div class="card"><h4>Dashboard</h4><div class="role">$dashboard / $riff:dashboard</div><p>Starts or attaches to the shared read-only local project dashboard.</p></div>
+    <div class="card"><h4>Next</h4><div class="role">$next / $riff:next</div><p>Runs one native stage through planning, sequential autonomous waves, mechanics, and fresh review.</p></div>
+    <div class="card"><h4>Wave</h4><div class="role">$wave / $riff:wave / /riff:wave</div><p>Runs ready roadmap phases without routine pauses. Loop mode continues across newly unlocked dependency frontiers.</p></div>
+    <div class="card"><h4>Resync</h4><div class="role">$resync / $riff:resync / /riff:resync</div><p>Reconciles RIFF-owned links and declared adapters through <code>riff resync</code>.</p></div>
+    <div class="card"><h4>Deep audit and improve</h4><div class="role">Explicit operational skills</div><p>Deep audit performs a milestone review. Improve turns approved improvement work into a bounded workflow.</p></div>
+    <div class="card"><h4>Incident and promotion</h4><div class="role">Separated decisions</div><p>Incident logging and incident review are distinct. Promotion always requires explicit confirmation before it changes project files.</p></div>
   </div>
 </section>
 
-<!-- ============ 04 PIPELINE ============ -->
 <section class="panel" id="panel-pipeline" role="tabpanel">
   <div class="section-head">
     <span class="section-num">№ 04</span>
-    <h1 class="section-title">Inside /riff:next</h1>
+    <h1 class="section-title">Inside native next.</h1>
   </div>
 
-  <p class="lede"><span class="dropcap">O</span>ne invocation equals one phase equals one pull request. The pipeline runs as a sequence of inline steps and sub-agent calls. This is the heart of RIFF.</p>
+  <p class="lede"><span class="dropcap">O</span>ne invocation handles one bounded phase. The runner owns the order. It validates each transition and persists <code>completed</code> only after every required gate has passed.</p>
 
   <div class="pipeline">
-    <div class="step" data-step="0"><h5>Sync &amp; reconcile</h5><p>Sync main, reconcile stale bookkeeping.</p></div>
-    <div class="step" data-step="1–2"><h5>Read state &amp; pick the phase</h5><p>Read <code>STATE.md</code> and <code>ROADMAP.yaml</code>, choose the next phase, create the phase branch, ensure <code>PROMPTS.md</code> exists.</p></div>
-    <div class="step" data-step="3"><h5>Confidence gate</h5><p>The planner self-rates its confidence 1–10 against the acceptance criteria. Below the profile threshold (default 7), the pipeline pauses and asks you to clarify.</p></div>
-    <div class="step" data-step="4"><h5>Plan <span class="badge b-opus">Opus</span></h5><p>Goal-backward plan built inline by the planner.</p></div>
-    <div class="step" data-step="4b"><h5>Plan adversarial review <span class="badge b-codex">Codex</span> <span class="badge b-gate">gated</span></h5><p>Challenge optimistic plans, missing edge cases, ambiguous task boundaries.</p></div>
-    <div class="step" data-step="4c"><h5>Pre-exec explanation <span class="badge b-haiku">Haiku</span></h5><p>Plain-language summary for the dashboard. Fail-silent.</p></div>
-    <div class="step" data-step="5"><h5>Execute <span class="badge b-sonnet">Sonnet</span></h5><p>Implement tasks one by one, atomic commits, parallelize within a wave, apply R1–R4 deviations. Codex on opt-in (<code>executor_model: codex</code>).</p></div>
-    <div class="step" data-step="5b"><h5>Simplify <span class="badge b-haiku">Haiku</span> <span class="badge b-gate">gated</span></h5><p>Structural smell pass on the diff: premature abstraction, misnaming, dead branches.</p></div>
-    <div class="step" data-step="5c"><h5>Scope check <span class="badge b-gate">mechanical</span></h5><p><code>scope-check.mjs</code> diffs the plan against the summary. No LLM. Flags silently dropped tasks.</p></div>
-    <div class="step" data-step="5d"><h5>Fallow audit <span class="badge b-gate">mechanical</span></h5><p>Dead code, duplication, complexity, boundary violations on the diff. Sub-second, deterministic.</p></div>
-    <div class="step" data-step="5e"><h5>Smoke test <span class="badge b-gate">browser</span></h5><p>Boot the dev server, load changed routes in a headless browser. Gated.</p></div>
-    <div class="step parallel" data-step="6"><h5>Adversarial review <span class="badge b-codex">Codex</span> <span class="parallel-tag">runs in parallel with 7</span></h5><p>Hunts logic bugs, races, edge cases, off-by-one, bad assumptions. Different model family catches Claude’s blind spots.</p></div>
-    <div class="step parallel" data-step="7"><h5>Security review <span class="badge b-sonnet">Sonnet</span> <span class="parallel-tag">runs in parallel with 6</span></h5><p>OWASP top-10 scan. CRITICAL/HIGH findings auto-trigger the debugger.</p></div>
-    <div class="step skip" data-step="↯"><h5>Scratch shortcut</h5><p>If scope is scratch, steps 6 and 7 are skipped entirely. Straight to PR.</p></div>
-    <div class="step" data-step="8–10"><h5>PR, learn, report</h5><p>Open the PR, append learnings to <code>taste.md</code> and expertise files, report with usage tracking.</p></div>
+    <div class="step" data-step="1"><h5>Preflight</h5><p>Validate Git root, RIFF link, framework path, HEAD, lock, and writable artifact boundaries.</p></div>
+    <div class="step" data-step="2"><h5>Controller</h5><p>Classify the request and select declared runtime classes. Architecture or critical work gets a fresh confirmation.</p></div>
+    <div class="step" data-step="3"><h5>Planner</h5><p>Create <code>PLAN.md</code> with task ownership, numbered waves, boundaries, and structured smoke commands.</p></div>
+    <div class="step" data-step="4"><h5>Plan validation</h5><p>Reject malformed ownership, unsafe paths, invalid smoke commands, identity mismatches, and untrusted prompt injection patterns.</p></div>
+    <div class="step" data-step="5"><h5>Fresh plan review</h5><p>A read-only reviewer independently returns <code>PROCEED</code> or <code>REVISE</code> from an evidence snapshot.</p></div>
+    <div class="step" data-step="6"><h5>Autonomous waves</h5><p>Workers execute plan waves in order. Each worker receives only its assignment and owned paths.</p></div>
+    <div class="step" data-step="7"><h5>Mechanical gates</h5><p>Run declared smokes, validate the summary, and scope-check actual product changes.</p></div>
+    <div class="step" data-step="8"><h5>Fresh code review</h5><p>A separate read-only reviewer returns <code>PASS</code> or <code>FAIL</code> against the plan, delta, summary, and evidence.</p></div>
+    <div class="step" data-step="9"><h5>Persist completion</h5><p>Repeat mechanics after review, record hashes and route receipt, then persist completed state.</p></div>
   </div>
 
-  <h2 class="subhead">The R1–R4 deviation rules</h2>
-  <p>When the executor hits something outside the plan, it picks one of four behaviors. R1 and R2 keep things moving without bothering you. R3 and R4 protect you from drift.</p>
+  <h2 class="subhead">Autonomous, sequential waves</h2>
+  <p>The planner declares every task exactly once under numbered waves and assigns exclusive owned paths. RIFF dispatches a worker for each wave in plan order without a user pause. Tasks may be independent in a wave, but the current native slice executes workers sequentially so each checked result becomes the next wave's starting point.</p>
 
-  <div class="dev-grid">
-    <div class="dev r1">
-      <span class="tag">R1</span>
-      <h5>Minor bug</h5>
-      <p>Fix it, log the deviation in <code>SUMMARY.md</code>.</p>
-    </div>
-    <div class="dev r2">
-      <span class="tag">R2</span>
-      <h5>Obvious missing piece</h5>
-      <p>Add it, log it in <code>SUMMARY.md</code>.</p>
-    </div>
-    <div class="dev r3">
-      <span class="tag">R3</span>
-      <h5>Architecture change</h5>
-      <p>Stop. Ask the human before touching it.</p>
-    </div>
-    <div class="dev r4">
-      <span class="tag">R4</span>
-      <h5>Out of scope</h5>
-      <p>Seed a new phase, do not build it now.</p>
-    </div>
-  </div>
-
-  <h2 class="subhead">Auto-debug</h2>
-  <p>If any step fails (executor crash, scope-check FAIL, adversarial FAIL, security BLOCKED, smoke fail), the pipeline routes to the debugger. It reads the failing artifact, opens the failing route in a browser if relevant, attaches screenshots, writes <code>DEBUG.md</code>, and proposes a fix. On RESOLVED, the failed step re-runs.</p>
-  <p>The debugger is dispatched at one of three tiers, and the tier tracks how <em>vicious</em> the bug is, not how severe. <strong>normal</strong> (the reasoning model, default Opus, at high effort) covers routine executor failures, deterministic test failures, and clear-scope security failures — even CRITICAL ones. <strong>high</strong> (Fable, high effort) covers adversarial failures with 3+ distinct issues, multi-layer bugs spanning services, and "tests pass but behavior is wrong". <strong>max</strong> (Fable, max effort) is reserved for the bugs that fight back: intermittent or flaky failures, "can't reproduce", race conditions, and anything that already survived two fix attempts. Pick a tier by hand with <code>/riff:debug --tier normal|high|max</code>, or set <code>debugger.default_tier</code> in the profile; otherwise the auto-mapping above applies.</p>
-  <p>Whatever the tier, the debugger only <em>thinks</em> at that tier. Once the root cause is confirmed, each mechanical fix is applied by a spawned Sonnet worker (edit, typecheck, biome, tests, atomic commit), and the debugger returns at its own tier to verify the diff. <code>DEBUG.md</code> logs which fixes went to which worker. The worker model is <code>debugger.delegation.mechanical_worker</code> (default <code>sonnet</code>; bump to <code>opus</code>/<code>fable</code> when the fix itself is subtle).</p>
-  <div class="note">
-    <div class="kicker">Hard limit</div>
-    <p>Two debug attempts per phase. After that, the pipeline pauses for you. Re-run with <code>/riff:debug &lt;bug&gt;</code> for a manual third attempt.</p>
-  </div>
-
-  <h2 class="subhead">Waves: parallel inside a phase</h2>
-  <p>The planner groups independent tasks into waves. Tasks in the same wave have no dependencies on each other and run in parallel. The planner’s real job is to detect when two tasks touch the same file and serialize them into separate waves.</p>
   <pre>wave 1:
-  - task 1: add User schema to schema.ts
-  - task 2: add Product schema to schema.ts   <b># SAME FILE — not parallel-safe</b>
+  - task 1: establish design tokens and approved assets
+
 wave 2:
-  - task 3: add users.test.ts                  # depends on wave 1
-  - task 4: add products.test.ts               # depends on wave 1</pre>
+  - task 2: update the shared public shell
+
+wave 3:
+  - task 3: rebuild homepage sections</pre>
+
+  <div class="note">
+    <div class="kicker">Retry boundary</div>
+    <p>Normal waves have no retry. Workers do not run PLAN smoke commands in the canonical staged workspace. RIFF runs those smokes after normal waves in disposable clones, then permits one bounded full-plan repair only after the first final smoke failure.</p>
+  </div>
+
+  <h2 class="subhead">Autonomous roadmap waves and loops</h2>
+  <p>Roadmap waves sit above a single native stage. <code>riff wave --autonomous</code> runs the current ready dependency frontier. Add <code>--loop</code> to recompute readiness and continue across phases until the roadmap is dry or a real stop condition is reached. This is distinct from the worker waves inside one <code>PLAN.md</code>.</p>
+
+  <pre><code>./.riff/riff wave --autonomous
+./.riff/riff wave --autonomous --loop
+./.riff/riff wave --resume
+./.riff/riff wave --status</code></pre>
+
+  <p>Use <code>$wave</code> or <code>$riff:wave</code> in Codex and <code>/riff:wave --autonomous --loop</code> in Claude Code. Ordinary and security-sensitive implementation continues autonomously. Security hooks run once after product phases. Explicit visual or functional verification, destructive boundaries, promotion, blocking failures, and operator caps remain stop conditions. Wave state and safe-resume evidence live under <code>.planning/riff-wave/</code>.</p>
 </section>
 
-<!-- ============ 05 AGENTS ============ -->
-<section class="panel" id="panel-agents" role="tabpanel">
+<section class="panel" id="panel-roles" role="tabpanel">
   <div class="section-head">
     <span class="section-num">№ 05</span>
-    <h1 class="section-title">The band of six (and more)</h1>
+    <h1 class="section-title">The seven semantic roles.</h1>
   </div>
 
-  <p class="lede"><span class="dropcap">E</span>ach agent lives as a single markdown file in <code>agents/</code>. The file <em>is</em> the instruction, fully editable. Thirteen specialists, plus one mechanical gate that runs with no LLM at all.</p>
+  <p class="lede"><span class="dropcap">T</span>he role is the common business contract. The adapter is the runtime implementation. This is why the same role behavior can be surfaced through Codex and Claude without turning every role file into provider-specific prose.</p>
 
-  <h2 class="subhead">Build &amp; review</h2>
   <div class="grid grid-2">
-    <div class="card">
-      <h4>Planner</h4>
-      <div class="role">Builds PLAN.md · default Opus</div>
-      <p>Goal-backward planning from the acceptance criteria. Decomposes into tasks, groups them into parallel waves, picks a model per task. Reads the profile and taste files.</p>
-      <div class="meta">model · <b>Opus</b> &nbsp;|&nbsp; configurable per phase</div>
-    </div>
-    <div class="card">
-      <h4>Executor</h4>
-      <div class="role">Implements tasks · default Sonnet</div>
-      <p>Implements the plan task by task with atomic commits, parallelizes within a wave, applies the R1–R4 deviation protocol. Codex is the opt-in volume path (<code>executor_model: codex</code>, <code>--executor codex</code>).</p>
-      <div class="meta">runtime · <b>Sonnet</b> · Codex opt-in</div>
-    </div>
-    <div class="card">
-      <h4>Adversarial reviewer</h4>
-      <div class="role">Hunts bugs · Codex CLI</div>
-      <p>Logic bugs, race conditions, edge cases, missing error handling, off-by-one, bad assumptions. A different model family catches Claude’s blind spots. Writes <code>REVIEW.md</code>.</p>
-      <div class="meta">verdict · <b>PASS / FAIL</b></div>
-    </div>
-    <div class="card">
-      <h4>Security reviewer</h4>
-      <div class="role">OWASP scan · default Sonnet</div>
-      <p>Auth, input validation, injection, IDOR, secrets, error handling on every production phase. Writes <code>SECURITY.md</code>. CRITICAL/HIGH findings auto-trigger the debugger.</p>
-      <div class="meta">verdict · <b>PASS / WARN / BLOCKED</b></div>
-    </div>
-    <div class="card">
-      <h4>Red-teamer</h4>
-      <div class="role">Active attacker · Sonnet · <code>/riff:stress</code></div>
-      <p>One per attack class (auth, injection, IDOR, rate-limit, config), spawned in parallel. Fires real requests at an approved local/staging target and confirms exploitability by the response. Never hits production.</p>
-      <div class="meta">effort · <b>high</b></div>
-    </div>
-    <div class="card">
-      <h4>Load-tester</h4>
-      <div class="role">Scalability · Sonnet · <code>/riff:stress</code></div>
-      <p>Static mode finds bottlenecks (N+1, unbounded queries, missing indexes, non-horizontal state). Active mode runs a real load ramp via autocannon, captures p95/p99 + throughput, reports the breaking point.</p>
-      <div class="meta">effort · <b>medium</b></div>
-    </div>
+    <div class="card"><h4>Planner</h4><div class="role">Bounded plan and ownership</div><p>Creates tasks, owned paths, waves, boundaries, and smoke commands from a read-only snapshot.</p></div>
+    <div class="card"><h4>Worker</h4><div class="role">Implement, fix, or simplify</div><p>Executes an approved assignment in the staged workspace and returns structured summary content.</p></div>
+    <div class="card"><h4>Reviewer</h4><div class="role">Independent judgment</div><p>Reviews plan, code, architecture, roadmap, incident, or milestone evidence from a fresh read-only snapshot.</p></div>
+    <div class="card"><h4>Debugger</h4><div class="role">Evidence-backed diagnosis</div><p>Diagnoses a failure and produces a bounded correction assignment. It returns report content, not direct product changes.</p></div>
+    <div class="card"><h4>Security reviewer</h4><div class="role">Reachable security defects</div><p>Performs a read-only security assessment and returns a report for the appropriate gate.</p></div>
+    <div class="card"><h4>Red teamer</h4><div class="role">Approved non-production proofs</div><p>Tests bounded attack hypotheses against approved targets while remaining repository-read-only and report-only.</p></div>
+    <div class="card"><h4>Load tester</h4><div class="role">Static or approved scale evidence</div><p>Assesses performance risks statically or against an approved non-production target without repository writes.</p></div>
   </div>
 
-  <h2 class="subhead">Pre-artifact adversaries</h2>
-  <p>Four reviewers that challenge a document <em>before</em> it locks in, each at a different gate.</p>
+  <h2 class="subhead">What is not a role</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th style="width:32%">Agent</th><th>Challenges</th><th>Where</th></tr></thead>
+      <thead><tr><th>Component</th><th>Current responsibility</th></tr></thead>
       <tbody>
-        <tr><td><strong>Plan-adversarial</strong></td><td>Optimistic plans, missing AC edge cases, ambiguous task boundaries</td><td>next, Step 4b</td></tr>
-        <tr><td><strong>Architecture-adversarial</strong></td><td>The system architecture, before scope and roadmap lock</td><td>start, Stage 2.5</td></tr>
-        <tr><td><strong>Roadmap-adversarial</strong></td><td>Ordering, dependencies, phase granularity</td><td>start, Stage 4.5</td></tr>
-        <tr><td><strong>Incident-adversarial</strong></td><td>The synthesis draft of a quarterly incident review</td><td>incident review</td></tr>
+        <tr><td><strong>Controller</strong></td><td>A native stage-control adapter, not an eighth semantic role.</td></tr>
+        <tr><td><strong>Simplify</strong></td><td>A worker assignment, not a dedicated agent.</td></tr>
+        <tr><td><strong>Improve</strong></td><td>An explicit skill, not an agent.</td></tr>
+        <tr><td><strong>Scope checking</strong></td><td>A deterministic script, not an agent.</td></tr>
+        <tr><td><strong>Incident review</strong></td><td>An advisory review separate from incident ledger writes.</td></tr>
       </tbody>
     </table>
   </div>
-
-  <h2 class="subhead">Quality &amp; learning</h2>
-  <div class="grid grid-2">
-    <div class="card card--alt">
-      <h4>Simplifier</h4>
-      <div class="role">Structural smell · Haiku</div>
-      <p>Looks for premature abstraction, misnaming, dead branches, copy-pasted code that should be a function. Budget-gated.</p>
-    </div>
-    <div class="card card--alt">
-      <h4>Debugger</h4>
-      <div class="role">Auto-triggered on FAIL · tiered Opus → Fable</div>
-      <p>Reads the failing artifact, opens the failing route in a headless browser, screenshots it, writes <code>DEBUG.md</code> with root cause and fix. Three dispatch tiers keyed to viciousness, not severity: normal (Opus/high), high (Fable/high), max (Fable/max — flaky, can't-reproduce, races, repeated failed fixes). Diagnoses at its tier, delegates mechanical fixes to Sonnet workers.</p>
-    </div>
-    <div class="card card--alt">
-      <h4>Improver</h4>
-      <div class="role">Harvests learnings · Haiku</div>
-      <p>Turns recent phases into patch proposals for <code>taste.md</code> and stack files. Reviewed, then merged, deferred, or rejected.</p>
-    </div>
-    <div class="card card--alt">
-      <h4>Deep-auditor</h4>
-      <div class="role">Cross-phase · milestone boundary</div>
-      <p>Reads all phases in a milestone, finds systemic issues, contradictions, and decay. Triggered conversationally or at a milestone tag.</p>
-    </div>
-  </div>
-
-  <h2 class="subhead">The mechanical gate</h2>
-  <div class="card card--gate" style="max-width:var(--content);">
-    <h4>Scope check <span class="badge b-gate">no LLM</span></h4>
-    <div class="role">scripts/scope-check.mjs</div>
-    <p>Diffs <code>PLAN.md</code> against <code>SUMMARY.md</code>. Flags tasks that were silently dropped and smoke commands that were never reported. Runs inline, deterministic, instant. The cheapest reviewer in the band.</p>
-  </div>
 </section>
 
-<!-- ============ 06 HOOKS & MODELS ============ -->
-<section class="panel" id="panel-machinery" role="tabpanel">
+<section class="panel" id="panel-routing" role="tabpanel">
   <div class="section-head">
     <span class="section-num">№ 06</span>
-    <h1 class="section-title">Hooks &amp; model dispatch</h1>
+    <h1 class="section-title">Routing is runtime policy.</h1>
   </div>
 
-  <p class="lede"><span class="dropcap">H</span>ooks are small scripts that fire on an event, like a commit. They come in three buckets, and your profile decides which ones wire. Below them, RIFF dispatches work across four model families, each with a job it is good at.</p>
+  <p class="lede"><span class="dropcap">M</span>odel selection, effort, service tier, sandbox, tools, permissions, and delegation rules belong to runtime adapters. Shared instructions remain provider-neutral. The active native portfolio selects only declared classes.</p>
 
-  <h2 class="subhead">The three buckets</h2>
-  <div class="grid grid-3">
-    <div class="card">
-      <h4>Bucket A</h4>
-      <div class="role">Always wired · universal discipline</div>
-      <p><code>destructive-guard</code> — block <code>rm -rf</code>, force-push to main, hard resets.<br>
-      <code>boundary-check</code> — block cross-boundary imports.<br>
-      <code>typecheck-gate</code> — block commits that break <code>tsc</code>.<br>
-      <code>test-gate</code> — block commits that break the suite.</p>
-    </div>
-    <div class="card card--alt">
-      <h4>Bucket B</h4>
-      <div class="role">Security-adaptable · risk-driven</div>
-      <p><code>route-auth-guard</code> — protect auth-sensitive routes.<br>
-      <code>idor-detector</code> — flag queries not scoped to the user.<br>
-      <code>input-validation-guard</code> — flag unvalidated input.<br>
-      <code>todo-orphan-guard</code> — block <code>// TODO</code> without a phase.</p>
-      <div class="meta">all-on for <b>cautious</b> · partial for <b>balanced</b> · off for <b>fast</b></div>
-    </div>
-    <div class="card card--gate">
-      <h4>Bucket C</h4>
-      <div class="role">Stack / convention helpers</div>
-      <p><code>registry-reminder</code> — nudge to update the registry.<br>
-      <code>migration-gate</code> — block migration changes not yet run.<br>
-      <code>notify-human</code> — ping you via the configured channel.</p>
-    </div>
-  </div>
-
-  <h2 class="subhead">Model selection</h2>
-  <p>RIFF dispatches across four Claude tiers plus the Codex CLI. Each is used where it is strongest.</p>
   <div class="table-wrap">
     <table>
-      <caption>Five tiers, one job each</caption>
-      <thead><tr><th style="width:18%">Family</th><th>When used</th></tr></thead>
+      <caption>Current native route portfolio</caption>
+      <thead><tr><th>Work</th><th>Codex adapter</th><th>Claude adapter</th><th>When selected</th></tr></thead>
       <tbody>
-        <tr><td><span class="badge b-opus">Opus</span></td><td>Planning (default). Debug at the normal tier (default). Adversarial fallback when Codex is unavailable.</td></tr>
-        <tr><td><span class="badge b-opus">Fable</span></td><td>Debug at the high and max tiers — vicious bugs only (flaky, can’t-reproduce, races, repeated failed fixes).</td></tr>
-        <tr><td><span class="badge b-sonnet">Sonnet</span></td><td>Default execution (solo and waves). Security review. Mechanical debug-fix workers. Debug cost override.</td></tr>
-        <tr><td><span class="badge b-haiku">Haiku</span></td><td>Simplifier. Pre-exec and post-mortem explanations for the dashboard.</td></tr>
-        <tr><td><span class="badge b-codex">Codex</span></td><td>Adversarial review (different model family, catches Claude’s blind spots). Opt-in volume execution.</td></tr>
+        <tr><td>Routine controller</td><td>Sol, Medium</td><td>Sonnet, Medium</td><td>Default classification.</td></tr>
+        <tr><td>Routine planner and reviewer</td><td>Sol, Medium</td><td>Sonnet, High</td><td>Default bounded stage work.</td></tr>
+        <tr><td>Architecture and critical review</td><td>Sol, XHigh</td><td>Opus, XHigh</td><td>Architecture or critical classification.</td></tr>
+        <tr><td>Repeatable worker</td><td>Luna, XHigh, Fast</td><td>Sonnet, High</td><td>Default mutation work.</td></tr>
+        <tr><td>Bounded worker</td><td>Terra, High</td><td>Sonnet, High</td><td>Bounded multi-file execution.</td></tr>
+        <tr><td>Inventory worker</td><td>Luna, Low, Fast</td><td>Sonnet, Low</td><td>Declared for future callers; mutation-only next does not select it.</td></tr>
+        <tr><td>Debugger, security, red team</td><td>Sol, XHigh</td><td>Opus, XHigh</td><td>Fixed specialist routes.</td></tr>
+        <tr><td>Load tester</td><td>Luna, XHigh, Fast</td><td>Sonnet, High</td><td>Static or separately approved active mode.</td></tr>
+        <tr><td>Escalation reviewer</td><td>Sol, Max</td><td>Opus, Max</td><td>Only after a recorded XHigh technical or contract failure.</td></tr>
       </tbody>
     </table>
   </div>
 
-  <h2 class="subhead">Where each decision lives</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Step</th><th>Default</th><th>Override</th></tr></thead>
-      <tbody>
-        <tr><td>Plan</td><td><span class="badge b-opus">Opus</span></td><td><code>planner_model:</code> per phase</td></tr>
-        <tr><td>Plan adversarial</td><td><span class="badge b-codex">Codex</span></td><td>Opus fallback</td></tr>
-        <tr><td>Pre-exec explanation</td><td><span class="badge b-haiku">Haiku</span></td><td>—</td></tr>
-        <tr><td>Execute</td><td><span class="badge b-sonnet">Sonnet</span></td><td><code>executor_model: codex</code> (opt-in) or <code>opus</code></td></tr>
-        <tr><td>Simplify</td><td><span class="badge b-haiku">Haiku</span></td><td><code>simplify_model:</code></td></tr>
-        <tr><td>Adversarial review</td><td><span class="badge b-codex">Codex</span></td><td>Opus fallback</td></tr>
-        <tr><td>Security review</td><td><span class="badge b-sonnet">Sonnet</span></td><td><code>security_model:</code></td></tr>
-        <tr><td>Improver</td><td><span class="badge b-haiku">Haiku</span></td><td>gated</td></tr>
-        <tr><td>Debug</td><td><span class="badge b-opus">Opus</span> tier normal · <span class="badge b-opus">Fable</span> tiers high/max</td><td><code>--tier</code>, <code>debugger.default_tier</code>, <code>debug_model:</code></td></tr>
-      </tbody>
-    </table>
-  </div>
+  <p>The routine controller runs first. If it classifies planning as architecture or review as critical, RIFF runs one fresh architecture-controller confirmation. That confirmation is canonical for planner, worker, plan-reviewer, and code-reviewer selection.</p>
 
   <div class="note">
-    <div class="kicker">Codex is optional</div>
-    <p>The Codex CLI (<code>@openai/codex</code>) is not required. If it is missing, adversarial and plan-adversarial reviews fall back to Opus, and the fallback is announced in the pipeline output. To get the cross-family pass, install it and run <code>codex auth</code> once.</p>
+    <div class="kicker">Fast service tier</div>
+    <p>Every Luna adapter sets the Fast service tier while preserving its declared reasoning effort. Fast lowers latency and consumes more plan usage. Non-Luna adapters do not set that service tier.</p>
   </div>
 </section>
 
-<!-- ============ 07 REFERENCE ============ -->
-<section class="panel" id="panel-reference" role="tabpanel">
+<section class="panel" id="panel-evidence" role="tabpanel">
   <div class="section-head">
     <span class="section-num">№ 07</span>
-    <h1 class="section-title">Reference shelf</h1>
+    <h1 class="section-title">Gates produce inspectable facts.</h1>
   </div>
 
-  <p class="lede"><span class="dropcap">T</span>he profile that tunes everything, the default that skips the questions, the budget chain, the unattended-run rules, and the file layout on both sides of the symlink.</p>
+  <p class="lede"><span class="dropcap">R</span>eviews are fresh and isolated. A plan reviewer sees the validated plan. A code reviewer sees the plan, worker summary, product files, and delta. Neither inherits the worker conversation or a prior reviewer’s private context.</p>
 
-  <h2 class="subhead">The default profile</h2>
-  <p>Onboarding has two paths: <code>default</code> (zero questions, writes a safe baseline) or <code>custom</code> (the full question set). The same baseline is the tier-3 fallback at the bottom of the resolution chain, shipped as <code>templates/profile.default.yaml</code>.</p>
   <div class="table-wrap">
     <table>
-      <caption>The default baseline — safe middle ground</caption>
-      <thead><tr><th style="width:34%">Field</th><th>Value</th></tr></thead>
+      <caption>Stage artifacts</caption>
+      <thead><tr><th>Artifact</th><th>What it proves</th></tr></thead>
       <tbody>
-        <tr><td>programming_level</td><td>intermediate</td></tr>
-        <tr><td>risk.sensitive_task_preference</td><td>balanced</td></tr>
-        <tr><td>style.length</td><td>standard</td></tr>
-        <tr><td>style.allow_jargon</td><td>first_mention</td></tr>
-        <tr><td>style.when_uncertain</td><td>important_only</td></tr>
-        <tr><td>budget.default_quality</td><td>balanced</td></tr>
-        <tr><td>debugger.default_tier</td><td>normal (high and max escalate to Fable — viciousness, not severity)</td></tr>
-        <tr><td>debugger.delegation.mechanical_worker</td><td>sonnet (applies the debugger’s fixes: edit, checks, atomic commit)</td></tr>
-        <tr><td>wave.executor</td><td>sonnet (Codex opt-in via <code>--executor codex</code>)</td></tr>
-        <tr><td>languages</td><td>English (conversational, artifact, narrative)</td></tr>
-        <tr><td>notifications.channel</td><td>none</td></tr>
+        <tr><td><code>.planning/phases/&lt;id&gt;/PLAN.md</code></td><td>Validated immutable task contract, ownership, waves, and smokes.</td></tr>
+        <tr><td><code>.planning/phases/&lt;id&gt;/PLAN-REVIEW.md</code></td><td>Independent plan-review verdict.</td></tr>
+        <tr><td><code>.planning/phases/&lt;id&gt;/SUMMARY.md</code></td><td>Worker completion criteria plus authoritative runner observations.</td></tr>
+        <tr><td><code>.planning/phases/&lt;id&gt;/SCOPE-CHECK.json</code></td><td>Mechanical boundary comparison against actual changes.</td></tr>
+        <tr><td><code>.planning/phases/&lt;id&gt;/REVIEW.md</code></td><td>Fresh code-review verdict with machine evidence injected by the runner.</td></tr>
+        <tr><td><code>.planning/riff-next/&lt;id&gt;.json</code></td><td>Transitions, route receipt, evidence hashes, and completed state.</td></tr>
       </tbody>
     </table>
   </div>
 
-  <h2 class="subhead">Budget resolution</h2>
-  <p>A four-level fallback chain decides every model choice and whether to run optional steps. First match wins.</p>
-  <div class="pipeline">
-    <div class="step" data-step="1"><h5>Per-phase override</h5><p>In <code>ROADMAP.yaml</code>: <code>executor_model:</code>, <code>simplify:</code>, etc.</p></div>
-    <div class="step" data-step="2"><h5>Per-project override</h5><p>In <code>ROADMAP.yaml</code>: top-level <code>budget_quality:</code>.</p></div>
-    <div class="step" data-step="3"><h5>Profile default</h5><p>In <code>profile.yaml</code>: <code>budget.default_quality</code>.</p></div>
-    <div class="step" data-step="4"><h5>Hardcoded default</h5><p><code>balanced</code>.</p></div>
-  </div>
+  <h2 class="subhead">Completion is not promotion</h2>
+  <p>Completion requires a valid plan, <code>PROCEED</code> plan review, completed worker output, passing mechanics and scope, <code>PASS</code> code review, repeated mechanics, and persisted completed state. It does not create a commit, open a pull request, merge a branch, publish, deploy, or promote a project.</p>
 
-  <h2 class="subhead">Unattended runs, autonomy &amp; HITL</h2>
-  <p><code>/riff:wave</code> bundles parallel-eligible phases and lets the configured executor — parallel Sonnet workers by default, Codex on opt-in — build while you are away. A phase qualifies when it is <code>todo</code>, tagged <code>mode: AFK</code>, not in production provider mode, and all its dependencies are done.</p>
-  <div class="dev-grid">
-    <div class="dev r1">
-      <span class="tag" style="font-size:1.1rem;">AFK</span>
-      <h5>Autonomous</h5>
-      <p>Default. Even code-only auth and payment work qualifies; the reviewers are the safety net.</p>
-    </div>
-    <div class="dev r3">
-      <span class="tag" style="font-size:1.1rem;">HITL</span>
-      <h5>You present</h5>
-      <p>Real OAuth against a prod IdP, real checkout, MFA, DNS cutover, irreversible migrations.</p>
-    </div>
-    <div class="dev r2">
-      <span class="tag" style="font-size:1.1rem;">SANDBOX</span>
-      <h5>Sandbox HITL</h5>
-      <p>Provider flows in sandbox mode. Verified through the headless browser protocol instead of pausing.</p>
-    </div>
-  </div>
-
-  <h2 class="subhead">Autonomous sessions</h2>
-  <p><code>--autonomous</code> (on <code>/riff:next</code> or <code>/riff:wave</code>) turns a run into a single-approval session: every decision is front-loaded into the launch window (only genuine forks are asked — everything else becomes a documented default in the run's DECISIONS ledger), the build runs with zero questions, verification is batched at the end, and the next human touchpoint is one consolidated <code>REPORT.md</code>. With <code>autonomy.auto_launch: true</code> even the launch prompt disappears — approval already happened at roadmap planning.</p>
-  <p>What happens when a phase hits the autonomy boundary (auth, money, privacy, migrations) or a gate fails depends on <code>autonomy.hold_behavior</code>:</p>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th style="width:28%">hold_behavior</th><th>What happens</th></tr></thead>
-      <tbody>
-        <tr><td><code>park</code> (default)</td><td>The branch is parked, never merged unattended. A <strong>finisher</strong> file (<code>finishers/&lt;id&gt;.yaml</code>) marks it no-merge across every session — a guard script enforces it before any merge. You resolve it conversationally: “finisher F{N} ok, merge it”.</td></tr>
-        <tr><td><code>flag_and_continue</code></td><td>For operators without security/compliance judgment of their own: hold phases and judgment-gate failures merge once the functional gates pass, recorded as a non-blocking <strong>flag</strong>. All flags are reviewed once by a specialist at the production boundary (“ready to deploy” triggers the <strong>specialist gate</strong>: pending flags + a stress run, presented to the specialist, resolved via <code>flag-resolve</code>). Actual functional breaks still never merge.</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <p><code>--loop [--max-runs N]</code> chains autonomous runs Ralph-style until the roadmap is dry, two consecutive runs merge nothing, the max is hit, or the kill switch exists (<code>touch .planning/autonomy/STOP</code> — or just say “stop the loop”; the in-flight run finishes cleanly first). Quota exhaustion pauses and schedules a wakeup; it never counts as a stop.</p>
-  <p>Above the single project sits <code>/riff:conductor</code>: it sweeps every registered project, launches the autonomous loop sequentially on each safe backlog, and delivers one consolidated report — the morning briefing. Scheduled (cron) runs only touch projects that opted in with <code>auto_advance: true</code>. And across all projects, “what's pending” runs the cross-project inbox (<code>riff-pending.mjs</code>): every finisher, unreviewed decision, and integrity issue waiting on you, in one sorted list.</p>
   <div class="note">
-    <div class="kicker">One approval, one report</div>
-    <p>The design rule behind all of it: mid-run questions destroy your context-switch budget. Decisions move to the launch window, everything the run did lands in one report, and the only things that ever wait on you are the ones a machine should not merge alone.</p>
+    <div class="kicker">Explicit confirmation</div>
+    <p>Promotion is a separate skill. Promotion always requires user confirmation before RIFF changes project files. Visual verification and product acceptance remain separate decisions outside the native stage.</p>
   </div>
-
-  <h2 class="subhead">File structure</h2>
-  <div class="split">
-    <div>
-      <div class="kicker">Framework root</div>
-      <pre>riff/
-├── README.md
-├── HOW-IT-WORKS.md
-├── CLAUDE.md          <b># always loaded</b>
-├── DECAY.md           # pruning protocol
-├── profile.yaml       <b># YOUR config</b>
-├── agents/            # 15 agents
-├── commands/          # 15 commands
-├── hooks/             # 18 hooks
-├── protocols/         # ~20 contracts
-├── references/        # taste, resolution
-├── templates/         # PROJECT, ROADMAP…
-├── scripts/           # init, codex, gates
-└── dashboard/         # Bun + React</pre>
-    </div>
-    <div>
-      <div class="kicker">Project side, after init</div>
-      <pre>project/
-├── .riff/             <b># symlink to repo</b>
-├── .claude/
-│   ├── commands/riff/ # symlinks
-│   └── agents/riff/   # symlinks
-├── .planning/
-│   ├── config.json    # scope
-│   ├── phases/        # PLAN, SUMMARY…
-│   ├── expertise/     # improver patches
-│   └── seeds/         # R4 out-of-scope
-├── PROJECT.md
-├── ROADMAP.yaml
-├── STATE.md
-└── taste.md</pre>
-    </div>
-  </div>
-
-  <h2 class="subhead">The dashboard</h2>
-  <p><code>/riff:dashboard</code> boots a local web server (Bun, port 4000): a kanban view of all phases, plain-language explanations at your declared level, and generation metadata per phase: real duration from git timestamps, file diff stats, gate outcomes, Codex usage, and the agents seen in commit trailers. Read-only. Driving still happens in the terminal.</p>
-
-  <blockquote class="pullquote">
-    Your framework is yours.
-    <cite>— RIFF, the last line of the manual</cite>
-  </blockquote>
 </section>
 
-<!-- ============ 08 DISCOVERY OUTPUT ============ -->
-<section class="panel" id="panel-discovery" role="tabpanel">
+<section class="panel" id="panel-reference" role="tabpanel">
   <div class="section-head">
     <span class="section-num">№ 08</span>
-    <h1 class="section-title">What discovery leaves behind</h1>
+    <h1 class="section-title">Operating reference.</h1>
   </div>
 
-  <p class="lede"><span class="dropcap">B</span>efore a single line of code, <code>/riff:start</code> turns a conversation into design artifacts: user stories, ASCII wireframes for the key screens, a system diagram, and a data model. Everything below is generated, then committed to disk.</p>
+  <p class="lede"><span class="dropcap">B</span>efore a stage, make the change legible. After a stage, read the evidence. Keep installation and publication as conscious human decisions.</p>
+
+  <h2 class="subhead">Before you run</h2>
+  <ol>
+    <li>Use a normal Git checkout with a resolvable <code>HEAD</code>. <code>riff init</code> does not support Git linked worktrees.</li>
+    <li>Run <code>riff init</code> for a new project or <code>riff resync</code> after RIFF adds or removes active skills or adapters.</li>
+    <li>Save external references, approved assets, preservation constraints, and runnable checks in project files.</li>
+    <li>Name a safe phase id and the exact bounded task. State permitted surfaces and exclusions.</li>
+    <li>Use only checks that exist and are meaningful for the project.</li>
+  </ol>
+
+  <h2 class="subhead">After completion</h2>
+  <ol>
+    <li>Read <code>SUMMARY.md</code>, <code>SCOPE-CHECK.json</code>, <code>REVIEW.md</code>, and the stage state file.</li>
+    <li>Perform any product-specific visual or manual verification that the stage does not cover.</li>
+    <li>Decide separately whether to commit, open a pull request, merge, publish, deploy, or promote.</li>
+    <li>Confirm promotion only when you intend to run it.</li>
+  </ol>
+
+  <h2 class="subhead">Autonomous roadmap operation</h2>
+  <pre><code>riff wave --autonomous              # one ready frontier
+riff wave --autonomous --loop       # continue until a real stop
+riff wave --resume                  # resume the active persisted run
+riff wave --status                  # inspect without mutation</code></pre>
+
+  <h2 class="subhead">Project and phase operation</h2>
+  <pre><code>riff status                         # authoritative project status
+riff status --json                  # structured status
+riff phase list                     # list roadmap phases
+riff phase add --title "..." --goal "..."
+riff phase set-status --id 2 --status blocked
+riff dashboard                      # start or attach
+riff dashboard --stop               # explicit stop
+riff resync                         # reconcile provider surfaces</code></pre>
+
+  <h2 class="subhead">Framework checks</h2>
+  <pre><code>node scripts/artifact-check.mjs
+./riff doctor --ci</code></pre>
 
   <div class="note">
-    <div class="kicker">Scope caveat</div>
-    <p>The wireframes and diagrams belong to <strong>Stage 2</strong>, which is <em>skipped entirely when <code>scope: scratch</code></em>. Personal and local scripts get user stories but no page maps, data models, or architecture diagrams. Wireframes are never skipped for web projects in production scope.</p>
-  </div>
-
-  <div class="table-wrap">
-    <table>
-      <caption>The four design outputs and where they land</caption>
-      <thead><tr><th>Output</th><th>File</th><th>Stage</th></tr></thead>
-      <tbody>
-        <tr><td><strong>User stories</strong></td><td><code>PROJECT.md</code> → <code>## User Stories</code></td><td>Stage 1 — always</td></tr>
-        <tr><td><strong>ASCII wireframes</strong></td><td><code>.planning/design/pages.md</code> + <code>PROJECT.md</code></td><td>Stage 2 — 3 to 8 screens</td></tr>
-        <tr><td><strong>System diagram</strong></td><td><code>.planning/design/architecture.md</code></td><td>Stage 2 — Mermaid</td></tr>
-        <tr><td><strong>Data model</strong></td><td><code>PROJECT.md</code> → <code>## Data Model</code></td><td>Stage 2 — Mermaid erDiagram</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <h2 class="subhead">User stories</h2>
-  <p>Extracted in Stage 1 as one of the nine extraction axes (“Key User Stories”). Written in the classic As-a / I-want / so-that form, each with its own acceptance criteria.</p>
-  <div class="card" style="max-width:var(--content);border-top-color:var(--green);">
-    <div class="role">Story — Plan a phase</div>
-    <p style="font-family:var(--serif);font-size:1.15rem;color:var(--ink);">
-      <strong>As a</strong> solo developer, <strong>I want to</strong> run one command that plans, builds, and reviews the next phase, <strong>so that</strong> I can stay in the loop without orchestrating each step by hand.
-    </p>
-    <div class="meta">Acceptance · ☐ one PR per phase &nbsp; ☐ confidence gate honored &nbsp; ☐ review before merge</div>
-  </div>
-
-  <h2 class="subhead">ASCII wireframes</h2>
-  <p>Three to eight key screens, grouped by user flow. Plain text, preserved verbatim inside the page map so they live in version control next to the code.</p>
-  <pre>+----------------------------------------------------+
-|  RIFF Dashboard            [light/dark]  port 4000 |
-+----------------------------------------------------+
-|  TODO        | IN PROGRESS  | DONE      | BLOCKED   |
-|  +--------+  | +---------+  | +------+  | +------+  |
-|  | <b>P-03</b>   |  | | <b>P-02</b>    |  | | P-01 |  | | P-00 |  |
-|  | auth   |  | | wave    |  | | init |  | | spec |  |
-|  +--------+  | | <b>Opus·plan</b> |  | +------+  | +------+  |
-|  +--------+  | +---------+  |           |           |
-|  | P-04   |  |              |  gates: ✓✓✓✓          |
-|  +--------+  |              |                       |
-+----------------------------------------------------+
-|  click a card → plain-language pre / post explainer |
-+----------------------------------------------------+</pre>
-
-  <h2 class="subhead">System architecture — Mermaid</h2>
-  <p>Components and their connections, rendered as a real diagram. In a project this is paired with an external-services table: purpose, provider, risk, and failure mode for each dependency.</p>
-  <div class="diagram-frame">
-    <div class="flow">
-      <div class="fnode fnode--start">You — terminal</div>
-      <div class="farrow"><span>/riff:next</span>↓</div>
-      <div class="fnode">Planner<small>Opus</small></div>
-      <div class="farrow">↓</div>
-      <div class="fnode fnode--codex">Plan adversarial<small>Codex · gated</small></div>
-      <div class="farrow"><span>pass</span>↓</div>
-      <div class="fnode fnode--sonnet">Executor<small>Sonnet · Codex opt-in</small></div>
-      <div class="farrow">↓</div>
-      <div class="fnode fnode--mech">Scope check<small>mechanical · no LLM</small></div>
-      <div class="farrow"><span>splits — parallel</span>↓</div>
-      <div class="frow">
-        <div class="fnode fnode--codex">Adversarial review<small>Codex</small></div>
-        <div class="fnode fnode--sonnet">Security review<small>Sonnet</small></div>
-      </div>
-      <div class="farrow"><span>both pass</span>↓</div>
-      <div class="fnode fnode--end">Pull request</div>
-      <div class="fnote">on FAIL or BLOCKED → Debugger (tiered: Opus, Fable on vicious bugs; Sonnet applies the fixes) → retry · max 2 attempts</div>
-    </div>
-  </div>
-
-  <h2 class="subhead">Data model — Mermaid erDiagram</h2>
-  <p>The entity-relationship sketch that anchors the schema before any migration is written. Here, a simplified view of how RIFF tracks its own work on disk.</p>
-  <div class="diagram-frame">
-    <div class="erd">
-      <div class="entity">
-        <div class="entity-name">PROJECT</div>
-        <div class="entity-field"><span>slug</span><span class="ftype">string PK</span></div>
-        <div class="entity-field"><span>scope</span><span class="ftype">enum</span></div>
-        <div class="entity-field"><span>stack</span><span class="ftype">string</span></div>
-      </div>
-      <div class="entity">
-        <div class="entity-name">PHASE</div>
-        <div class="entity-field"><span>id</span><span class="ftype">int PK</span></div>
-        <div class="entity-field"><span>slug</span><span class="ftype">string</span></div>
-        <div class="entity-field"><span>status</span><span class="ftype">enum</span></div>
-        <div class="entity-field"><span>mode</span><span class="ftype">AFK / HITL</span></div>
-      </div>
-      <div class="entity">
-        <div class="entity-name">PLAN</div>
-        <div class="entity-field"><span>goal</span><span class="ftype">string</span></div>
-        <div class="entity-field"><span>wave_count</span><span class="ftype">int</span></div>
-      </div>
-      <div class="entity">
-        <div class="entity-name">REVIEW</div>
-        <div class="entity-field"><span>kind</span><span class="ftype">adv / sec</span></div>
-        <div class="entity-field"><span>verdict</span><span class="ftype">pass / fail</span></div>
-      </div>
-    </div>
-    <div class="erd-legend">
-      <div>PROJECT <b>1 ──&lt; N</b> PHASE &nbsp;·&nbsp; a project owns many phases</div>
-      <div>PHASE <b>1 ── 1</b> PLAN &nbsp;·&nbsp; each phase produces one plan</div>
-      <div>PHASE <b>1 ──&lt; N</b> REVIEW &nbsp;·&nbsp; a phase is checked by several reviews</div>
-    </div>
-  </div>
-
-  <div class="note">
-    <div class="kicker">Both gated before lock-in</div>
-    <p>The architecture diagram is challenged by the <strong>architecture-adversarial-reviewer</strong> at Stage 2.5, and the roadmap by the <strong>roadmap-adversarial-reviewer</strong> at Stage 4.5, before scope and ordering are committed.</p>
+    <div class="kicker">Operational limits</div>
+    <p>Production model and smoke dispatches require Darwin because the runner depends on read-deny sandbox enforcement. The runner fails closed elsewhere. The maintained Markdown manual contains the detailed procedures: <a href="docs/RIFF-MANUAL.md">RIFF Manual</a>. The repository architecture guide is <a href="HOW-IT-WORKS.md">How it works</a>.</p>
   </div>
 </section>
-
 </main>
 
-<!-- ============ FOOTER ============ -->
 <footer>
   <div class="colophon">
     <div>
-      <div class="big">RIFF<span style="color:var(--accent)">.</span></div>
-      <div style="margin-top:6px;">Build like a band of six · Ship like one</div>
-      <div style="margin-top:14px;display:flex;align-items:center;gap:11px;">
-        <img class="avatar" src="data:image/png;base64,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" alt="Alexandra Spalato" width="42" height="42">
-        <span>By <a class="byline" href="https://www.spalatoconsulting.com/" target="_blank" rel="noopener">Alexandra Spalato</a></span>
-      </div>
+      <div class="big">RIFF.</div>
+      <div>Operator manual · single-project native workflow</div>
+      <div style="margin-top:6px;">Build like a band of six. Ship like one.</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end;">
       <a class="gh-link" href="https://github.com/alexadark/riff" target="_blank" rel="noopener">
-        <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span aria-hidden="true">↗</span>
         github.com/alexadark/riff
       </a>
-      <a class="gh-link" href="https://riff-berlin-workshop.vercel.app" target="_blank" rel="noopener">
-        <span aria-hidden="true" style="font-size:1rem;">▸</span>
-        Berlin workshop talk
+      <a class="gh-link" href="docs/RIFF-MANUAL.md">
+        <span aria-hidden="true">▸</span>
+        Read the detailed manual
       </a>
     </div>
   </div>
 </footer>
 
 <script>
-// Tabs
-document.querySelectorAll('.tab').forEach(tab=>{
-  tab.addEventListener('click',()=>{
-    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(item => {
+      item.classList.remove('active');
+      item.setAttribute('aria-selected', 'false');
+    });
+    document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
     tab.classList.add('active');
-    document.getElementById('panel-'+tab.dataset.panel).classList.add('active');
-    window.scrollTo({top:0,behavior:'smooth'});
+    tab.setAttribute('aria-selected', 'true');
+    document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 });
-// Theme
-function toggleTheme(){
-  const h=document.documentElement;
-  const next=h.getAttribute('data-theme')==='light'?'dark':'light';
-  h.setAttribute('data-theme',next);
-  localStorage.setItem('riff-theme',next);
+
+function toggleTheme() {
+  const root = document.documentElement;
+  const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  root.setAttribute('data-theme', next);
+  localStorage.setItem('riff-theme', next);
 }
-const saved=localStorage.getItem('riff-theme');
-if(saved)document.documentElement.setAttribute('data-theme',saved);
-// Keyboard nav
-document.addEventListener('keydown',e=>{
-  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
-    if(/input|textarea/i.test(document.activeElement.tagName))return;
-    const tabs=[...document.querySelectorAll('.tab')];
-    const i=tabs.findIndex(t=>t.classList.contains('active'));
-    const n=e.key==='ArrowRight'?(i+1)%tabs.length:(i-1+tabs.length)%tabs.length;
-    tabs[n].click();tabs[n].focus();
-  }
+
+const savedTheme = localStorage.getItem('riff-theme');
+if (savedTheme === 'light' || savedTheme === 'dark') {
+  document.documentElement.setAttribute('data-theme', savedTheme);
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  if (/input|textarea/i.test(document.activeElement.tagName)) return;
+  const tabs = [...document.querySelectorAll('.tab')];
+  const current = tabs.findIndex(tab => tab.classList.contains('active'));
+  const next = event.key === 'ArrowRight'
+    ? (current + 1) % tabs.length
+    : (current - 1 + tabs.length) % tabs.length;
+  tabs[next].click();
+  tabs[next].focus();
 });
 </script>
 </body>

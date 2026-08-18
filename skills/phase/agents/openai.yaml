@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Phase"
+  short_description: "Manage validated RIFF roadmap phases"
+  default_prompt: "Use $riff:phase to list, add, or update the requested RIFF roadmap phase."
+policy:
+  allow_implicit_invocation: false

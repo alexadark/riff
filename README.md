@@ -1,175 +1,145 @@
-```
-██████╗ ██╗███████╗███████╗
-██╔══██╗██║██╔════╝██╔════╝
-██████╔╝██║█████╗  █████╗
-██╔══██╗██║██╔══╝  ██╔══╝
-██║  ██║██║██║     ██║
-╚═╝  ╚═╝╚═╝╚═╝     ╚═╝
-```
+# RIFF
 
-> **Build like a band of six. Ship like one.**
-> Solo dev framework for Claude Code.
+RIFF is a provider-native stage runner for bounded repository changes, with native Codex and Claude Code adapters.
+It keeps role instructions provider-neutral and puts model, effort, permissions, and runtime rules in adapters.
 
-Lean, profile-driven coding agent framework for Claude Code. Clone, answer the onboarding questions (or take the default profile), build your own version.
-
-## Why this exists
-
-Most agent frameworks are a trap. You adopt 40KB agent definitions, pay a token tax on every call, and accumulate maintenance debt while Claude Code ships native features that replace half of what you installed. Then you are stuck rewriting your framework to keep up.
-
-RIFF is not a framework you adopt. It is a kit: a small universal core, modular pieces you can delete, and a `profile.yaml` that wires only what fits you. The 15 agents total ~60KB, between 1.4KB and 6KB each. Every piece is reviewable in under 10 minutes.
-
-When Claude Code ships a native feature that replaces one of your hooks or commands, you delete the piece. No framework-wide migration.
-
-## What you get
-
-- **Agents + mechanical gates**: planner, executor, security-reviewer, adversarial-reviewer (post-build, runs on Codex as a different model family), plan / architecture / roadmap / incident adversarial reviewers (pre-artifact passes), debugger, simplifier, improver, deep-auditor, plus mechanical scope-check via `scripts/scope-check.mjs`.
-- **15 slash commands**: framework (onboard, learn-stack, dashboard), project lifecycle (init, start, map, resync), daily loop (next, wave, status), off-loop (add-phase, quick, debug, improver, stress). Lifecycle actions like incident logging, quarterly review, scratch→production promotion, and re-audits are conversational triggers (no slash command), see [`commands/INDEX.md`](./commands/INDEX.md) § Conversational triggers.
-- **Claude Code hooks** in profile-selected buckets: A (universal discipline), B (security-adaptable), C (stack-specific). Your profile picks which ones wire.
-- **23 protocols**: EXECUTION (confidence gates, R1-R4 deviations, waves), MODEL (dispatch and budget resolution), QUALITY (post-build checks), browser verification, wave bundling, promotion, incident review, and related workflow contracts.
-- **Mechanical-quality gate** via [`fallow`](https://github.com/fallow-rs/fallow) on every TS/JS phase: dead code, duplication, complexity, and boundary violations on the diff. Sub-second, deterministic, no LLM. Auto-installed as a devDep at `/riff:start`.
-- **Browser-based verification** for TS/JS: opt-in smoke test gate (`smoke_test: true`) boots the dev server and loads changed routes in a headless browser; sandbox provider flows (`provider_mode: sandbox`) verify autonomously via the framework-native browser verification protocol (`references/BROWSER-VERIFICATION.md` — Lightpanda + chrome-devtools-mcp) instead of pausing for human OAuth or test-checkout; the `debugger` agent opens the failing route and attaches screenshots to `DEBUG.md` for frontend failures.
-- **Local web dashboard** (`/riff:dashboard`): kanban view of phases, plain-language pre/post explanations at the level your `profile.yaml` declares, generation metadata (models, durations, gates) per phase. Read-only — driving still happens in the terminal.
-- **Taste references** for architecture, backend, security, testing, plus stack files for Drizzle, Node ESM, React Router 7, Vitest, Zod. Add your own with `/riff:learn-stack`.
+The operational reference is [the RIFF manual](docs/RIFF-MANUAL.md).
 
 ## Install
 
-**1. In your terminal**, clone the repo and link the commands:
+Clone RIFF somewhere stable, then make the framework directory available on your `PATH`.
 
 ```bash
-git clone <this-repo-url> ~/your/path/riff
-cd ~/your/path/riff
+git clone <riff-repository-url> ~/DEV/frameworks/riff
+cd ~/DEV/frameworks/riff
 ./riff resync
+export PATH="$HOME/DEV/frameworks/riff:$PATH"
 ```
 
-`./riff resync` creates the `/riff:*` slash commands. You run it once: a fresh clone has none yet, so without it the commands will not show up in Claude Code. Clone wherever you like. The framework path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
+`riff resync` bootstraps RIFF's own runtime links. It is safe to run again after RIFF changes.
 
-**2. In Claude Code**, open that folder and run:
+After installation, the same operation is available as `$resync` in a project-local Codex setup, `$riff:resync` in the namespaced plugin, and `/riff:resync` in Claude Code.
 
-```
-/riff:onboard
-```
-
-This walks you through the profile questions (or writes the default profile) and writes `profile.yaml` at the framework root. Every agent reads it on startup.
-
-> Your `profile.yaml` is gitignored — it stays local, never gets committed when you contribute back. See [`profile.yaml.example`](./profile.yaml.example) for the schema with field comments if you'd rather edit by hand.
-
-## Quickstart in a project
+Install RIFF into an existing Git project:
 
 ```bash
-cd ~/my-project
-riff init
+cd /path/to/project
+/path/to/riff/riff init --no-onboard
 ```
 
-`riff init` symlinks this RIFF clone into the project as `.riff/`, then installs Claude Code runtime files (commands, agents, hooks, settings). Codex stays available as an opt-in executor through the configured skill/CLI (the default executor is Sonnet); it is not installed as a project harness. After installing files, init starts profile onboarding when the terminal is interactive. Use `--profile default`, `--profile custom`, or `--no-onboard` for scripted runs.
+`riff init` creates the project `.riff` symlink, planning directories, Claude runtime links, project-local Codex skills, and materialized Codex route adapters. It preserves unowned collisions unless `--force` is explicitly supplied.
 
-Or, from inside Claude Code in the project directory, run the wrapper:
+Choose the native model provider in the active RIFF profile:
 
-```
-/riff:init         # installs RIFF, picks scope (production/scratch), and asks
-                   # whether to keep the framework profile or customize one for this project
-```
-
-> **Restart Claude Code before continuing.** `/riff:init` installs new slash commands, agents, and hooks into the project. Claude Code only discovers them at session start, so the just-installed commands (`/riff:start`, `/riff:next`, etc.) will not appear in your current window. Close the Claude Code window and open a fresh one in the same project directory before running the next command.
-
-```
-/riff:start        # greenfield discovery (5 stages: problem, users, MVP, research, roadmap)
-                   # OR /riff:map for an existing codebase
-/riff:next         # the main loop: plan a phase, execute, review, open a PR
-/riff:dashboard    # open the local web dashboard (kanban + plain-language explanations)
+```yaml
+runtime:
+  provider: codex # or claude
 ```
 
-> Most projects keep the framework profile. The per-project override is for genuinely divergent setups (stricter client work, different artifact language, workshop demo). Resolution order and edge cases: [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
+Project `.planning/profile.yaml` takes precedence over the framework `profile.yaml`. RIFF resolves the provider once at stage start, records it, and never falls back automatically.
 
-Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let the configured executor (parallel Sonnet workers by default, Codex on opt-in) build them while you're away. Run `/riff:dashboard` to watch progress in a browser.
+## Five-minute quickstart
 
-## Key concepts
+1. Enter a Git project with a resolvable `HEAD`.
+2. Run `riff init --no-onboard` from that project.
+3. Restart the agent session if it needs to discover newly installed skills.
+4. Start or map the project, then inspect its roadmap.
 
-### profile.yaml: the personalization layer
+```text
+$start                       # greenfield discovery and roadmap
+$map                         # brownfield architecture and risks
+$status                      # authoritative progress and next action
+$phase                       # list, add, or update roadmap phases
+```
 
-One file at the framework root by default, optionally overridden per project at `<project>/.planning/profile.yaml`. Holds your user context, risk appetite, style, budget, notification channel. Every agent reads the resolved profile on startup and adapts. Resolution order: [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md).
+Use the `$riff:...` names when RIFF is installed as a namespaced Codex plugin.
+Claude Code exposes the same shared skills after resync and retains
+`/riff:start`, `/riff:map`, `/riff:status`, and `/riff:add-phase` compatibility
+commands.
 
-Fields (full schema in [`references/PROFILE-SCHEMA.md`](./references/PROFILE-SCHEMA.md)):
+For direct terminal management:
 
-- `user.*`: programming level, AI agents experience, domains, work mode, side activities, conversational vs artifact language
-- `risk.sensitive_task_preference`: `cautious` / `balanced` / `fast`
-- `style.*`: length, jargon policy, when to ask vs take initiative
-- `budget.default_quality`: `frugal` / `balanced` / `max`
-- `notifications.channel`: where unattended runs ping you
-- `metadata.pr_body`: `off` / `standard` / `full` for generated PR metadata detail
+```bash
+./.riff/riff status
+./.riff/riff phase list
+./.riff/riff phase add --title "Public rebrand foundation" \
+  --goal "Establish approved public brand tokens and assets"
+```
 
-Edit by hand anytime, or ask Claude conversationally to update specific fields (e.g. "set my notification channel to slack").
+To run one phase directly, give RIFF an explicit phase id and bounded request.
 
-### Default profile
+In a Codex project installation, invoke the project-local skill:
 
-0-question shortcut. Pick `default` during onboarding for a safe baseline (intermediate, generalist, standard length, first-mention jargon, balanced budget, no notifications), then tweak `profile.yaml` by hand. The custom path asks the full question set instead. The default profile is also the tier-3 fallback at the bottom of the resolution chain.
+```text
+$next --phase 28-public-rebrand-foundation --task "Apply the approved brand foundation within the named file boundaries."
+```
 
-### Budget resolution
+When RIFF is installed as a namespaced Codex plugin, invoke the same skill as `$riff:next`. From Claude Code, explicitly invoke the installed RIFF next skill or use the terminal form below.
 
-Four-level fallback chain for every decision (model choice, whether to run optional pipeline steps):
+All forms require explicit `--phase` and `--task` values. The provider-neutral terminal entry point is:
 
-1. Per-phase override in ROADMAP.yaml (`executor_model:`, `simplify:`, etc.)
-2. Per-project override in ROADMAP.yaml (`budget_quality:` top-level)
-3. Profile default in `profile.yaml` (`budget.default_quality`)
-4. Hardcoded default: `balanced`
+```bash
+./.riff/riff next \
+  --project-root "$(git rev-parse --show-toplevel)" \
+  --phase 28-public-rebrand-foundation \
+  --task "Apply the approved brand foundation within the named file boundaries."
+```
 
-Full spec: `protocols/MODEL.md` § Budget and model resolution.
+The runner creates plan, review, summary, scope, and state artifacts under `.planning/`. It completes only after every stage passes. Promotion remains a separate action requiring your confirmation.
 
-### Hook buckets
+To run the next ready roadmap frontier without routine pauses:
 
-- **A** (always wired): destructive-guard, boundary-check, typecheck-gate, test-gate
-- **B** (security-adaptable, driven by `risk.sensitive_task_preference`): route-auth-guard, idor-detector, input-validation-guard, todo-orphan-guard
-- **C** (stack/convention helpers): registry-reminder and migration-gate run from `security-scan.sh` when relevant files are staged; notify-human is manual.
+```bash
+./.riff/riff wave --autonomous
+```
 
-Details: `hooks/README.md` § Buckets.
+To continue through newly unlocked dependency frontiers until the roadmap is
+dry or a real stop condition is reached:
 
-### Agents read profile.yaml
+```bash
+./.riff/riff wave --autonomous --loop
+```
 
-Each agent has a `## Calibration` section that spells out which profile fields it uses and how. Example from `agents/planner.md`:
+Use `$wave` or `$riff:wave` in Codex, `/riff:wave --autonomous --loop` in
+Claude Code, and `riff wave --resume` after an interruption. Security-sensitive
+implementation remains autonomous; security hooks run once after product
+phases. Only explicit visual or functional verification, destructive work,
+promotion, a blocking failure, or an operator cap stops the loop.
 
-- `user.programming_level`, `user.domains`: detail and safety-awareness in plans
-- `risk.sensitive_task_preference`: whether every sensitive surface gets an explicit AC
-- `style.*`: PLAN.md density and whether to surface questions
-- `budget.default_quality`: Model Recommendation bias
+## What runs
 
-If `profile.yaml` is missing, agents fall back to the default profile.
+`$riff:next` performs this fixed sequence:
 
-## Commands
+1. Controller classification.
+2. Planner output and mechanical plan validation.
+3. Fresh plan review.
+4. Autonomous sequential worker waves.
+5. Mechanical smoke and scope gates.
+6. Fresh code review.
+7. Repeated mechanical gates and completed state persistence.
 
-All 15 slash commands listed in [`commands/INDEX.md`](./commands/INDEX.md), grouped by purpose:
+Normal waves have no retry. RIFF permits one bounded full-plan repair only after the first final smoke failure.
 
-- **Framework (global):** onboard, learn-stack, dashboard
-- **Setup (project lifecycle):** init, start, map, resync
-- **Core loop:** next, wave, status
-- **Off-loop:** add-phase, quick, debug, improver, stress
+## Providers
 
-Plus conversational triggers for rare lifecycle actions (incident logging, quarterly review, scratch→production promotion, re-audits, profile edits) — see INDEX.md § Conversational triggers.
+Codex and Claude Code are native model providers for the same stage contract. Shared role specifications stay identical; each provider adapter owns its models, efforts, tools, permissions, and invocation shape. The current Claude route still requires the Codex CLI as the mechanical sandbox helper for planned smoke commands. That helper does not dispatch Codex models when `runtime.provider` is `claude`.
 
-## Customize and extend
+Read [the manual](docs/RIFF-MANUAL.md) before relying on unattended execution. It documents the Darwin sandbox requirement, the linked-worktree install limitation, native stage restart boundaries, and safe autonomous-wave resume.
 
-Every file in this repo is meant to be edited.
+## Test a RIFF branch safely
 
-- **Agents:** rewrite any agent's markdown to match your process. The file IS the instruction.
-- **Commands:** change a command's steps, add new ones. Markdown with YAML frontmatter.
-- **Hooks:** delete hooks you do not use. Add new hooks and register them in the right `settings-*.json` template.
-- **Taste rules:** add project-specific taste files in `references/taste/`, or stack files via `/riff:learn-stack <stack>`.
-- **Protocols:** the 4 files in `protocols/` are the framework's contract. Edit carefully.
+Keep experimental RIFF work on a branch in this repository. A separate
+repository isn't required. Create a dedicated Git worktree for the test branch,
+point only pilot projects' `.riff` symlinks at that worktree, then run
+`./.riff/riff resync` inside each pilot project. Stable projects can keep their
+`.riff` links pointed at the main worktree. Rolling back means repointing the
+symlink to the stable worktree and running resync again.
 
-When Claude Code ships a native feature that overlaps one of your pieces, delete the piece. Prune quarterly via `DECAY.md`.
+## Validate RIFF itself
 
-## Philosophy
+```bash
+node scripts/artifact-check.mjs
+./riff doctor --ci
+```
 
-The creator of Claude Code runs on roughly 100 lines of CLAUDE.md, a handful of terminals, plan mode, and a small set of slash commands. That is the target. RIFF gives you scaffolding to reach it without reinventing the planner, security reviewer, or hook discipline from scratch.
-
-Inspect before adopting. Delete when redundant. Your framework is yours.
-
-## Docs
-
-- [`HOW-IT-WORKS.md`](./HOW-IT-WORKS.md): full mechanics, pipeline, agents, key concepts, model selection
-- [`CLAUDE.md`](./CLAUDE.md): rules, always loaded
-- [`commands/INDEX.md`](./commands/INDEX.md): command catalog
-- [`protocols/EXECUTION.md`](./protocols/EXECUTION.md): agent behavior (confidence gates, deviations, waves)
-- [`protocols/MODEL.md`](./protocols/MODEL.md): model dispatch and budget resolution
-- [`protocols/QUALITY.md`](./protocols/QUALITY.md): post-build quality checks
-- [`hooks/README.md`](./hooks/README.md): hook buckets and descriptions
-- [`dashboard/README.md`](./dashboard/README.md): local web dashboard (kanban, plain-language explanations, generation metadata)
-- [`DECAY.md`](./DECAY.md): pruning protocol
+See [HOW-IT-WORKS.md](HOW-IT-WORKS.md) for the concise architecture and [scripts/README.md](scripts/README.md) for script reference.

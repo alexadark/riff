@@ -1,0 +1,146 @@
+roles:
+  planner:
+    semantic_spec: agents/roles/planner.md
+    adapter: agents/planner.md
+    mode: planner
+    variants:
+      routine:
+        model: sonnet
+        effort: high
+        tools: [Read, Glob, Grep]
+      architecture:
+        model: opus
+        effort: xhigh
+        tools: [Read, Glob, Grep]
+  worker:
+    semantic_spec: agents/roles/worker.md
+    adapter: agents/worker.md
+    assignment: implement
+    variants:
+      inventory:
+        model: sonnet
+        effort: low
+        tools: [Read, Write, Edit, Glob, Grep]
+      repeatable:
+        model: sonnet
+        effort: high
+        tools: [Read, Write, Edit, Glob, Grep]
+      bounded:
+        model: sonnet
+        effort: high
+        tools: [Read, Write, Edit, Glob, Grep]
+  reviewer:
+    semantic_spec: agents/roles/reviewer.md
+    adapter: agents/reviewer.md
+    mode: code
+    variants:
+      routine:
+        model: sonnet
+        effort: high
+        tools: [Read, Glob, Grep]
+      critical:
+        model: opus
+        effort: xhigh
+        tools: [Read, Glob, Grep]
+      escalation:
+        model: opus
+        effort: max
+        tools: [Read, Glob, Grep]
+  debugger:
+    semantic_spec: agents/roles/debugger.md
+    adapter: agents/debugger.md
+    intensity: normal
+    variants:
+      fixed:
+        model: opus
+        effort: xhigh
+        tools: [Read, Glob, Grep]
+  security-reviewer:
+    semantic_spec: agents/roles/security-reviewer.md
+    adapter: agents/security-reviewer.md
+    mode: diff
+    variants:
+      fixed:
+        model: opus
+        effort: xhigh
+        tools: [Read, Glob, Grep]
+  red-teamer:
+    semantic_spec: agents/roles/red-teamer.md
+    adapter: agents/red-teamer.md
+    mode: static
+    variants:
+      fixed:
+        model: opus
+        effort: xhigh
+        tools: [Read, Glob, Grep]
+  load-tester:
+    semantic_spec: agents/roles/load-tester.md
+    adapter: agents/load-tester.md
+    mode: static
+    variants:
+      fixed:
+        model: sonnet
+        effort: high
+        tools: [Read, Glob, Grep]
+
+# Native $riff:next controller routes are kept separate from the legacy Claude
+# compatibility role map above. They share the same provider-neutral protocol.
+native_roles:
+  controller:
+    semantic_spec: protocols/RIFF-NEXT.md
+    variants:
+      routine:
+        model: sonnet
+        effort: medium
+        tools: [Read, Glob, Grep]
+      architecture:
+        model: opus
+        effort: xhigh
+        tools: [Read, Glob, Grep]
+
+aliases:
+  executor:
+    role: worker
+    semantic_spec: agents/roles/worker.md
+    adapter: agents/executor.md
+    assignment: implement
+  simplifier:
+    role: worker
+    semantic_spec: agents/roles/worker.md
+    adapter: agents/simplifier.md
+    assignment: simplify
+  debugger-max:
+    role: debugger
+    semantic_spec: agents/roles/debugger.md
+    adapter: agents/debugger-max.md
+    intensity: max
+  adversarial-reviewer:
+    role: reviewer
+    semantic_spec: agents/roles/reviewer.md
+    adapter: agents/adversarial-reviewer.md
+    mode: code
+  plan-adversarial-reviewer:
+    role: reviewer
+    semantic_spec: agents/roles/reviewer.md
+    adapter: agents/plan-adversarial-reviewer.md
+    mode: plan
+  architecture-adversarial-reviewer:
+    role: reviewer
+    semantic_spec: agents/roles/reviewer.md
+    adapter: agents/architecture-adversarial-reviewer.md
+    mode: architecture
+  roadmap-adversarial-reviewer:
+    role: reviewer
+    semantic_spec: agents/roles/reviewer.md
+    adapter: agents/roadmap-adversarial-reviewer.md
+    mode: roadmap
+  incident-adversarial-reviewer:
+    role: reviewer
+    semantic_spec: agents/roles/reviewer.md
+    adapter: agents/incident-adversarial-reviewer.md
+    mode: incident
+  deep-auditor:
+    role: reviewer
+    semantic_spec: agents/roles/reviewer.md
+    adapter: agents/deep-auditor.md
+    mode: milestone

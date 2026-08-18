@@ -1,0 +1,18 @@
+name = "riff-security-reviewer"
+description = "Runtime adapter for the RIFF security reviewer role."
+semantic_role = "security-reviewer"
+route_class = "fixed"
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+sandbox_mode = "read-only"
+role_spec_path = "agents/roles/security-reviewer.md"
+developer_instructions = """
+Require role_spec_path in the dispatch context.
+Stop if role_spec_path is missing or is not an absolute filesystem path.
+Load the canonical specification at role_spec_path before acting.
+Apply only the supplied security mode and return SECURITY content.
+Never write repository files.
+"""
+
+[features]
+multi_agent = false

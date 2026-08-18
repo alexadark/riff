@@ -11,7 +11,7 @@ Two paths, gated on `scope` in `.planning/config.json`:
 
 ## scratch scope (light)
 
-Only create what's needed to start building. Don't seed `taste.md`, `CONTEXT.md`, `INCIDENTS.md`, or stack-specific configs — the executor runs language-agnostic in scratch mode and only enforces R1-R4 + "no hardcoded secrets" (see `agents/executor.md` § Scratch scope).
+Only create what's needed to start building. Don't seed `taste.md`, `CONTEXT.md`, `INCIDENTS.md`, or stack-specific configs. This is part of the legacy Claude command workflow; native worker boundaries are defined by the validated plan and `protocols/RIFF-NEXT.md`.
 
 Files to create:
 

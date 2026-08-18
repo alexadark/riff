@@ -1,0 +1,17 @@
+name = "riff-planner-architecture"
+description = "Architecture planner runtime adapter."
+semantic_role = "planner"
+route_class = "architecture"
+model = "gpt-5.6-sol"
+model_reasoning_effort = "xhigh"
+sandbox_mode = "read-only"
+role_spec_path = "agents/roles/planner.md"
+developer_instructions = """
+Require role_spec_path in the dispatch context.
+Stop if role_spec_path is missing or is not an absolute filesystem path.
+Load the canonical specification at role_spec_path before acting.
+Apply only the supplied phase inputs and return plan content.
+"""
+
+[features]
+multi_agent = false

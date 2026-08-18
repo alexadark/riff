@@ -68,7 +68,7 @@
      Min 2 entries for any phase that changes code.
      Pure docs-only phase: 1 entry confirming diff is docs-only.
      The executor runs every line before writing SUMMARY.md.
-     See agents/planner.md § Smoke section for the full contract. -->
+     See agents/roles/planner.md § Smoke contract. -->
 
 - `<command>` → <expected outcome>
 - `<command>` → <expected outcome>

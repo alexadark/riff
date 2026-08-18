@@ -64,7 +64,7 @@ From here until REPORT.md, `AskUserQuestion` is forbidden.
 For each `pending` project, in plan order — never more than one at a time:
 
 1. **Kill switches**: `node .riff/scripts/riff-conductor.mjs stop-check --project <path>` — exit 3 → `state finish --run <run-id> --status stopped --reason kill-switch`, jump to Step 4 with what completed.
-2. **Usage guard**: mechanics of `commands/wave.md` § Usage guard (`ccusage` ≥95% on the 5-hour block or the weekly window → do NOT launch; schedule a wakeup carrying the run-id, resume at Step 0). Quota pauses the sweep, never kills it.
+2. **Usage guard**: this legacy conductor checks its configured usage threshold before launch. Quota pauses the sweep and never kills it.
 3. **Mark + launch**:
 
    ```bash

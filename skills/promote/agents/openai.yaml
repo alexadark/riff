@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Promote"
+  short_description: "Run a RIFF promotion workflow"
+  default_prompt: "Use $riff:promote to run the RIFF promotion workflow."
+policy:
+  allow_implicit_invocation: false

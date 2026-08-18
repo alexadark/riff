@@ -1,566 +1,146 @@
-```
-██████╗ ██╗███████╗███████╗
-██╔══██╗██║██╔════╝██╔════╝
-██████╔╝██║█████╗  █████╗
-██╔══██╗██║██╔══╝  ██╔══╝
-██║  ██║██║██║     ██║
-╚═╝  ╚═╝╚═╝╚═╝     ╚═╝
+# How RIFF works
 
-Solo dev framework for Claude Code
-Build like a band of six. Ship like one.
-```
+RIFF is a deterministic stage runner. It converts one explicit phase request into validated artifacts and a completed state. It does not infer a phase, silently resume a prior run, open a pull request, merge, or promote a project.
 
----
+The detailed operator workflow is in [docs/RIFF-MANUAL.md](docs/RIFF-MANUAL.md).
 
-## What RIFF is
+## Architecture
 
-RIFF turns "I want to build X" into a repeatable loop: **plan, build, verify, commit**, one phase at a time. Each phase runs in a fresh Claude Code context with full state on disk, so you can stay in the loop and correct as you go, or leave it running unattended.
-
-RIFF works on any project, new or existing. It ships **15 specialized agents**, **15 slash commands**, **18 hooks** in 3 buckets, a local web dashboard, and a small `profile.yaml` that tunes everything to you.
-
-**Who it's for:** solo developers using Claude Code who want structure, quality, and the ability to walk away from the keyboard without the project falling apart.
-
----
-
-## Table of contents
-
-- [Install](#install)
-- [Quick start](#quick-start)
-- [The two paths: greenfield vs brownfield](#the-two-paths-greenfield-vs-brownfield)
-- [The 15 commands](#the-14-commands)
-- [The /riff:next pipeline, step by step](#the-riffnext-pipeline-step-by-step)
-- [The 15 agents](#the-13-agents)
-- [Wave parallelization](#wave-parallelization)
-- [Profile and budget](#profile-and-budget)
-- [Hooks: the 3 buckets](#hooks-the-3-buckets)
-- [Unattended runs: /riff:wave](#unattended-runs-riffwave)
-- [Dashboard](#dashboard)
-- [Debug and improver](#debug-and-improver)
-- [File structure](#file-structure)
-- [Model selection](#model-selection)
-- [Philosophy](#philosophy)
-
----
-
-## Install
-
-RIFF installs into your project via a symlink to your local framework repo. One source of truth, every project stays in sync.
-
-```bash
-git clone <riff-repo-url> ~/your/path/riff
-cd ~/your/path/riff
+```text
+Shared role specification
+          |
+          +--> Codex adapter, model, effort, sandbox, permissions
+          |
+          +--> Claude adapter, model, effort, tools, permissions
 ```
 
-Open Claude Code in the framework directory and run:
+The shared specification states the business procedure. Runtime adapters state provider details. This keeps model names and sandbox policy out of reusable role instructions.
 
-```
-/riff:onboard
-```
+`agents/openai.yaml` maps semantic roles to Codex adapter variants. `agents/claude.yaml` maps the same roles to Claude native variants and retains compatibility aliases. `scripts/artifact-check.mjs` validates both mappings.
 
-This walks you through 15 questions (or writes the default profile) and writes `profile.yaml` at the framework root. The path is registered at `~/.config/riff/config.yaml` on first onboard, so other RIFF commands locate the framework without any hardcoded location.
+## Seven roles
 
-Then, in any project directory:
+| Role | Responsibility |
+| --- | --- |
+| Planner | Produces a bounded plan, task ownership, waves, and smoke commands. |
+| Worker | Implements one approved assignment within its owned paths. |
+| Reviewer | Produces fresh, independent plan, code, architecture, roadmap, incident, or milestone findings. |
+| Debugger | Diagnoses a failure and returns a bounded worker assignment. |
+| Security reviewer | Reviews security posture without modifying the repository. |
+| Red teamer | Produces bounded non-production attack proofs. |
+| Load tester | Produces static or approved non-production scale evidence. |
 
-```bash
-cd ~/my-project
-riff init
-```
+`simplify` is a worker assignment. `improve` is a skill. `scope-checker` is mechanical code, not an agent. Historical Claude aliases remain compatibility adapters, not additional semantic roles.
 
-Or from inside Claude Code in the project:
+## Provider selection
 
-```
-/riff:init
-```
-
-`riff init` does the following:
-
-1. **Links the framework** — `.riff/` becomes a symlink to your RIFF clone.
-2. **Creates symlinks** from `.claude/commands/riff/` and `.claude/agents/riff/` to `.riff/`.
-3. **Creates local files** that are project-specific (`.planning/`, scope config).
-4. **Installs hooks** — git hooks (security scan, commit message) + Claude Code hooks (`settings.json`).
-5. **Adds `.riff/` to `.gitignore`** (the symlink is local, not portable).
-
-### How symlinks work
-
-```
-~/your/path/riff/                            <-- your local repo (single source of truth)
-        ^
-        |
-.riff/ -> symlink                            <-- project points to the repo
-        |
-        v
-.claude/commands/riff/next.md                <-- symlink to ../../../.riff/commands/next.md
-                                                  which resolves to the real file in your repo
-```
-
-When you type `/riff:next`, Claude Code reads `.claude/commands/riff/next.md`, follows the symlink chain, and executes the real file from your repo. Update the repo once, every project sees the change instantly.
-
-> **Restart Claude Code after `/riff:init`.** The just-installed commands (`/riff:start`, `/riff:next`, etc.) will not appear in the current window. Close and reopen Claude Code in the project before continuing.
-
----
-
-## Quick start
-
-After `/riff:init`:
-
-```
-/riff:start        # greenfield discovery (5 stages: problem, users, MVP, research, roadmap)
-                   # OR /riff:map for an existing codebase
-/riff:next         # the main loop: plan a phase, execute, review, open a PR
-/riff:dashboard    # open the local web dashboard (kanban + plain-language explanations)
-```
-
-Run `/riff:status` anytime to see where you are. Run `/riff:wave` to bundle N parallel-eligible phases and let the configured executor (parallel Sonnet workers by default, Codex on opt-in) build them while you're away.
-
----
-
-## The two paths: greenfield vs brownfield
-
-### Greenfield: `/riff:start`
-
-For a brand-new project. 5 stages of discovery, each gated:
-
-1. **Problem definition** — what are we building, for whom, why now. Includes scope choice (`scratch` vs `production`).
-2. **System architecture** — high-level design, stack, key risks. Adversarial review gate (Codex CLI pass).
-3. **MVP scope** — what ships in v1 vs later.
-4. **Research** — competitive landscape, prior art, tooling.
-5. **Roadmap** — `ROADMAP.yaml` with ordered phases. Adversarial review gate.
-
-Outputs: `PROJECT.md`, `ROADMAP.yaml`, `STATE.md`, `.planning/config.json` (scope), plus `taste.md`, `INCIDENTS.md`, `CONTEXT.md` in production scope.
-
-### Brownfield: `/riff:map`
-
-For an existing codebase. RIFF reads the code, infers the stack, and seeds a roadmap of work it can see (bugs, missing tests, security gaps, refactors). Outputs `PROJECT.md`, `taste.md`, and a seeded `ROADMAP.yaml`.
-
-### Scope: scratch vs production
-
-Set at Stage 1 of `/riff:start` (or at `/riff:init` Step 3b):
-
-- **`production`** — others will use it, deployed, has auth/payments/PII, or is destined to. Full RIFF discipline (security review on every phase, R3 architecture gates, all hooks wired).
-- **`scratch`** — personal/local script, no auth, no public exposure. Skips adversarial review, skips security review, only the "no hardcoded secrets" rule applies.
-
-When a scratch project gets serious, ask Claude to "promote to production". RIFF runs the skipped discovery stages and flips the scope. When the app is deployed, say "set up monitoring" to wire error tracking, uptime checks, and scheduled smoke tests via `protocols/POST-DEPLOY.md`.
-
----
-
-## The 15 commands
-
-All grouped in [`commands/INDEX.md`](./commands/INDEX.md). Summary:
-
-### Framework (global)
-
-| Command            | When to run                                                                                              |
-| ------------------ | -------------------------------------------------------------------------------------------------------- |
-| `/riff:onboard`    | First time setting up RIFF, or to override the profile for one specific project.                         |
-| `/riff:learn-stack`| Teach RIFF a new stack (Rust, Go, FastAPI, etc.). Writes a taste rule file.                              |
-| `/riff:dashboard`  | Open the local web dashboard (kanban view, plain-language explanations, generation metadata).             |
-
-### Setup (project lifecycle)
-
-| Command          | When to run                                                                                              |
-| ---------------- | -------------------------------------------------------------------------------------------------------- |
-| `/riff:init`     | Install RIFF into the current project (symlinks, hooks, scope, profile).                                  |
-| `/riff:resync`   | Re-link symlinks after the framework adds or removes files. Idempotent.                                  |
-| `/riff:start`    | Greenfield 5-stage discovery (problem → users → MVP → research → roadmap).                                |
-| `/riff:map`      | Brownfield: point at an existing codebase to onboard RIFF onto it.                                       |
-
-### Core loop (daily)
-
-| Command          | When to run                                                                                              |
-| ---------------- | -------------------------------------------------------------------------------------------------------- |
-| `/riff:next`     | The main command. Plans, executes, reviews, opens PR for the next phase.                                 |
-| `/riff:wave`     | Bundle N parallel-eligible phases (tagged `mode: AFK`) and delegate execution to parallel Sonnet workers (default) or Codex (`--executor codex`). Opus plans, the executor builds, browser-check proves it works. |
-| `/riff:status`   | "Where am I?" — current phase, next phase, blocked phases, pending expertise patches.                    |
-
-### Off-loop
-
-| Command                         | When to run                                                                                       |
-| ------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `/riff:add-phase [name] [goal]` | Append a new phase to `ROADMAP.yaml`.                                                              |
-| `/riff:quick <task>`            | One-off task that doesn't deserve a phase (config tweak, copy fix, dependency bump).               |
-| `/riff:debug <bug> [--tier normal\|high\|max]` | Manual debug invocation outside the auto-debug pipeline. `--tier` forces the dispatch tier (max = vicious bugs: flaky, races, repeated failed fixes). |
-| `/riff:improver [N\|--all]`     | Batch the improver across the last N phases to harvest learnings into `.planning/expertise/`.      |
-| `/riff:stress [--target <url>]` | Adversarial + load test the whole app. Static always; with a local/staging target, parallel red-team agents + a real load ramp. Local/staging only. |
-
-### Conversational triggers (no slash command)
-
-Rare lifecycle actions live as protocol files. Trigger them by saying a phrase:
-
-- "log incident" → append entry to `INCIDENTS.md`
-- "incident review" → quarterly review, runs `incident-adversarial-reviewer`
-- "promote to production" → flip scope, run skipped discovery stages, set up post-deploy monitoring (Sentry, health endpoint, smoke test)
-- "re-audit phase N" → re-run scope-check + adversarial + security against a phase
-- "deep audit" / "milestone review" → `deep-auditor` runs across phases at a milestone boundary
-- "resync riff" → run `bash .riff/riff-resync.sh`
-- "set my notification channel to X" → edit `profile.yaml` directly
-
-Full mapping in `CLAUDE.md` § Conversational triggers.
-
----
-
-## The /riff:next pipeline, step by step
-
-`/riff:next` is the heart of RIFF. One invocation = one phase = one PR. The pipeline runs as a sequence of inline steps and sub-agent calls. Full spec in [`commands/next.md`](./commands/next.md).
-
-```
-Step 0   Sync main, reconcile stale bookkeeping
-Step 1   Read state (STATE.md, ROADMAP.yaml)
-Step 2   Pick next phase
-Step 2b  Create phase branch (riff/phase-N-slug)
-Step 2c  Ensure PROMPTS.md exists
-Step 3   Confidence gate (planner self-rates)
-Step 4   Plan ────────────────────────────── planner (inline)
-Step 4b  Plan adversarial review ─────────── plan-adversarial-reviewer (gated)
-Step 4c  Pre-exec explanation ───────────── haiku, for dashboard (fail-silent)
-Step 5   Execute ────────────────────────── executor (sub-agent)
-Step 5b  Simplify ───────────────────────── simplifier (gated)
-Step 5c  Scope check ────────────────────── scope-check.mjs (mechanical)
-Step 5d  Fallow audit ───────────────────── mechanical, no LLM (gated)
-Step 5e  Smoke test (browser) ───────────── headless browser (gated)
-Step 5f  Post-mortem explanation ───────── haiku, for dashboard (fail-silent)
-                       Steps 6 + 7 RUN IN PARALLEL
-Step 6   Adversarial review ──────────────── adversarial-reviewer (Codex CLI)
-Step 7   Security review ──────────────────── security-reviewer (Sonnet)
-                       (skipped both if scope=scratch)
-Step 7b  Improver (background, gated)
-Step 8   Create PR
-Step 9   Learn (append to taste.md, expertise/)
-Step 10  Report + usage tracking
-```
-
-### Confidence gate
-
-At Step 3, the planner self-rates its confidence in the plan from 1 to 10 against the AC. If confidence is below the threshold set in `profile.yaml`, the pipeline pauses and asks you to clarify. The threshold defaults to 7. Higher thresholds = more questions, more safety; lower = more initiative.
-
-### R1 to R4 deviations
-
-When the executor hits something outside the plan, it picks one of four behaviors:
-
-- **R1** — minor bug: fix it, log the deviation in SUMMARY.md.
-- **R2** — missing piece that's obvious: add it, log in SUMMARY.md.
-- **R3** — architecture change: STOP, ask the user.
-- **R4** — out of scope: seed a new phase, don't build it now.
-
-R1/R2 keep things moving without bothering you. R3/R4 protect you from drift.
-
-### Atomic commits
-
-One commit per task in the plan. Conventional commit prefixes (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`). No `git add .`. Pre-commit hook runs `security-scan.sh`, which blocks obvious secrets and `.env` files and warns on common quality issues.
-
-### Auto-debug
-
-If any step fails (executor crash, scope-check FAIL, adversarial FAIL, security BLOCKED, smoke test fail), the pipeline routes to the `debugger` agent. The debugger reads the failing artifact, opens the failing route in a browser if relevant, attaches screenshots, writes `.planning/phases/N-slug/DEBUG.md`, and proposes a fix. On RESOLVED, the failed step re-runs.
-
-Limit: 2 debug attempts per phase. After that, the pipeline pauses for you.
-
-### Production vs scratch
-
-If `scope: scratch`, Steps 6 (adversarial) and 7 (security) are skipped entirely. The pipeline goes straight from Step 5f to Step 8 (PR). This keeps personal scripts moving fast without spurious gates.
-
----
-
-## Agents and Mechanical Gates
-
-Each agent lives as a single markdown file in `agents/`. The file IS the instruction, fully editable.
-
-### Planner (`agents/planner.md`)
-
-Builds `PLAN.md` from a phase goal. Goal-backward planning: start from the AC (acceptance criteria), decompose into tasks, group tasks into waves (parallel batches), pick a model per task. Reads `profile.yaml` for length, jargon policy, risk preference. Reads `taste.md` for project conventions. Default model: Opus. Configurable per phase via `planner_model:` in `ROADMAP.yaml`.
-
-### Executor (`agents/executor.md`)
-
-Implements `PLAN.md` tasks one by one, atomic commits. Reads the wave grouping and parallelizes within a wave. Applies the R1-R4 deviation protocol. Default runtime: Sonnet sub-agent. Codex is the opt-in volume path (`executor_model: codex`, requires `codex` in `executors.available`); `executor_model: opus` deepens the Claude path for novel architecture.
-
-### Simplifier (`agents/simplifier.md`)
-
-Structural smell pass on the diff. Looks for premature abstraction, misnaming, dead branches, copy-pasted code that should be a function. Gated by budget. Default model: Haiku.
-
-### Scope Check (`scripts/scope-check.mjs`)
-
-Diffs `PLAN.md` vs `SUMMARY.md`. Flags tasks that were silently dropped and smoke commands that were not reported. Runs inline with no LLM. Source of truth: `protocols/SCOPE-CHECK.md`.
-
-### Adversarial-reviewer (`agents/adversarial-reviewer.md`)
-
-Hunts logic bugs, race conditions, edge cases, missing error handling, off-by-one, incorrect assumptions. Runs on the **Codex CLI** as a different model family (catches Claude's blind spots). If the Codex CLI is unavailable, falls back to Opus with the adversarial prompt. Writes `REVIEW.md`. PASS or FAIL verdict.
-
-### Plan-adversarial-reviewer (`agents/plan-adversarial-reviewer.md`)
-
-Pre-execution pass on `PLAN.md`. Challenges optimistic plans, missing edge cases in AC, ambiguous task boundaries. Gated (Step 4b). Codex CLI.
-
-### Architecture-adversarial-reviewer (`agents/architecture-adversarial-reviewer.md`)
-
-Invoked at `/riff:start` Stage 2.5. Challenges the System Architecture before scope and roadmap lock.
-
-### Roadmap-adversarial-reviewer (`agents/roadmap-adversarial-reviewer.md`)
-
-Invoked at `/riff:start` Stage 4.5. Challenges `ROADMAP.yaml` before bootstrap (ordering, dependencies, phase granularity).
-
-### Incident-adversarial-reviewer (`agents/incident-adversarial-reviewer.md`)
-
-Invoked by the quarterly incident review (`protocols/INCIDENT.md` § Part 2). Challenges the synthesis draft before it's committed.
-
-### Security-reviewer (`agents/security-reviewer.md`)
-
-OWASP top-10 scan on every production phase: auth, input validation, injection, IDOR, secrets, error handling. Reads `SUMMARY.md` and `git diff main...HEAD`. Writes `SECURITY.md` with verdict `PASS`, `PASS-WITH-WARNINGS`, or `BLOCKED`. CRITICAL/HIGH findings auto-trigger debugger. Default model: Sonnet, deepened via `security_model: opus` per `protocols/MODEL.md`.
-
-### Debugger (`agents/debugger.md`)
-
-Auto-triggered on FAIL across the pipeline. Reads the failing artifact, opens the failing route in a headless browser (for frontend failures), takes a screenshot, writes `DEBUG.md` with root cause and fix. Dispatched at one of three tiers keyed to viciousness, not severity: `normal` (reasoning model, effort high — routine failures, even CRITICAL ones with clear scope), `high` (Fable, high — multi-layer bugs, 3+ issue adversarial fails), `max` (Fable, max effort via the `debugger-max` variant — flaky, can't-reproduce, races, 2+ failed fix attempts). Resolution: `/riff:debug --tier` flag → auto-mapping → `debugger.default_tier`. It diagnoses and verifies at its tier but delegates each mechanical fix to a `debugger.delegation.mechanical_worker` sub-agent (default Sonnet: edit, typecheck, biome, tests, atomic commit). `debug_model: sonnet` stays as the explicit cost override.
-
-### Improver (`agents/improver.md`)
-
-Harvests learnings from recent phases into `.planning/expertise/.pending/`. Patches get reviewed and either merged into `taste.md` / stack files, or deferred, or rejected. Run via `/riff:improver` or auto-triggered at Step 7b when a phase meets the improver heuristic.
-
-### Deep-auditor (`agents/deep-auditor.md`)
-
-Cross-phase audit at milestone boundaries (phases tagged `milestone: <name>` in `ROADMAP.yaml`). Reads all phases in the milestone, identifies systemic issues, contradictions, decay. Triggered conversationally ("deep audit", "milestone review") or automatically at `/riff:next` Step 10 when the just-completed phase has a `milestone:` tag.
-
-### Red-teamer (`agents/red-teamer.md`)
-
-Active attacker for `/riff:stress`. Pinned to one attack class (auth, injection, IDOR, rate-limit/DoS, or config/exposure), spawned in parallel one per class. Fires real requests at an approved local/staging target and confirms exploitability by the response, not by reading code. Never runs against production. Default model: Sonnet, `effort: high`.
-
-### Load-tester (`agents/load-tester.md`)
-
-Scalability tester for `/riff:stress`. Static mode finds bottlenecks by code review (N+1, unbounded queries, missing indexes, non-horizontal state). Active mode runs a real load ramp via `stress-load.mjs` (autocannon), captures p95/p99, throughput, error rate, and reports the breaking point. Default model: Sonnet, `effort: medium`.
-
----
-
-## Wave parallelization
-
-Inside a phase, the planner groups independent tasks into **waves**. Tasks in the same wave have no dependencies on each other and can be executed in parallel by the executor.
-
-Example PLAN.md:
+The first active profile in the normal resolution chain selects the provider:
 
 ```yaml
-wave 1:
-  - task 1: add User schema to schema.ts
-  - task 2: add Product schema to schema.ts   # SAME FILE as task 1, NOT parallel-safe
-wave 2:
-  - task 3: add users.test.ts                  # depends on wave 1
-  - task 4: add products.test.ts               # depends on wave 1
+runtime:
+  provider: codex # or claude
 ```
 
-The planner's job is to detect cases like task 1+2 above (same file = serialize) and split them into separate waves. The executor trusts the wave grouping.
+The project override wins over the framework profile. Missing selection defaults to Codex; invalid selection fails before dispatch. `--provider` is an explicit one-run override. The selection is recorded and cannot change during a stage.
 
----
+## Runtime routing
 
-## Profile and budget
+`$riff:next` chooses only declared runtime classes:
 
-### profile.yaml
+| Need | Route |
+| --- | --- |
+| Routine control, planning, or review | Sol, Medium |
+| Architecture confirmation, architecture planning, or critical review | Sol, XHigh |
+| Repeatable execution | Luna, XHigh, Fast |
+| Bounded multi-file execution | Terra, High |
+| Mechanical inventory for future callers | Luna, Low, Fast |
+| Exceptional reviewer escalation after a recorded XHigh failure | Sol, Max |
 
-One file at the framework root by default, optionally overridden per project at `<project>/.planning/profile.yaml`. Resolution order: project override → framework default → default profile (`templates/profile.default.yaml`).
+Every Luna adapter uses the Fast service tier while preserving its declared effort. Fast reduces latency and increases plan usage. The mutation-only next slice never selects inventory or escalation routes.
 
-Fields (full schema in [`references/PROFILE-SCHEMA.md`](./references/PROFILE-SCHEMA.md)):
+Claude maps the same route classes to explicit Sonnet or Opus adapters. Routine work uses Sonnet; architecture, critical review, and specialist judgment use Opus. Claude workers have no Bash or nested-agent tool. Planned smokes remain runner-owned mechanical commands.
 
-- `user.*` — programming level, AI agents experience, domains, work mode, side activities, conversational vs artifact vs narrative language
-- `risk.sensitive_task_preference` — `cautious` / `balanced` / `fast`
-- `style.*` — length, jargon policy, when to ask vs take initiative, explanation level
-- `budget.default_quality` — `frugal` / `balanced` / `max`
-- `notifications.channel` — `none` / `telegram` / `email`, where AFK mode pings you
-- `git.merge_strategy` — `github_button` / `local_no_ff`
-- `dashboard.language` — language for plain-language explanations
+## One stage
 
-Edit by hand anytime, or ask Claude conversationally to update specific fields.
+The native sequence is:
 
-### Default profile
-
-`default` is the 0-question shortcut during onboarding: a safe baseline (intermediate, generalist, standard length, first-mention jargon, balanced budget, no notifications). The `custom` path asks the full question set instead. The same map is the tier-3 fallback at the bottom of the resolution chain, shipped as `templates/profile.default.yaml`.
-
-### Budget resolution
-
-Four-level fallback chain for every decision (model choice, whether to run optional pipeline steps):
-
-1. Per-phase override in `ROADMAP.yaml` (`executor_model:`, `simplify:`, etc.)
-2. Per-project override in `ROADMAP.yaml` (`budget_quality:` top-level)
-3. Profile default in `profile.yaml` (`budget.default_quality`)
-4. Hardcoded default: `balanced`
-
-Full spec: `protocols/MODEL.md` § Budget and model resolution.
-
----
-
-## Hooks: the 3 buckets
-
-Hooks are grouped into 3 buckets. Your profile picks which ones wire.
-
-### Bucket A, always wired (universal discipline)
-
-- `destructive-guard.sh` — block `rm -rf`, force-push to main, hard reset of upstream branches.
-- `boundary-check.sh` — block cross-boundary imports (e.g., backend imports from frontend).
-- `typecheck-gate.sh` — block commits that break `tsc --noEmit`.
-- `test-gate.sh` — block commits that break the test suite.
-
-### Bucket B, security-adaptable (driven by `risk.sensitive_task_preference`)
-
-- `route-auth-guard.sh` — protect routes that touch auth-sensitive surfaces.
-- `idor-detector.sh` — flag queries that don't scope to the authenticated user.
-- `input-validation-guard.sh` — flag handlers that accept input without validation.
-- `todo-orphan-guard.sh` — block `// TODO` without a seeded phase.
-
-Wired all-on for `cautious`, partial for `balanced`, off for `fast`.
-
-### Bucket C, stack/convention helpers
-
-- `registry-reminder.sh` — remind to update the registry when a new module is added.
-- `migration-gate.sh` — block commits that change a migration without running it.
-- `notify-human.sh` — ping the user via the configured `notifications.channel`.
-
-`registry-reminder.sh` and `migration-gate.sh` are invoked by `security-scan.sh` when matching files are staged. `notify-human.sh` is a manual helper for agents, not an init-selected hook.
-
-### Shared infrastructure
-
-- `commit-msg.sh` — no-op placeholder; commit wording is a RIFF convention, not a hook-enforced format.
-- `security-scan.sh` — staged-file secret scan, `.env` blocking, quality warnings, and project tests when dependencies are installed.
-- `log-warning.sh` — central warning logger.
-- `orphan-file-check.sh` — flag files created but not imported.
-- `test.sh` — test runner helper.
-
-Details: `hooks/README.md` § Buckets.
-
----
-
-## Unattended runs: /riff:wave
-
-`/riff:wave` bundles N parallel-eligible phases and delegates execution to the configured executor. Opus plans, the executor builds, and opt-in smoke/browser checks prove it works. Default executor: parallel Sonnet workers in the same session (`wave.executor: sonnet`); Codex is the opt-in volume path (`--executor codex` or `wave.executor: codex`).
-
-Eligibility: phase has `status: todo`, `mode: AFK`, `provider_mode != production`, all upstream `depends_on` are `done`.
-
-Routes (decided per Step 4 of `commands/wave.md`):
-
-- **Sonnet workers (default)** — one sub-agent per phase, parallel or in dependency order, same RESULT.md contract. No Codex required, nothing leaves the session.
-- **codex-exec in-session** (Codex opt-in default) — the session runs `codex exec` headless in the background and auto-reconciles on exit.
-- **In-process Codex** — ≤1 phase under 30 min: spawned via the `codex:codex-rescue` skill, blocks Claude until done.
-- **Paste / out-of-process** (Codex legacy fallback) — Claude prints the exact `codex --dangerously-bypass-approvals-and-sandbox` command, the user runs it in a separate Codex terminal. Come back with `/riff:wave --resume W{N}`.
-
-It stops on: FAIL on any phase, security BLOCKED, smoke/browser-check FAIL after fix-retest cycles, or scope drift. Phases marked `mode: HITL` never enter a wave.
-
-### HITL vs AFK phases
-
-- **AFK** (default) — autonomous. Code-only auth/payment/security work qualifies (security-reviewer + adversarial-reviewer are the safety net).
-- **HITL** — requires you present. Reserved for: real OAuth/SSO against a prod IdP, real payment checkout, MFA / hardware token, DNS / prod cutover, irreversible migrations.
-- **Sandbox HITL** — provider flows in sandbox mode (`provider_mode: sandbox`). `/riff:next` does NOT pause — routed through the browser verification protocol (`references/BROWSER-VERIFICATION.md`, Lightpanda + chrome-devtools-mcp) instead of pausing for human OAuth or test-checkout.
-
----
-
-## Dashboard
-
-`/riff:dashboard` boots a local web server (Bun, port 4000) with:
-
-- Kanban view of all phases (todo, in-progress, done, blocked, skipped).
-- Plain-language pre-execution and post-mortem explanations, generated at the level your `profile.yaml` declares (technical, simple, eli5).
-- Generation metadata per phase: real duration from git timestamps, file diff stats, gate outcomes (Step 4b plan-adversarial, 5b simplifier, 5d fallow, 6 adversarial, 7 security), Codex CLI usage (model / effort / outcome / duration), agents observed in commit trailers.
-
-Read-only. Driving still happens in the terminal.
-
-Details: `dashboard/README.md`.
-
----
-
-## Debug and improver
-
-### Auto-debug
-
-Runs automatically on FAIL across the pipeline. Reads the failing artifact, opens the failing route in a headless browser when relevant (Lightpanda + chrome-devtools-mcp), attaches screenshots to `DEBUG.md`, diagnoses at its dispatch tier (normal/high/max — see the Debugger agent section), and has Sonnet workers apply the fixes. On RESOLVED, the failed step re-runs.
-
-Limit: 2 attempts per phase. After that, the pipeline pauses for you. Re-run with `/riff:debug <bug>` for a manual third attempt.
-
-### Manual debug
-
-`/riff:debug <bug>` for bugs that surfaced post-merge or outside `/riff:next`. Writes `.planning/debug/YYYY-MM-DD-<slug>.md`. Force a tier with `--tier normal|high|max` (e.g. `--tier max` on a flake that already survived two fixes).
-
-### Improver
-
-Two paths:
-
-- **Auto** — at Step 7b of `/riff:next`, gated by the improver heuristic (recurring corrections, novel pattern, surprising deviation). Writes a patch proposal to `.planning/expertise/.pending/<agent>-<phase>.md`.
-- **Manual** — `/riff:improver N` (default 3) or `/riff:improver --all` to backfill across the recent phase history.
-
-Pending expertise patches are reviewed at the end of the next `/riff:next` Step 10. Three options: review now (apply or reject), defer to next phase, reject all.
-
----
-
-## File structure
-
-```
-~/your/path/riff/                # framework root
-├── README.md                    # 1-page pitch + install
-├── HOW-IT-WORKS.md              # this file
-├── CLAUDE.md                    # rules, always loaded
-├── DECAY.md                     # pruning protocol
-├── profile.yaml                 # YOUR config (gitignored)
-├── profile.yaml.example         # schema with field comments
-├── riff                         # node CLI shim (riff init ...)
-├── agents/                      # 15 agents (single markdown each)
-├── commands/                    # 15 slash commands + INDEX.md
-├── hooks/                       # 18 hooks + README.md
-├── protocols/                   # ~20 workflow contracts: EXECUTION, MODEL, QUALITY, INCIDENT, PROMOTE, etc.
-├── references/                  # ~10 references: PROFILE-RESOLUTION, BROWSER-VERIFICATION, taste/, etc.
-├── templates/                   # PROJECT.md, ROADMAP.yaml, settings JSONs, banner.sh, etc.
-├── scripts/                     # riff-init.mjs, riff-codex.mjs, gates-update.mjs, etc.
-└── dashboard/                   # local web dashboard (Bun + React)
+```text
+controller
+  -> planner and plan validation
+  -> fresh plan reviewer
+  -> sequential autonomous worker waves
+  -> mechanics, summary validation, scope check
+  -> fresh code reviewer
+  -> repeated mechanics
+  -> completed state
 ```
 
-Project side (after `/riff:init`):
+The controller begins routine. It requests one fresh architecture-controller confirmation only when it classifies planning as architecture or review as critical. That confirmation is canonical for route selection.
 
+The planner gives every task exclusive owned paths. It groups every task into numbered waves. RIFF dispatches one worker per wave in order, without a user pause. It rejects changes outside the current wave's owned paths. Workers don't run PLAN smoke entries inside the canonical staged workspace; RIFF runs them after all waves in disposable clones. A final smoke failure can trigger exactly one bounded full-plan repair. Normal worker retries do not exist.
+
+## Autonomous roadmap waves
+
+`riff wave --autonomous` selects the currently ready dependency frontier from
+`ROADMAP.yaml` and runs one native `riff next` stage per phase. `--loop`
+recomputes readiness after every completed frontier and continues until the
+roadmap is dry, no work is ready, a real blocker occurs, or explicit human
+verification is required. This is cross-phase orchestration; it is distinct
+from the worker waves inside one PLAN.
+
+Wave state is persisted under `.planning/riff-wave/`. `riff wave --resume`
+reconciles a completed interrupted attempt and retries only failures that
+stopped before product promotion, using a distinct native phase identifier.
+Security-sensitive work doesn't create an in-loop pause. Security hooks run
+once after product phases. Visual or functional human verification,
+destructive boundaries, and promotion remain explicit boundaries.
+
+Plan and code review use fresh isolated read-only contexts. Reviewers receive independent evidence snapshots. They cannot mutate the project or inherit the worker context.
+
+## Artifacts and completion
+
+For phase `<id>`, the runner persists:
+
+```text
+.planning/phases/<id>/PLAN.md
+.planning/phases/<id>/PLAN-REVIEW.md
+.planning/phases/<id>/SUMMARY.md
+.planning/phases/<id>/SCOPE-CHECK.json
+.planning/phases/<id>/REVIEW.md
+.planning/riff-next/<id>.json
 ```
-<project>/
-├── .riff/                       # symlink to ~/your/path/riff/ (gitignored)
-├── .claude/
-│   ├── commands/riff/           # symlinks to .riff/commands/
-│   ├── agents/riff/             # symlinks to .riff/agents/
-│   └── hooks/riff/              # symlinks to .riff/hooks/
-├── .git/hooks/
-│   ├── pre-commit               # symlink to .riff/hooks/security-scan.sh
-│   └── commit-msg               # symlink to .riff/hooks/commit-msg.sh
-├── .planning/
-│   ├── config.json              # scope: production | scratch
-│   ├── profile.yaml             # OPTIONAL per-project override
-│   ├── phases/                  # one folder per phase: PLAN.md, SUMMARY.md, REVIEW.md, etc.
-│   ├── expertise/.pending/      # improver proposals waiting for review
-│   ├── seeds/                   # R4 out-of-scope seeds
-│   ├── debug/                   # manual /riff:debug artifacts
-│   └── quick/                   # /riff:quick artifacts
-├── PROJECT.md                   # product definition (from /riff:start)
-├── ROADMAP.yaml                 # ordered phases
-├── STATE.md                     # current position
-├── taste.md                     # project conventions
-└── INCIDENTS.md                 # production incidents (production scope)
-```
 
----
+The state file records transitions and evidence hashes. It is evidence, not a resume instruction. A later invocation must again provide explicit phase and task inputs. RIFF does not implicitly resume an incomplete stage.
 
-## Model selection
+Completed means every required stage, mechanical gate, summary contract, scope check, and independent review passed. It does not mean a branch was merged, a PR was opened, or a project was promoted.
 
-RIFF dispatches across 4 model families. The reasoning model (set by `profile.yaml` `models.reasoning`, ships as Opus 4.8) plans inline (cheapest — parent context already loaded) and debugs at the normal tier; Fable takes the high/max debug tiers for vicious bugs. Codex reviews adversarially (different model family catches Claude blind spots) and is the opt-in volume executor. Sonnet is the default executor, handles security review, and applies the debugger's mechanical fixes. Haiku covers mechanical background work (simplifier, doc updater, improver). The Codex CLI is optional; if missing, adversarial steps fall back to Sonnet and a warning is logged.
+## Skills and entry points
 
-Full dispatch table, per-phase overrides, and budget implications: [`protocols/MODEL.md`](./protocols/MODEL.md).
+RIFF's active single-project entry skills are `start`, `map`, `phase`, `status`,
+`dashboard`, `next`, `wave`, `deep-audit`, `improve`, `incident`,
+`incident-review`, `promote`, and `resync`. Their Codex metadata sets
+`policy.allow_implicit_invocation: false`; the shared policy is explicit
+invocation on both providers.
 
----
+`start` creates a greenfield product definition and validated roadmap. `map`
+documents a brownfield codebase without changing product behavior. `phase`
+delegates list, add, and status changes to the validated CLI. `status` reads the
+roadmap and persisted wave/stage evidence. `dashboard` delegates to the shared
+read-only dashboard lifecycle command.
 
-## Philosophy
+Use `$next` for the project-local Codex skill installed under `.agents/skills`. Use `$riff:next` only when RIFF is installed as a namespaced plugin. The direct CLI entry point is `./.riff/riff next --project-root ... --phase ... --task ...` and reads `runtime.provider` from the active profile.
 
-The creator of Claude Code runs on roughly 100 lines of CLAUDE.md, a handful of terminals, plan mode, and a small set of slash commands. That's the target. RIFF gives you scaffolding to reach it without reinventing the planner, security reviewer, or hook discipline from scratch.
+Use `$wave` or `$riff:wave` for Codex roadmap orchestration,
+`/riff:wave --autonomous [--loop]` in Claude Code, or the shared CLI
+`./.riff/riff wave --autonomous [--loop]`. Resume with `riff wave --resume`.
 
-**Inspect before adopting.** Every file in this repo is meant to be edited. Agents are markdown, the file IS the instruction. Commands are markdown with YAML frontmatter. Hooks are bash. No black boxes.
+Use `$resync` project-locally, `$riff:resync` from the plugin, or `/riff:resync` in Claude Code. All three delegate to `riff resync`. Other Claude slash commands remain the separately documented legacy roadmap workflow, not aliases for native next.
 
-**Delete when redundant.** When Claude Code ships a native feature that replaces one of your hooks or commands, you delete the piece. The framework is a kit, not a contract.
+## Runtime limits
 
-**Prune quarterly.** Walk through `DECAY.md` and remove what isn't earning its keep.
+- Production model and smoke dispatches require Darwin. The runner fails closed on other platforms because the required read-deny enforcement is not trusted there.
+- The current Claude route requires the Codex CLI only as the mechanical sandbox helper for planned smokes; it doesn't use Codex models.
+- `riff init` does not support Git linked worktrees. Install from a normal checkout.
+- Promotion remains an explicit confirmed workflow. A completed phase never promotes automatically.
 
-Your framework is yours.
-
----
-
-## Where to go next
-
-- [`README.md`](./README.md) — 1-page pitch and install path
-- [`commands/INDEX.md`](./commands/INDEX.md) — every slash command, one-liner each
-- [`commands/next.md`](./commands/next.md) — full `/riff:next` pipeline spec (every step in detail)
-- [`agents/`](./agents/) — read the agent you want to understand
-- [`protocols/EXECUTION.md`](./protocols/EXECUTION.md) — confidence gates, R1-R4 deviations, waves
-- [`protocols/MODEL.md`](./protocols/MODEL.md) — model dispatch and budget resolution
-- [`protocols/QUALITY.md`](./protocols/QUALITY.md) — post-build quality checks
-- [`references/PROFILE-RESOLUTION.md`](./references/PROFILE-RESOLUTION.md) — profile chain
-- [`hooks/README.md`](./hooks/README.md) — hook buckets
-- [`dashboard/README.md`](./dashboard/README.md) — local web dashboard
-- [`DECAY.md`](./DECAY.md) — pruning protocol
+See [CLAUDE.md](CLAUDE.md) for Claude runtime boundaries and [scripts/README.md](scripts/README.md) for executable tools.

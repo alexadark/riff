@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Incident"
+  short_description: "Run a RIFF incident workflow"
+  default_prompt: "Use $riff:incident to run the RIFF incident workflow."
+policy:
+  allow_implicit_invocation: false

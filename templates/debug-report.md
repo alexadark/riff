@@ -35,7 +35,7 @@ Files changed:
 
 Delegated fixes:
 
-<!-- One row per fix-plan entry (agents/debugger.md § Step 4, stage 4.2). Worker = resolved
+<!-- One row per fix-plan entry (agents/roles/debugger.md § Method). Worker = resolved
 `debugger.delegation.mechanical_worker` (default sonnet), or `debugger (direct)`
 when the fallback path applied the fix without a worker. -->
 
@@ -56,7 +56,7 @@ when the fallback path applied the fix without a worker. -->
 ## Visual evidence
 
 <!--
-Frontend failures only (see agents/debugger.md § Step 4b). Three forms:
+Frontend failures only (see agents/roles/debugger.md § Output contract). Three forms:
 
 1. Captured — include all three subsections below.
 2. Skipped — replace this whole section with a single line: `Visual evidence: skipped — <reason>`.

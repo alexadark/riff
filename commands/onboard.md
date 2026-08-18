@@ -64,7 +64,7 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 
 4. **Default path.** Write the `default` profile (the map in the "Default profile" section below), jump to step 6.
 
-5. **Custom path.** Walk the questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect. Note: Q6 was removed (parallel_projects is handled by the dashboard project dropdown), so the numbering jumps from Q5 to Q7a — leave the gap, do not renumber downstream questions.
+5. **Custom path.** Ask for the native RIFF provider first, then walk the existing questions via AskUserQuestion in order. Present each in the user's conversation language (detect from prior turns; fall back to English). Q3 and Q5 use multiSelect. Note: Q6 was removed (parallel_projects is handled by the dashboard project dropdown), so the numbering jumps from Q5 to Q7a — leave the gap, do not renumber downstream questions.
 
 6. **Write profile.yaml** to the target resolved in Step 1 (framework root or project `.planning/`) using the schema below. YAML format, quote string values with special characters.
 
@@ -86,6 +86,14 @@ Every agent reads the resolved profile on startup (see `references/PROFILE-RESOL
 ## Questions
 
 Questions are numbered Q1-Q15. Q4 and Q6 were removed; numbers are stable, not sequential.
+
+### Native runtime
+
+**Provider**
+- `codex` — use the Codex native adapters (default)
+- `claude` — use the Claude Code native adapters
+
+Maps to: `runtime.provider`. Both adapter families remain installed. The selected provider is fixed for a native stage and never falls back automatically.
 
 ### Section 1 — Who you are
 
@@ -285,6 +293,8 @@ Full field reference: [`references/PROFILE-SCHEMA.md`](../references/PROFILE-SCH
 The single quick-start map. Written verbatim on the `default` entry path, and the canonical baseline at the bottom of the profile-resolution chain (`references/PROFILE-RESOLUTION.md`). Safe middle ground, no personality assumed. Mirrored in `templates/profile.default.yaml`.
 
 ```yaml
+runtime:
+  provider: codex
 user:
   programming_level: intermediate
   ai_agents_experience: tried

@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Map"
+  short_description: "Map a brownfield project for RIFF"
+  default_prompt: "Use $riff:map to map this existing codebase into RIFF planning artifacts without changing product code."
+policy:
+  allow_implicit_invocation: false

@@ -36,7 +36,7 @@ PASS. `commands/wave.md:31`: eligibility updated with "OR included earlier in th
 PASS. `protocols/AUTO-TRIGGERS.md:126`: "multiple of 3" absent (grep confirmed); replaced with ordinal count. `protocols/AUTO-TRIGGERS.md:128`: `budget_quality: max` bias condition added. `commands/next.md:187`: GATES.md skip-logging diagnostic note present.
 
 ### WP1.10 — Sub-agents looking for ROADMAP.yaml in `.planning/`
-PASS. `protocols/EXECUTION.md:35,58` and `protocols/QUALITY.md:76,90` all reference "`ROADMAP.yaml` (project root)." `agents/scope-checker.md` and `agents/security-reviewer.md` do not mention ROADMAP — no path to fix.
+PASS. `protocols/EXECUTION.md:35,58` and `protocols/QUALITY.md:76,90` all reference "`ROADMAP.yaml` (project root)." The retired scope-checker role and `agents/security-reviewer.md` did not mention ROADMAP, so there was no path to fix.
 
 ### WP1.11 — Codex adversarial false positives
 PASS. `agents/adversarial-reviewer.md:64–66`: Verdict rules block added. `agents/plan-adversarial-reviewer.md:66–68`: REVISE only for task/AC-changing findings. `protocols/QUALITY.md:86`: unevidenced FAIL findings downgraded before auto-debug trigger.

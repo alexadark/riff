@@ -27,7 +27,19 @@ jobs:
 
       - run: npm install
 
+      - name: Install pinned Codex CLI
+        run: npm install --global @openai/codex@0.144.1
+
+      - name: Verify Codex CLI
+        run: codex --version
+
       - name: RIFF Doctor
         run: node scripts/riff-doctor.mjs --ci
+
+      - name: RIFF Init installer
+        run: bash scripts/__tests__/riff-init.sh
+
+      - name: RIFF Resync installer
+        run: bash scripts/__tests__/riff-resync.sh
 
       - run: npx vitest run

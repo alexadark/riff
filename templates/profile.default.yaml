@@ -10,6 +10,11 @@
 # (lib/resolve-profile.sh, dashboard/lib/resolveProfile.ts) load this
 # verbatim when neither user profile exists.
 
+runtime:
+  # Native stage provider. Both adapters are installed so this can be changed
+  # per project without reinstalling RIFF.
+  provider: codex
+
 user:
   programming_level: intermediate
   ai_agents_experience: tried

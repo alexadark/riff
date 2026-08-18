@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Resync"
+  short_description: "Safely resynchronize a linked RIFF project"
+  default_prompt: "Use $riff:resync to safely resynchronize the current RIFF project."
+policy:
+  allow_implicit_invocation: false

@@ -115,7 +115,7 @@ Architecture-stage fixes cost ~10x more once the roadmap chases the wrong shape,
 
 **Mode:** default `mode: AFK`. Mark `mode: HITL` only when manual human verification is unavoidable against a **production** surface: real OAuth/SSO against a prod IdP, real payment checkout, MFA, DNS/prod cutover, irreversible migrations. Code-only auth/payment/security work stays AFK — security-reviewer + adversarial Codex cover it.
 
-**Provider mode:** optional per-phase field `provider_mode: sandbox | production` (default `production`). Set `provider_mode: sandbox` on phases that exercise an external provider via sandbox/test credentials only (test Stripe card, Auth0 dev tenant, Clerk test mode, Supabase test project, Mailtrap, etc.). When combined with `mode: HITL`, `/riff:next` does NOT pause — the verification is routed through the framework-native browser verification protocol (`references/BROWSER-VERIFICATION.md` — Lightpanda headless). Production provider work stays HITL. See `agents/planner.md` § `provider_mode`.
+**Provider mode:** optional per-phase field `provider_mode: sandbox | production` (default `production`). Set `provider_mode: sandbox` on phases that exercise an external provider via sandbox/test credentials only (test Stripe card, Auth0 dev tenant, Clerk test mode, Supabase test project, Mailtrap, etc.). When combined with `mode: HITL`, the legacy workflow may route verification through `references/BROWSER-VERIFICATION.md`. Production provider work stays HITL. See `agents/roles/planner.md` § Output contract.
 
 Write `ROADMAP.yaml`. Required fields per phase: `id`, `slug` (kebab-case), `title` (human-readable), `status: todo`, `priority`, `mode`, `depends_on`. Never use a phase-level `name:` field. After writing, run `bash .riff/lib/validate-roadmap.sh ROADMAP.yaml` and fix any reported error before continuing. Self-critique: ordering, dependencies, gaps, sizing, vertical slices, first phase.
 
@@ -138,13 +138,10 @@ Write the analysis to `.planning/CONSEQUENCE-ANALYSIS.md` (one section per phase
 
 **scratch scope:** Decompose features into simple sequential phases (no waves, no `depends_on` graph, no `parallel:` markers). Each phase still ships a usable slice. All phases default `mode: AFK`. No tracer-bullet requirement — first phase can be whatever lands fastest. Write `ROADMAP.yaml` with minimal fields per phase: `id`, `slug` (kebab-case), `title`, `priority`, `status: todo`, `mode: AFK`. Skip `complex_execution`, `adversarial`, `plan_adversarial`, `simplify` flags (the gates are off for scratch anyway). Skip consequence analysis. After writing, run `bash .riff/lib/validate-roadmap.sh ROADMAP.yaml` and fix any reported error before continuing.
 
-**Planner-model annotation:** After each phase entry is drafted, append a `planner_model:` field:
-
-- Simple phases (CRUD, copy fix, refactor under 5 files, UI tweak) → `planner_model: codex`
-- Risky phases (auth, payments, architecture, migration, public API, novel module) → `planner_model: opus`
-- Unsure → `planner_model: opus`
-
-If `executors.available` does not include `codex`, omit the field entirely (runtime defaults to `profile.yaml` `models.reasoning`). Canonical heuristic: `agents/planner.md` § Planner-model recommendation.
+**Runtime routing:** Do not write model names into roadmap phases. The active
+provider adapter selects routine or architecture planning from the task's
+semantic classification. Runtime model, effort, tools, and permissions stay in
+the adapter configuration.
 
 ---
 

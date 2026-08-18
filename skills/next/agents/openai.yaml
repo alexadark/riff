@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Next"
+  short_description: "Bootstrap and run the next RIFF stage"
+  default_prompt: "Use $riff:next. Provide --phase <id> and --task <bounded request>, resolve the model provider from the active RIFF profile, or ask for missing stage inputs before invoking the runner."
+policy:
+  allow_implicit_invocation: false
