@@ -180,7 +180,11 @@ export function phaseTask(phase) {
   return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
-export function requiresConfirmation(phase) {
+// Confirmation timing is part of the semantic role of a roadmap phase, not a
+// property of either runtime.  A post-execution verification proves an
+// already-built result; a pre-execution confirmation authorizes an action
+// that must not be performed autonomously.
+export function confirmationTiming(phase) {
   const modes = phase.mode.map((value) => value.toUpperCase());
   const tags = phase.tags.map((value) => value.toLowerCase());
   const text = `${phase.title} ${phase.goal} ${phase.tasks.join(' ')} ${phase.hitlReason || ''}`.toLowerCase();
@@ -194,14 +198,22 @@ export function requiresConfirmation(phase) {
     || /\b(?:delete|remove|destroy|wipe|drop)\b[^.\n]{0,120}\b(?:production|customer records?|database records?)\b/.test(actionText)
     || /\bdeploy\s+(?:the\s+)?(?:application|app|service|release)\s+(?:to|into)\s+(?:staging|production)\b/.test(actionText)
     || /\bpublish\s+(?:the\s+)?(?:release|application|app|package)(?:\s+(?:to|for)\b|[.!;:]|$)/m.test(actionText);
-  const securityOnly = tags.length > 0
-    && tags.every((tag) => ['security', 'security_critical', 'auth', 'authorization', 'authentication', 'payment-security'].includes(tag))
+  const securityImplementation = tags.some((tag) => ['security', 'security_critical', 'auth', 'authorization', 'authentication', 'payment-security'].includes(tag))
     && !explicitHumanVerification && !realWorldVerification && !destructiveBoundary;
-  // Honor legacy HITL by default. The only automatic exception is a phase
-  // explicitly tagged as security-only implementation with no real-world,
-  // destructive, visual, or functional boundary.
-  return phase.confirmationRequired || destructiveBoundary || explicitHumanVerification || realWorldVerification
-    || (modes.includes('HITL') && !securityOnly);
+  // Explicit confirmation is an authorization boundary, including when the
+  // same phase also names a later visual or functional observation.
+  if (phase.confirmationRequired) return 'before';
+  if (destructiveBoundary) return 'before';
+  if (explicitHumanVerification || realWorldVerification) return 'after';
+  // Legacy HITL phases describe a human check after the implementation. Keep
+  // security/auth implementation autonomous unless it carries a real-world
+  // verification or destructive boundary.
+  if (modes.includes('HITL') && !securityImplementation) return 'after';
+  return 'none';
+}
+
+export function requiresConfirmation(phase) {
+  return confirmationTiming(phase) !== 'none';
 }
 
 export function phaseVerificationMetadata(phase) {
@@ -239,7 +251,7 @@ export function selectReadyPhases(roadmap, { requestedIds, completedThisRun = ne
   const requested = requestedIds?.length ? new Set(requestedIds.map(String)) : null;
   return roadmap.phases.filter((phase) => (!requested || requested.has(phase.id))
     && phaseIsReady(phase, roadmap.phases, completedThisRun)
-    && !requiresConfirmation(phase));
+    && confirmationTiming(phase) !== 'before');
 }
 
 // Confirmation eligibility is intentionally separate from ordinary readiness.
@@ -249,7 +261,7 @@ export function selectReadyConfirmationPhases(roadmap, { requestedIds, completed
   const requested = requestedIds?.length ? new Set(requestedIds.map(String)) : null;
   return roadmap.phases.filter((phase) => (!requested || requested.has(phase.id))
     && phaseIsReady(phase, roadmap.phases, completedThisRun)
-    && requiresConfirmation(phase));
+    && confirmationTiming(phase) === 'before');
 }
 
 export function remainingPhases(roadmap, requestedIds) {

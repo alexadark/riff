@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { loadRoadmap, phaseIsReady, phaseVerificationMetadataSha256, requiresConfirmation, resolveProjectRoot } from './lib/roadmap-workflow.mjs';
+import { confirmationTiming, loadRoadmap, phaseIsReady, phaseVerificationMetadataSha256, resolveProjectRoot } from './lib/roadmap-workflow.mjs';
 import { readActiveWaveRun, readRegularJson, readWaveState } from './lib/wave-state.mjs';
 
 function readJson(file) {
@@ -103,13 +103,16 @@ function latestNativeStage(projectRoot) {
 export function projectStatus(projectRoot = process.cwd()) {
   const root = resolveProjectRoot(projectRoot);
   const roadmap = loadRoadmap(root);
-  const done = roadmap.phases.filter((phase) => ['done', 'skipped'].includes(phase.status)).length;
-  const ready = roadmap.phases.filter((phase) => phaseIsReady(phase, roadmap.phases) && !requiresConfirmation(phase));
-  const awaitingHuman = roadmap.phases.filter((phase) => phaseIsReady(phase, roadmap.phases) && requiresConfirmation(phase));
-  const blocked = roadmap.phases.filter((phase) => phase.status === 'blocked');
-  const current = roadmap.phases.filter((phase) => phase.status === 'in-progress');
   const active = activeWave(root);
   const wave = active.wave;
+  const activePostVerification = new Set((wave?.phases || [])
+    .filter((record) => record?.status === 'awaiting_verification' && ['pending', 'approved'].includes(record.verification?.status))
+    .map((record) => record.id));
+  const done = roadmap.phases.filter((phase) => ['done', 'skipped'].includes(phase.status)).length;
+  const ready = roadmap.phases.filter((phase) => phaseIsReady(phase, roadmap.phases) && !activePostVerification.has(phase.id) && confirmationTiming(phase) !== 'before');
+  const awaitingHuman = roadmap.phases.filter((phase) => phaseIsReady(phase, roadmap.phases) && !activePostVerification.has(phase.id) && confirmationTiming(phase) === 'before');
+  const blocked = roadmap.phases.filter((phase) => phase.status === 'blocked');
+  const current = roadmap.phases.filter((phase) => phase.status === 'in-progress');
   return {
     project_root: root,
     progress: { done, total: roadmap.phases.length, percent: roadmap.phases.length ? Math.round((done / roadmap.phases.length) * 100) : 0 },
@@ -146,6 +149,7 @@ function render(status) {
   if (status.latest_native_stage) lines.push(`Latest native stage: ${status.latest_native_stage.phase} (${status.latest_native_stage.state})`);
   lines.push(`Pending: ${status.pending.expertise} expertise, ${status.pending.seeds} seeds`);
   if (status.active_verification?.approval_command) lines.push(`Next: ${status.active_verification.approval_command}`);
+  else if (status.active_verification?.status === 'approved' && status.active_wave) lines.push(`Next: riff wave --resume --run ${status.active_wave.run}`);
   else if (status.blocked.length) lines.push('Next: inspect the blocked phase and its native artifacts.');
   else if (status.awaiting_human.length) lines.push(`Next: complete human verification for phase ${status.awaiting_human[0]}.`);
   else if (status.ready.length) lines.push(`Next: riff wave --autonomous --loop`);

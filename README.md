@@ -52,6 +52,9 @@ $status                      # authoritative progress and next action
 $phase                       # list, add, or update roadmap phases
 ```
 
+`$start` and `$map` are intentionally interactive skills on Codex and Claude;
+RIFF has no native terminal CLI for either one.
+
 Use the `$riff:...` names when RIFF is installed as a namespaced Codex plugin.
 Claude Code exposes the same shared skills after resync and retains
 `/riff:start`, `/riff:map`, `/riff:status`, and `/riff:add-phase` compatibility
@@ -109,6 +112,35 @@ implementation remains autonomous; security hooks run once after product
 phases. Only explicit visual or functional verification, destructive work,
 promotion, a blocking failure, or an operator cap stops the loop.
 
+For a phase that needs visual or functional verification, RIFF completes the
+implementation first, then persists the verification request and waits before
+unlocking dependent work. Approval resumes that same run without rerunning the
+completed implementation. Destructive actions and promotion remain confirmed
+before they happen. Safe pre-promotion failures in loop mode retry with fresh
+attempts up to `autonomy.debug_cycle_cap`. After that cap, RIFF dispatches one
+fresh read-only debugger; only a valid `DIAGNOSED` report permits one guided
+attempt. Unresolved, invalid, interrupted, post-promotion, or failed guided
+recovery blocks the loop.
+
+To finish a completed wave, use the explicit Codex `$finish` or `$riff:finish`
+skill, the installed RIFF finish workflow in Claude Code, or the CLI. First
+inspect the read-only plan:
+
+```bash
+./.riff/riff finish --check
+```
+
+After reviewing the exact paths, evidence, strategy, and token and explicitly
+confirming that plan, run only the displayed command:
+
+```bash
+./.riff/riff finish --confirm <token>
+```
+
+The `github_button` strategy creates or reuses a pull request without merging.
+The `local_no_ff` strategy performs the explicitly confirmed no-fast-forward
+merge. Neither strategy deploys or promotes.
+
 ## What runs
 
 `$riff:next` performs this fixed sequence:
@@ -121,7 +153,13 @@ promotion, a blocking failure, or an operator cap stops the loop.
 6. Fresh code review.
 7. Repeated mechanical gates and completed state persistence.
 
-Normal waves have no retry. RIFF permits one bounded full-plan repair only after the first final smoke failure.
+Workers inside one native stage have no per-worker retry. In an autonomous
+roadmap loop, safe pre-promotion phase failures receive fresh attempts up to
+`autonomy.debug_cycle_cap`, followed by exactly one fresh read-only debugger
+diagnosis and, only for `DIAGNOSED`, one guided native attempt. A bounded
+full-plan repair still occurs only after the first final smoke failure. A failed
+guided attempt or any unresolved, invalid, interrupted, or post-promotion
+failure remains blocked.
 
 ## Providers
 

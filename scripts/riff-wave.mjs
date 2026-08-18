@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
   atomicWrite,
+  confirmationTiming,
   loadRoadmap,
   phaseVerificationMetadataSha256,
   phaseKey,
@@ -315,11 +316,21 @@ function createVerificationRequest(projectRoot, state, phase) {
   if (record.verification) return validateRequestArtifact(projectRoot, state, phase, record.verification);
   const expected = verificationExpectation(projectRoot, state, phase);
   const requestFile = verificationRequestFile(projectRoot, state, phase);
-  try {
-    fs.lstatSync(requestFile);
-    fail(`human verification request already exists without state for phase ${phase.id}`);
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+  const existing = readRegularJsonArtifact(requestFile, `human verification request for phase ${phase.id}`);
+  if (existing) {
+    const candidate = {
+      status: 'pending', request_path: expected.requestPath, request_sha256: existing.sha256,
+      phase_metadata_sha256: expected.metadataSha256, reason: expected.reason, checks: expected.checks,
+    };
+    record.verification = candidate;
+    try {
+      const recovered = validateRequestArtifact(projectRoot, state, phase, candidate);
+      writeState(projectRoot, state);
+      return recovered;
+    } catch (error) {
+      delete record.verification;
+      throw error;
+    }
   }
   const body = {
     schema_version: 1,
@@ -406,6 +417,25 @@ function consumeVerification(projectRoot, state, phase) {
   if (record.verification.status === 'consumed') return;
   record.verification.status = 'consumed';
   record.verification.consumed_at = new Date().toISOString();
+}
+
+function awaitingPostExecutionVerification(projectRoot, state, phase, attempt) {
+  const record = phaseRecord(state, phase);
+  attempt.status = 'awaiting_verification';
+  attempt.completed_at ||= new Date().toISOString();
+  record.status = 'awaiting_verification';
+  state.current = { phase_id: phase.id, native_phase: attempt.native_phase, attempt: attempt.attempt };
+  state.state = 'awaiting_human';
+  state.stop_reason = `confirmation_required:${phase.id}`;
+  for (const wave of state.waves) {
+    if (['running', 'interrupted'].includes(wave.status) && wave.phase_ids.includes(phase.id)) {
+      wave.status = 'awaiting_human';
+      wave.completed_at ||= new Date().toISOString();
+    }
+  }
+  createVerificationRequest(projectRoot, state, phase);
+  writeState(projectRoot, state);
+  return { completed: false, awaitingVerification: true, reason: `confirmation_required:${phase.id}`, safeToResume: false };
 }
 
 function reconcileCompletedVerifications(projectRoot, roadmap, state) {
@@ -1013,7 +1043,7 @@ function debuggerGuidedRecovery({ projectRoot, frameworkRoot, roadmap, state, ph
     writeState(projectRoot, state);
   }
   const result = attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: true, recoveryCycle: cap + 1, recoveryStrategy: 'debugger_guided_recovery', task: guidedTask(phase, diagnosis.parsed.assignment) });
-  return result.completed ? result : { ...result, reason: 'debugger_escalation_failed', safeToResume: false };
+  return result.completed || result.awaitingVerification ? result : { ...result, reason: 'debugger_escalation_failed', safeToResume: false };
 }
 
 function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume, recoveryCycle, recoveryStrategy, task = phaseTask(phase) }) {
@@ -1022,6 +1052,9 @@ function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invok
   if (previous && previous.status !== 'completed') {
     const native = nativeState(projectRoot, previous.native_phase);
     if (native?.state === 'completed') {
+      if (confirmationTiming(phase) === 'after' && !approvedVerification(projectRoot, state, phase)) {
+        return awaitingPostExecutionVerification(projectRoot, state, phase, previous);
+      }
       previous.status = 'completed';
       previous.completed_at = native.updated_at || new Date().toISOString();
       record.status = 'completed';
@@ -1063,6 +1096,9 @@ function attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invok
   const result = invokeNext({ frameworkRoot, projectRoot, phase: nativePhase, task, provider: state.selected_provider });
   const native = nativeState(projectRoot, nativePhase);
   if (result?.status === 0 && native?.state === 'completed') {
+    if (confirmationTiming(phase) === 'after') {
+      return awaitingPostExecutionVerification(projectRoot, state, phase, attempt);
+    }
     attempt.status = 'completed';
     attempt.completed_at = new Date().toISOString();
     record.status = 'completed';
@@ -1148,6 +1184,17 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
         return state;
       }
     }
+    const pendingPostVerification = state.phases.find((record) => record.status === 'awaiting_verification' && record.verification?.status === 'pending');
+    if (options.resume && !options.approve && pendingPostVerification) {
+      const phase = roadmap.phases.find((entry) => entry.id === pendingPostVerification.id);
+      if (!phase) fail(`pending verification phase is missing from ROADMAP.yaml: ${pendingPostVerification.id}`);
+      try { validateRequestArtifact(projectRoot, state, phase, pendingPostVerification.verification); }
+      catch { return humanVerificationArtifactInvalid(projectRoot, state); }
+      state.state = 'awaiting_human';
+      state.stop_reason = `confirmation_required:${phase.id}`;
+      writeState(projectRoot, state);
+      return state;
+    }
     state.state = 'running';
     state.stop_reason = null;
     try {
@@ -1171,20 +1218,33 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
       const native = record?.attempts?.length ? nativeState(projectRoot, record.attempts.at(-1).native_phase) : null;
       if (phase && record?.debugger?.guided_attempt === record?.attempts?.at(-1)?.attempt && native?.state === 'completed') {
         const guided = record.attempts.at(-1);
+        if (confirmationTiming(phase) === 'after' && !approvedVerification(projectRoot, state, phase)) {
+          const pending = awaitingPostExecutionVerification(projectRoot, state, phase, guided);
+          return stopWithoutSecurity(projectRoot, state, pending.reason, 'awaiting_human');
+        }
         guided.status = 'completed';
         guided.completed_at ||= native.updated_at || new Date().toISOString();
         record.status = 'completed';
         consumeVerification(projectRoot, state, phase);
         updatePhaseStatus(roadmap, phase.id, 'done');
         state.current = null;
+        for (const wave of state.waves.filter((entry) => entry.status === 'awaiting_human' && entry.phase_ids.includes(phase.id))) {
+          wave.status = 'completed';
+          wave.completed_at ||= new Date().toISOString();
+        }
         writeState(projectRoot, state);
         completedThisRun.add(phase.id);
         phasesCompletedThisInvocation += 1;
         resumeCurrent = null;
       } else if (phase && native?.state === 'completed') {
-        if (requiresConfirmation(phase) && !approvedVerification(projectRoot, state, phase)) fail(`human verification approval is missing for phase ${phase.id}`);
+        if (confirmationTiming(phase) === 'before' && !approvedVerification(projectRoot, state, phase)) fail(`human verification approval is missing for phase ${phase.id}`);
         const reconciled = attemptPhase({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, isResume: true });
-        if (!reconciled.completed) return stopWithoutSecurity(projectRoot, state, reconciled.reason);
+        if (!reconciled.completed) return stopWithoutSecurity(projectRoot, state, reconciled.reason, reconciled.awaitingVerification ? 'awaiting_human' : 'blocked');
+        for (const wave of state.waves.filter((entry) => entry.status === 'awaiting_human' && entry.phase_ids.includes(phase.id))) {
+          wave.status = 'completed';
+          wave.completed_at ||= new Date().toISOString();
+        }
+        writeState(projectRoot, state);
         completedThisRun.add(phase.id);
         phasesCompletedThisInvocation += 1;
         resumeCurrent = null;
@@ -1243,7 +1303,7 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
         const previous = record.attempts.at(-1);
         const previousNative = previous ? nativeState(projectRoot, previous.native_phase) : null;
         let result;
-        if (requiresConfirmation(phase) && !approvedVerification(projectRoot, state, phase)) fail(`human verification approval is missing for phase ${phase.id}`);
+        if (confirmationTiming(phase) === 'before' && !approvedVerification(projectRoot, state, phase)) fail(`human verification approval is missing for phase ${phase.id}`);
         if (isResume && state.mode === 'loop' && previous?.status === 'failed' && safeToRetry(previousNative) && latestRecoveryCycle(record) >= cap) {
           result = debuggerGuidedRecovery({ projectRoot, frameworkRoot, roadmap, state, phase, invokeNext, debuggerDispatch, cap });
         } else {
@@ -1264,9 +1324,9 @@ export function runAutonomousWave(options = {}, dependencies = {}) {
         }
         resumeCurrent = null;
         if (!result.completed) {
-          wave.status = 'blocked';
+          wave.status = result.awaitingVerification ? 'awaiting_human' : 'blocked';
           wave.completed_at = new Date().toISOString();
-          return stopWithoutSecurity(projectRoot, state, result.reason);
+          return stopWithoutSecurity(projectRoot, state, result.reason, result.awaitingVerification ? 'awaiting_human' : 'blocked');
         }
         completedThisRun.add(phase.id);
         phasesCompletedThisInvocation += 1;

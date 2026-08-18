@@ -669,13 +669,14 @@ footer{
       <thead><tr><th>Intent</th><th>Codex</th><th>Claude Code</th><th>Terminal</th></tr></thead>
       <tbody>
         <tr><td><strong>Install RIFF</strong></td><td>Start from the terminal</td><td>Start from the terminal</td><td><code>/path/to/riff/riff init --no-onboard</code></td></tr>
-        <tr><td><strong>Start a project</strong></td><td><code>$start</code> or <code>$riff:start</code></td><td><code>/riff:start</code></td><td>Interactive skill or command</td></tr>
-        <tr><td><strong>Map a codebase</strong></td><td><code>$map</code> or <code>$riff:map</code></td><td><code>/riff:map</code></td><td>Interactive skill or command</td></tr>
+        <tr><td><strong>Start a project</strong></td><td><code>$start</code> or <code>$riff:start</code></td><td><code>/riff:start</code></td><td>Interactive skill; no native terminal CLI</td></tr>
+        <tr><td><strong>Map a codebase</strong></td><td><code>$map</code> or <code>$riff:map</code></td><td><code>/riff:map</code></td><td>Interactive skill; no native terminal CLI</td></tr>
         <tr><td><strong>Manage phases</strong></td><td><code>$phase</code> or <code>$riff:phase</code></td><td><code>/riff:add-phase</code></td><td><code>./.riff/riff phase ...</code></td></tr>
         <tr><td><strong>Inspect status</strong></td><td><code>$status</code> or <code>$riff:status</code></td><td><code>/riff:status</code></td><td><code>./.riff/riff status</code></td></tr>
         <tr><td><strong>Open dashboard</strong></td><td><code>$dashboard</code> or <code>$riff:dashboard</code></td><td><code>/riff:dashboard</code></td><td><code>./.riff/riff dashboard</code></td></tr>
         <tr><td><strong>Run one native stage</strong></td><td><code>$next</code> or <code>$riff:next</code></td><td>Invoke <code>riff next</code> from the session</td><td><code>./.riff/riff next ...</code></td></tr>
         <tr><td><strong>Run autonomous roadmap work</strong></td><td><code>$wave</code> or <code>$riff:wave</code></td><td><code>/riff:wave --autonomous --loop</code></td><td><code>./.riff/riff wave --autonomous --loop</code></td></tr>
+        <tr><td><strong>Finish a completed wave</strong></td><td><code>$finish</code> or <code>$riff:finish</code></td><td>Invoke the installed RIFF finish workflow explicitly</td><td><code>./.riff/riff finish --check</code>, then confirmed <code>--confirm &lt;token&gt;</code></td></tr>
         <tr><td><strong>Reconcile an installation</strong></td><td><code>$resync</code> or <code>$riff:resync</code></td><td><code>/riff:resync</code></td><td><code>./.riff/riff resync</code></td></tr>
         <tr><td><strong>Audit a milestone</strong></td><td><code>$deep-audit</code> or <code>$riff:deep-audit</code></td><td>Explicit RIFF deep-audit request</td><td>Follow the skill instructions</td></tr>
         <tr><td><strong>Promote a project</strong></td><td><code>$promote</code> or <code>$riff:promote</code></td><td>Explicit promotion workflow</td><td>Follow the promotion protocol</td></tr>
@@ -755,7 +756,7 @@ wave 3:
 ./.riff/riff wave --resume
 ./.riff/riff wave --status</code></pre>
 
-  <p>Use <code>$wave</code> or <code>$riff:wave</code> in Codex and <code>/riff:wave --autonomous --loop</code> in Claude Code. Ordinary and security-sensitive implementation continues autonomously. Security hooks run once after product phases. Explicit visual or functional verification, destructive boundaries, promotion, blocking failures, and operator caps remain stop conditions. Wave state and safe-resume evidence live under <code>.planning/riff-wave/</code>.</p>
+  <p>Use <code>$wave</code> or <code>$riff:wave</code> in Codex and <code>/riff:wave --autonomous --loop</code> in Claude Code. Ordinary and security-sensitive implementation continues autonomously. When a phase needs visual or functional verification, RIFF completes implementation first, then persists <code>awaiting_human</code>; approval resumes the same run without rerunning it. Destructive actions and promotion are confirmed before action. Safe pre-promotion failures retry up to <code>autonomy.debug_cycle_cap</code>, then get exactly one fresh read-only debugger; only <code>DIAGNOSED</code> permits one guided attempt. Unresolved, invalid, interrupted, post-promotion, or failed guided recovery blocks. Security hooks run once after product phases. Wave state and safe-resume evidence live under <code>.planning/riff-wave/</code>.</p>
 </section>
 
 <section class="panel" id="panel-roles" role="tabpanel">
@@ -821,7 +822,7 @@ wave 3:
 
   <div class="note">
     <div class="kicker">Fast service tier</div>
-    <p>Every Luna adapter sets the Fast service tier while preserving its declared reasoning effort. Fast lowers latency and consumes more plan usage. Non-Luna adapters do not set that service tier.</p>
+    <p>Every Luna adapter sets the Fast service tier while preserving its declared reasoning effort. Fast lowers latency and consumes more plan usage. Non-Luna adapters do not set that service tier. No Haiku route is active.</p>
   </div>
 </section>
 
@@ -844,6 +845,10 @@ wave 3:
         <tr><td><code>.planning/phases/&lt;id&gt;/SCOPE-CHECK.json</code></td><td>Mechanical boundary comparison against actual changes.</td></tr>
         <tr><td><code>.planning/phases/&lt;id&gt;/REVIEW.md</code></td><td>Fresh code-review verdict with machine evidence injected by the runner.</td></tr>
         <tr><td><code>.planning/riff-next/&lt;id&gt;.json</code></td><td>Transitions, route receipt, evidence hashes, and completed state.</td></tr>
+        <tr><td><code>.planning/riff-wave/</code></td><td>Authoritative wave state, attempts, resume records, and human verification receipts.</td></tr>
+        <tr><td><code>.planning/riff-wave/&lt;run&gt;--&lt;phase&gt;.DEBUG.md</code> and <code>.debugger.routing.json</code></td><td>One bounded debugger diagnosis and its routing evidence after safe retries are exhausted.</td></tr>
+        <tr><td><code>.planning/riff-wave/&lt;run&gt;.security.json</code>, <code>.security-review.md</code>, and <code>.security-review.routing.json</code></td><td>Final mechanical and semantic security evidence, run once after product phases.</td></tr>
+        <tr><td>Explicit finish boundary</td><td>Read-only <code>finish --check</code> plan, evidence, strategy, and token before a confirmed commit, PR, or local no-fast-forward merge. Never deploys or promotes.</td></tr>
       </tbody>
     </table>
   </div>
