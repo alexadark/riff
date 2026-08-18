@@ -49,6 +49,8 @@ skills. Invoke skills explicitly.
 | Roadmap management | `$phase` or `$riff:phase` | Lists, adds, or updates phases through the validated CLI. |
 | Authoritative progress | `$status` or `$riff:status` | Roadmap progress, active wave, latest native stage, human boundaries, and next action. |
 | Local dashboard | `$dashboard` or `$riff:dashboard` | Starts or attaches to the read-only project dashboard. |
+| Explicit diagnosis | `$debug` or `$riff:debug` | Runs a fresh read-only diagnosis, then one bounded native fix only when diagnosed. |
+| Stack conventions | `$learn-stack` or `$riff:learn-stack` | Researches a confirmed, source-backed taste reference for the invoking project. |
 
 Claude Code retains `/riff:start`, `/riff:map`, `/riff:add-phase`,
 `/riff:status`, and `/riff:dashboard`. Resync also exposes the shared skills to
@@ -62,6 +64,7 @@ Claude. Terminal equivalents for deterministic operations are:
 ./.riff/riff status
 ./.riff/riff status --json
 ./.riff/riff dashboard
+./.riff/riff debug --issue "Exact observed failure" --intensity high
 ```
 
 `riff phase` validates the entire roadmap and rolls back an invalid edit. It
@@ -256,7 +259,13 @@ execution:
 
 ## Legacy commands not yet migrated
 
-The following historical Claude command surfaces don't yet have a native skill or equivalent user command: `conductor`, `learn-stack`, `onboard`, `quick`, and `stress`. The old `debug` command isn't migrated as a public skill; native autonomous waves already use the debugger internally after bounded retries are exhausted. `init` remains a deterministic CLI installation command rather than a skill. `INDEX` is documentation, not a command.
+The remaining historical Claude command surfaces without a native skill or
+equivalent user command are `quick` and `stress`. Cross-project `conductor`
+remains intentionally deferred. The old `onboard` flow is replaced by
+`riff init --profile default|custom` for profile creation and `$map` for
+brownfield project onboarding. `init` remains a deterministic terminal
+installation command rather than a skill. `INDEX` is documentation, not a
+command.
 
 Use waves to structure a real dependency chain. For example, a public rebrand can use:
 
@@ -326,6 +335,8 @@ Choose entry points by intent:
 | Manage phases | `$phase` or `$riff:phase` | `/riff:add-phase` | `./.riff/riff phase ...` |
 | Inspect status | `$status` or `$riff:status` | `/riff:status` | `./.riff/riff status` |
 | Open dashboard | `$dashboard` or `$riff:dashboard` | `/riff:dashboard` | `./.riff/riff dashboard` |
+| Diagnose one explicit issue | `$debug` or `$riff:debug` | Installed shared debug skill | `./.riff/riff debug --issue ...` |
+| Research stack conventions | `$learn-stack` or `$riff:learn-stack` | Installed shared learn-stack skill | Interactive skill |
 | Run one explicit native phase | `$next` or `$riff:next` | Invoke `riff next` explicitly | `./.riff/riff next ...` |
 | Run or resume autonomous roadmap work | `$wave` or `$riff:wave` | `/riff:wave --autonomous [--loop]` | `./.riff/riff wave --autonomous [--loop]` |
 | Finish a completed wave | `$finish` or `$riff:finish` | Explicit finish workflow | `./.riff/riff finish --check` |

@@ -67,6 +67,7 @@ For direct terminal management:
 
 ```bash
 ./.riff/riff status
+./.riff/riff debug --issue "Describe the observed failure exactly"
 ./.riff/riff phase list
 ./.riff/riff phase add --title "Public rebrand foundation" \
   --goal "Establish approved public brand tokens and assets"

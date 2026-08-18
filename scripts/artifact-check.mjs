@@ -85,10 +85,12 @@ const TOP_LEVEL_AGENTS = Object.freeze([
 const ACTIVE_SKILLS = Object.freeze([
   'dashboard',
   'deep-audit',
+  'debug',
   'finish',
   'improve',
   'incident',
   'incident-review',
+  'learn-stack',
   'map',
   'next',
   'phase',

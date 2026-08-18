@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Learn Stack"
+  short_description: "Research stack conventions with sourced consensus"
+  default_prompt: "Use $riff:learn-stack <stack> [focus] to research and record stack conventions in the invoking project."
+policy:
+  allow_implicit_invocation: false

@@ -13,7 +13,7 @@ The autonomous-wave recovery route always uses `high` intensity.
 
 ## Required inputs
 
-- The failure type and complete failure artifact.
+- A persisted failure artifact or an explicit ad-hoc user report.
 - The phase plan, summary, and relevant change snapshot.
 - The implicated source files and repository context.
 - The requested intensity.
@@ -42,7 +42,7 @@ other level-2 sections:
 
 1. `## Status`, whose body is exactly `DIAGNOSED` or `UNRESOLVED`.
 2. `## Identity`, containing exactly one raw JSON object:
-   `{"intensity":"high","phase":"<phase id>","run":"<wave run id>"}`.
+   `{"intensity":"<requested intensity>","phase":"<phase id>","run":"<run id>"}`.
 3. `## Failure Classification`.
 4. `## Hypotheses`.
 5. `## Evidence`.

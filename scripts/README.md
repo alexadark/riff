@@ -8,6 +8,7 @@ This is the supported script reference. Script internals under `scripts/lib/` ar
 | --- | --- | --- |
 | `riff-init.mjs` | `riff init [options]` | Installs RIFF into a normal Git checkout. Creates `.riff`, planning scaffolding, Claude runtime links, project-local Codex skills, and materialized Codex route adapters. |
 | `../riff` | `riff next --phase <id> --task <bounded-request>` | Runs one native stage through the provider selected by the active profile. |
+| `../riff` | `riff debug --issue <text> [--intensity normal|high|max]` | Runs a fresh read-only debugger and, only after a validated diagnosis, exactly one native stage restricted to its declared paths. |
 | `../riff` | `riff phase <list|add|set-status>` | Manages roadmap phases with full-roadmap validation and rollback on invalid edits. |
 | `../riff` | `riff status [--json]` | Reports authoritative roadmap, wave, stage, and next-action state. |
 | `../riff` | `riff wave --autonomous [--loop]` | Runs ready roadmap work and persists an `awaiting_human` verification request only at explicit dependency-ready confirmation boundaries. |
@@ -31,7 +32,7 @@ This is the supported script reference. Script internals under `scripts/lib/` ar
 | `artifact-check.mjs` | `node scripts/artifact-check.mjs [--project-root <framework-root>]` | Validates active skills, canonical roles, provider mappings, adapter routes, and plugin metadata. |
 | `scope-check.mjs` | `node .riff/scripts/scope-check.mjs --project-root <git-root> --phase <id> --worker-delta <path>` | Compares actual worker changes with validated plan boundaries. |
 
-`riff next` is the shared entry point behind the native skill. It requires explicit phase and task values, reads `runtime.provider` from the active profile, and has no implicit resume flag. `--provider codex|claude` is an explicit one-run override, not fallback.
+`riff next` is the shared entry point behind the native skill. It requires explicit phase and task values, reads `runtime.provider` from the active profile, and has no implicit resume flag. Repeat `--allowed-path <project-relative-path>` to mechanically restrict every declared PLAN boundary and task-owned path. `--provider codex|claude` is an explicit one-run override, not fallback.
 
 Production model and smoke dispatches require Darwin. The runner fails closed on other platforms.
 The current Claude route still requires the Codex CLI as the mechanical sandbox helper for planned smokes, but it does not dispatch Codex models.

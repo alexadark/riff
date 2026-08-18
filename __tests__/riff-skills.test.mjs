@@ -42,7 +42,7 @@ describe('active conversational skill split', () => {
 
 describe('active skill runtime contracts', () => {
   test('every owned active skill has an explicit runtime prompt and disabled implicit invocation', () => {
-    for (const name of ['dashboard', 'deep-audit', 'finish', 'improve', 'incident', 'incident-review', 'map', 'next', 'phase', 'promote', 'resync', 'start', 'status', 'wave']) {
+    for (const name of ['dashboard', 'deep-audit', 'debug', 'finish', 'improve', 'incident', 'incident-review', 'learn-stack', 'map', 'next', 'phase', 'promote', 'resync', 'start', 'status', 'wave']) {
       const config = skillConfig(name);
       expect(config).toContain(`$riff:${name}`);
       expect(config).toMatch(/allow_implicit_invocation:\s*false/);
@@ -63,6 +63,28 @@ describe('active skill runtime contracts', () => {
     expect(resync).toContain('`<git-root>/.riff/riff resync`');
     expect(resync).toContain('Do not invoke `riff-resync.sh` directly');
     expect(config).toContain('$riff:resync');
+    expect(config).toMatch(/allow_implicit_invocation:\s*false/);
+  });
+
+  test('debug is explicitly invoked and delegates diagnosis and repair to the project-local CLI', () => {
+    const text = skill('debug');
+    const config = skillConfig('debug');
+    expect(text).toContain('Run only when explicitly invoked as `$debug`');
+    expect(text).toContain('`<git-root>/.riff/riff debug --project-root <git-root> --issue <exact issue>`');
+    expect(text).toContain('Do not diagnose or implement the fix yourself.');
+    expect(text).not.toMatch(/\b(?:codex|claude|opus|sonnet|haiku|gpt-[\w.-]+)\b/i);
+    expect(config).toContain('$riff:debug');
+    expect(config).toMatch(/allow_implicit_invocation:\s*false/);
+  });
+
+  test('learn-stack is explicit, portable, and writes only consumer taste references', () => {
+    const text = skill('learn-stack');
+    const config = skillConfig('learn-stack');
+    expect(text).toContain('Run this workflow only for an explicit');
+    expect(text).toContain('`<project-root>/references/taste/stacks/<stack>.md`');
+    expect(text).toContain('Wait for explicit confirmation');
+    expect(text).not.toMatch(/\b(?:codex|claude|opus|sonnet|haiku|gpt-[\w.-]+)\b/i);
+    expect(config).toContain('$riff:learn-stack');
     expect(config).toMatch(/allow_implicit_invocation:\s*false/);
   });
 
@@ -172,7 +194,7 @@ describe('promotion and improver safety contracts', () => {
 
 describe('owned skill references', () => {
   test('all protocol paths referenced by owned skills exist', () => {
-    for (const name of ['dashboard', 'deep-audit', 'finish', 'improve', 'incident', 'incident-review', 'map', 'next', 'phase', 'promote', 'resync', 'start', 'status', 'wave']) {
+    for (const name of ['dashboard', 'deep-audit', 'debug', 'finish', 'improve', 'incident', 'incident-review', 'learn-stack', 'map', 'next', 'phase', 'promote', 'resync', 'start', 'status', 'wave']) {
       const text = skill(name);
       const references = [...text.matchAll(/`\.riff\/(protocols\/[^`]+)`/g)].map((match) => match[1]);
       for (const reference of references) expect(existsSync(path.join(repositoryRoot, reference))).toBe(true);

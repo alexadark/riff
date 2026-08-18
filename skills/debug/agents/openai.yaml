@@ -1,0 +1,6 @@
+interface:
+  display_name: "RIFF Debug"
+  short_description: "Diagnose one explicit RIFF project issue"
+  default_prompt: "Use $riff:debug with an exact --issue value to diagnose one RIFF project issue."
+policy:
+  allow_implicit_invocation: false

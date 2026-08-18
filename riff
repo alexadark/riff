@@ -14,6 +14,7 @@ if (!command || command === '-h' || command === '--help') {
 Usage:
   riff init [options]
   riff next --phase <id> --task <description> [options]
+  riff debug --issue <text> [--intensity normal|high|max] [options]
   riff wave --autonomous [--loop] [options]
   riff finish --check [--run ID] [--project-root PATH] [--base BRANCH] [--json]
   riff finish --confirm TOKEN [--run ID] [--project-root PATH] [--base BRANCH] [--json]
@@ -27,6 +28,7 @@ Usage:
 Commands:
   init      Install RIFF into the current project
   next      Run one bounded native stage using runtime.provider from the active profile
+  debug     Diagnose an explicit issue read-only, then run one bounded native fix when diagnosed
   wave      Run ready roadmap phases autonomously; add --loop to continue until a stop condition
   finish    Build a token-bound Git finish plan, then commit and integrate only after confirmation
   phase     List, add, or update roadmap phases
@@ -53,6 +55,11 @@ if (command === 'resync') {
 
 if (command === 'next') {
   const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-next.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
+  process.exit(result.status ?? 1);
+}
+
+if (command === 'debug') {
+  const result = spawnSync('node', [resolve(frameworkRoot, 'scripts', 'riff-debug.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
   process.exit(result.status ?? 1);
 }
 
