@@ -43,7 +43,9 @@ The framework root may be external to the consumer Git root.
 Every writable project or artifact target must resolve beneath the consumer Git root.
 Planned smoke commands run through the isolated mechanical sandbox helper inside writable disposable clones. They never run in the canonical staged workspace. In the current slice, both model providers require the Codex CLI for this mechanical sandbox helper; selecting Claude doesn't dispatch Codex models.
 
-User confirmation remains required before promotion.
+The runner requires RIFF Git dispatchers in Git's effective hooks directory. If it reports a missing or changed dispatcher, stop and tell the user to run `riff resync`; never bypass verification.
+
+User confirmation remains required before promotion or merge.
 
 ## Native stage boundary
 
@@ -54,4 +56,6 @@ Claude always retains planner and fresh plan-review dispatches. Inside each
 validated wave, path-disjoint tasks use separate isolated workers concurrently
 up to `wave.parallel_workers`; waves themselves remain ordered.
 Workers don't execute PLAN smoke entries in the canonical staged workspace. The runner executes them after all normal waves in disposable clones. Normal wave retries are absent. One bounded full-plan worker repair is allowed only after the first final smoke failure.
-PR/merge, promotion, and deep audit remain outside this slice.
+After fresh review and repeated mechanics pass, the runner records and commits each bounded PLAN task separately in deterministic task order. Parallel workers remain parallel in isolated stages; their disjoint deltas are serialized only at the Git transaction boundary. Later ordered waves may modify an earlier path and still retain both intermediate commits. The runner then adds one phase evidence commit. Every commit uses the installed user and RIFF Git-hook chain and requires runner-owned receipts.
+
+When invoked by `riff wave`, the phase branch participates in the stacked per-phase PR lifecycle after end-only wave security. A standalone `riff next` stops with the local evidence-bound phase branch and never pushes, opens a PR, merges, or promotes by itself. See `protocols/GIT-DELIVERY.md`.

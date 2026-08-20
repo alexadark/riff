@@ -20,8 +20,9 @@ This creates or preserves:
 - Claude runtime links under `.claude/`.
 - Codex project-local skills under `.agents/skills/`.
 - Materialized Codex runtime adapters under `.codex/agents/`.
+- Managed `pre-commit` and `commit-msg` dispatchers in Git's effective hooks directory. Existing project hooks are preserved and chained as `<event>.user`.
 
-Run `riff resync` after RIFF adds or removes active skills or adapters. It reconciles RIFF-owned links and preserves unowned collisions. The same operation is exposed as `$resync` in a project-local Codex installation, `$riff:resync` in the namespaced plugin, and `/riff:resync` in Claude Code.
+Run `riff resync` after RIFF adds or removes active skills, adapters, or Git-hook behavior. It reconciles RIFF-owned links and dispatchers and preserves unowned collisions. It honors project-local `core.hooksPath`. The same operation is exposed as `$resync` in a project-local Codex installation, `$riff:resync` in the namespaced plugin, and `/riff:resync` in Claude Code.
 
 `riff init` does not support Git linked worktrees. Use a normal checkout for installation. Production model and smoke dispatches require Darwin. The runner fails closed elsewhere because its required read-deny sandbox enforcement isn't trusted there.
 
@@ -147,8 +148,18 @@ an operator cap stops execution. A dependency-ready confirmation phase creates
 one immutable request under `.planning/riff-wave/`; it never requests a future
 blocked phase. Supply `Checked: <scope>; Observed: <result>; Expected: <expected result>`
 with the printed `--approve` command to bind a receipt and resume the same run.
-Waves never commit, merge, deploy, or promote implicitly; an explicitly approved
-roadmap phase may perform a deployment or promotion.
+Every completed bounded task becomes one attributable Git commit after fresh
+review and repeated mechanics pass. RIFF replays task deltas in deterministic
+PLAN order, so parallel workers remain separate commits and a later wave can
+modify an earlier path without losing the intermediate state. A phase evidence
+commit follows the task commits.
+
+The autonomous engine continues on stacked phase branches. After end-only
+mechanical and semantic security pass, it pushes each exact phase head and opens
+or reuses one detailed pull request per phase. Pull requests remain stacked
+until earlier phases are promoted. Waves never force-push, auto-merge, deploy,
+or promote; an explicitly approved roadmap phase may perform a deployment or
+promotion.
 
 ## What `$riff:next` does
 
@@ -162,7 +173,8 @@ The runner owns the stage order:
 6. **Worker waves** run autonomously in plan order. Independent tasks inside one wave receive separate isolated workers and run concurrently up to `wave.parallel_workers`; their validated non-overlapping deltas are integrated in task order.
 7. **Mechanical gates** run declared smokes, validate the summary, and scope-check actual changes.
 8. **Fresh code review** independently returns `PASS` or `FAIL` from a separate read-only evidence snapshot.
-9. **Repeated mechanics** confirm review didn't alter the project, then persist `completed` only after every preceding transition passed.
+9. **Repeated mechanics** confirm review didn't alter the project.
+10. **Git delivery** freezes the runner-owned action ledger, creates one normal verified commit per bounded task in deterministic order, and adds one phase evidence commit before persisting `completed`.
 
 The runner stages product work outside the consumer workspace. It compares snapshots before and after every wave. A wave must modify a product file in its own boundary. It rejects incremental changes outside the wave boundary.
 
@@ -291,12 +303,17 @@ The runner writes and validates:
 | `.planning/riff-next/<id>.json` | State transitions and evidence hashes. |
 | `.planning/riff-next/<id>.routing.json` | Selected provider, route variants, override provenance, and routing evidence. |
 | `.planning/riff-next/<id>.worker-delta.json` | Authoritative product delta produced by the staged workers. |
+| `.planning/riff-next/<id>.actions.json` | Ignored crash-safe action ledger with exact blobs, commit attempts, commit OIDs, and hook receipts. |
+| `.planning/phases/<id>/DELIVERY.json` | Committed action-commit and Git-hook evidence for the phase. |
+| `.planning/riff-wave/<run>--<phase>.pr-preparation.json` | Remote OID, detailed PR-body, hook, and end-only security binding. |
 
 The final summary's path and smoke evidence comes from the runner, not untrusted worker claims. The reviewer report includes machine evidence only after the runner validates its structure.
 
-Completion requires a valid plan, `PROCEED` plan review, completed worker results, passing mechanics and scope, `PASS` code review, repeated passing mechanics, and a persisted `completed` state.
+Completion requires a valid plan, `PROCEED` plan review, completed worker results, passing mechanics and scope, `PASS` code review, repeated passing mechanics, one verified commit per action, the phase evidence commit, and a persisted `completed` state.
 
-Completion doesn't create a PR, merge a branch, publish, deploy, or promote a project. Promotion is a separate explicit skill and always requires user confirmation before changing project files.
+A standalone `riff next` leaves the evidence-bound phase branch local. When a
+phase runs under `riff wave`, successful end-only security publishes the
+detailed phase PR. Neither path merges, deploys, or promotes a project.
 
 ## Skills and invocation policy
 
@@ -364,23 +381,30 @@ After completion:
 
 1. Read `SUMMARY.md`, `SCOPE-CHECK.json`, `REVIEW.md`, and the state file.
 2. Perform any product-specific visual or manual verification outside the runner's scope.
-3. Decide separately whether to commit, open a PR, merge, deploy, or promote.
+3. Inspect the action commits and detailed phase PRs created by a completed wave.
 4. Confirm promotion only when you intend to run it.
 
 ## Confirmed Git finishing
 
-`riff finish` is a separate, explicit Git boundary. Start with `./.riff/riff
-finish --check`, inspect the exact paths, evidence hashes, strategy, and next
-command, then run only the displayed `--confirm <token>` command. A check never
-changes Git or creates artifacts. Confirmation rebuilds the plan, so any changed
-content, HEAD, branch, evidence, or dirty path invalidates the token.
+`riff finish` is the separate explicit merge boundary for action-delivered
+waves. Start with `./.riff/riff finish --check`, inspect the next phase, PR URL,
+action and evidence commits, evidence hashes, required base, and next command,
+then run only the displayed `--confirm <token>` command. A check never changes
+Git or creates artifacts. Confirmation rebuilds the plan, so changed evidence,
+remote OIDs, PR identity, or dirty state invalidates the token.
 
-The active profile's `git.merge_strategy` must be `github_button` or
-`local_no_ff`. The former pushes the feature branch and opens or reuses a pull
-request, leaving the GitHub merge button as the explicit boundary. The latter
-performs the confirmed no-fast-forward merge and pushes the base branch. The
-remote feature branch remains for operator or GitHub cleanup. Neither strategy
-deploys or promotes.
+`--confirm` does not retarget or merge. It returns the exact GitHub boundary.
+For a stacked PR, merge its predecessors, retarget it to the promoted base, and
+use GitHub's merge-commit method. Squash and rebase are rejected because they
+erase the promoted per-action commit topology. `riff finish` verifies that
+already merged phases preserved their action commits on the promoted base.
+Verify the resulting diff before clicking Merge. RIFF never silently
+auto-merges.
+
+Completed waves from before action delivery have no trustworthy intermediate
+task deltas. `riff wave --resume` and `riff finish` reject them. Preserve their
+artifacts, return to a clean planning baseline, and rerun the affected phases.
+RIFF never turns that aggregate working tree into one compatibility commit.
 
 For scripts and direct commands, read [../scripts/README.md](../scripts/README.md). For the compact architecture view, read [../HOW-IT-WORKS.md](../HOW-IT-WORKS.md).
 

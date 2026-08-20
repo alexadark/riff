@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 export const STATES = Object.freeze([
   'initialized', 'controller_passed', 'plan_validated', 'plan_reviewed', 'worker_dispatched',
   'mechanics_passed', 'summary_validated', 'reviewer_dispatched', 'review_passed',
-  'post_review_mechanics_passed', 'completed', 'failed',
+  'post_review_mechanics_passed', 'delivery_committing', 'delivery_committed', 'completed', 'failed',
 ]);
 
 const NEXT = new Map([
@@ -21,7 +21,9 @@ const NEXT = new Map([
   ['summary_validated', { action: 'reviewer', state: 'reviewer_dispatched' }],
   ['reviewer_dispatched', { action: 'review', state: 'review_passed' }],
   ['review_passed', { action: 'post_review_mechanics', state: 'post_review_mechanics_passed' }],
-  ['post_review_mechanics_passed', { action: 'complete', state: 'completed' }],
+  ['post_review_mechanics_passed', { action: 'commit_actions', state: 'delivery_committing' }],
+  ['delivery_committing', { action: 'persist_delivery', state: 'delivery_committed' }],
+  ['delivery_committed', { action: 'complete', state: 'completed' }],
 ]);
 
 function sha(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
@@ -198,7 +200,7 @@ export function validateState(state, { phase, task } = {}) {
   for (const [key, value] of Object.entries(state.evidence_hashes)) {
     if (!/^[a-f0-9]{64}$/i.test(value)) throw new Error(`state evidence hash is invalid: ${key}`);
   }
-  const planReviewRequired = ['plan_reviewed', 'worker_dispatched', 'mechanics_passed', 'summary_validated', 'reviewer_dispatched', 'review_passed', 'post_review_mechanics_passed', 'completed'].includes(state.state);
+  const planReviewRequired = ['plan_reviewed', 'worker_dispatched', 'mechanics_passed', 'summary_validated', 'reviewer_dispatched', 'review_passed', 'post_review_mechanics_passed', 'delivery_committing', 'delivery_committed', 'completed'].includes(state.state);
   if (planReviewRequired && !state.evidence_hashes.plan_review) throw new Error('state plan_review evidence hash is required after plan review');
   if (task !== undefined && state.evidence_hashes.task !== sha(task)) throw new Error('state task evidence does not match the current task');
   return state;

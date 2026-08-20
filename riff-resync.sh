@@ -378,6 +378,10 @@ link_one "agents"   ".claude/agents/riff"   "md"
 # security-scan.sh and commit-msg.sh live in .git/hooks/, not .claude/hooks/riff/
 link_one "hooks"    ".claude/hooks/riff"    "sh" "security-scan.sh|commit-msg.sh"
 
+if [ "$MODE" = "project" ]; then
+  node "$FRAMEWORK/scripts/riff-git-hooks.mjs" --project-root "$CONSUMER_ROOT" >/dev/null
+fi
+
 # Cleanup dangling symlinks
 for d in .claude/commands/riff .claude/agents/riff .claude/hooks/riff; do
   [ -d "$d" ] || continue

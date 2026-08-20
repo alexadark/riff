@@ -1,5 +1,23 @@
 # PR-CREATION — Step 8 procedure
 
+## Native phase pull requests
+
+Native `riff wave` follows `protocols/GIT-DELIVERY.md`. It publishes one detailed pull request per completed phase only after every action commit, the phase evidence commit, human verification when required, and end-only mechanical and semantic security pass.
+
+Before `gh pr create` or reuse, the wave must:
+
+1. Validate every action commit, exact parent and tree, committed `DELIVERY.json`, and pre-commit and commit-msg receipts.
+2. Require the remote base to equal the ledger's base OID and the remote phase head to be absent or equal the phase evidence commit. Use a normal push only.
+3. Run configured project hooks with `RIFF_EVENT=phase_pr_prepare`. Exit `0` passes, exit `2` records a warning, and every other exit blocks PR creation. Persist stdout and stderr hashes in the preparation receipt.
+4. Run the no-merge finisher guard.
+5. Create the detailed body required by `protocols/GIT-DELIVERY.md` and persist a body hash, action-ledger hash, hook receipt, and end-only security hashes.
+6. Reuse only one open PR whose head and base exactly match. Closed, duplicate, draft, stale, or tampered PR state blocks publication.
+
+Publication never authorizes merge. Stacked PR promotion stays at the token-bound `riff finish` and GitHub confirmation boundary.
+Native phase PRs must use the merge-commit method after that confirmation. Squash and rebase are not compatible with per-action attribution and are rejected during resume.
+
+## Legacy command Step 8
+
 Three sub-steps run in order: documentation check, push + PR composition + merge strategy branching, post-merge state update.
 
 **Invariant:** do NOT update ROADMAP.yaml or STATE.md on the feature branch. Those mutations land on `main` (via Step 8c on `local_no_ff`, or via Step 0 stale-todo reconciliation on the next `/riff:next` run for `github_button`).

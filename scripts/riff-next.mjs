@@ -26,6 +26,17 @@ import {
 } from './lib/artifact-contracts.mjs';
 import { compareSnapshots, gitRoot, snapshotWorktree } from './lib/worktree-snapshot.mjs';
 import {
+  actionLedgerPath,
+  appendActionEvidence,
+  assertCleanDeliveryStart,
+  captureOwnedState,
+  commitActionLedger,
+  freezeActionLedger,
+  initializeActionLedger,
+  preparePhaseBranch,
+  readActionLedger,
+} from './lib/git-delivery.mjs';
+import {
   acquirePhaseLock,
   failState,
   initializeState,
@@ -81,7 +92,7 @@ const PLANNER_SMOKE_RULES = [
   'Do not invent an extra inline assertion command. Keep two actionable smoke entries for code-touching plans.',
 ].join(' ');
 const PLANNER_TASK_SCOPE_RULE = 'Each task must implement or directly verify a product result in `allowed_paths`; never create tasks for RIFF gates, scope checks, snapshots, smoke orchestration, or summary/review completion.';
-const PLANNER_TASK_OWNERSHIP_RULE = 'Directly below every task heading, include exactly one line `Owned paths: ["path"]` with a non-empty JSON array. List only the product paths that task creates, updates, deletes, or mode-changes. Incidental imports, dependencies, and referenced files are not owned. Owned paths must remain inside `allowed_paths`, and different tasks must not own overlapping paths.';
+const PLANNER_TASK_OWNERSHIP_RULE = 'Directly below every task heading, include exactly one line `Owned paths: ["path"]` with a non-empty JSON array. List only the product paths that task creates, updates, deletes, or mode-changes. Incidental imports, dependencies, and referenced files are not owned. Owned paths must remain inside `allowed_paths`. Tasks in the same wave must not own overlapping paths; a task in a later wave may deliberately revisit an earlier path.';
 const PLANNER_TRACEABILITY_RULE = 'When a plan adds or changes tests, trace every explicitly requested behavior, input class, edge case, and preservation constraint to at least one task acceptance criterion. Give every testable behavior and input class an explicit test case. Name every requested constituent explicitly rather than hiding it under a broad category such as `alphanumeric` when the request names digits or another constituent.';
 const PLAN_REVIEW_METADATA_RULE = 'Treat required plan metadata sections such as Identity, Logical Dependencies, Waves, Assumptions, Confidence, Boundaries, and Smoke as evidence, not product tasks. Reject meta work only when it appears as a task or an outcome.';
 const CONTROLLER_OUTPUT_SCHEMA = Object.freeze({
@@ -200,6 +211,8 @@ function parseArgs(argv) {
     codexBin: process.env.RIFF_CODEX_BIN || 'codex',
     claudeBin: process.env.RIFF_CLAUDE_BIN || 'claude',
     directPlanStdin: false,
+    gitDelivery: true,
+    resumeDelivery: false,
     allowedPaths: [],
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -211,6 +224,11 @@ function parseArgs(argv) {
     else if (key === '--codex-bin') { if (!value) fail('--codex-bin requires a value'); args.codexBin = value; index += 1; }
     else if (key === '--claude-bin') { if (!value) fail('--claude-bin requires a value'); args.claudeBin = value; index += 1; }
     else if (key === '--direct-plan-stdin') { args.directPlanStdin = true; }
+    else if (key === '--resume-delivery') { args.resumeDelivery = true; }
+    else if (key === '--delivery-run') { if (!value) fail('--delivery-run requires a value'); args.deliveryRun = value; index += 1; }
+    else if (key === '--delivery-branch') { if (!value) fail('--delivery-branch requires a value'); args.deliveryBranch = value; index += 1; }
+    else if (key === '--delivery-base-branch') { if (!value) fail('--delivery-base-branch requires a value'); args.deliveryBaseBranch = value; index += 1; }
+    else if (key === '--delivery-base-oid') { if (!value) fail('--delivery-base-oid requires a value'); args.deliveryBaseOid = value; index += 1; }
     else if (key === '--allowed-path') { if (!value) fail('--allowed-path requires a value'); args.allowedPaths.push(value); index += 1; }
     else if (key === '-h' || key === '--help') { process.stdout.write('Usage: node scripts/riff-next.mjs --phase <name> --task <description> [--project-root <path>] [--provider codex|claude] [--allowed-path <project-relative-path>] [--codex-bin <path>] [--claude-bin <path>] [--direct-plan-stdin]\n'); process.exit(0); }
     else fail(`unknown argument: ${key}`);
@@ -854,6 +872,43 @@ function stageOwnedPaths(projectRoot, phase) {
   ];
 }
 
+function deliveryEvidencePaths(projectRoot, phase) {
+  const phaseDir = path.join(projectRoot, '.planning', 'phases', phase);
+  return [
+    path.join(phaseDir, 'PLAN.md'),
+    path.join(phaseDir, 'PLAN-REVIEW.md'),
+    path.join(phaseDir, 'SUMMARY.md'),
+    path.join(phaseDir, 'REVIEW.md'),
+    path.join(phaseDir, 'SCOPE-CHECK.json'),
+    path.join(projectRoot, '.planning', 'riff-next', `${phase}.routing.json`),
+    path.join(projectRoot, '.planning', 'riff-next', `${phase}.worker-delta.json`),
+  ].map((file) => path.relative(projectRoot, file).replaceAll(path.sep, '/'));
+}
+
+function resumeGitDelivery({ projectRoot, phase, task, runtimeLockRoot }) {
+  const lock = acquirePhaseLock(projectRoot, phase, { runtimeLockRoot });
+  try {
+    let state = readState(projectRoot, phase);
+    if (!state) fail(`cannot resume missing native delivery state: ${phase}`);
+    validateState(state, { phase, task });
+    if (!['delivery_committing', 'delivery_committed'].includes(state.state)) fail(`native phase is not awaiting delivery resume: ${phase} (${state.state})`);
+    if (state.state === 'delivery_committing') {
+      const ledger = commitActionLedger({ projectRoot, phase, evidencePaths: deliveryEvidencePaths(projectRoot, phase), expectedValidatedSha256: state.evidence_hashes.action_ledger });
+      state = transitionState(projectRoot, phase, {
+        expectedState: state.state,
+        nextState: 'delivery_committed',
+        evidence: { delivery_head: ledger.phase_commit_oid, action_ledger: ledger.validated_evidence_sha256 },
+      });
+    }
+    const finalSnapshot = snapshotWorktree({ root: projectRoot, explicitPaths: deliveryEvidencePaths(projectRoot, phase) });
+    return transitionState(projectRoot, phase, {
+      expectedState: state.state,
+      nextState: 'completed',
+      evidence: { final_snapshot: sha(JSON.stringify(finalSnapshot)) },
+    });
+  } finally { lock.release(); }
+}
+
 function portableRouteAdapter(frameworkRoot, route) {
   return providerAdapterIdentity(route, frameworkRoot);
 }
@@ -941,7 +996,7 @@ function assertDirectDependenciesPrepared(projectRoot, smokes) {
 
 function assertStageArtifactsAbsent(projectRoot, phase) {
   const existing = [];
-  for (const file of stageOwnedPaths(projectRoot, phase)) {
+  for (const file of [...stageOwnedPaths(projectRoot, phase), actionLedgerPath(projectRoot, phase)]) {
     try { fs.lstatSync(file); existing.push(path.relative(projectRoot, file).replaceAll(path.sep, '/')); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
@@ -1247,6 +1302,17 @@ export function runOrchestration(options) {
   assertPlanningRoot(projectRoot);
   const frameworkRoot = resolveFrameworkRoot(projectRoot);
   if (path.resolve(frameworkRoot) === path.resolve(projectRoot)) fail('framework root must be separate from the consumer project root');
+  if (args.resumeDelivery) return resumeGitDelivery({ projectRoot, phase: args.phase, task: args.task, runtimeLockRoot: args.runtimeLockRoot });
+  let deliveryContext = null;
+  if (args.gitDelivery === true) {
+    const currentBranch = gitValue(projectRoot, ['branch', '--show-current']);
+    if (!currentBranch) fail('RIFF Git delivery requires a named branch baseline');
+    const baseOid = args.deliveryBaseOid || gitValue(projectRoot, ['rev-parse', 'HEAD']);
+    const branch = args.deliveryBranch || `riff/phase-${args.phase}`;
+    const baseBranch = args.deliveryBaseBranch || currentBranch;
+    assertCleanDeliveryStart(projectRoot, { allowed: args.deliveryRun ? ['ROADMAP.yaml', '.planning/riff-wave'] : [] });
+    deliveryContext = preparePhaseBranch({ projectRoot, branch, baseBranch, baseOid });
+  }
   const runtimeProfile = resolveRuntimeProfile({ projectRoot, frameworkRoot, provider: args.provider });
   const provider = runtimeProfile.provider;
   const providerBinary = provider === 'claude'
@@ -1278,6 +1344,7 @@ export function runOrchestration(options) {
     failure: relative(projectRoot, failurePath),
     routing: relative(projectRoot, path.join(projectRoot, '.planning', 'riff-next', `${args.phase}.routing.json`)),
     delta: initialDeltaRel,
+    actions: relative(projectRoot, actionLedgerPath(projectRoot, args.phase)),
   };
   const allControlArtifactPaths = Object.values(artifactPaths);
   const consumerPathVariants = [...new Set([projectRoot, path.resolve(args.projectRoot)])];
@@ -1518,6 +1585,23 @@ export function runOrchestration(options) {
       evidence: { ...evidence('plan_review', persistedPlanReviewText), ...(useDirectPlan ? evidence('direct_plan', directPlanText) : {}) },
     });
     if (planReviewCheck.verdict !== 'PROCEED') fail(`plan reviewer returned ${planReviewCheck.verdict}`);
+    let actionOrdinal = 0;
+    if (deliveryContext) {
+      initializeActionLedger({
+        projectRoot,
+        phase: args.phase,
+        branch: deliveryContext.branch,
+        baseBranch: deliveryContext.base_branch,
+        baseOid: deliveryContext.base_oid,
+        provider,
+        model: workerRoute.model,
+        agent: 'worker',
+        planPath: path.relative(projectRoot, planPath).replaceAll(path.sep, '/'),
+        planSha256: planHash,
+        routingSha256: sha(routingReceiptText),
+        route: portableRouteAdapter(frameworkRoot, workerRoute),
+      });
+    }
     assertDispatch(state, 'worker');
     state = transitionState(projectRoot, args.phase, { expectedState: state.state, nextState: 'worker_dispatched', evidence: evidence('worker_dispatch', `${args.phase}:${workerRoute.roleSpecPath}`) });
     const baselineDiffCheck = diffCheck(projectRoot);
@@ -1577,11 +1661,24 @@ export function runOrchestration(options) {
       let afterWorkerStage = workerStage.stageBaseline;
       for (const wave of planCheck.waves.waves) {
         const run = { wave, workers: [] };
-        if (wave.tasks.length === 1 || workerParallelism === 1) {
+        if (wave.tasks.length === 1) {
           const beforeWave = snapshotWorkerWorkspace(workerStage.stageRoot, args.phase);
           const allowedPaths = [...new Set(wave.tasks.flatMap((task) => task.declared_paths || []))];
+          const beforeAction = deliveryContext ? captureOwnedState({ projectRoot, sourceRoot: workerStage.stageRoot, ownedPaths: allowedPaths }) : null;
           const worker = dispatchWithAuthority(lock, workerStage.dispatchRoot, providerBinary, workerRoute, workerPrompt(wave), projectRoot, args.phase, state, { ...dispatchOptions, addDir: workerStage.stageRoot, readPaths: workerStage.readPaths, protectedPaths: workerStage.protectedPaths, env: workerStage.runtimeEnv, shellPath: workerStage.toolchainPath, roleSpecPathForPrompt: workerStage.workerBundle.roleSpecPath });
           const result = validateWorkerAttempt(worker, workerStage, beforeWave, allowedPaths, wave.tasks.map((task) => task.label), wave.tasks);
+          if (deliveryContext) appendActionEvidence({
+            projectRoot,
+            phase: args.phase,
+            task: wave.tasks[0],
+            waveNumber: wave.number,
+            ordinal: ++actionOrdinal,
+            ownedPaths: allowedPaths,
+            changedPaths: result.comparison.changed,
+            beforeState: beforeAction,
+            afterRoot: workerStage.stageRoot,
+            workerOutputSha256: sha(result.stdout),
+          });
           waveSummaries.push(result.summary);
           run.workers.push({ tasks: wave.tasks, stdout: result.stdout });
           afterWorkerStage = result.afterStage;
@@ -1590,9 +1687,11 @@ export function runOrchestration(options) {
             const batch = wave.tasks.slice(offset, offset + workerParallelism);
             const beforeBatch = snapshotWorkerWorkspace(workerStage.stageRoot, args.phase);
             const stages = [];
+            const beforeActions = [];
             try {
               for (const task of batch) {
                 stages.push(createWorkerStage({ consumerRoot: workerStage.stageRoot, phase: args.phase, planHash, baselineSnapshot: beforeBatch, frameworkRoot, forModel: true, requiredExecutables: plannedSmokeExecutables, internalTestAllowNonDarwinWorkerSandbox: args.internalTestAllowNonDarwinWorkerSandbox === true }));
+                beforeActions.push(deliveryContext ? captureOwnedState({ projectRoot, sourceRoot: stages.at(-1).stageRoot, ownedPaths: task.declared_paths || [] }) : null);
               }
               const containers = stages.map((stage) => stage.containerRoot);
               for (const stage of stages) {
@@ -1623,6 +1722,18 @@ export function runOrchestration(options) {
               for (let index = 0; index < results.length; index += 1) {
                 const task = batch[index];
                 const result = results[index];
+                if (deliveryContext) appendActionEvidence({
+                  projectRoot,
+                  phase: args.phase,
+                  task,
+                  waveNumber: wave.number,
+                  ordinal: ++actionOrdinal,
+                  ownedPaths: task.declared_paths || [],
+                  changedPaths: result.comparison.changed,
+                  beforeState: beforeActions[index],
+                  afterRoot: stages[index].stageRoot,
+                  workerOutputSha256: sha(result.stdout),
+                });
                 promoteWorkerDelta({ consumerRoot: workerStage.stageRoot, stageRoot: stages[index].stageRoot, baselineSnapshot: stages[index].stageBaseline, stagedSnapshot: result.afterStage, boundaries: task.declared_paths || [], allowExistingDelta: true });
                 waveSummaries.push(result.summary);
                 run.workers.push({ tasks: [task], stdout: result.stdout });
@@ -1669,8 +1780,25 @@ export function runOrchestration(options) {
         assertImmutablePlanReview(stagedPlanReviewPath, planReviewHash);
         const diagnosticsText = boundedDiagnostic(JSON.stringify(repairSmokeDiagnostics(firstMechanicsError.smokeResults || [], workerOutputPaths)), workerOutputPaths, 12000);
         const fullWave = { number: planCheck.waves.waves.length, tasks: planCheck.tasks };
+        const beforeRepair = snapshotWorkerWorkspace(workerStage.stageRoot, args.phase);
+        const repairBeforeState = deliveryContext ? captureOwnedState({ projectRoot, sourceRoot: workerStage.stageRoot, ownedPaths: planCheck.boundaries.allowed_paths }) : null;
         const repairWorker = dispatchWithAuthority(lock, workerStage.dispatchRoot, providerBinary, workerRoute, workerPrompt(fullWave, workerStage, `\n${diagnosticsText}`), projectRoot, args.phase, state, { ...dispatchOptions, addDir: workerStage.stageRoot, readPaths: workerStage.readPaths, protectedPaths: workerStage.protectedPaths, env: workerStage.runtimeEnv, shellPath: workerStage.toolchainPath, roleSpecPathForPrompt: workerStage.workerBundle.roleSpecPath });
         const repairResult = validateWorkerAttempt(repairWorker, workerStage, workerStage.stageBaseline, planCheck.boundaries.allowed_paths, planCheck.tasks.map((task) => task.label), planCheck.tasks);
+        if (deliveryContext) {
+          const repairDelta = compareWorkerWorkspaceSnapshots(beforeRepair, repairResult.afterStage);
+          appendActionEvidence({
+            projectRoot,
+            phase: args.phase,
+            task: { number: planCheck.tasks.length + 1, label: 'Repair: Resolve authoritative smoke failure' },
+            waveNumber: planCheck.waves.waves.length + 1,
+            ordinal: ++actionOrdinal,
+            ownedPaths: planCheck.boundaries.allowed_paths,
+            changedPaths: repairDelta.changed,
+            beforeState: repairBeforeState,
+            afterRoot: workerStage.stageRoot,
+            workerOutputSha256: sha(repairResult.stdout),
+          });
+        }
         workerSummary = aggregateWaveSummaries([repairResult.summary], planCheck.waves.waves, { includeRepair: true });
         ({ afterStage: afterWorkerStage, comparison: workerStageComparison } = repairResult);
         waveExecution.repair = executionRecord(planCheck.tasks, repairResult.stdout);
@@ -1803,10 +1931,27 @@ export function runOrchestration(options) {
     const postReviewConsumerDelta = compareSnapshots(postReviewBaseline, postReviewConsumerAfter);
     assertNoGitMetadataMutation('post-review consumer', postReviewConsumerDelta);
     if (postReviewConsumerDelta.changed.length || postReviewConsumerDelta.staged_diff_changed || postReviewConsumerDelta.status_changed) fail(`consumer changed during post-review smoke: ${postReviewConsumerDelta.changed.join(', ') || 'worktree metadata'}`);
-    const finalSnapshot = postReviewConsumerAfter;
     state = transitionState(projectRoot, args.phase, { expectedState: state.state, nextState: 'post_review_mechanics_passed', evidence: evidence('post_review_mechanics', JSON.stringify(postReviewSmokeResults)) });
     lock.assertOwned();
     assertTrustedState(projectRoot, args.phase, state);
+    if (deliveryContext) {
+      const frozenLedger = freezeActionLedger(projectRoot, args.phase, { validationEvidencePaths: deliveryEvidencePaths(projectRoot, args.phase) });
+      state = transitionState(projectRoot, args.phase, {
+        expectedState: state.state,
+        nextState: 'delivery_committing',
+        evidence: { action_ledger: frozenLedger.validated_evidence_sha256 },
+      });
+      const committedLedger = commitActionLedger({ projectRoot, phase: args.phase, evidencePaths: deliveryEvidencePaths(projectRoot, args.phase), expectedValidatedSha256: frozenLedger.validated_evidence_sha256 });
+      state = transitionState(projectRoot, args.phase, {
+        expectedState: state.state,
+        nextState: 'delivery_committed',
+        evidence: { delivery_head: committedLedger.phase_commit_oid, action_ledger: committedLedger.validated_evidence_sha256 },
+      });
+    } else {
+      state = transitionState(projectRoot, args.phase, { expectedState: state.state, nextState: 'delivery_committing', evidence: evidence('delivery', 'disabled') });
+      state = transitionState(projectRoot, args.phase, { expectedState: state.state, nextState: 'delivery_committed', evidence: evidence('delivery_head', gitValue(projectRoot, ['rev-parse', 'HEAD'])) });
+    }
+    const finalSnapshot = snapshotWorktree({ root: projectRoot, explicitPaths: deliveryEvidencePaths(projectRoot, args.phase) });
     state = transitionState(projectRoot, args.phase, { expectedState: state.state, nextState: 'completed', evidence: evidence('final_snapshot', JSON.stringify(finalSnapshot)) });
     return state;
     } finally {
@@ -1818,7 +1963,8 @@ export function runOrchestration(options) {
   } catch (error) {
     if (markFailure) {
       try {
-        if (state && state.state !== 'completed' && state.state !== 'failed') failState(projectRoot, args.phase, { state, error });
+        if (state && state.state !== 'completed' && state.state !== 'failed'
+          && !['delivery_committing', 'delivery_committed'].includes(state.state)) failState(projectRoot, args.phase, { state, error });
       } catch { /* preserve original failure */ }
     }
     throw error;

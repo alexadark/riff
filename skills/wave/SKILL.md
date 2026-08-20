@@ -38,11 +38,11 @@ After a structured evidence note is supplied with `--approve` using `Checked`,
 `Observed`, and `Expected` fields, it validates the request and approval receipt
 and continues the same run automatically.
 
-Security-sensitive implementation remains autonomous. Security hooks run once
-after the product phases in the wave or loop. Only a reproducible blocking
-finding stops completion. Visual or functional checks explicitly marked for
-human verification, destructive boundaries, and promotion remain confirmation
-boundaries.
+Security-sensitive implementation remains autonomous. End-only security hooks
+run once after the product phases in the wave or loop. Only a reproducible
+blocking finding stops completion. Visual or functional checks explicitly
+marked for human verification, destructive boundaries, merge, and promotion
+remain confirmation boundaries.
 
 Every phase attempt has a distinct native stage identifier. `--resume` safely
 reconciles an attempt that completed before interruption and creates a new
@@ -54,7 +54,17 @@ when it returns a valid bounded assignment, makes one debugger-guided native
 attempt. An unresolved, invalid, interrupted, post-promotion, or failed guided
 recovery stops the wave without another debugger dispatch.
 
-The wave engine never commits, merges, deploys, or promotes implicitly.
+Each completed phase contains one Git commit per bounded PLAN task plus an
+additional phase evidence commit. The engine continues autonomously on stacked
+phase branches, then, after end-only security passes, normally pushes and opens
+one detailed pull request per phase. It validates exact remote base and head
+OIDs, runs phase PR-preparation hooks, reuses only the unique matching open PR,
+and never force-pushes. It never merges, deploys, or promotes. If publication
+fails, return the persisted resume command. See `protocols/GIT-DELIVERY.md`.
+
+A completed or interrupted legacy wave without per-action delivery records
+cannot be resumed or finished safely. Report the migration boundary and require
+a rerun from a clean planning baseline; never synthesize one aggregate commit.
 
 Roadmap dependency frontiers remain ordered by the engine. Inside each native
 phase, path-disjoint tasks grouped in the same validated PLAN wave run through

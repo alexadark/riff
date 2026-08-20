@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -6,7 +7,7 @@ import { updateGate } from './gates.mjs';
 
 const DEFAULT_TIMEOUT_MS = 120000;
 
-function configuredHooks(root) {
+export function configuredHooks(root) {
   const config = readJsonIfExists(root, '.planning/config.json');
   if (config.exists && !config.error && Array.isArray(config.value?.hooks)) {
     return config.value.hooks.filter((hookPath) => typeof hookPath === 'string');
@@ -19,6 +20,8 @@ function configuredHooks(root) {
     .sort()
     .map((file) => toPosix(path.join('hooks', 'examples', file)));
 }
+
+function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
 
 function statusFromExit(code) {
   if (code === 0) return 'pass';
@@ -121,6 +124,52 @@ export function runHooks({ root, phase, scope, gate = 'hooks' }) {
 
   return {
     status,
+    results,
+  };
+}
+
+export function runPhasePreparationHooks({ root, phase, scope, outputDir }) {
+  const hookPaths = configuredHooks(root);
+  ensureDir(root, outputDir);
+  if (!hookPaths.length) return { status: 'skipped', results: [] };
+  const results = hookPaths.map((hookPath) => {
+    const [command, ...args] = commandForHook(hookPath);
+    const id = path.basename(hookPath).replace(/[^a-zA-Z0-9._-]/g, '-');
+    const result = spawnSync(command, args, {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: DEFAULT_TIMEOUT_MS,
+      env: {
+        ...process.env,
+        RIFF_EVENT: 'phase_pr_prepare',
+        RIFF_PHASE_DIR: phase.dir,
+        RIFF_SCOPE: scope,
+        RIFF_GATE: 'phase-pr-preparation',
+        RIFF_REPO_ROOT: root,
+      },
+    });
+    const exitCode = result.status ?? 1;
+    const stdout = result.stdout ?? '';
+    const stderr = result.stderr ?? result.error?.message ?? '';
+    const stdoutPath = artifactPath(outputDir, `${id}.stdout.txt`);
+    const stderrPath = artifactPath(outputDir, `${id}.stderr.txt`);
+    writeText(root, stdoutPath, stdout);
+    writeText(root, stderrPath, stderr);
+    return {
+      hook: hookPath,
+      status: result.error ? 'fail' : statusFromExit(exitCode),
+      exitCode,
+      stdoutPath,
+      stderrPath,
+      stdoutSha256: sha256(stdout),
+      stderrSha256: sha256(stderr),
+      ...(result.error ? { error: result.error.message } : {}),
+    };
+  });
+  return {
+    status: results.some((result) => result.status === 'fail')
+      ? 'fail'
+      : results.some((result) => result.status === 'warn') ? 'warn' : 'pass',
     results,
   };
 }

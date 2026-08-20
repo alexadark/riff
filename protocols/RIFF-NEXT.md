@@ -53,7 +53,7 @@
    Stop when the controller cannot establish the next transition.
 3. **PLAN validation.** Require structured boundaries and structured smoke argv.
    `## Boundaries` must contain a JSON object with non-empty `allowed_paths`.
-   Every task must contain exactly one `Owned paths` JSON array. Different tasks cannot own overlapping paths.
+   Every task must contain exactly one `Owned paths` JSON array. Tasks in the same parallel wave cannot own overlapping paths. A task in a later ordered wave may revisit a path when its before-state follows the earlier action's after-state.
    Incidental imports and dependencies do not establish task ownership.
    `## Smoke` must be non-empty. Each entry must be JSON with `argv` and `expect.exit_code`, plus optional `expect.stdout_includes`.
    `expect.exit_code` is mandatory. Use `expect.stdout_includes` only for fragments already observed and stable in the current project and runtime.
@@ -112,9 +112,8 @@
    Stop when the report is missing or invalid.
 13. **Repeat mechanical gates.** Re-run mechanical checks after review.
    A failure prevents completion.
-14. **Completed state.** Persist completed state after every preceding transition passes.
+14. **Action delivery.** Follow `protocols/GIT-DELIVERY.md`. Freeze the action ledger only after the fresh review and repeated mechanics pass. Replay one evidence-bound commit per task in deterministic PLAN order with normal Git hooks enabled, then add one phase evidence commit. Persist `delivery_committing`, `delivery_committed`, and finally `completed`.
 
-The native slice covers ordered autonomous waves with bounded parallel workers through completed state for one code-mode review.
+The native slice covers ordered autonomous waves with bounded parallel workers, atomic action commits, and completed phase delivery through one code-mode review.
 Normal wave retries are absent. One bounded full-plan worker repair is allowed only after the first final smoke failure.
-PR/merge, promotion, and deep audit are outside the first slice.
-Promotion still requires explicit user confirmation before it runs.
+Phase PR publication belongs to `riff wave` after end-only security. Merge and promotion still require explicit user confirmation.

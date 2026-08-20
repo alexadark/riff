@@ -375,13 +375,6 @@ function parseNativeTaskShape(planText, { enforceProductScope = false } = {}) {
         errors.push(`PLAN.md task at line ${task.source_line} is dedicated to RIFF orchestration rather than a product result`);
       }
     }
-    for (let index = 0; index < tasks.length; index += 1) {
-      for (let otherIndex = index + 1; otherIndex < tasks.length; otherIndex += 1) {
-        if (taskPathOverlap(tasks[index].declared_paths || [], tasks[otherIndex].declared_paths || [])) {
-          errors.push(`PLAN.md tasks ${tasks[index].number} and ${tasks[otherIndex].number} have overlapping declared product paths`);
-        }
-      }
-    }
   } else {
     tasks.forEach((task) => { task.declared_paths = []; });
   }
@@ -412,6 +405,15 @@ export function parseNativeWaves(planText, tasks = []) {
   }
   if (!waves.length) errors.push('PLAN.md ## Waves must contain at least one wave');
   waves.forEach((wave, index) => { if (wave.number !== index + 1) errors.push(`PLAN.md waves must be numbered consecutively from 1, found ${wave.number} at position ${index + 1}`); });
+  for (const wave of waves) {
+    for (let index = 0; index < wave.tasks.length; index += 1) {
+      for (let otherIndex = index + 1; otherIndex < wave.tasks.length; otherIndex += 1) {
+        if (taskPathOverlap(wave.tasks[index].declared_paths || [], wave.tasks[otherIndex].declared_paths || [])) {
+          errors.push(`PLAN.md Wave ${wave.number} tasks ${wave.tasks[index].number} and ${wave.tasks[otherIndex].number} have overlapping declared product paths`);
+        }
+      }
+    }
+  }
   for (const task of tasks) if (!claimed.has(task.number)) errors.push(`PLAN.md waves omit Task ${task.number}`);
   return { sectionExists: true, exact: errors.length === 0, waves, errors };
 }

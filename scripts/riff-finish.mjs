@@ -11,6 +11,7 @@ import { resolveRuntimeProfile } from './lib/runtime-provider.mjs';
 import { assertWaveRunId, readWaveState, secureWaveRoot } from './lib/wave-state.mjs';
 import { checkBranch } from './finisher-guard.mjs';
 import { inspectCompletedWaveEvidence } from './riff-wave.mjs';
+import { validateActionDelivery } from './lib/git-delivery.mjs';
 
 const scriptFrameworkRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -58,7 +59,7 @@ function isolatedGitEnvironment() {
 }
 
 function git(projectRoot, args, { input, allowFailure = false } = {}) {
-  const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'push.followTags=false', ...args], {
+  const result = spawnSync('git', ['-c', 'push.followTags=false', ...args], {
     cwd: projectRoot, encoding: 'buffer', shell: false, input,
     env: isolatedGitEnvironment(), maxBuffer: 16 * 1024 * 1024,
     timeout: 30_000, killSignal: 'SIGKILL', stdio: ['pipe', 'pipe', 'pipe'],
@@ -206,71 +207,92 @@ function assertGuard(projectRoot, branch) {
   if (!guard.allowed) fail(`finisher guard blocks ${branch}`);
 }
 
+function remoteBranchOid(projectRoot, remoteUrl, branch) {
+  const lines = remoteUrlLines(projectRoot, ['ls-remote', '--refs', remoteUrl, `refs/heads/${branch}`]);
+  if (!lines.length) return null;
+  if (lines.length !== 1 || !/^[0-9a-f]{40,64}\s+refs\/heads\//.test(lines[0])) fail(`remote phase branch is ambiguous: ${branch}`);
+  return lines[0].split(/\s+/)[0];
+}
+
+function nativePromotionPlan({ projectRoot, state, evidence, explicitBase }) {
+  if (state.git.schema_version !== 1 || state.git.topology !== 'stacked_phase_branches') fail(`RIFF wave ${state.run} has an unsupported Git topology`);
+  const base = state.git.base_branch;
+  if (explicitBase && explicitBase.replace(/^origin\//, '') !== base) fail(`selected base does not match the evidence-bound wave base: ${base}`);
+  const destination = resolveDestination(projectRoot, base);
+  if (!destination.github_repo) fail('native phase promotion requires a GitHub origin');
+  if (githubBranchOid(projectRoot, destination.github_repo, base) !== destination.remote_base_oid) fail('GitHub and push-remote base identities differ');
+  const dirty = currentChanges(projectRoot);
+  if (hasPreStagedChanges(projectRoot) || dirty.some((entry) => entry !== 'ROADMAP.yaml')) fail(`dirty or staged paths block phase promotion: ${dirty.join(', ')}`);
+  const headRoadmap = Buffer.from(git(projectRoot, ['show', `${state.git.tip_oid}:ROADMAP.yaml`]).stdout || '').toString('utf8');
+  let expectedRoadmap = headRoadmap;
+  for (const phaseId of evidence.phase_ids) expectedRoadmap = roadmapTextWithPhaseStatus(expectedRoadmap, phaseId, 'done');
+  const currentRoadmap = fs.readFileSync(path.join(projectRoot, 'ROADMAP.yaml'), 'utf8');
+  if (currentRoadmap !== expectedRoadmap) fail('ROADMAP.yaml contains changes not produced by the completed wave');
+
+  for (let index = 0; index < state.phases.length; index += 1) {
+    const record = state.phases[index];
+    const attempt = record.attempts?.at(-1);
+    if (record.status !== 'completed' || attempt?.delivery?.state !== 'committed'
+      || attempt.delivery.publication?.state !== 'pr_open' || !attempt.delivery.publication.url) {
+      fail(`phase PR publication evidence is incomplete: ${record.id}`);
+    }
+    const { ledger, head } = validateActionDelivery(projectRoot, attempt.native_phase);
+    if (ledger.branch !== attempt.delivery.branch || head !== attempt.delivery.head_oid) fail(`phase delivery changed after publication: ${record.id}`);
+    assertGuard(projectRoot, ledger.branch);
+    const viewed = runGh(projectRoot, ['pr', 'view', attempt.delivery.publication.url, '-R', destination.github_repo, '--json', 'url,state,headRefOid,headRefName,baseRefName,isDraft']);
+    let pull;
+    try { pull = JSON.parse(viewed.stdout); } catch { fail(`GitHub returned malformed phase PR data: ${record.id}`); }
+    if (!pull || pull.url !== attempt.delivery.publication.url || pull.headRefOid !== head || pull.headRefName !== ledger.branch) fail(`phase PR identity is stale or tampered: ${record.id}`);
+    if (pull.state === 'MERGED') {
+      if (pull.baseRefName !== base) fail(`merged phase PR was not promoted to the evidence-bound base: ${record.id}`);
+      if (!githubContainsCommit(projectRoot, destination.github_repo, head, destination.remote_base_oid)) fail(`merged phase PR did not preserve its action commits on ${base}: ${record.id}`);
+      continue;
+    }
+    if (remoteBranchOid(projectRoot, destination.push_url, ledger.branch) !== head) fail(`remote phase branch is missing, stale, or tampered: ${ledger.branch}`);
+    if (pull.state !== 'OPEN' || pull.isDraft) fail(`phase PR is not eligible for explicit promotion: ${record.id}`);
+    if (![ledger.base_branch, base].includes(pull.baseRefName)) fail(`phase PR base is stale or tampered: ${record.id}`);
+    const plan = {
+      schema_version: 2,
+      mode: 'phase_pr_promotion',
+      run: evidence.run,
+      provider: evidence.provider,
+      strategy: 'github_button',
+      phase_id: record.id,
+      phase_index: index + 1,
+      phase_count: state.phases.length,
+      branch: ledger.branch,
+      base,
+      pr_base: pull.baseRefName,
+      required_base: base,
+      head,
+      remote_base_oid: destination.remote_base_oid,
+      url: pull.url,
+      action_count: ledger.actions.length,
+      action_commits: ledger.actions.map((action) => action.commit_oid),
+      phase_evidence_commit: ledger.phase_commit_oid,
+      completion_evidence_sha256: evidence.completion_evidence_sha256,
+      mechanical_evidence_sha256: evidence.mechanical.artifact_sha256,
+      semantic_evidence_sha256: evidence.semantic.artifact_sha256,
+      roadmap_sha256: sha256(currentRoadmap),
+      required_merge_method: 'merge_commit',
+      intended_actions: pull.baseRefName === base ? ['merge_pr_with_merge_commit_in_github'] : ['retarget_pr_to_promoted_base', 'merge_pr_with_merge_commit_in_github'],
+    };
+    return { projectRoot, plan, token: sha256(canonical(plan)) };
+  }
+  fail(`all phase pull requests for RIFF wave ${state.run} are already merged`);
+}
+
 export function buildFinishPlan({ projectRoot: requestedRoot = process.cwd(), runId, base: explicitBase } = {}) {
   const projectRoot = resolveProjectRoot(requestedRoot);
   const frameworkRoot = resolveFrameworkRoot(projectRoot);
   if (path.resolve(frameworkRoot) !== path.resolve(scriptFrameworkRoot)) fail('project .riff link does not match this RIFF finisher');
-  const branch = gitText(projectRoot, ['branch', '--show-current']);
-  if (!branch) fail('riff finish requires a non-detached feature branch');
-  const base = resolveBase(projectRoot, explicitBase);
-  if (branch === base) fail(`riff finish requires a non-base branch; current branch is ${base}`);
-  assertGuard(projectRoot, branch);
   const selectedRun = runId || latestCompletedRun(projectRoot);
+  const state = readWaveState(projectRoot, selectedRun);
   const evidence = inspectCompletedWaveEvidence({ projectRoot, frameworkRoot, runId: selectedRun });
-  const profile = resolveRuntimeProfile({ projectRoot, frameworkRoot });
-  const strategy = profile.profile?.git?.merge_strategy;
-  if (!['github_button', 'local_no_ff'].includes(strategy)) fail('git.merge_strategy must be github_button or local_no_ff');
-  if (strategy === 'local_no_ff' && git(projectRoot, ['show-ref', '--verify', '--quiet', `refs/heads/${base}`], { allowFailure: true }).status !== 0) fail(`local base branch is missing: ${base}`);
-  const destination = resolveDestination(projectRoot, base);
-  if (strategy === 'github_button' && !destination.github_repo) fail('github_button requires a GitHub origin fetch URL');
-  const operator = { name: rawGit(projectRoot, ['config', '--get', 'user.name']), email: rawGit(projectRoot, ['config', '--get', 'user.email']) };
-
-  if (hasPreStagedChanges(projectRoot)) fail('pre-staged changes block riff finish; unstage them before running --check');
-  const headRoadmap = Buffer.from(git(projectRoot, ['show', 'HEAD:ROADMAP.yaml']).stdout || '').toString('utf8');
-  let expectedRoadmap = headRoadmap;
-  for (const phaseId of evidence.phase_ids) expectedRoadmap = roadmapTextWithPhaseStatus(expectedRoadmap, phaseId, 'done');
-  const currentRoadmap = fs.readFileSync(path.join(projectRoot, 'ROADMAP.yaml'), 'utf8');
-  const roadmapIsExpected = currentRoadmap === expectedRoadmap;
-  if (!roadmapIsExpected) fail('ROADMAP.yaml contains changes not produced by the selected completed wave');
-  const authoritative = uniqueSorted([...evidence.changed_paths, ...(expectedRoadmap !== headRoadmap ? ['ROADMAP.yaml'] : [])]);
-  for (const changed of authoritative) assertSafePath(projectRoot, changed);
-  const changed = currentChanges(projectRoot);
-  for (const entry of changed) assertSafePath(projectRoot, entry);
-  const productPaths = authoritative.filter((entry) => entry !== 'ROADMAP.yaml');
-  const allowed = new Set(authoritative);
-  const unapproved = changed.filter((entry) => !allowed.has(entry));
-  if (unapproved.length) fail(`unrelated dirty paths block finishing: ${unapproved.join(', ')}`);
-  const exactPaths = changed.filter((entry) => allowed.has(entry));
-  if (!exactPaths.some((entry) => productPaths.includes(entry))) fail('no authoritative product path is currently changed');
-  if (!exactPaths.length) fail('no approved paths are currently changed');
-  const head = gitText(projectRoot, ['rev-parse', 'HEAD']);
-  const diff = Buffer.from(git(projectRoot, ['--literal-pathspecs', 'diff', '--binary', '--no-ext-diff', '--no-textconv', 'HEAD', '--', ...exactPaths]).stdout || '');
-  const records = exactPaths.map((entry) => contentRecord(projectRoot, entry));
-  const contentEvidenceSha256 = contentEvidenceHash(head, records);
-  const gitDiffSha256 = sha256(diff);
-  const plan = {
-    schema_version: 1,
-    run: evidence.run,
-    provider: evidence.provider,
-    strategy,
-    branch,
-    base,
-    head,
-    operator,
-    ...destination,
-    paths: exactPaths,
-    git_diff_sha256: gitDiffSha256,
-    content_evidence_sha256: contentEvidenceSha256,
-    mechanical_evidence_sha256: evidence.mechanical.artifact_sha256,
-    mechanical_input_sha256: evidence.mechanical.input_sha256,
-    semantic_evidence_sha256: evidence.semantic.artifact_sha256,
-    semantic_input_sha256: evidence.semantic.input_sha256,
-    completion_evidence_sha256: evidence.completion_evidence_sha256,
-    intended_actions: strategy === 'github_button'
-      ? ['stage_exact_paths', 'commit', 'push_feature_branch', 'create_or_reuse_github_pr']
-      : ['stage_exact_paths', 'commit', 'push_feature_branch', 'checkout_base', 'fetch_base', 'merge_no_ff', 'push_base', 'delete_local_feature_branch'],
-  };
-  return { projectRoot, plan, token: sha256(canonical(plan)) };
+  if (!state.git) {
+    fail(`RIFF wave ${selectedRun} predates action delivery; per-action commits and hook receipts cannot be reconstructed safely. Rerun the phases from a clean planning baseline`);
+  }
+  return nativePromotionPlan({ projectRoot, state, evidence, explicitBase });
 }
 
 function runGh(projectRoot, args, allowFailure = false) {
@@ -280,53 +302,31 @@ function runGh(projectRoot, args, allowFailure = false) {
   return result;
 }
 
+function githubBranchOid(projectRoot, repo, branch) {
+  const result = runGh(projectRoot, ['api', `repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`, '--jq', '.object.sha']);
+  const oid = result.stdout.trim();
+  if (!/^[a-f0-9]{40,64}$/.test(oid)) fail(`GitHub returned an invalid base OID: ${branch}`);
+  return oid;
+}
+
+function githubContainsCommit(projectRoot, repo, ancestor, descendant) {
+  const result = runGh(projectRoot, ['api', `repos/${repo}/compare/${ancestor}...${descendant}`, '--jq', '.status']);
+  return ['ahead', 'identical'].includes(result.stdout.trim());
+}
+
 function confirm(planResult, suppliedToken) {
   if (!SHA256.test(suppliedToken || '')) fail('confirmation token must be a SHA-256 value');
   const actual = Buffer.from(planResult.token, 'utf8');
   const supplied = Buffer.from(suppliedToken, 'utf8');
   if (actual.length !== supplied.length || !timingSafeEqual(actual, supplied)) fail('confirmation token is stale or does not match the current finish plan; run --check again');
-  const { projectRoot, plan } = planResult;
-  git(projectRoot, ['--literal-pathspecs', 'add', '-A', '--', ...plan.paths]);
-  const indexed = plan.paths.map((entry) => indexContentRecord(projectRoot, entry));
-  if (contentEvidenceHash(plan.head, indexed) !== plan.content_evidence_sha256) {
-    git(projectRoot, ['--literal-pathspecs', 'reset', '-q', 'HEAD', '--', ...plan.paths]);
-    fail('staged content no longer matches the confirmed finish plan');
-  }
-  git(projectRoot, ['-c', `user.name=${plan.operator.name}`, '-c', `user.email=${plan.operator.email}`, 'commit', '--no-verify', '--no-gpg-sign', '-m', `riff: finish ${plan.run}`]);
-  if (gitText(projectRoot, ['rev-parse', 'HEAD^']) !== plan.head) fail('finish commit does not have the planned parent HEAD');
-  const committedPaths = uniqueSorted(nulPaths(git(projectRoot, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', 'HEAD']).stdout));
-  if (JSON.stringify(committedPaths) !== JSON.stringify(plan.paths)) fail('finish commit changed paths outside the confirmed plan');
-  const committed = plan.paths.map((entry) => committedContentRecord(projectRoot, 'HEAD', entry));
-  if (contentEvidenceHash(plan.head, committed) !== plan.content_evidence_sha256) fail('finish commit content does not match the confirmed plan');
-  if (currentChanges(projectRoot).length || hasPreStagedChanges(projectRoot)) fail('worktree or index changed after the finish commit; refusing to publish');
-  assertGuard(projectRoot, plan.branch);
-  const featureOid = gitText(projectRoot, ['rev-parse', 'HEAD']);
-  git(projectRoot, ['push', '--no-follow-tags', '--', plan.push_url, `${featureOid}:refs/heads/${plan.branch}`]);
-  if (plan.strategy === 'github_button') {
-    const existing = runGh(projectRoot, ['pr', 'list', '-R', plan.github_repo, '--head', plan.branch, '--base', plan.base, '--state', 'open', '--limit', '1', '--json', 'url', '--jq', '.[0].url']);
-    const url = existing.stdout.trim() || runGh(projectRoot, ['pr', 'create', '-R', plan.github_repo, '--head', plan.branch, '--base', plan.base, '--title', `RIFF finish ${plan.run}`, '--body', `Completed RIFF wave ${plan.run}.`]).stdout.trim();
-    if (!url) fail('GitHub PR command returned no URL');
-    return { action: 'github_pr_ready', url, boundary: 'Merge this pull request in GitHub. RIFF did not merge it.' };
-  }
-  git(projectRoot, ['fetch', '--no-tags', plan.push_url, `refs/heads/${plan.base}:refs/riff-finish/${plan.run}/base`]);
-  const fetchedBase = gitText(projectRoot, ['rev-parse', `refs/riff-finish/${plan.run}/base`]);
-  if (fetchedBase !== plan.remote_base_oid) fail('remote base changed after confirmation; refusing local merge');
-  git(projectRoot, ['checkout', plan.base]);
-  git(projectRoot, ['merge', '--ff-only', plan.remote_base_oid]);
-  assertGuard(projectRoot, plan.branch);
-  git(projectRoot, ['-c', `user.name=${plan.operator.name}`, '-c', `user.email=${plan.operator.email}`, 'merge', '--no-verify', '--no-gpg-sign', '--no-ff', featureOid, '-m', `riff: merge ${plan.run}`]);
-  const mergeOid = gitText(projectRoot, ['rev-parse', 'HEAD']);
-  const parents = gitText(projectRoot, ['show', '-s', '--format=%P', 'HEAD']).split(' ');
-  if (parents.length !== 2 || parents[0] !== plan.remote_base_oid || parents[1] !== featureOid) fail('local merge parents do not match the confirmed objects');
-  const mergePaths = uniqueSorted(nulPaths(git(projectRoot, ['--literal-pathspecs', 'diff', '--name-only', '-z', plan.remote_base_oid, mergeOid, '--']).stdout));
-  if (JSON.stringify(mergePaths) !== JSON.stringify(plan.paths)) fail('local merge changed paths outside the confirmed plan');
-  const merged = plan.paths.map((entry) => committedContentRecord(projectRoot, mergeOid, entry));
-  if (contentEvidenceHash(plan.head, merged) !== plan.content_evidence_sha256) fail('local merge content does not match the confirmed plan');
-  if (currentChanges(projectRoot).length || hasPreStagedChanges(projectRoot)) fail('worktree or index changed after local merge; refusing to publish');
-  git(projectRoot, ['push', '--no-follow-tags', '--', plan.push_url, `${mergeOid}:refs/heads/${plan.base}`]);
-  if (gitText(projectRoot, ['rev-parse', plan.branch]) !== featureOid) fail('feature branch moved after confirmed commit; refusing cleanup');
-  git(projectRoot, ['branch', '-d', plan.branch]);
-  return { action: 'locally_merged', branch: plan.branch, base: plan.base, feature_remote_cleanup: 'Feature branch remains on the remote for operator or GitHub cleanup.' };
+  const { plan } = planResult;
+  return {
+    action: 'awaiting_github_merge',
+    url: plan.url,
+    boundary: plan.pr_base === plan.required_base
+      ? 'Merge this evidence-bound phase pull request in GitHub using the merge-commit method. Do not squash or rebase it. RIFF did not merge it.'
+      : `Retarget this pull request to ${plan.required_base}, verify the resulting diff, then merge it in GitHub using the merge-commit method. Do not squash or rebase it. RIFF did not retarget or merge it.`,
+  };
 }
 
 export function main(argv = process.argv.slice(2)) {
@@ -336,7 +336,7 @@ export function main(argv = process.argv.slice(2)) {
   if (options.check) {
     const next = [path.join(result.projectRoot, '.riff', 'riff'), 'finish', '--confirm', result.token, '--run', result.plan.run, '--project-root', result.projectRoot, '--base', result.plan.base].map(posixQuote).join(' ');
     if (options.json) process.stdout.write(`${JSON.stringify({ ok: true, no_action: true, plan: result.plan, token: result.token, next_command: next }, null, 2)}\n`);
-    else process.stdout.write(`RIFF finish check passed. No action occurred.\nRun: ${result.plan.run}\nStrategy: ${result.plan.strategy}\nPaths: ${result.plan.paths.join(', ')}\nConfirmation token: ${result.token}\nNext command: ${next}\n`);
+    else process.stdout.write(`RIFF finish check passed. No action occurred.\nRun: ${result.plan.run}\nPhase: ${result.plan.phase_id}\nPR: ${result.plan.url}\nStrategy: ${result.plan.strategy}\nConfirmation token: ${result.token}\nNext command: ${next}\n`);
     return;
   }
   const outcome = confirm(result, options.confirm);

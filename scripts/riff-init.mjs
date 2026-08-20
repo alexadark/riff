@@ -19,6 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { ROUTE_BY_FILE, ROUTE_PORTFOLIO, validateRouteSource } from './lib/runtime-routes.mjs';
+import { installGitHookDispatchers } from './lib/git-hooks.mjs';
 
 const SCRIPT_DIR = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
 const FRAMEWORK_ROOT = path.resolve(SCRIPT_DIR, '..');
@@ -341,8 +342,6 @@ function ensureGitRepo() {
   });
   if (result.error) fail(`Failed to run git init: ${result.error.message}`);
   if (result.status !== 0) fail(`git init failed with exit code ${result.status}`);
-  assertProjectDirectory('.git');
-  assertProjectDirectory('.git/hooks');
   return true;
 }
 
@@ -434,8 +433,7 @@ function installClaudeRuntime() {
 
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'CLAUDE.md'), '.claude/agents/riff/CLAUDE.md', { viaRiff: true });
   symlinkRelative(path.join(FRAMEWORK_ROOT, 'templates/banner.sh'), '.claude/hooks/riff/banner.sh', { viaRiff: true });
-  symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks/security-scan.sh'), '.git/hooks/pre-commit', { viaRiff: true });
-  symlinkRelative(path.join(FRAMEWORK_ROOT, 'hooks/commit-msg.sh'), '.git/hooks/commit-msg', { viaRiff: true });
+  installGitHookDispatchers({ projectRoot: args.projectRoot, frameworkRoot: FRAMEWORK_ROOT });
 }
 
 function materializeCodexRoute(source) {
@@ -800,8 +798,6 @@ const args = parseArgs(process.argv.slice(process.argv[1]?.endsWith('riff') ? 3 
 assertRiffLinkIfPresent();
 
 for (const projectDirectory of [
-  '.git',
-  '.git/hooks',
   '.claude',
   '.claude/commands/riff',
   '.claude/agents/riff',
@@ -835,8 +831,6 @@ for (const projectFile of [
 if (USE_COLOR) printBanner();
 
 const gitInitialized = ensureGitRepo();
-assertProjectDirectory('.git');
-assertProjectDirectory('.git/hooks');
 const riffLinked = installRiffSymlink();
 const scope = await resolveScope();
 const configWritten = ensurePlanning(scope);
@@ -844,7 +838,7 @@ installClaudeRuntime();
 installCodexRuntime();
 const profileStatus = await runProfileOnboarding(args.profile);
 const settingsStatus = installClaudeSettings();
-const gitignoreUpdated = appendMissingLines('.gitignore', ['.riff/', '.planning/debug/']);
+const gitignoreUpdated = appendMissingLines('.gitignore', ['.riff', '.riff/', '.planning/debug/', '.planning/riff-next/', '.planning/riff-wave/']);
 const claudeSectionUpdated = ensureProjectClaudeSection();
 
 function statusValue(flagText, condition) {
