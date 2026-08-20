@@ -93,7 +93,7 @@ const PLANNER_SMOKE_RULES = [
 ].join(' ');
 const PLANNER_TASK_SCOPE_RULE = 'Each task must implement or directly verify a product result in `allowed_paths`; never create tasks for RIFF gates, scope checks, snapshots, smoke orchestration, or summary/review completion.';
 const PLANNER_TASK_OWNERSHIP_RULE = 'Directly below every task heading, include exactly one line `Owned paths: ["path"]` with a non-empty JSON array. List only the product paths that task creates, updates, deletes, or mode-changes. Incidental imports, dependencies, and referenced files are not owned. Owned paths must remain inside `allowed_paths`. Tasks in the same wave must not own overlapping paths; a task in a later wave may deliberately revisit an earlier path.';
-const PLANNER_TRACEABILITY_RULE = 'When a plan adds or changes tests, trace every explicitly requested behavior, input class, edge case, and preservation constraint to at least one task acceptance criterion. Give every testable behavior and input class an explicit test case. Name every requested constituent explicitly rather than hiding it under a broad category such as `alphanumeric` when the request names digits or another constituent.';
+const PLANNER_TRACEABILITY_RULE = 'Reuse existing tests and gates. Add coverage only for an explicitly requested behavior that is not already covered. Do not infer edge cases. Never create a task solely to write tests.';
 const PLAN_REVIEW_METADATA_RULE = 'Treat required plan metadata sections such as Identity, Logical Dependencies, Waves, Assumptions, Confidence, Boundaries, and Smoke as evidence, not product tasks. Reject meta work only when it appears as a task or an outcome.';
 const CONTROLLER_OUTPUT_SCHEMA = Object.freeze({
   type: 'object',

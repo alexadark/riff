@@ -549,11 +549,8 @@ try {
       expect(invocations[1].prompt).toContain(plannerTaskScope);
       const plannerSpec = readFileSync(path.join(repositoryRoot, 'agents/roles/planner.md'), 'utf8');
       expect(plannerSpec).toContain(plannerTaskScope);
-      const plannerTraceabilityRule = 'When a plan adds or changes tests, trace every explicitly requested behavior, input class, edge case, and preservation constraint to at least one task acceptance criterion.';
+      const plannerTraceabilityRule = 'Reuse existing tests and gates. Add coverage only for an explicitly requested behavior that is not already covered. Do not infer edge cases. Never create a task solely to write tests.';
       expect(invocations[1].prompt).toContain(plannerTraceabilityRule);
-      expect(invocations[1].prompt).toContain('Give every testable behavior and input class an explicit test case.');
-      expect(invocations[1].prompt).toContain('Name every requested constituent explicitly rather than hiding it under a broad category such as `alphanumeric` when the request names digits or another constituent.');
-      expect(plannerSpec).toContain(plannerTraceabilityRule);
       expect(plannerSpec).toContain('`expect.exit_code` is mandatory.');
       expect(plannerSpec).toContain('`expect.stdout_includes` is optional and allowed only when every fragment was already observed and is stable in the current project and runtime.');
       expect(plannerSpec).toContain('Its body must be exactly one raw JSON object with non-empty `allowed_paths`.');
