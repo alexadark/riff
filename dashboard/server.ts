@@ -386,9 +386,15 @@ app.post("/api/projects", async (c) => {
   }
 });
 
-/** DELETE /api/projects/:slug — remove a project from the registry. */
+/** DELETE /api/projects/:slug — remove a project from the registry.
+ *  Only requests originating from the dashboard's own origin are honored, so an
+ *  unrelated site/process cannot trigger a destructive registry change. */
 app.delete("/api/projects/:slug", (c) => {
   const slug = c.req.param("slug");
+  const origin = c.req.header("origin") ?? c.req.header("referer");
+  if (origin && new URL(origin).host !== new URL(c.req.url).host) {
+    return c.json({ error: "forbidden" }, 403);
+  }
   try {
     const registry = removeProject(RESOLVED_FRAMEWORK_ROOT, slug);
     buildContexts(registry);
