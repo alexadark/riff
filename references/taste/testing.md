@@ -13,3 +13,5 @@
    3. **SUMMARY.md note.** Document the harness gap explicitly: "True concurrent DB test deferred until a Postgres harness exists. The atomic property is enforced by the index from migration X, asserted via migration-text test Y."
 
    Anti-pattern: pretending a mocked sequential test proves concurrent atomicity. Reviewers should flag it. Real concurrent tests need testcontainers or a dedicated test DB — open a seed file when the project hits the harness wall, don't paper over it.
+
+3. **Prune as you go.** A test earns its place by guarding a costly failure (money, delivery, authentication, data, security) or a bug already seen. Do not write render-only tests for components without logic, and do not keep tests that duplicate another test or only restate how the code is written. When a phase touches a test file, delete the tests that fail this bar and say so in the SUMMARY. Never delete a test that names a past incident, and keep tests in the costly areas above. Deleting tests rarely makes CI faster; if CI is slow, measure per-file startup cost first.
